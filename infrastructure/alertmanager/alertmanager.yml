@@ -1,0 +1,39 @@
+# Alertmanager는 Alert를 Monitoring Manager로 넘기기만 합니다.
+#
+#   Prometheus → Alertmanager → Monitoring Manager Webhook
+#   → Manager Database에서 알림 대상 조회 → Telegram Bot API
+#
+# 그래서 이 파일에는 Bot Token, chat id, 그룹별 routing이 없습니다.
+# 사용자가 알림 그룹을 추가하거나 바꿔도 이 파일은 그대로입니다. (CLAUDE.md 3번, 4번)
+
+route:
+  receiver: manager-webhook
+
+  # 하나의 Check가 주소를 여러 개 가질 수 있습니다.
+  # check_id로 묶으면 같은 Check의 주소 여러 개가 한 번에 전달됩니다.
+  group_by:
+    - alertname
+    - check_id
+    - environment
+
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
+
+receivers:
+  - name: manager-webhook
+    webhook_configs:
+      - url: 'http://manager-api:8080/api/integrations/alertmanager/webhook'
+
+        # 복구 알림도 Manager로 보냅니다. 실제로 Telegram에 보낼지는 Check별 설정이 정합니다.
+        send_resolved: true
+
+        # Manager가 모든 Alert를 기록해야 하므로 건수를 자르지 않습니다.
+        max_alerts: 0
+
+        http_config:
+          # 같은 network의 다른 container가 가짜 Alert를 보내지 못하게 합니다.
+          # 이 파일에 token을 평문으로 적지 않습니다.
+          authorization:
+            type: Bearer
+            credentials_file: '/run/secrets/alertmanager_webhook_token'

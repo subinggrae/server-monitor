@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+PROFILES="fast all"
+
+# Root package의 MariaDb/Postgres 테스트만 Testcontainers로 Docker를 씁니다.
+# 하위 package의 테스트는 Docker 없이 돕니다.
+BACKEND_DOCKER_FREE_TESTS=(
+  'kr.co.unidocs.monitoring.common.*'
+  'kr.co.unidocs.monitoring.config.*'
+  'kr.co.unidocs.monitoring.notification.*'
+  'kr.co.unidocs.monitoring.prometheus.*'
+)
+
+run() {
+  echo
+  echo "==> ($1) ${*:2}"
+  (cd "$ROOT/$1" && "${@:2}")
+}
+
+require_frontend_deps() {
+  if [ ! -d "$ROOT/frontend/node_modules" ]; then
+    echo "frontend/node_modules가 없습니다. frontend에서 'npm ci'를 먼저 실행해 주세요." >&2
+    exit 1
+  fi
+}
+
+frontend() {
+  require_frontend_deps
+  run frontend npm run lint
+  run frontend npm run build
+}
+
+backend_fast() {
+  local args=()
+  for pattern in "${BACKEND_DOCKER_FREE_TESTS[@]}"; do
+    args+=(--tests "$pattern")
+  done
+  run backend ./gradlew test "${args[@]}"
+}
+
+backend_all() {
+  run backend ./gradlew build
+}
+
+usage() {
+  echo "사용법: scripts/verify <list|$(echo "$PROFILES" | tr ' ' '|')>" >&2
+}
+
+case "${1:-}" in
+  list)
+    printf '%s\n' $PROFILES
+    ;;
+  fast)
+    frontend
+    backend_fast
+    ;;
+  all)
+    frontend
+    backend_all
+    ;;
+  "")
+    usage
+    exit 2
+    ;;
+  *)
+    echo "지원하지 않는 profile입니다: $1" >&2
+    usage
+    exit 2
+    ;;
+esac

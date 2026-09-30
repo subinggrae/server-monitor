@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-sidebar: var(--sidebar);
+
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+
+  --color-ok: var(--status-ok);
+  --color-critical: var(--status-critical);
+  --color-warning: var(--status-warning);
+  --color-neutral: var(--status-neutral);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+}
+
+:root {
+  --radius: 0.375rem;
+
+  --background: oklch(0.985 0.002 265);
+  --surface: oklch(1 0 0);
+  --surface-subtle: oklch(0.975 0.003 265);
+  --sidebar: oklch(0.968 0.003 265);
+
+  --foreground: oklch(0.22 0.014 265);
+  --muted-foreground: oklch(0.52 0.012 265);
+  --subtle-foreground: oklch(0.63 0.01 265);
+
+  --border: oklch(0.915 0.005 265);
+  --border-strong: oklch(0.86 0.006 265);
+
+  /* Primary는 거의 검정입니다. 강조색은 상태와 삭제에만 씁니다. */
+  --primary: oklch(0.26 0.015 265);
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: oklch(0.935 0.005 265);
+  --destructive: oklch(0.52 0.19 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.55 0.04 265);
+
+  --status-ok: oklch(0.55 0.13 152);
+  --status-critical: oklch(0.54 0.2 27);
+  --status-warning: oklch(0.6 0.13 70);
+  --status-neutral: oklch(0.62 0.01 265);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --background: oklch(0.185 0.012 265);
+    --surface: oklch(0.215 0.013 265);
+    --surface-subtle: oklch(0.245 0.013 265);
+    --sidebar: oklch(0.165 0.012 265);
+
+    --foreground: oklch(0.94 0.004 265);
+    --muted-foreground: oklch(0.68 0.012 265);
+    --subtle-foreground: oklch(0.58 0.012 265);
+
+    --border: oklch(0.3 0.013 265);
+    --border-strong: oklch(0.38 0.014 265);
+
+    --primary: oklch(0.93 0.004 265);
+    --primary-foreground: oklch(0.2 0.013 265);
+    --accent: oklch(0.29 0.014 265);
+    --destructive: oklch(0.62 0.18 27);
+    --destructive-foreground: oklch(0.99 0 0);
+    --ring: oklch(0.6 0.03 265);
+
+    --status-ok: oklch(0.74 0.14 152);
+    --status-critical: oklch(0.7 0.16 27);
+    --status-warning: oklch(0.76 0.13 75);
+    --status-neutral: oklch(0.65 0.012 265);
+  }
+}
+
+:root[data-theme='dark'] {
+  --background: oklch(0.185 0.012 265);
+  --surface: oklch(0.215 0.013 265);
+  --surface-subtle: oklch(0.245 0.013 265);
+  --sidebar: oklch(0.165 0.012 265);
+
+  --foreground: oklch(0.94 0.004 265);
+  --muted-foreground: oklch(0.68 0.012 265);
+  --subtle-foreground: oklch(0.58 0.012 265);
+
+  --border: oklch(0.3 0.013 265);
+  --border-strong: oklch(0.38 0.014 265);
+
+  --primary: oklch(0.93 0.004 265);
+  --primary-foreground: oklch(0.2 0.013 265);
+  --accent: oklch(0.29 0.014 265);
+  --destructive: oklch(0.62 0.18 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --ring: oklch(0.6 0.03 265);
+
+  --status-ok: oklch(0.74 0.14 152);
+  --status-critical: oklch(0.7 0.16 27);
+  --status-warning: oklch(0.76 0.13 75);
+  --status-neutral: oklch(0.65 0.012 265);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family:
+      'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', system-ui,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    /* 한국어는 단어 안에서 줄이 바뀌면 읽기 어렵습니다. 어절 단위로만 줄을 바꿉니다. */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  /* 표 안의 숫자와 IP는 자리수가 맞아야 위아래로 훑을 수 있습니다. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+}

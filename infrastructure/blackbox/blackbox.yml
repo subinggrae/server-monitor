@@ -1,0 +1,43 @@
+# Blackbox Exporter module 정의입니다.
+#
+# module은 배포용 설정입니다.
+# 사용자가 UI에서 Check를 추가해도 이 파일은 수정하지 않습니다. (CLAUDE.md 1번)
+#
+# 이름은 CheckType이 고르는 값과 같아야 합니다. 없는 이름을 넘기면 Blackbox가 400으로 거부합니다.
+#
+#   ICMP → icmp,  TCP → tcp_connect,  HTTP / HTTPS → http_2xx
+#
+# timeout은 module 단위 설정입니다. Check마다 다르게 줄 수 없습니다.
+# Blackbox는 probe 요청의 query parameter로 timeout이나 status 조건을 받지 않습니다.
+
+modules:
+
+  icmp:
+    prober: icmp
+    timeout: 5s
+
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
+  # 연결만 확인합니다. 연결 후 주고받는 내용은 확인하지 않습니다.
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+
+    tcp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
+  # HTTPS는 별도 module 없이 URL scheme으로 구분됩니다.
+  http_2xx:
+    prober: http
+    timeout: 5s
+
+    http:
+      method: GET
+      # 비워 두면 2xx 응답만 성공으로 봅니다.
+      valid_status_codes: []
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      follow_redirects: true
