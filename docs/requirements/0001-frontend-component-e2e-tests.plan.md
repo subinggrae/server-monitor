@@ -110,8 +110,8 @@ E2E는 가장 느리므로 `all`의 마지막에 둔다. 앞 단계가 실패하
 - [x] API 호출 공통 처리 테스트
 - [x] Check 입력 화면 테스트
 - [x] Server·Telegram 그룹 입력 화면과 SNMP 설정 화면 테스트
-- [ ] Playwright 설정, `e2e/compose.yml`, `global-setup.ts`, `scripts/verify all` 연결
-- [ ] E2E 세 흐름
+- [x] Playwright 설정, `e2e/compose.yml`, `global-setup.ts`, `scripts/verify all` 연결
+- [x] E2E 세 흐름
 - [ ] `TESTING.md`, `DEVELOPMENT.md`, `AGENTS.md`, `ARCHITECTURE.md`, 범위 그림 수정
 - [ ] 완료 기준 확인, 새 세션 리뷰, 요구사항 상태를 "구현됨"으로, ADR을 "승인"으로 바꾸고 이 계획 문서 삭제
 

@@ -49,6 +49,11 @@ backend_all() {
   run backend ./gradlew build
 }
 
+# 가장 느리므로 마지막에 둡니다. 앞 단계가 실패하면 여기까지 오지 않습니다.
+frontend_e2e() {
+  run frontend npm run test:e2e
+}
+
 usage() {
   echo "사용법: scripts/verify <list|$(echo "$PROFILES" | tr ' ' '|')>" >&2
 }
@@ -64,6 +69,7 @@ case "${1:-}" in
   all)
     frontend
     backend_all
+    frontend_e2e
     ;;
   "")
     usage
