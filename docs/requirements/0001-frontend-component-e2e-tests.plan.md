@@ -9,7 +9,8 @@
 
 ### 컴포넌트 테스트
 
-- Vitest 5, jsdom 29, Testing Library(React 16, user-event 14, jest-dom 7), MSW 3을 쓴다.
+- Vitest 5, jsdom 29, Testing Library(React 16, user-event 14, jest-dom 7), MSW 2를 쓴다.
+- MSW는 3이 최신이다. Vitest 5의 `@vitest/mocker`가 선택 peer로 `msw@^2.4.9`를 요구해서, 3을 쓰면 Node.js 22 기본 npm 10의 `npm ci`가 실패한다. `frontend/Dockerfile`도 `npm ci`를 쓰므로 2를 쓴다.
 - jsdom은 30이 최신이다. 30은 Node.js 22.22.2 이상을 요구하고, `DEVELOPMENT.md`는 Node.js 22만 요구한다. 그래서 Node.js 22.13 이상에서 도는 29를 쓴다.
 - 테스트 파일은 대상 옆에 `*.test.ts`, `*.test.tsx`로 둔다. 공통 준비 코드는 `src/test/`에 둔다.
   - `setup.ts`: jest-dom matcher 등록, MSW server 시작·초기화·종료. 처리하지 않은 요청은 오류로 만든다(`onUnhandledRequest: 'error'`). 그래서 테스트가 실제 네트워크로 나가지 않는다.

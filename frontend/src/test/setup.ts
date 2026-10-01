@@ -15,7 +15,7 @@ beforeAll(() => {
   server.events.on('request:unhandled', ({ request }) => {
     unhandledRequests.push(`${request.method} ${request.url}`)
   })
-  server.listen({ onUnhandledFrame: 'error' })
+  server.listen({ onUnhandledRequest: 'error' })
 })
 
 afterEach(() => {
