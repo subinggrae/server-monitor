@@ -7,7 +7,7 @@
 - 필요한 도구
   - JDK 21. Gradle은 `backend/gradlew` Wrapper를 쓴다
   - Node.js 22
-  - Docker와 Docker Compose v2. 전체 구성 실행과 Testcontainers 테스트에 필요하다
+  - Docker와 Docker Compose v2. 전체 구성 실행, Testcontainers 테스트, E2E 테스트에 필요하다
   - Bash. `scripts/verify`를 실행한다. Windows에서는 Git Bash를 쓴다
 - Manager Database: Compose의 `local-db` profile MariaDB, 또는 외부 MariaDB·PostgreSQL
 - 환경 변수: `.env.example`을 `.env`로 복사한다. 변수 이름과 예시는 `.env.example`에 있다. Compose로 띄우려면 `SPRING_DATASOURCE_URL`과 `SPRING_DATASOURCE_USERNAME`이 있어야 한다.
@@ -23,7 +23,10 @@ done
 
 cd ../../frontend
 npm ci
+npm run test:e2e:install
 ```
+
+`npm run test:e2e:install`은 E2E 테스트용 Chromium을 내려받는다. 처음 한 번, 그리고 `@playwright/test` version이 바뀌었을 때 실행한다. 인터넷 연결이 필요하다.
 
 복사한 secret 파일에는 실제 값을 넣는다.
 
@@ -66,10 +69,13 @@ npm ci
 | Backend 개발 서버 | `cd backend && ./gradlew bootRun` | Backend만 따로 띄울 때. 필요한 환경 변수는 [Backend와 Frontend를 따로 실행](#backend와-frontend를-따로-실행)에 있다 |
 | Frontend 개발 서버 | `cd frontend && npm run dev` | 화면을 직접 확인할 때. http://localhost:5173 |
 | SNMP 테스트 장비 | `docker compose --profile snmp-test up -d snmp-test-agent` | 개발 환경에서 SNMP 흐름을 확인할 때. 운영에서는 띄우지 않는다 |
-| 빠른 검증 | `scripts/verify fast` | 커밋 전. Frontend lint·build와 Docker가 필요 없는 Backend 테스트 |
-| 전체 검증 | `scripts/verify all` | 공유 반영 전. Frontend lint·build와 `./gradlew build`. Docker가 필요하다 |
+| 빠른 검증 | `scripts/verify fast` | 커밋 전. Frontend lint·컴포넌트 테스트·build와 Docker가 필요 없는 Backend 테스트 |
+| 전체 검증 | `scripts/verify all` | 공유 반영 전. 빠른 검증의 Frontend 단계, `./gradlew build`, E2E 테스트. Docker와 E2E용 Chromium이 필요하다 |
 | 검증 profile 목록 | `scripts/verify list` | 지원하는 profile을 확인할 때 |
 | Backend 테스트 | `cd backend && ./gradlew test` | Backend 테스트만 돌릴 때. 종류별 기준은 [TESTING.md](TESTING.md#종류별-기준) |
+| Frontend 컴포넌트 테스트 | `cd frontend && npm test` | 화면 코드를 고쳤을 때. Docker가 필요 없다 |
+| E2E 테스트 | `cd frontend && npm run test:e2e` | 화면과 API 흐름을 확인할 때. Docker가 필요하다. 첫 실행은 image build 때문에 몇 분 걸린다 |
+| E2E용 Chromium 설치 | `cd frontend && npm run test:e2e:install` | 처음 한 번, `@playwright/test` version이 바뀌었을 때 |
 | Frontend 린트 | `cd frontend && npm run lint` | 커밋 전. oxlint |
 | Frontend 타입 검사·빌드 | `cd frontend && npm run build` | 커밋 전. `tsc -b` 후 `vite build` |
 | Backend 빌드 | `cd backend && ./gradlew build` | 빌드 설정이나 의존성을 바꿨을 때. 테스트도 함께 돈다 |

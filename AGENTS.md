@@ -24,12 +24,13 @@ Monitoring Manager는 Prometheus 기반 모니터링을 웹 화면에서 관리�
 
 ```sh
 cd frontend && npm ci
+cd frontend && npm run test:e2e:install
 scripts/verify fast
 scripts/verify all
 node scripts/check-docs.mjs
 ```
 
-`scripts/verify`는 Bash 스크립트다. Backend 검사에는 JDK 21이, `all`에는 Docker가 필요하다. 전체 명령은 [DEVELOPMENT.md의 명령](docs/DEVELOPMENT.md#명령)에 있다. 명령이 바뀌면 두 곳을 함께 고친다.
+`scripts/verify`는 Bash 스크립트다. Backend 검사에는 JDK 21이, `all`에는 Docker와 E2E용 Chromium이 필요하다. 전체 명령은 [DEVELOPMENT.md의 명령](docs/DEVELOPMENT.md#명령)에 있다. 명령이 바뀌면 두 곳을 함께 고친다.
 
 ## 작업 흐름
 

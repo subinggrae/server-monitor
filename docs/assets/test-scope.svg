@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 624" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 784" role="img" aria-labelledby="t d">
   <title id="t">테스트 종류별로 검증하는 범위</title>
-  <desc id="d">정적 검사는 코드 전체를 실행하지 않고 검사한다. 단위 테스트는 분기가 있는 도메인 로직, 통합 테스트는 API부터 MariaDB·PostgreSQL까지 실제로 연결해 검사한다. 화면을 실행해 검사하는 자동 테스트는 없다. 범위가 넓을수록 느리므로 적게 쓴다.</desc>
+  <desc id="d">정적 검사는 코드 전체를 실행하지 않고 검사한다. 단위 테스트는 분기가 있는 도메인 로직, 컴포넌트 테스트는 API 응답을 테스트가 대신 만들어 화면 규칙을 검사한다. 통합 테스트는 API부터 MariaDB·PostgreSQL까지 실제로 연결해 검사하고, E2E 테스트는 브라우저로 화면부터 DB까지 연결해 핵심 흐름을 검사한다. E2E는 외부 시스템에 연결하지 않는다. 범위가 넓을수록 느리므로 적게 쓴다.</desc>
   <style>
     text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: #1B1F27; }
     .kicker { font-size: 22px; font-weight: 700; fill: #2F5BEA; }
@@ -17,7 +17,7 @@
     .bar-static-t { font-size: 22px; font-weight: 600; fill: #5B6472; text-anchor: middle; }
   </style>
 
-  <rect x="1" y="1" width="1598" height="622" rx="24" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="2"/>
+  <rect x="1" y="1" width="1598" height="782" rx="24" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="2"/>
 
   <!-- 제목 -->
   <text class="kicker" x="64" y="96">테스트 범위</text>
@@ -26,10 +26,10 @@
 
   <!-- 시스템 계층 -->
   <g id="layers">
-    <rect class="lane" x="288" y="232" width="224" height="328" rx="12"/>
-    <rect class="lane" x="520" y="232" width="224" height="328" rx="12"/>
-    <rect class="lane" x="752" y="232" width="224" height="328" rx="12"/>
-    <rect class="lane" x="984" y="232" width="224" height="328" rx="12"/>
+    <rect class="lane" x="288" y="232" width="224" height="488" rx="12"/>
+    <rect class="lane" x="520" y="232" width="224" height="488" rx="12"/>
+    <rect class="lane" x="752" y="232" width="224" height="488" rx="12"/>
+    <rect class="lane" x="984" y="232" width="224" height="488" rx="12"/>
     <text class="layer" x="400" y="276">화면</text>
     <text class="layer" x="632" y="276">API</text>
     <text class="layer" x="864" y="276">도메인 로직</text>
@@ -51,10 +51,24 @@
     <text class="cost" x="1256" y="448">빠름 · 많이</text>
   </g>
 
+  <!-- 컴포넌트 -->
+  <g id="row-component">
+    <text class="row" x="64" y="529">컴포넌트</text>
+    <g class="node"><rect class="bar" x="296" y="500" width="208" height="40" rx="20"/><text class="bar-t" x="400" y="528">화면 규칙</text></g>
+    <text class="cost" x="1256" y="528">빠름 · 규칙마다</text>
+  </g>
+
   <!-- 통합 -->
   <g id="row-integration">
-    <text class="row" x="64" y="529">통합</text>
-    <g class="node"><rect class="bar" x="528" y="500" width="672" height="40" rx="20"/><text class="bar-t" x="864" y="528">API부터 DB까지 실제로 연결</text></g>
-    <text class="cost" x="1256" y="528">보통 · 기능마다</text>
+    <text class="row" x="64" y="609">통합</text>
+    <g class="node"><rect class="bar" x="528" y="580" width="672" height="40" rx="20"/><text class="bar-t" x="864" y="608">API부터 DB까지 실제로 연결</text></g>
+    <text class="cost" x="1256" y="608">보통 · 기능마다</text>
+  </g>
+
+  <!-- E2E -->
+  <g id="row-e2e">
+    <text class="row" x="64" y="689">E2E</text>
+    <g class="node"><rect class="bar" x="296" y="660" width="904" height="40" rx="20"/><text class="bar-t" x="748" y="688">화면부터 DB까지 브라우저로 · 외부 시스템 제외</text></g>
+    <text class="cost" x="1256" y="688">느림 · 핵심 흐름만</text>
   </g>
 </svg>

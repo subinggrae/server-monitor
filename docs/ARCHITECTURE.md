@@ -81,6 +81,9 @@ Backend는 기능 중심으로 package를 나눈다. 각 package의 `package-inf
 | `lib/api.ts` | Backend 호출, 타입, query key(`queryKeys`) |
 | `index.css` | 디자인 token |
 | `App.tsx` | Router와 TanStack Query 설정 |
+| `test/` | 컴포넌트 테스트 공통 준비 코드. 테스트 파일은 대상 옆에 `*.test.tsx`로 둔다 |
+
+E2E 테스트와 E2E 전용 Compose 구성은 `frontend/e2e/`에 있다. 기준은 [TESTING.md의 E2E 테스트](TESTING.md#e2e-테스트)에 있다.
 
 Query key는 `lib/api.ts`의 `queryKeys`에 모은다. Mutation이 끝나면 관련 query를 invalidate한다.
 
