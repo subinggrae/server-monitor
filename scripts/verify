@@ -26,6 +26,7 @@ require_frontend_deps() {
 frontend() {
   require_frontend_deps
   run frontend npm run lint
+  run frontend npm test
   run frontend npm run build
 }
 

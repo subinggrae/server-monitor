@@ -105,8 +105,8 @@ E2E는 가장 느리므로 `all`의 마지막에 둔다. 앞 단계가 실패하
 ## 작업 순서
 
 - [x] 요구사항, 계획, ADR 커밋
-- [ ] Vitest 도구 설정, `src/test/` 준비 코드, `npm test`, `scripts/verify` 연결
-- [ ] API 호출 공통 처리 테스트
+- [x] Vitest 도구 설정, `src/test/` 준비 코드, `npm test`, `scripts/verify` 연결
+- [x] API 호출 공통 처리 테스트
 - [ ] Check 입력 화면 테스트
 - [ ] Server·Telegram 그룹 입력 화면과 SNMP 설정 화면 테스트
 - [ ] Playwright 설정, `e2e/compose.yml`, `global-setup.ts`, `scripts/verify all` 연결
