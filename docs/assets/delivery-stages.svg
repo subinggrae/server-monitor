@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="t d">
+  <title id="t">변경 반영 단계와 결정 주체</title>
+  <desc id="d">로컬 검증, 변경 확인, 기록은 작업자가 하고 리뷰와 공유 반영과 릴리스는 사람이 결정한다. Git의 commit은 로컬 기록이고 SVN의 commit은 공유 반영이어서 SVN은 리뷰를 commit 앞에 둔다.</desc>
+  <style>
+    text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: #1B1F27; }
+    .kicker { font-size: 22px; font-weight: 700; fill: #2F5BEA; }
+    .title { font-size: 40px; font-weight: 700; }
+    .sub { font-size: 24px; fill: #5B6472; }
+    .stage { font-size: 24px; font-weight: 600; text-anchor: middle; }
+    .lane { font-size: 28px; font-weight: 700; }
+    .rowlabel { font-size: 22px; font-weight: 700; fill: #8A93A3; }
+    .label { font-size: 22px; text-anchor: middle; }
+    .strong { font-weight: 700; fill: #2F5BEA; }
+    .crit { font-size: 22px; fill: #5B6472; text-anchor: middle; }
+    .band-ai { fill: #EAF0FF; }
+    .band-human { fill: #FFF0E6; }
+    .band-ci { fill: #EEF0F3; }
+    .t-ai { font-size: 22px; font-weight: 700; fill: #2F5BEA; text-anchor: middle; }
+    .t-human { font-size: 22px; font-weight: 700; fill: #D9480F; text-anchor: middle; }
+    .t-ci { font-size: 22px; font-weight: 700; fill: #5B6472; text-anchor: middle; }
+    .box { fill: #FFFFFF; stroke: #D7DCE3; stroke-width: 2; }
+    .box-key { fill: #EAF0FF; stroke: #2F5BEA; stroke-width: 3; }
+    .track { stroke: #D7DCE3; stroke-width: 4; }
+    .divider { stroke: #E8590C; stroke-width: 2; stroke-dasharray: 8 8; }
+    .rule { stroke: #EEF0F3; stroke-width: 2; }
+    .note { font-size: 24px; fill: #1B1F27; }
+    .note-em { font-weight: 700; fill: #2F5BEA; }
+  </style>
+
+  <rect x="1" y="1" width="1598" height="898" rx="24" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="2"/>
+
+  <!-- 제목 -->
+  <text class="kicker" x="64" y="96">변경 반영 단계</text>
+  <text class="title" x="64" y="148">기록까지는 작업자가, 공유 반영부터는 사람이 결정한다</text>
+  <text class="sub" x="64" y="192">커밋, 리뷰, 공유 반영, 릴리스는 서로 다른 단계다. 단계마다 통과 기준이 있다.</text>
+
+  <!-- 단계 이름 -->
+  <g id="stages">
+    <text class="stage" x="272" y="272">로컬 검증</text>
+    <text class="stage" x="464" y="272">변경 확인</text>
+    <text class="stage" x="656" y="272">기록</text>
+    <text class="stage" x="848" y="272">리뷰</text>
+    <text class="stage" x="1040" y="272">공유 반영</text>
+    <text class="stage" x="1232" y="272">원격 검증</text>
+    <text class="stage" x="1424" y="272">릴리스</text>
+  </g>
+
+  <!-- 결정 주체 -->
+  <g id="owners">
+    <text class="rowlabel" x="64" y="326">결정</text>
+    <rect class="band-ai" x="180" y="296" width="568" height="44" rx="8"/>
+    <text class="t-ai" x="464" y="326">작업자 (사람 또는 AI)</text>
+    <rect class="band-human" x="756" y="296" width="376" height="44" rx="8"/>
+    <text class="t-human" x="944" y="326">사람</text>
+    <rect class="band-ci" x="1140" y="296" width="184" height="44" rx="8"/>
+    <text class="t-ci" x="1232" y="326">CI</text>
+    <rect class="band-human" x="1332" y="296" width="184" height="44" rx="8"/>
+    <text class="t-human" x="1424" y="326">사람</text>
+  </g>
+
+  <line class="divider" x1="752" y1="368" x2="752" y2="648"/>
+
+  <!-- Git -->
+  <g id="git">
+    <text class="lane" x="64" y="450">Git</text>
+    <line class="track" x1="180" y1="440" x2="1516" y2="440"/>
+    <g class="node"><rect class="box" x="180" y="408" width="184" height="64" rx="12"/><text class="label" x="272" y="448">테스트·린트·빌드</text></g>
+    <g class="node"><rect class="box" x="372" y="408" width="184" height="64" rx="12"/><text class="label" x="464" y="448">status · diff</text></g>
+    <g class="node"><rect class="box-key" x="564" y="408" width="184" height="64" rx="12"/><text class="label strong" x="656" y="448">git commit</text></g>
+    <g class="node"><rect class="box" x="756" y="408" width="184" height="64" rx="12"/><text class="label" x="848" y="448">push · PR</text></g>
+    <g class="node"><rect class="box" x="948" y="408" width="184" height="64" rx="12"/><text class="label" x="1040" y="448">PR 병합</text></g>
+    <g class="node"><rect class="box" x="1140" y="408" width="184" height="64" rx="12"/><text class="label" x="1232" y="448">필수 검사</text></g>
+    <g class="node"><rect class="box" x="1332" y="408" width="184" height="64" rx="12"/><text class="label" x="1424" y="448">태그 · 배포</text></g>
+  </g>
+
+  <line class="rule" x1="64" y1="508" x2="1536" y2="508"/>
+
+  <!-- SVN -->
+  <g id="svn">
+    <text class="lane" x="64" y="586">SVN</text>
+    <line class="track" x1="180" y1="576" x2="1516" y2="576"/>
+    <g class="node"><rect class="box" x="180" y="544" width="184" height="64" rx="12"/><text class="label" x="272" y="584">테스트·린트·빌드</text></g>
+    <g class="node"><rect class="box" x="372" y="544" width="184" height="64" rx="12"/><text class="label" x="464" y="584">status · diff</text></g>
+    <g class="node"><rect class="box" x="564" y="544" width="184" height="64" rx="12"/><text class="label" x="656" y="584">changelist</text></g>
+    <g class="node"><rect class="box" x="756" y="544" width="184" height="64" rx="12"/><text class="label" x="848" y="584">diff 전달</text></g>
+    <g class="node"><rect class="box-key" x="948" y="544" width="184" height="64" rx="12"/><text class="label strong" x="1040" y="584">svn commit</text></g>
+    <g class="node"><rect class="box" x="1140" y="544" width="184" height="64" rx="12"/><text class="label" x="1232" y="584">CI · 커밋 알림</text></g>
+    <g class="node"><rect class="box" x="1332" y="544" width="184" height="64" rx="12"/><text class="label" x="1424" y="584">태그 · 배포</text></g>
+  </g>
+
+  <line class="rule" x1="64" y1="644" x2="1536" y2="644"/>
+
+  <!-- 통과 기준 -->
+  <g id="criteria">
+    <text class="rowlabel" x="64" y="700">통과 기준</text>
+    <text class="crit" x="272" y="700">모두 통과</text>
+    <text class="crit" x="464" y="700">의도한 파일만</text>
+    <text class="crit" x="656" y="700">하나의 의도</text>
+    <text class="crit" x="848" y="700">리뷰어 승인</text>
+    <text class="crit" x="1040" y="700">직전 재검증</text>
+    <text class="crit" x="1232" y="700">필수 검사 통과</text>
+    <text class="crit" x="1424" y="700">릴리스 절차</text>
+  </g>
+
+  <!-- 결론 -->
+  <g id="takeaway">
+    <rect x="64" y="760" width="1472" height="80" rx="16" fill="#F4F6F8"/>
+    <text class="note" x="96" y="810">같은 commit이라도 <tspan class="note-em">Git은 로컬 기록</tspan>이고 <tspan class="note-em">SVN은 공유 반영</tspan>이다. 그래서 SVN은 commit 전에 리뷰를 받는다.</text>
+  </g>
+</svg>

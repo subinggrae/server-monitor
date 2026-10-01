@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="t d">
+  <title id="t">세션을 나누는 기준</title>
+  <desc id="d">목표가 바뀌면 새 세션을 열고, 넓은 탐색은 하위 에이전트에 맡기고, 큰 변경의 리뷰는 새 세션이 요구사항과 diff만 보고 하며, 병렬 작업은 별도 작업 공간에서 한다. 세션 사이를 잇는 것은 대화가 아니라 저장소에 남긴 요구사항, 계획의 작업 목록, 커밋이다.</desc>
+  <style>
+    text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: #1B1F27; }
+    .kicker { font-size: 22px; font-weight: 700; fill: #2F5BEA; }
+    .title { font-size: 40px; font-weight: 700; }
+    .sub { font-size: 24px; fill: #5B6472; }
+    .ptitle { font-size: 26px; font-weight: 700; }
+    .pdesc { font-size: 22px; fill: #5B6472; }
+    .label { font-size: 22px; text-anchor: middle; }
+    .label-key { font-size: 22px; font-weight: 700; fill: #2F5BEA; text-anchor: middle; }
+    .elabel { font-size: 22px; fill: #5B6472; }
+    .warn { font-size: 22px; font-weight: 700; fill: #D9480F; text-anchor: middle; }
+    .panel { fill: #F4F6F8; }
+    .box { fill: #FFFFFF; stroke: #D7DCE3; stroke-width: 2; }
+    .box-sub { fill: #FFFFFF; stroke: #A9B1BD; stroke-width: 2; stroke-dasharray: 6 6; }
+    .box-key { fill: #EAF0FF; stroke: #2F5BEA; stroke-width: 3; }
+    .edge { stroke: #8A93A3; stroke-width: 2; fill: none; }
+    .cut { stroke: #E8590C; stroke-width: 2; stroke-dasharray: 8 8; }
+    .repo { fill: #EAF0FF; }
+    .repo-title { font-size: 26px; font-weight: 700; fill: #2F5BEA; }
+    .chip { fill: #FFFFFF; stroke: #2F5BEA; stroke-width: 2; }
+    .chip-t { font-size: 22px; font-weight: 600; fill: #2F5BEA; text-anchor: middle; }
+    .stub { stroke: #2F5BEA; stroke-width: 2; stroke-dasharray: 4 6; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8A93A3"/>
+    </marker>
+  </defs>
+
+  <rect x="1" y="1" width="1598" height="898" rx="24" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="2"/>
+
+  <!-- 제목 -->
+  <text class="kicker" x="64" y="96">세션</text>
+  <text class="title" x="64" y="148">세션은 목표 하나에 하나, 기억은 저장소에 남긴다</text>
+  <text class="sub" x="64" y="192">대화는 다음 세션으로 이어지지 않는다. 다음 세션이 알아야 할 내용은 문서와 커밋으로 남긴다.</text>
+
+  <!-- 목표가 바뀌면 새 세션 -->
+  <g id="new-goal">
+    <rect class="panel" x="64" y="240" width="344" height="424" rx="16"/>
+    <text class="ptitle" x="88" y="288">목표가 바뀌면 새 세션</text>
+    <text class="pdesc" x="88" y="324">두 번 고쳐도 틀릴 때도</text>
+    <text class="pdesc" x="88" y="354">새 세션에서 다시 시작한다</text>
+    <g class="node"><rect class="box" x="88" y="408" width="296" height="64" rx="12"/><text class="label" x="236" y="448">세션 1 · 로그인 버그</text></g>
+    <line class="cut" x1="104" y1="520" x2="368" y2="520"/>
+    <text class="warn" x="236" y="508">목표가 바뀜</text>
+    <g class="node"><rect class="box" x="88" y="568" width="296" height="64" rx="12"/><text class="label" x="236" y="608">세션 2 · 주문 목록</text></g>
+  </g>
+
+  <!-- 탐색은 하위 에이전트 -->
+  <g id="subagent">
+    <rect class="panel" x="440" y="240" width="344" height="424" rx="16"/>
+    <text class="ptitle" x="464" y="288">탐색은 하위 에이전트</text>
+    <text class="pdesc" x="464" y="324">넓은 탐색과 긴 로그는 맡기고</text>
+    <text class="pdesc" x="464" y="354">결론만 받는다</text>
+    <g class="node"><rect class="box" x="464" y="408" width="296" height="64" rx="12"/><text class="label" x="612" y="448">작업 세션</text></g>
+    <path class="edge" d="M536 568 V478" marker-end="url(#arrow)"/>
+    <path class="edge" d="M688 568 V478" marker-end="url(#arrow)"/>
+    <text class="elabel" x="612" y="530" text-anchor="middle">결론만</text>
+    <g class="node"><rect class="box-sub" x="464" y="568" width="144" height="64" rx="12"/><text class="label" x="536" y="608">코드 탐색</text></g>
+    <g class="node"><rect class="box-sub" x="616" y="568" width="144" height="64" rx="12"/><text class="label" x="688" y="608">로그 분석</text></g>
+  </g>
+
+  <!-- 큰 변경 리뷰는 새 세션 -->
+  <g id="review">
+    <rect class="panel" x="816" y="240" width="344" height="424" rx="16"/>
+    <text class="ptitle" x="840" y="288">큰 변경 리뷰는 새 세션</text>
+    <text class="pdesc" x="840" y="324">구현 과정을 모르는 세션이</text>
+    <text class="pdesc" x="840" y="354">요구사항과 diff만 본다</text>
+    <g class="node"><rect class="box" x="840" y="408" width="296" height="64" rx="12"/><text class="label" x="988" y="448">구현 세션</text></g>
+    <path class="edge" d="M904 472 V562" marker-end="url(#arrow)"/>
+    <text class="elabel" x="920" y="528">요구사항 · diff</text>
+    <g class="node"><rect class="box-key" x="840" y="568" width="296" height="64" rx="12"/><text class="label-key" x="988" y="608">리뷰 세션</text></g>
+  </g>
+
+  <!-- 병렬 작업은 공간 분리 -->
+  <g id="parallel">
+    <rect class="panel" x="1192" y="240" width="344" height="424" rx="16"/>
+    <text class="ptitle" x="1216" y="288">병렬 작업은 공간 분리</text>
+    <text class="pdesc" x="1216" y="324">파일이 겹치지 않는 작업만</text>
+    <text class="pdesc" x="1216" y="354">별도 작업 공간에서 한다</text>
+    <g class="node"><rect class="box" x="1216" y="408" width="144" height="64" rx="12"/><text class="label" x="1288" y="448">작업 A</text></g>
+    <g class="node"><rect class="box" x="1368" y="408" width="144" height="64" rx="12"/><text class="label" x="1440" y="448">작업 B</text></g>
+    <path class="edge" d="M1288 472 V562" marker-end="url(#arrow)"/>
+    <path class="edge" d="M1440 472 V562" marker-end="url(#arrow)"/>
+    <g class="node"><rect class="box" x="1216" y="568" width="144" height="64" rx="12"/><text class="label" x="1288" y="608">작업 공간 A</text></g>
+    <g class="node"><rect class="box" x="1368" y="568" width="144" height="64" rx="12"/><text class="label" x="1440" y="608">작업 공간 B</text></g>
+  </g>
+
+  <!-- 세션을 잇는 저장소 -->
+  <g id="repository">
+    <line class="stub" x1="236" y1="664" x2="236" y2="720"/>
+    <line class="stub" x1="612" y1="664" x2="612" y2="720"/>
+    <line class="stub" x1="988" y1="664" x2="988" y2="720"/>
+    <line class="stub" x1="1364" y1="664" x2="1364" y2="720"/>
+    <rect class="repo" x="64" y="720" width="1472" height="112" rx="16"/>
+    <text class="repo-title" x="96" y="786">세션을 잇는 것은 저장소</text>
+    <g class="node"><rect class="chip" x="560" y="748" width="232" height="56" rx="28"/><text class="chip-t" x="676" y="784">요구사항</text></g>
+    <g class="node"><rect class="chip" x="816" y="748" width="304" height="56" rx="28"/><text class="chip-t" x="968" y="784">계획의 작업 목록</text></g>
+    <g class="node"><rect class="chip" x="1144" y="748" width="360" height="56" rx="28"/><text class="chip-t" x="1324" y="784">커밋 메시지와 diff</text></g>
+  </g>
+</svg>

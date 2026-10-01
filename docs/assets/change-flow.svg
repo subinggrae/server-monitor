@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="t d">
+  <title id="t">변경 규모별 AI 작업 흐름</title>
+  <desc id="d">작은 변경, 보통 변경, 큰 변경마다 이해부터 공유 반영까지 어떤 단계를 문서로 남기고, 어떤 단계를 대화로 가볍게 하고, 어디서 사람이 승인하는지 보여준다.</desc>
+  <style>
+    text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: #1B1F27; }
+    .kicker { font-size: 22px; font-weight: 700; fill: #2F5BEA; }
+    .title { font-size: 40px; font-weight: 700; }
+    .sub { font-size: 24px; fill: #5B6472; }
+    .group { font-size: 22px; font-weight: 700; fill: #8A93A3; }
+    .stage { font-size: 24px; font-weight: 600; text-anchor: middle; }
+    .row { font-size: 28px; font-weight: 700; }
+    .crit { font-size: 22px; fill: #5B6472; }
+    .note { font-size: 22px; fill: #5B6472; text-anchor: middle; }
+    .gate { font-size: 22px; font-weight: 700; fill: #D9480F; text-anchor: middle; }
+    .legend { font-size: 22px; fill: #3A414D; }
+    .track { stroke: #D7DCE3; stroke-width: 4; stroke-linecap: round; }
+    .bracket { stroke: #C3C9D2; stroke-width: 2; fill: none; }
+    .rule { stroke: #EEF0F3; stroke-width: 2; }
+    .done { fill: #2F5BEA; }
+    .light { fill: #FFFFFF; stroke: #2F5BEA; stroke-width: 4; }
+    .skip { fill: #FFFFFF; stroke: #B8C0CC; stroke-width: 3; }
+    .diamond { fill: #E8590C; }
+  </style>
+
+  <rect x="1" y="1" width="1598" height="898" rx="24" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="2"/>
+
+  <!-- 제목 -->
+  <text class="kicker" x="64" y="96">AI 작업 흐름</text>
+  <text class="title" x="64" y="148">변경 규모에 맞춰 절차를 줄이거나 늘린다</text>
+  <text class="sub" x="64" y="192">모든 변경은 테스트와 자체 리뷰를 거친다. 공유 저장소 반영은 사람이 결정한다.</text>
+
+  <!-- 단계 묶음: 정거장 x = 456 + 128 × 순서 -->
+  <text class="group" x="416" y="252">준비</text>
+  <path class="bracket" d="M416 266 V274 H752 V266"/>
+  <text class="group" x="800" y="252">만들기</text>
+  <path class="bracket" d="M800 266 V274 H1136 V266"/>
+  <text class="group" x="1184" y="252">마무리</text>
+  <path class="bracket" d="M1184 266 V274 H1520 V266"/>
+
+  <!-- 단계 이름 -->
+  <text class="stage" x="456" y="320">이해</text>
+  <text class="stage" x="584" y="320">요구사항</text>
+  <text class="stage" x="712" y="320">계획</text>
+  <text class="stage" x="840" y="320">구현</text>
+  <text class="stage" x="968" y="320">테스트</text>
+  <text class="stage" x="1096" y="320">자체 리뷰</text>
+  <text class="stage" x="1224" y="320">보고</text>
+  <text class="stage" x="1352" y="320">기록</text>
+  <text class="stage" x="1480" y="320">공유 반영</text>
+
+  <line class="rule" x1="64" y1="352" x2="1536" y2="352"/>
+
+  <!-- 작은 변경 -->
+  <g id="small">
+    <text class="row" x="64" y="420">작은 변경</text>
+    <text class="crit" x="64" y="456">한 문장으로 설명되는 수정</text>
+    <line class="track" x1="456" y1="420" x2="1480" y2="420"/>
+    <circle class="done" cx="456" cy="420" r="12"/>
+    <circle class="light" cx="584" cy="420" r="11"/>
+    <circle class="skip" cx="712" cy="420" r="7"/>
+    <circle class="done" cx="840" cy="420" r="12"/>
+    <circle class="done" cx="968" cy="420" r="12"/>
+    <circle class="done" cx="1096" cy="420" r="12"/>
+    <circle class="done" cx="1224" cy="420" r="12"/>
+    <circle class="done" cx="1352" cy="420" r="12"/>
+    <rect class="diamond" x="1404" y="408" width="24" height="24" transform="rotate(45 1416 420)"/>
+    <circle class="done" cx="1480" cy="420" r="12"/>
+    <text class="note" x="584" y="466">대화로</text>
+    <text class="note" x="968" y="466">관련 범위</text>
+    <text class="gate" x="1416" y="390">리뷰</text>
+  </g>
+
+  <line class="rule" x1="64" y1="500" x2="1536" y2="500"/>
+
+  <!-- 보통 변경 -->
+  <g id="normal">
+    <text class="row" x="64" y="568">보통 변경</text>
+    <text class="crit" x="64" y="604">동작이 바뀌고 방법은 분명함</text>
+    <line class="track" x1="456" y1="568" x2="1480" y2="568"/>
+    <circle class="done" cx="456" cy="568" r="12"/>
+    <circle class="done" cx="584" cy="568" r="12"/>
+    <rect class="diamond" x="636" y="556" width="24" height="24" transform="rotate(45 648 568)"/>
+    <circle class="light" cx="712" cy="568" r="11"/>
+    <circle class="done" cx="840" cy="568" r="12"/>
+    <circle class="done" cx="968" cy="568" r="12"/>
+    <circle class="done" cx="1096" cy="568" r="12"/>
+    <circle class="done" cx="1224" cy="568" r="12"/>
+    <circle class="done" cx="1352" cy="568" r="12"/>
+    <rect class="diamond" x="1404" y="556" width="24" height="24" transform="rotate(45 1416 568)"/>
+    <circle class="done" cx="1480" cy="568" r="12"/>
+    <text class="note" x="584" y="614">문서</text>
+    <text class="note" x="712" y="614">대화로</text>
+    <text class="gate" x="648" y="538">승인</text>
+    <text class="gate" x="1416" y="538">리뷰</text>
+  </g>
+
+  <line class="rule" x1="64" y1="648" x2="1536" y2="648"/>
+
+  <!-- 큰 변경 -->
+  <g id="large">
+    <text class="row" x="64" y="716">큰 변경</text>
+    <text class="crit" x="64" y="752">위험 영역, 여러 모듈, 방법 불분명</text>
+    <line class="track" x1="456" y1="716" x2="1480" y2="716"/>
+    <circle class="done" cx="456" cy="716" r="12"/>
+    <circle class="done" cx="584" cy="716" r="12"/>
+    <rect class="diamond" x="636" y="704" width="24" height="24" transform="rotate(45 648 716)"/>
+    <circle class="done" cx="712" cy="716" r="12"/>
+    <rect class="diamond" x="764" y="704" width="24" height="24" transform="rotate(45 776 716)"/>
+    <circle class="done" cx="840" cy="716" r="12"/>
+    <circle class="done" cx="968" cy="716" r="12"/>
+    <circle class="done" cx="1096" cy="716" r="12"/>
+    <circle class="done" cx="1224" cy="716" r="12"/>
+    <circle class="done" cx="1352" cy="716" r="12"/>
+    <rect class="diamond" x="1404" y="704" width="24" height="24" transform="rotate(45 1416 716)"/>
+    <circle class="done" cx="1480" cy="716" r="12"/>
+    <text class="note" x="584" y="762">문서</text>
+    <text class="note" x="712" y="762">문서</text>
+    <text class="note" x="1096" y="762">새 세션</text>
+    <text class="gate" x="648" y="686">승인</text>
+    <text class="gate" x="776" y="686">승인</text>
+    <text class="gate" x="1416" y="686">리뷰</text>
+  </g>
+
+  <line class="rule" x1="64" y1="796" x2="1536" y2="796"/>
+
+  <!-- 범례 -->
+  <g id="legend">
+    <circle class="done" cx="76" cy="842" r="12"/>
+    <text class="legend" x="100" y="850">수행·문서로 남김</text>
+    <circle class="light" cx="340" cy="842" r="11"/>
+    <text class="legend" x="364" y="850">대화로 가볍게</text>
+    <circle class="skip" cx="576" cy="842" r="7"/>
+    <text class="legend" x="596" y="850">생략</text>
+    <rect class="diamond" x="692" y="830" width="24" height="24" transform="rotate(45 704 842)"/>
+    <text class="legend" x="732" y="850">사람 승인·리뷰</text>
+  </g>
+</svg>

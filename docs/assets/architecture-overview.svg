@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 920" role="img" aria-labelledby="t d">
+  <title id="t">Monitoring Manager 구조와 주요 흐름</title>
+  <desc id="d">운영자가 manager-web에서 입력한 설정은 manager-api가 Manager Database에 저장한다. Prometheus는 manager-api의 HTTP SD로 수집 대상을 받아 Blackbox·SNMP Exporter에 수집을 요청하며, Exporter는 모니터링 대상에 직접 접근한다. 또, manager-api는 Prometheus에 상태를 조회한다. Prometheus의 Alert는 Alertmanager를 거쳐 manager-api webhook으로 오고, manager-api가 Telegram Bot API로 알림을 보낸다. 진한 테두리의 manager-web과 manager-api가 이 저장소의 코드다.</desc>
+  <style>
+    text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: #1B1F27; }
+    .kicker { font-size: 22px; font-weight: 700; fill: #2F5BEA; }
+    .title { font-size: 40px; font-weight: 700; }
+    .sub { font-size: 24px; fill: #5B6472; }
+    .name { font-size: 24px; font-weight: 700; text-anchor: middle; }
+    .name-key { font-size: 24px; font-weight: 700; fill: #2F5BEA; text-anchor: middle; }
+    .desc { font-size: 22px; fill: #5B6472; text-anchor: middle; }
+    .group { font-size: 22px; font-weight: 700; fill: #8A93A3; }
+    .elabel { font-size: 22px; fill: #3A414D; }
+    .band { fill: #F4F6F8; }
+    .box { fill: #FFFFFF; stroke: #D7DCE3; stroke-width: 2; }
+    .box-key { fill: #EAF0FF; stroke: #2F5BEA; stroke-width: 3; }
+    .box-ext { fill: #FFFFFF; stroke: #A9B1BD; stroke-width: 2; stroke-dasharray: 8 6; }
+    .lifeline { stroke: #D7DCE3; stroke-width: 2; stroke-dasharray: 6 6; }
+    .edge { stroke: #8A93A3; stroke-width: 2; fill: none; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8A93A3"/>
+    </marker>
+  </defs>
+
+  <rect x="1" y="1" width="1598" height="918" rx="24" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="2"/>
+
+  <!-- 제목 -->
+  <text class="kicker" x="64" y="96">아키텍처</text>
+  <text class="title" x="64" y="148">설정은 Manager DB에 모이고, Prometheus는 SD로 대상을 받는다</text>
+  <text class="sub" x="64" y="192">Alert는 Alertmanager에서 다시 manager-api를 거쳐 Telegram으로 간다. 진한 테두리가 이 저장소의 코드다.</text>
+
+  <!-- 단계 묶음 바탕: 레인 중심 x = 169 + 210 × 순서 -->
+  <g id="bands">
+    <rect class="band" x="64" y="368" width="1472" height="112" rx="12"/>
+    <rect class="band" x="64" y="496" width="1472" height="168" rx="12"/>
+    <rect class="band" x="64" y="680" width="1472" height="160" rx="12"/>
+    <text class="group" x="80" y="396">설정</text>
+    <text class="group" x="80" y="524">수집</text>
+    <text class="group" x="80" y="708">알림</text>
+  </g>
+
+  <!-- 생명선 -->
+  <g id="lifelines">
+    <line class="lifeline" x1="169" y1="352" x2="169" y2="856"/>
+    <line class="lifeline" x1="379" y1="352" x2="379" y2="856"/>
+    <line class="lifeline" x1="589" y1="352" x2="589" y2="856"/>
+    <line class="lifeline" x1="799" y1="352" x2="799" y2="856"/>
+    <line class="lifeline" x1="1009" y1="352" x2="1009" y2="856"/>
+    <line class="lifeline" x1="1219" y1="352" x2="1219" y2="856"/>
+    <line class="lifeline" x1="1429" y1="352" x2="1429" y2="856"/>
+  </g>
+
+  <!-- 설정: manager-web → manager-api → Manager DB -->
+  <g id="flow-config">
+    <path class="edge" d="M169 412 H373" marker-end="url(#arrow)"/>
+    <text class="elabel" x="185" y="400">① /api 요청</text>
+    <path class="edge" d="M379 460 H583" marker-end="url(#arrow)"/>
+    <text class="elabel" x="395" y="448">② 설정 저장</text>
+  </g>
+
+  <!-- 수집: Prometheus ↔ manager-api, Prometheus → Exporter -->
+  <g id="flow-collect">
+    <path class="edge" d="M799 540 H385" marker-end="url(#arrow)"/>
+    <text class="elabel" x="783" y="528" text-anchor="end">③ HTTP SD</text>
+    <path class="edge" d="M799 596 H1003" marker-end="url(#arrow)"/>
+    <text class="elabel" x="815" y="584">④ 수집 요청</text>
+    <path class="edge" d="M379 648 H793" marker-end="url(#arrow)"/>
+    <text class="elabel" x="395" y="636">⑤ 상태 조회</text>
+  </g>
+
+  <!-- 알림: Prometheus → Alertmanager → manager-api → Telegram -->
+  <g id="flow-alert">
+    <path class="edge" d="M799 724 H1213" marker-end="url(#arrow)"/>
+    <text class="elabel" x="815" y="712">⑥ Alert</text>
+    <path class="edge" d="M1219 776 H385" marker-end="url(#arrow)"/>
+    <text class="elabel" x="1203" y="764" text-anchor="end">⑦ webhook</text>
+    <path class="edge" d="M379 828 H1423" marker-end="url(#arrow)"/>
+    <text class="elabel" x="395" y="816">⑧ 알림 전송</text>
+  </g>
+
+  <!-- 참여자 -->
+  <g id="participants">
+    <g class="node"><rect class="box-key" x="71" y="232" width="196" height="120" rx="12"/><text class="name-key" x="169" y="270">manager-web</text><text class="desc" x="169" y="302">운영자 화면</text><text class="desc" x="169" y="332">React · Nginx</text></g>
+    <g class="node"><rect class="box-key" x="281" y="232" width="196" height="120" rx="12"/><text class="name-key" x="379" y="270">manager-api</text><text class="desc" x="379" y="302">Spring Boot</text><text class="desc" x="379" y="332">Java 21</text></g>
+    <g class="node"><rect class="box" x="491" y="232" width="196" height="120" rx="12"/><text class="name" x="589" y="270">Manager DB</text><text class="desc" x="589" y="302">MariaDB</text><text class="desc" x="589" y="332">PostgreSQL</text></g>
+    <g class="node"><rect class="box" x="701" y="232" width="196" height="120" rx="12"/><text class="name" x="799" y="270">Prometheus</text><text class="desc" x="799" y="302">metric 수집</text><text class="desc" x="799" y="332">Alert 규칙 평가</text></g>
+    <g class="node"><rect class="box" x="911" y="232" width="196" height="120" rx="12"/><text class="name" x="1009" y="270">Exporter</text><text class="desc" x="1009" y="302">Blackbox · SNMP</text><text class="desc" x="1009" y="332">대상에 직접 접근</text></g>
+    <g class="node"><rect class="box" x="1121" y="232" width="196" height="120" rx="12"/><text class="name" x="1219" y="270">Alertmanager</text><text class="desc" x="1219" y="302">Alert 묶기</text><text class="desc" x="1219" y="332">중복 제거</text></g>
+    <g class="node"><rect class="box-ext" x="1331" y="232" width="196" height="120" rx="12"/><text class="name" x="1429" y="270">Telegram</text><text class="desc" x="1429" y="302">Bot API</text><text class="desc" x="1429" y="332">외부 서비스</text></g>
+  </g>
+</svg>

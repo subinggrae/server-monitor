@@ -228,7 +228,7 @@ services:
       - monitoring
 
 # 노출되면 안 되는 값만 여기에 둡니다. 나머지 설정은 .env에 있습니다.
-# 아래 파일은 Git에 올리지 않습니다. 목록과 설정 방법은 infrastructure/README.md에 있습니다.
+# 아래 파일은 Git에 올리지 않습니다. 목록과 설정 방법은 docs/DEVELOPMENT.md에 있습니다.
 
 secrets:
 
