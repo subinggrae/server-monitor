@@ -1,6 +1,6 @@
 # 0014. Frontend는 Vitest 컴포넌트 테스트와 실제 Backend에 붙는 Playwright E2E로 검증한다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-10-01
 - 관련: [요구사항 0001](../requirements/0001-frontend-component-e2e-tests.md), [TESTING.md](../TESTING.md)
 
@@ -41,7 +41,7 @@ E2E 브라우저
 
 ## 결정
 
-- 컴포넌트 테스트는 Vitest, jsdom, Testing Library, MSW로 쓴다. Node.js 22.13 이상에서 도는 jsdom 29를 쓴다.
+- 컴포넌트 테스트는 Vitest, jsdom, Testing Library, MSW로 쓴다. Node.js 22.13 이상에서 도는 jsdom 29를 쓴다. MSW는 Vitest가 선택 peer로 요구하는 2를 쓴다. 3을 쓰면 Node.js 22 기본 npm 10의 `npm ci`가 실패한다.
 - E2E는 Playwright와 Playwright가 내려받는 Chromium으로 쓴다. Playwright version은 정확히 고정한다.
 - E2E는 E2E 전용 Compose project로 MariaDB, Backend, Frontend image를 띄워 실행한다. 운영용 `compose.yml`과 secret 파일을 쓰지 않고, Prometheus·Alertmanager·exporter·Telegram에는 연결하지 않는다.
 - 컴포넌트 테스트는 `fast`와 `all`, E2E는 `all`에서 실행한다.

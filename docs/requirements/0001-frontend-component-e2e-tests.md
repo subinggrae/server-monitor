@@ -1,6 +1,6 @@
 # 0001. Frontend 컴포넌트 테스트와 E2E 테스트 도입
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-10-01
 - 관련: [TESTING.md의 테스트 범위](../TESTING.md#테스트-범위)
 
@@ -109,16 +109,16 @@ E2E용 Chromium은 처음 한 번 명령으로 내려받는다. 이 명령과 �
 
 ## 완료 기준
 
-- [ ] 컴포넌트 테스트가 Docker와 Backend 없이 통과한다 — 확인: Docker를 끈 상태에서 `scripts/verify fast`
-- [ ] 동작의 "컴포넌트 테스트 대상"에 적은 규칙마다 테스트가 있다 — 확인: 테스트 목록 리뷰
-- [ ] 컴포넌트 테스트가 해당 규칙이 깨지면 실패한다 — 확인: 규칙마다 화면 코드를 일부러 망가뜨려 실패를 본 뒤 되돌린다
-- [ ] E2E 세 흐름이 빈 Database에서 통과한다 — 확인: `scripts/verify all`
-- [ ] E2E를 두 번 연달아 실행해도 통과한다 — 확인: E2E 명령 두 번 실행
-- [ ] E2E 실패 뒤 container가 남지 않는다 — 확인: 일부러 실패시킨 뒤 `docker ps -a`
-- [ ] 개발용 Compose 구성이 떠 있어도 E2E가 통과하고 개발용 데이터가 그대로다 — 확인: 수동
-- [ ] E2E가 Telegram API와 실제 secret 파일을 쓰지 않는다 — 확인: E2E 설정 리뷰
-- [ ] 운영 번들에 테스트 코드와 테스트 도구가 없다 — 확인: `npm run build` 결과물 검색
-- [ ] `TESTING.md`, `DEVELOPMENT.md`, `AGENTS.md`의 명령과 테스트 범위 그림이 바뀐 내용과 맞다 — 확인: `node scripts/check-docs.mjs --render`
+- [x] 컴포넌트 테스트가 Docker와 Backend 없이 통과한다 — 확인: Docker에 연결할 수 없게 한 상태(`DOCKER_HOST`)에서 `npm test`. 개발용 구성이 떠 있어 Docker 자체는 끄지 않았다
+- [x] 동작의 "컴포넌트 테스트 대상"에 적은 규칙마다 테스트가 있다 — 확인: 테스트 목록 리뷰
+- [x] 컴포넌트 테스트가 해당 규칙이 깨지면 실패한다 — 확인: 규칙마다 화면 코드를 일부러 망가뜨려 실패를 본 뒤 되돌린다
+- [x] E2E 세 흐름이 빈 Database에서 통과한다 — 확인: `scripts/verify all`
+- [x] E2E를 두 번 연달아 실행해도 통과한다 — 확인: E2E 명령 두 번 실행
+- [x] E2E 실패 뒤 container가 남지 않는다 — 확인: 일부러 실패시킨 뒤 `docker ps -a`
+- [x] 개발용 Compose 구성이 떠 있어도 E2E가 통과하고 개발용 데이터가 그대로다 — 확인: 수동
+- [x] E2E가 Telegram API와 실제 secret 파일을 쓰지 않는다 — 확인: E2E 설정 리뷰
+- [x] 운영 번들에 테스트 코드와 테스트 도구가 없다 — 확인: `npm run build` 결과물 검색
+- [x] `TESTING.md`, `DEVELOPMENT.md`, `AGENTS.md`의 명령과 테스트 범위 그림이 바뀐 내용과 맞다 — 확인: `node scripts/check-docs.mjs --render`
 
 ## 확인 필요
 
