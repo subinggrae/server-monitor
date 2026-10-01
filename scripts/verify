@@ -7,12 +7,8 @@ PROFILES="fast all"
 
 # Root package의 MariaDb/Postgres 테스트만 Testcontainers로 Docker를 씁니다.
 # 하위 package의 테스트는 Docker 없이 돕니다.
-BACKEND_DOCKER_FREE_TESTS=(
-  'kr.co.unidocs.monitoring.common.*'
-  'kr.co.unidocs.monitoring.config.*'
-  'kr.co.unidocs.monitoring.notification.*'
-  'kr.co.unidocs.monitoring.prometheus.*'
-)
+BACKEND_ROOT_PACKAGE='kr.co.unidocs.monitoring'
+BACKEND_TEST_ROOT="$ROOT/backend/src/test/java/${BACKEND_ROOT_PACKAGE//.//}"
 
 run() {
   echo
@@ -33,11 +29,18 @@ frontend() {
   run frontend npm run build
 }
 
+# 하위 package를 목록으로 적어 두면 새 package의 테스트가 fast에서 조용히 빠집니다.
 backend_fast() {
   local args=()
-  for pattern in "${BACKEND_DOCKER_FREE_TESTS[@]}"; do
-    args+=(--tests "$pattern")
+  local dir
+  for dir in "$BACKEND_TEST_ROOT"/*/; do
+    [ -d "$dir" ] || continue
+    args+=(--tests "$BACKEND_ROOT_PACKAGE.$(basename "$dir").*")
   done
+  if [ ${#args[@]} -eq 0 ]; then
+    echo "Docker 없이 도는 Backend 테스트가 없습니다: $BACKEND_TEST_ROOT" >&2
+    exit 1
+  fi
   run backend ./gradlew test "${args[@]}"
 }
 

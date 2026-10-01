@@ -40,7 +40,7 @@ Frontend에는 아직 자동 테스트가 없다. 화면 동작은 정적 검사
 
 | profile | 실행하는 것 | Docker |
 |---|---|---|
-| `fast` | Frontend lint와 build, Backend의 `common`, `config`, `notification`, `prometheus` package 테스트 | 필요 없다 |
+| `fast` | Frontend lint와 build, root package를 뺀 Backend 하위 package 테스트 전체 | 필요 없다 |
 | `all` | Frontend lint와 build, `./gradlew build`(통합 테스트 포함) | 필요하다 |
 
 root package(`kr.co.unidocs.monitoring`)의 테스트만 Testcontainers로 Docker를 쓴다. 하위 package의 테스트는 Docker 없이 돈다. `fast`는 이 차이로 테스트를 고른다.
