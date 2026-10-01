@@ -5,8 +5,14 @@ import { chromium } from '@playwright/test'
 
 const COMPOSE_FILE = path.join(import.meta.dirname, 'compose.yml')
 
+/**
+ * project 이름을 직접 넘깁니다. COMPOSE_PROJECT_NAME 환경 변수는 compose 파일의 name보다 우선해서,
+ * 개발자 셸에 설정돼 있으면 down --remove-orphans가 개발용 구성을 지울 수 있습니다.
+ */
+const PROJECT_NAME = 'monitoring-manager-e2e'
+
 function compose(...args: string[]) {
-  execFileSync('docker', ['compose', '-f', COMPOSE_FILE, ...args], { stdio: 'inherit' })
+  execFileSync('docker', ['compose', '-p', PROJECT_NAME, '-f', COMPOSE_FILE, ...args], { stdio: 'inherit' })
 }
 
 function down() {
@@ -48,7 +54,12 @@ export default async function globalSetup() {
   try {
     compose('up', '--detach', '--build', '--wait')
   } catch (error) {
-    compose('logs', '--no-color', '--tail', '200')
+    // 로그 출력이 실패해도 container를 내리고 원래 오류를 알립니다.
+    try {
+      compose('logs', '--no-color', '--tail', '200')
+    } catch {
+      // 로그는 원인을 찾는 보조 정보입니다.
+    }
     down()
     throw error
   }

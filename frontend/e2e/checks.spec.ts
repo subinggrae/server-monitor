@@ -67,6 +67,14 @@ test('keepsTcpCheckWithoutPortFromBeingSaved', async ({ page }) => {
 
   await form.getByRole('button', { name: '취소' }).click()
   await expect(form).toBeHidden()
+
+  // 목록을 다시 받은 뒤에 확인합니다. 그리기 전에 확인하면 항상 통과합니다.
+  const listed = page.waitForResponse(
+    (response) => response.request().method() === 'GET' && response.url().endsWith('/api/checks'),
+  )
   await page.reload()
+  const checks = (await (await listed).json()) as { name: string }[]
+  expect(checks.map((check) => check.name)).not.toContain(name)
+  await expect(page.getByRole('heading', { level: 1, name: 'Monitoring Check' })).toBeVisible()
   await expect(page.getByRole('link', { name })).toBeHidden()
 })

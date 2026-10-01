@@ -24,8 +24,11 @@ test('connectsTelegramGroupToCheck', async ({ page }) => {
   await expect(groupRow).toContainText(chatId)
 
   // Bot Token이 없으므로 테스트 메시지는 실패 안내로 끝납니다.
+  // 요청 자체가 실패했을 때 화면이 대신 띄우는 문구와 구분되도록 Backend 문구 전체를 확인합니다.
   await groupRow.getByRole('button', { name: '테스트 메시지' }).click()
-  await expect(groupRow).toContainText('Telegram 메시지를 보내지 못했습니다.')
+  await expect(groupRow).toContainText(
+    'Telegram 메시지를 보내지 못했습니다. Bot 설정과 그룹 권한을 확인해 주세요.',
+  )
 
   // Check를 만들고 알림을 연결합니다.
   await page.getByRole('link', { name: 'Check', exact: true }).click()

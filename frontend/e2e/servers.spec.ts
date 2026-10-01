@@ -40,10 +40,32 @@ test('configuresSnmpWithoutShowingCommunityAgain', async ({ page }) => {
   })
 
   // 새로 불러온 화면과 다른 탭에도 community가 없어야 합니다.
+  // 화면에 그리기 전에 확인하면 항상 통과하므로, 받은 API 응답 본문도 함께 확인합니다.
+  const apiBodies: Promise<string>[] = []
+  page.on('response', (response) => {
+    if (new URL(response.url()).pathname.startsWith('/api/')) {
+      apiBodies.push(response.text())
+    }
+  })
+
   await page.reload()
-  for (const tab of ['개요', 'Resource', 'SNMP']) {
-    await page.getByRole('tab', { name: tab }).click()
-    await expect(page.locator('body')).not.toContainText(community)
-  }
+  await page.getByRole('tab', { name: '개요' }).click()
+  await expect(page.getByText('Host', { exact: true })).toBeVisible()
+  await expect(page.locator('body')).not.toContainText(community)
+
+  const resources = page.waitForResponse((response) => response.url().endsWith('/resources'))
+  await page.getByRole('tab', { name: 'Resource' }).click()
+  await resources
+  await expect(page.locator('body')).not.toContainText(community)
+
+  await page.getByRole('tab', { name: 'SNMP' }).click()
+  await expect(page.getByText('설정되어 있습니다. 바꿀 때만 새 값을 입력해 주세요.')).toBeVisible()
   await expect(page.getByLabel('Community')).toHaveValue('')
+  await expect(page.locator('body')).not.toContainText(community)
+
+  const bodies = await Promise.all(apiBodies)
+  expect(bodies.length).toBeGreaterThan(0)
+  for (const body of bodies) {
+    expect(body).not.toContain(community)
+  }
 })

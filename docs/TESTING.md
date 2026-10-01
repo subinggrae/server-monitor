@@ -51,7 +51,7 @@ Playwright가 `frontend/e2e/compose.yml`로 E2E 전용 MariaDB, Backend, Fronten
 
 - 실행마다 빈 Database로 시작한다. 흐름은 이름에 고유 값을 붙여 실행 순서와 관계없이 통과하게 쓴다.
 - 운영용 `compose.yml`과 secret 파일을 쓰지 않는다. Telegram, Prometheus, exporter에는 연결하지 않는다. 그래서 E2E에서 Bot Token이 없다는 안내와 수집 상태 UNKNOWN이 보이는 것은 정상이다.
-- 개발용 구성과 Compose project 이름, image tag, port(`127.0.0.1:18081`)가 겹치지 않는다. 18081이 이미 쓰이면 `E2E_WEB_PORT`로 바꾼다.
+- 개발용 구성과 Compose project 이름, image tag, port가 겹치지 않는다. port를 바꾸는 방법은 [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령)에 있다.
 - 고정 시간 대기와 재시도를 쓰지 않는다. 저장이 끝나기를 기다려야 하면 화면 문구나 API 응답을 기다린다.
 - 실패하면 screenshot과 trace가 `frontend/test-results/`에 남는다. `npx playwright show-trace <trace.zip>`으로 연다.
 - 실행이 중간에 끊겨 container가 남았다면 다음 실행이 먼저 지운다. 직접 지울 때는 `docker compose -p monitoring-manager-e2e down -v`를 쓴다.
@@ -63,7 +63,7 @@ Playwright가 `frontend/e2e/compose.yml`로 E2E 전용 MariaDB, Backend, Fronten
 | profile | 실행하는 것 | Docker |
 |---|---|---|
 | `fast` | Frontend lint, 컴포넌트 테스트, build, root package를 뺀 Backend 하위 package 테스트 전체 | 필요 없다 |
-| `all` | Frontend lint, 컴포넌트 테스트, build, `./gradlew build`(통합 테스트 포함), E2E 테스트 | 필요하다 |
+| `all` | Frontend lint, 컴포넌트 테스트, build, `./gradlew build`(통합 테스트 포함), E2E 테스트 | 필요하다. E2E용 Chromium도 필요하다 |
 
 root package(`kr.co.unidocs.monitoring`)의 테스트만 Testcontainers로 Docker를 쓴다. 하위 package의 테스트는 Docker 없이 돈다. `fast`는 이 차이로 테스트를 고른다.
 

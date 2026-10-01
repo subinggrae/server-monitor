@@ -74,7 +74,7 @@ npm run test:e2e:install
 | 검증 profile 목록 | `scripts/verify list` | 지원하는 profile을 확인할 때 |
 | Backend 테스트 | `cd backend && ./gradlew test` | Backend 테스트만 돌릴 때. 종류별 기준은 [TESTING.md](TESTING.md#종류별-기준) |
 | Frontend 컴포넌트 테스트 | `cd frontend && npm test` | 화면 코드를 고쳤을 때. Docker가 필요 없다 |
-| E2E 테스트 | `cd frontend && npm run test:e2e` | 화면과 API 흐름을 확인할 때. Docker가 필요하다. 첫 실행은 image build 때문에 몇 분 걸린다 |
+| E2E 테스트 | `cd frontend && npm run test:e2e` | 화면과 API 흐름을 확인할 때. Docker가 필요하다. 첫 실행은 image build 때문에 몇 분 걸린다. 화면을 `127.0.0.1:18081`에 띄우며, 이 port가 이미 쓰이면 환경 변수 `E2E_WEB_PORT`로 바꾼다 |
 | E2E용 Chromium 설치 | `cd frontend && npm run test:e2e:install` | 처음 한 번, `@playwright/test` version이 바뀌었을 때 |
 | Frontend 린트 | `cd frontend && npm run lint` | 커밋 전. oxlint |
 | Frontend 타입 검사·빌드 | `cd frontend && npm run build` | 커밋 전. `tsc -b` 후 `vite build` |
