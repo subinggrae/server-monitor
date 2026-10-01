@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -469,9 +470,11 @@ abstract class AbstractNotificationApiTest extends AbstractMonitoringApiTest {
 		bindNotification(checkId, destinationId);
 
 		postAlertmanagerWebhook(
-				alertmanagerPayload("firing", checkId, targetId, "critical", "fp-1", FIRING_STARTS_AT, NO_END));
+				alertmanagerPayload("firing", checkId, targetId, "critical", "fp-1", FIRING_STARTS_AT, NO_END))
+				.andExpect(status().isOk());
 
 		verify(telegramClient, never()).sendMessage(anyLong(), any(), anyString());
+		assertThat(alertEventRepository.count()).isEqualTo(1);
 	}
 
 	@Test
@@ -482,9 +485,11 @@ abstract class AbstractNotificationApiTest extends AbstractMonitoringApiTest {
 		bindNotification(checkId, destinationId, false, true, true, false);
 
 		postAlertmanagerWebhook(
-				alertmanagerPayload("firing", checkId, targetId, "critical", "fp-1", FIRING_STARTS_AT, NO_END));
+				alertmanagerPayload("firing", checkId, targetId, "critical", "fp-1", FIRING_STARTS_AT, NO_END))
+				.andExpect(status().isOk());
 
 		verify(telegramClient, never()).sendMessage(anyLong(), any(), anyString());
+		assertThat(alertEventRepository.count()).isEqualTo(1);
 	}
 
 	@Test
@@ -495,9 +500,40 @@ abstract class AbstractNotificationApiTest extends AbstractMonitoringApiTest {
 		bindNotification(checkId, destinationId, true, false, true, true);
 
 		postAlertmanagerWebhook(
-				alertmanagerPayload("firing", checkId, targetId, "critical", "fp-1", FIRING_STARTS_AT, NO_END));
+				alertmanagerPayload("firing", checkId, targetId, "critical", "fp-1", FIRING_STARTS_AT, NO_END))
+				.andExpect(status().isOk());
 
 		verify(telegramClient, never()).sendMessage(anyLong(), any(), anyString());
+		assertThat(alertEventRepository.count()).isEqualTo(1);
+	}
+
+	@Test
+	void sendsWarningWhenWarningIsEnabled() throws Exception {
+		long checkId = createCheck("전자결재 Health", "HTTP", "http://10.0.0.11:8080/health", null, true);
+		long targetId = firstTargetId(checkId);
+		// critical은 끕니다. warning 설정만 보고 보내는지 확인합니다.
+		bindNotification(checkId, createDestination("서비스 운영팀", -1001L), true, false, true, true);
+
+		postAlertmanagerWebhook(
+				alertmanagerPayload("firing", checkId, targetId, "warning", "fp-1", FIRING_STARTS_AT, NO_END))
+				.andExpect(status().isOk());
+
+		verify(telegramClient).sendMessage(eq(-1001L), any(), anyString());
+	}
+
+	@Test
+	void doesNotSendWarningWhenWarningIsOff() throws Exception {
+		long checkId = createCheck("전자결재 Health", "HTTP", "http://10.0.0.11:8080/health", null, true);
+		long targetId = firstTargetId(checkId);
+		// 기본 연결은 critical만 받습니다.
+		bindNotification(checkId, createDestination("서비스 운영팀", -1001L));
+
+		postAlertmanagerWebhook(
+				alertmanagerPayload("firing", checkId, targetId, "warning", "fp-1", FIRING_STARTS_AT, NO_END))
+				.andExpect(status().isOk());
+
+		verify(telegramClient, never()).sendMessage(anyLong(), any(), anyString());
+		assertThat(alertEventRepository.count()).isEqualTo(1);
 	}
 
 	@Test
@@ -562,6 +598,28 @@ abstract class AbstractNotificationApiTest extends AbstractMonitoringApiTest {
 
 		assertThat(alertEventRepository.count()).isEqualTo(1);
 		verify(telegramClient, never()).sendMessage(anyLong(), any(), anyString());
+	}
+
+	@Test
+	void keepsProcessingOtherAlertsWhenOneAlertFails() throws Exception {
+		long failingCheckId = createCheck("전자결재 Health", "HTTP", "http://10.0.0.11:8080/health", null, true);
+		long healthyCheckId = createCheck("사내 포털", "ICMP", "10.0.0.20", null, true);
+		bindNotification(failingCheckId, createDestination("서비스 운영팀", -1001L));
+		bindNotification(healthyCheckId, createDestination("야간 장애 대응팀", -1002L));
+		given(telegramClient.sendMessage(eq(-1001L), any(), anyString()))
+				.willThrow(new IllegalStateException("예상하지 못한 오류"));
+
+		// 실패하는 Alert를 앞에 둡니다. 뒤의 Alert가 처리되지 않으면 그 장애 알림은 사라집니다.
+		postAlertmanagerWebhook(alertmanagerPayloadOf("firing",
+				alertJson("firing", failingCheckId, firstTargetId(failingCheckId), "critical", "fp-1",
+						FIRING_STARTS_AT, NO_END),
+				alertJson("firing", healthyCheckId, firstTargetId(healthyCheckId), "critical", "fp-2",
+						FIRING_STARTS_AT, NO_END)))
+				.andExpect(status().isOk());
+
+		assertThat(alertEventRepository.count()).isEqualTo(2);
+		verify(telegramClient).sendMessage(eq(-1002L), any(), anyString());
+		assertThat(deliveriesOf(DeliveryStatus.SENT)).hasSize(1);
 	}
 
 	@Test

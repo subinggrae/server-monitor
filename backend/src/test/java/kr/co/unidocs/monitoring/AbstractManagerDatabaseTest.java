@@ -40,6 +40,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * MariaDB와 PostgreSQL에서 같은 검증을 실행합니다. (CLAUDE.md 7번)
@@ -203,13 +204,13 @@ abstract class AbstractManagerDatabaseTest {
 				""".formatted(community);
 
 		mockMvc.perform(put("/api/servers/" + serverId + "/snmp").contentType(MediaType.APPLICATION_JSON)
-				.content(body)).andReturn();
+				.content(body)).andExpect(status().isOk());
 		return serverId;
 	}
 
 	protected void selectResources(long serverId, String resourcesJson) throws Exception {
 		mockMvc.perform(put("/api/servers/" + serverId + "/resources").contentType(MediaType.APPLICATION_JSON)
-				.content("{\"resources\":[" + resourcesJson + "]}"));
+				.content("{\"resources\":[" + resourcesJson + "]}")).andExpect(status().isOk());
 	}
 
 	protected String resourceJson(String type, String key, Integer snmpIndex) {
@@ -333,14 +334,21 @@ abstract class AbstractManagerDatabaseTest {
 				 "sendResolved":%s,"enabled":%s}]}
 				""".formatted(destinationId, warningEnabled, criticalEnabled, sendResolved, enabled);
 
+		// 연결이 저장되지 않으면 "보내지 않았다"는 검증이 아무것도 확인하지 못한 채 통과합니다.
 		mockMvc.perform(put("/api/checks/" + checkId + "/notifications").contentType(MediaType.APPLICATION_JSON)
-				.content(body));
+				.content(body)).andExpect(status().isOk());
 	}
 
 	/** 실제 Alertmanager는 더 많은 field를 보냅니다. Manager가 읽는 값만 넣어도 처리돼야 합니다. */
 	protected String alertmanagerPayload(String status, Long checkId, Long checkTargetId, String severity,
 			String fingerprint, String startsAt, String endsAt) {
 
+		return alertmanagerPayloadOf(status,
+				alertJson(status, checkId, checkTargetId, severity, fingerprint, startsAt, endsAt));
+	}
+
+	/** Alertmanager는 같은 group의 Alert 여러 건을 한 요청에 묶어 보냅니다. */
+	protected String alertmanagerPayloadOf(String status, String... alerts) {
 		return """
 				{
 				  "version": "4",
@@ -348,7 +356,15 @@ abstract class AbstractManagerDatabaseTest {
 				  "status": "%s",
 				  "receiver": "manager-webhook",
 				  "externalURL": "http://alertmanager:9093",
-				  "alerts": [
+				  "alerts": [%s]
+				}
+				""".formatted(status, String.join(",", alerts));
+	}
+
+	protected String alertJson(String status, Long checkId, Long checkTargetId, String severity, String fingerprint,
+			String startsAt, String endsAt) {
+
+		return """
 				    {
 				      "status": "%s",
 				      "labels": {
@@ -371,9 +387,7 @@ abstract class AbstractManagerDatabaseTest {
 				      "fingerprint": "%s",
 				      "generatorURL": "http://prometheus:9090/graph"
 				    }
-				  ]
-				}
-				""".formatted(status, status, (checkId == null) ? "" : checkId.toString(),
+				""".formatted(status, (checkId == null) ? "" : checkId.toString(),
 				(checkTargetId == null) ? "" : checkTargetId.toString(), severity, startsAt, endsAt, fingerprint);
 	}
 
