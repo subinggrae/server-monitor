@@ -149,6 +149,8 @@ npm run dev
 
 작업자는 사람일 수도 있고 AI일 수도 있다. AI는 사람이 지시할 때만 리뷰 요청, 공유 반영, 병합, 릴리스를 한다.
 
+예외로 AI는 [AGENTS.md의 단계별 규칙](../AGENTS.md#단계별-규칙)에 따라 작업 브랜치를 push하고 draft PR을 연다.
+
 ### Git
 
 | 단계 | 명령 |
@@ -160,11 +162,11 @@ npm run dev
 | 리뷰 요청 | 작업 브랜치를 push하고 PR(merge request)을 연다 |
 | 공유 반영 | 리뷰 승인과 필수 검사 통과 후 병합한다 |
 
-- 작업 브랜치 이름: `feature/짧은-이름`, `fix/짧은-이름`
+- 원격 저장소: GitHub `origin` (https://github.com/subinggrae/server-monitor)
+- 작업 브랜치 이름: `종류/짧은-이름`. 종류는 [커밋](#커밋)의 종류를 쓴다. 예: `feat/짧은-이름`, `fix/짧은-이름`, `docs/짧은-이름`
 - 변경 하나에 작업 브랜치 하나를 쓴다. 브랜치는 며칠 안에 병합하고, 병합한 브랜치는 지운다.
 - 기본 브랜치(`main`)에 직접 커밋하거나 push하지 않는다.
-- 원격 저장소: 아직 없다. 표의 `git pull`, push, PR 단계와 기본 브랜치 보호는 원격 저장소를 만든 뒤부터 적용한다.
-- PR 만들기: 아직 정하지 않았다. 원격 저장소를 정할 때 함께 정한다.
+- PR 만들기: `git push -u origin HEAD` 후 `gh pr create --draft`. `gh`는 GitHub CLI이고, 처음 한 번 `gh auth login`이 필요하다. `gh`가 없으면 GitHub 웹 화면에서 draft PR을 연다.
 - PR 설명은 PR 템플릿이 있으면 그 형식을, 없으면 [AGENTS.md의 결과 보고](../AGENTS.md#결과-보고) 형식을 쓴다.
 - 저장소 설정에서 기본 브랜치를 보호한다. 리뷰 승인 1명 이상, 필수 검사 통과, 강제 push 금지를 켠다.
 
