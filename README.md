@@ -27,11 +27,16 @@ docker compose --profile local-db up -d --build
 |---|---|
 | 시스템 구조와 코드 위치 | [아키텍처](docs/ARCHITECTURE.md) |
 | Check, SNMP, 알림의 상세 동작과 운영 절차 | [Check](docs/architecture/checks.md), [SNMP Resource](docs/architecture/snmp-resources.md), [알림](docs/architecture/notifications.md) |
-| 개발 환경, 명령, 커밋과 반영 절차 | [개발 가이드](docs/DEVELOPMENT.md) |
+| 개발 환경, 명령, 코드 작성 기준, 코드 안의 글, 커밋·리뷰와 반영 절차 | [개발 가이드](docs/DEVELOPMENT.md) |
 | 테스트 종류와 작성 기준 | [테스트](docs/TESTING.md) |
-| 화면 설계 원칙 | [디자인](docs/DESIGN.md) |
+| 제품의 대상, 사용 환경, 말투 | [제품](docs/PRODUCT.md) |
+| 이 제품의 시각 체계 | [디자인](docs/design/DESIGN.md) |
+| 화면 규칙, 점검, 디자인 방향을 정하는 방법 | [디자인 규칙](docs/design/RULES.md), [디자인 점검](docs/design/REVIEW.md), [디자인 방향 정하기](docs/design/DIRECTION.md) |
 | AI와 함께 작업하는 방식 | [AI 작업 지침](AGENTS.md) |
-| 문서와 그림 작성 규칙 | [문서 작성 가이드](docs/WRITING.md) |
+| 문서 작성 규칙과 한국어 규칙 | [문서 작성 가이드](docs/WRITING.md) |
+| 정한 용어와 표기 | [용어](docs/TERMS.md) |
+| 바깥 코드와 에셋의 라이선스 | [라이선스](docs/LICENSES.md) |
+| 그림 작성 규칙 | [그림 작성 가이드](docs/DIAGRAMS.md) |
 | 기능별 요구사항 | `docs/requirements/` |
 | 주요 결정과 이유 | `docs/decisions/` |
 

@@ -36,3 +36,7 @@ Prometheus → Alertmanager → Manager Webhook
 - 감수할 점: label 구성이 바뀌어 `probe_success` time series가 한 번 끊겼다. 이전 데이터는 Prometheus 보존 기간(15일) 동안 남는다.
 - 향후 고려사항: 알림 연결은 지금 Monitoring Check에만 붙는다. Server Resource와 Database Target은 그 기능을 만들 때 추가한다.
 - 확신도: 높음. 실제 Telegram 그룹으로의 전송과 `/register`는 운영 환경에서 확인하지 못했다. Mock Telegram API로 경로를 확인했다.
+
+## 확인 방법
+
+원래 기록에 없다.

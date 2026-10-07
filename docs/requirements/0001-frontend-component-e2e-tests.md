@@ -25,7 +25,7 @@ Backend 통합 테스트는 API가 맞게 동작하는지는 확인하지만, �
 ## 하지 않는 것
 
 - 모든 화면과 컴포넌트에 테스트를 쓰지 않는다. 분기가 있는 화면 규칙과 핵심 흐름만 다룬다.
-- 화면 모양 비교(스크린숏 비교) 테스트를 하지 않는다.
+- 화면 모양 비교(스크린샷 비교) 테스트를 하지 않는다.
 - E2E에서 Prometheus, Alertmanager, exporter, 실제 SNMP 장비, Telegram에 연결하지 않는다. 그래서 Check와 Server의 수집 상태(OK·CRITICAL)와 알림 전송은 E2E로 확인하지 않는다. 이 부분은 Backend 통합 테스트가 맡는다.
 - CI를 만들지 않는다.
 - 운영 화면과 API 동작을 바꾸지 않는다.
@@ -36,7 +36,7 @@ Backend 통합 테스트는 API가 맞게 동작하는지는 확인하지만, �
 
 | 하는 일 | 명령 | 필요한 것 |
 |---|---|---|
-| 화면 코드를 고친 뒤 빠르게 확인 | `scripts/verify fast` | Node.js. Docker 필요 없음 |
+| 화면 코드를 고친 뒤 빠르게 확인 | `scripts/verify fast` | Node.js(Docker 필요 없음) |
 | 공유 반영 전에 전체 확인 | `scripts/verify all` | Node.js, JDK 21, Docker, E2E용 Chromium |
 | 컴포넌트 테스트만 실행 | Frontend 테스트 명령 하나 | Node.js |
 | E2E만 실행 | E2E 명령 하나 | Docker, E2E용 Chromium |

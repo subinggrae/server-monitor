@@ -26,3 +26,7 @@ Target 하나를 entry 하나로 만든다.
 - 좋아지는 점: Backend는 `probe_success`를 한 번 조회하고 `check_target_id`로 묶어 모든 Target 상태를 계산한다.
 - 감수할 점: Target id가 바뀌면 time series가 끊긴다. 그래서 Check 수정 API는 기존 Target의 `id`를 유지해야 한다.
 - 확신도: 높음
+
+## 확인 방법
+
+원래 기록에 없다.

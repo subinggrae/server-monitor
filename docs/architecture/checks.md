@@ -97,8 +97,7 @@ Check를 저장할 때 `targets`는 전체 목록으로 보낸다.
       "check_type": "HTTP",
       "module": "http_2xx",
       "environment": "Production",
-      "check_name": "전자결재 Health",
-      "service": "전자결재 Health"
+      "check_name": "전자결재 Health"
     }
   },
   {
@@ -126,8 +125,8 @@ Check를 저장할 때 `targets`는 전체 목록으로 보낸다.
 
 | Label | 뜻 |
 |---|---|
-| `check_id` | Check 식별자. 같은 Check의 Target을 묶을 때 쓴다 |
-| `check_target_id` | 실제 주소 하나의 식별자. 상태 조회의 기준이다 |
+| `check_id` | 같은 Check의 Target을 묶을 때 쓰는 Check 식별자 |
+| `check_target_id` | 상태 조회의 기준이 되는 실제 주소 하나의 식별자 |
 | `check_type` | ICMP, TCP, HTTP, HTTPS |
 | `module` | Blackbox module 이름 |
 | `environment` | Check의 운영 분류 |
@@ -238,10 +237,10 @@ probe는 주소 단위로 실행되므로 상태의 출발점은 Target이다.
 
 | 증상 | 확인할 것 |
 |---|---|
-| SD 응답에 Target이 없음 | Check와 Target이 모두 켜져 있는지 확인한다. 꺼 둔 것은 응답에서 빠진다 |
+| SD 응답에 Target이 없음 | Check와 Target이 모두 켜져 있는지 확인한다(꺼 둔 것은 응답에서 빠짐) |
 | Prometheus가 Target을 발견하지 못함 | Prometheus container에서 `manager-api:8080`에 접근되는지 확인한다 |
 | `probe_success`가 0 | 아래 명령으로 Blackbox module만 따로 호출해 대상 문제인지 확인한다 |
-| 상태가 계속 "알 수 없음" | Prometheus가 떠 있는지 확인한다. Prometheus에 연결하지 못하면 설정은 보이고 상태만 `UNKNOWN`이 된다 |
+| 상태가 계속 "알 수 없음" | Prometheus가 떠 있는지 확인한다(연결하지 못하면 설정은 보이고 상태만 `UNKNOWN`이 됨) |
 
 ```sh
 docker exec prometheus wget -qO- \

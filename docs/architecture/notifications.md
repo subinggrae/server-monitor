@@ -28,8 +28,8 @@ Telegram Group
 | Table | 담는 것 |
 |---|---|
 | `telegram_destinations` | 알림을 받을 Telegram 그룹(chat id, topic) |
-| `monitoring_check_notification_bindings` | Check와 그룹의 연결. severity와 복구 알림 설정 |
-| `alert_events` | 받은 Alert. 장애 한 번이 한 행 |
+| `monitoring_check_notification_bindings` | Check와 그룹의 연결, severity와 복구 알림 설정 |
+| `alert_events` | 받은 Alert(장애 한 번이 한 행) |
 | `notification_deliveries` | Telegram 전송 결과 |
 
 Bot Token은 어느 table에도 저장하지 않는다. Docker Secret이나 환경 변수로만 받는다. Telegram 그룹의 chat id는 secret 파일에 두지 않고 화면에서 등록한다.
@@ -92,9 +92,9 @@ Telegram 그룹을 등록하고 Check에 연결해 장애 시 그 그룹으로 �
 
 | 증상 | 확인할 것 |
 |---|---|
-| `/register`를 보내도 그룹이 나타나지 않음 | `TELEGRAM_WEBHOOK_PUBLIC_URL`이 비어 있지 않은지, 외부에서 HTTPS로 접근되는지 확인한다. 외부 주소가 없으면 Chat ID를 직접 입력한다 |
+| `/register`를 보내도 그룹이 나타나지 않음 | `TELEGRAM_WEBHOOK_PUBLIC_URL`이 비어 있지 않은지, 외부에서 HTTPS로 접근되는지 확인한다(외부 주소가 없으면 Chat ID를 직접 입력) |
 | 테스트 메시지가 오지 않음 | Bot이 그룹에 있는지, `infrastructure/secrets/telegram_bot_token` 값이 맞는지 확인한다 |
-| 장애가 났는데 알림이 오지 않음 | Check에 그룹이 연결되어 있는지 확인한다. 연결이 없으면 보내지 않는다. **모니터링 > Alert**에 Alert가 기록됐는지도 확인한다 |
+| 장애가 났는데 알림이 오지 않음 | Check에 그룹이 연결되어 있는지(연결이 없으면 보내지 않음), **모니터링 > Alert**에 Alert가 기록됐는지 확인한다 |
 
 해결할 수 없을 때 연락할 곳은 아직 정하지 않았다. 담당 팀을 정해야 한다.
 
@@ -150,7 +150,7 @@ Telegram 그룹을 등록하고 Check에 연결해 장애 시 그 그룹으로 �
 | 증상 | 확인할 것 |
 |---|---|
 | 올바른 token으로도 401 | `alertmanager_webhook_token` 파일이 `manager-api`와 `alertmanager`에 같은 값으로 들어갔는지 확인한다 |
-| Alert가 저장되지 않음 | `check_id`가 실제 Check id인지 확인한다. 없는 Check의 Alert는 기록만 하고 전송을 건너뛴다 |
+| Alert가 저장되지 않음 | `check_id`가 실제 Check id인지 확인한다(없는 Check의 Alert는 기록만 하고 전송을 건너뜀) |
 | 테스트 메시지 실패 | [Telegram 그룹 등록](#telegram-그룹-등록)의 확인 표를 따른다 |
 
 해결할 수 없을 때 연락할 곳은 아직 정하지 않았다. 담당 팀을 정해야 한다.

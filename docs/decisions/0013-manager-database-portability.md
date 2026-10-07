@@ -30,3 +30,7 @@ MariaDB와 PostgreSQL은 기본키 생성 방식 같은 DDL이 다르다.
 - 좋아지는 점: `.env`의 JDBC URL만 바꿔 DB를 옮길 수 있다.
 - 감수할 점: Migration은 항상 두 곳에 함께 추가해야 한다. 이미 적용된 Migration은 고치지 않고 새 version을 만든다.
 - 확신도: 높음. `MariaDbManagerDatabaseTest`와 `PostgresManagerDatabaseTest`가 두 제품에서 같은 검증을 실행한다.
+
+## 확인 방법
+
+원래 기록에 없다.

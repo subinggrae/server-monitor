@@ -27,3 +27,7 @@ Manager가 `GET /api/prometheus/sd/<exporter>` 형태로 Target 목록을 제공
 - 감수할 점: 변경은 SD 조회 주기(blackbox 15초, snmp 30초)와 scrape 주기가 지나야 반영된다. SD API는 조회마다 Manager Database를 읽으므로 응답 시간을 관리해야 한다.
 - 향후 고려사항: Database Target도 같은 방식(`/api/prometheus/sd/mariadb`)으로 제공한다.
 - 확신도: 높음
+
+## 확인 방법
+
+원래 기록에 없다.

@@ -10,7 +10,7 @@
 |---|---|
 | 가용성(ICMP, HTTP, HTTPS, TCP) | Blackbox Exporter |
 | CPU, Memory, Storage | SNMP Exporter |
-| Database | 중앙 DB Exporter 또는 원격 연결. 아직 구현하지 않았다 |
+| Database | 중앙 DB Exporter 또는 원격 연결(아직 구현하지 않음) |
 
 - SNMP는 대상 서버에서 snmpd를 켜고 방화벽을 열어야 한다.
 - SNMP로 얻는 정보는 Node Exporter보다 적다. 이 점은 감수한다.
@@ -103,7 +103,7 @@ community 평문이 들어 있어 일반 설정 파일과 다르게 다룬다.
 |---|---|
 | Git 제외 | 저장소에 실제 값이 없다 |
 | host bind 안 함 | named volume으로만 쓴다 |
-| mount 최소화 | `manager-api`(쓰기)와 `snmp-exporter`(읽기)만 본다. Prometheus와 Frontend는 볼 필요가 없다 |
+| mount 최소화 | `manager-api`(쓰기)와 `snmp-exporter`(읽기)만 보고, Prometheus와 Frontend는 보지 않는다 |
 | 파일 권한 600 | 소유자만 읽는다 |
 | 로그 출력 금지 | 내용을 로그에 남기지 않는다 |
 
@@ -117,7 +117,7 @@ DB 저장과 exporter 반영은 별개다. 저장은 됐는데 반영이 실패�
 
 | Resource | 근거 |
 |---|---|
-| CPU | `hrProcessorLoad` 행 개수. 사용률은 Prometheus에서 processor 평균 |
+| CPU | `hrProcessorLoad` 행 개수(사용률은 Prometheus에서 processor 평균) |
 | Memory | `hrStorageType`이 `hrStorageRam`(`1.3.6.1.2.1.25.2.1.2`)인 행 |
 | Storage | `hrStorageType`이 `hrStorageFixedDisk` 또는 `hrStorageNetworkDisk`인 행 |
 
@@ -179,8 +179,8 @@ HOST-RESOURCES-MIB 제공
 | 증상 | 확인할 것 |
 |---|---|
 | 연결 테스트 실패 | 대상 서버의 snmpd 실행, community, UDP 161 방화벽을 확인한다 |
-| CPU나 Memory가 검색되지 않음 | 장비가 `HOST-RESOURCES-MIB`를 제공하는지 확인한다. 제공하지 않으면 찾을 수 없다 |
-| SNMP tab에 "snmp_exporter에 반영되지 않았습니다"가 보임 | 설정은 저장됐지만 exporter에 전달되지 않았다. `snmp-exporter` container가 떠 있는지 확인한 뒤 SNMP 설정을 다시 저장한다 |
-| 저장한 Storage가 값 없이 `UNAVAILABLE`로 보임 | 장비에서 해당 Storage가 사라졌거나 설명(`hrStorageDescr`)이 바뀌었다. 다시 검색해서 새 항목을 고른다 |
+| CPU나 Memory가 검색되지 않음 | 장비가 `HOST-RESOURCES-MIB`를 제공하는지 확인한다(제공하지 않으면 찾을 수 없음) |
+| SNMP tab에 "snmp_exporter에 반영되지 않았습니다"가 보임 | 설정은 저장됐지만 exporter에 전달되지 않았으므로, `snmp-exporter` container가 떠 있는지 확인한 뒤 SNMP 설정을 다시 저장한다 |
+| 저장한 Storage가 값 없이 `UNAVAILABLE`로 보임 | 장비에서 해당 Storage가 사라졌거나 설명(`hrStorageDescr`)이 바뀌었으므로, 다시 검색해서 새 항목을 고른다 |
 
 해결할 수 없을 때 연락할 곳은 아직 정하지 않았다. 담당 팀을 정해야 한다.

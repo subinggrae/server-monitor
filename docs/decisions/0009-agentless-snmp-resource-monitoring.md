@@ -30,3 +30,7 @@ CPU, Memory, Storage를 수집해야 한다.
 - 감수할 점: SNMP v2c만 지원한다. community가 필요하므로 Credential 관리가 따라온다.
 - 향후 고려사항: SNMP v3는 Credential 모델이 달라 `server_snmp_configs`에 field를 더 넣어야 한다.
 - 확신도: 높음
+
+## 확인 방법
+
+원래 기록에 없다.

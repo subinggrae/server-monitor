@@ -27,3 +27,7 @@ Check와 Server를 서로 다른 도메인으로 둔다.
 - 감수할 점: Check Target과 등록된 서버를 연결하는 기능이 없다.
 - 향후 고려사항: 필요성이 확인되면 `MonitoringCheckTarget → optional ServerTarget` 관계를 검토한다.
 - 확신도: 높음
+
+## 확인 방법
+
+원래 기록에 없다.

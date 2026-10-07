@@ -37,3 +37,7 @@ Prometheus → HTTP SD (auth 이름만)
 - 감수할 점: 저장은 됐는데 반영이 실패할 수 있다. 그래서 `exporterSynced`를 응답에 넣고 화면에서 알린다.
 - 향후 고려사항: `APP_SECRET_KEY`를 바꾸면 저장된 community를 읽을 수 없다.
 - 확신도: 높음
+
+## 확인 방법
+
+원래 기록에 없다.

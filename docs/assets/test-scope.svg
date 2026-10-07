@@ -1,74 +1,67 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 784" role="img" aria-labelledby="t d">
-  <title id="t">테스트 종류별로 검증하는 범위</title>
-  <desc id="d">정적 검사는 코드 전체를 실행하지 않고 검사한다. 단위 테스트는 분기가 있는 도메인 로직, 컴포넌트 테스트는 API 응답을 테스트가 대신 만들어 화면 규칙을 검사한다. 통합 테스트는 API부터 MariaDB·PostgreSQL까지 실제로 연결해 검사하고, E2E 테스트는 브라우저로 화면부터 DB까지 연결해 핵심 흐름을 검사한다. E2E는 외부 시스템에 연결하지 않는다. 범위가 넓을수록 느리므로 적게 쓴다.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752 304" width="752" height="304" role="img" aria-labelledby="test-scope-title test-scope-desc">
+  <title id="test-scope-title">테스트 종류마다 검사하는 계층의 범위가 다르다</title>
+  <desc id="test-scope-desc">열은 화면, API, 도메인 로직, Manager Database 순서의 계층이다. 정적 검사는 코드를 실행하지 않고 모든 계층을 검사한다. 단위 테스트는 도메인 로직만 검사한다. 통합 테스트는 API부터 MariaDB·PostgreSQL까지 실제로 연결해 검사한다. 컴포넌트 테스트는 API 응답을 테스트가 만들어 화면만 검사한다. E2E 테스트는 브라우저로 화면부터 Manager Database까지 연결해 검사한다. 어느 테스트도 Prometheus, exporter, Telegram 같은 외부 시스템에는 연결하지 않는다.</desc>
   <style>
-    text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: #1B1F27; }
-    .kicker { font-size: 22px; font-weight: 700; fill: #2F5BEA; }
-    .title { font-size: 40px; font-weight: 700; }
-    .sub { font-size: 24px; fill: #5B6472; }
-    .layer { font-size: 24px; font-weight: 600; text-anchor: middle; }
-    .colhead { font-size: 22px; font-weight: 700; fill: #8A93A3; }
-    .row { font-size: 26px; font-weight: 700; }
-    .cost { font-size: 22px; fill: #5B6472; }
-    .lane { fill: #F4F6F8; }
-    .bar { fill: #2F5BEA; }
-    .bar-t { font-size: 22px; font-weight: 600; fill: #FFFFFF; text-anchor: middle; }
-    .bar-static { fill: #FFFFFF; stroke: #A9B1BD; stroke-width: 2; stroke-dasharray: 8 6; }
-    .bar-static-t { font-size: 22px; font-weight: 600; fill: #5B6472; text-anchor: middle; }
+    svg { --paper: #FFFFFF; --ink: #2D3142; --muted: #5C667A; --edge: #8A92A3; --hair: #D9DCE1; --band: #F5F6F8; --accent: #C2410C; --accent-fill: #FFF4EE; }
+    @media (prefers-color-scheme: dark) {
+      svg { --paper: #0D1117; --ink: #E6EDF3; --muted: #9DA7B3; --edge: #7D8590; --hair: #30363D; --band: #161B22; --accent: #F0883E; --accent-fill: #2B1A10; }
+    }
+    text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: var(--ink); }
+    .paper { fill: var(--paper); }
+    .name { font-size: 14px; font-weight: 600; }
+    .sub { font-size: 12px; fill: var(--muted); }
+    .band { fill: var(--band); }
+    .dot { fill: var(--ink); }
+    .range { stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
+    .range-dash { stroke: var(--edge); stroke-width: 2; stroke-dasharray: 2 6; stroke-linecap: round; }
   </style>
 
-  <rect x="1" y="1" width="1598" height="782" rx="24" fill="#FFFFFF" stroke="#E4E7EC" stroke-width="2"/>
+  <rect class="paper" width="752" height="304"/>
 
-  <!-- 제목 -->
-  <text class="kicker" x="64" y="96">테스트 범위</text>
-  <text class="title" x="64" y="148">테스트마다 맡는 범위가 다르다. 넓을수록 적게 쓴다</text>
-  <text class="sub" x="64" y="192">하나의 동작은 확인할 수 있는 가장 낮은 수준에서 한 번만 검사한다.</text>
-
-  <!-- 시스템 계층 -->
-  <g id="layers">
-    <rect class="lane" x="288" y="232" width="224" height="488" rx="12"/>
-    <rect class="lane" x="520" y="232" width="224" height="488" rx="12"/>
-    <rect class="lane" x="752" y="232" width="224" height="488" rx="12"/>
-    <rect class="lane" x="984" y="232" width="224" height="488" rx="12"/>
-    <text class="layer" x="400" y="276">화면</text>
-    <text class="layer" x="632" y="276">API</text>
-    <text class="layer" x="864" y="276">도메인 로직</text>
-    <text class="layer" x="1096" y="276">DB·외부 시스템</text>
-    <text class="colhead" x="1256" y="276">속도 · 양</text>
+  <!-- 열 바탕: 둘째와 넷째 열. 열은 x = 160 + 144 × 순서, 폭 144 -->
+  <g id="bands">
+    <rect class="band" x="304" y="16" width="144" height="272"/>
+    <rect class="band" x="592" y="16" width="144" height="272"/>
   </g>
 
-  <!-- 정적 검사 -->
+  <!-- 열 이름: 계층 -->
+  <g id="columns">
+    <text class="sub" x="232" y="36" text-anchor="middle">화면</text>
+    <text class="sub" x="376" y="36" text-anchor="middle">API</text>
+    <text class="sub" x="520" y="36" text-anchor="middle">도메인 로직</text>
+    <text class="sub" x="664" y="36" text-anchor="middle">Manager Database</text>
+  </g>
+
+  <!-- 행: 범위 선 y = 72 + 48 × 순서. 행 이름 기준선은 선보다 4 위 -->
   <g id="row-static">
-    <text class="row" x="64" y="369">정적 검사</text>
-    <g class="node"><rect class="bar-static" x="296" y="340" width="904" height="40" rx="20"/><text class="bar-static-t" x="748" y="368">코드 전체 · 실행하지 않음</text></g>
-    <text class="cost" x="1256" y="368">즉시 · 항상</text>
+    <text class="name" x="24" y="68">정적 검사</text>
+    <text class="sub" x="24" y="88">코드 실행 없음</text>
+    <line class="range-dash" x1="184" y1="72" x2="712" y2="72"/>
+    <circle class="dot" cx="184" cy="72" r="4"/>
+    <circle class="dot" cx="712" cy="72" r="4"/>
   </g>
-
-  <!-- 단위 -->
   <g id="row-unit">
-    <text class="row" x="64" y="449">단위</text>
-    <g class="node"><rect class="bar" x="760" y="420" width="208" height="40" rx="20"/><text class="bar-t" x="864" y="448">분기 있는 로직</text></g>
-    <text class="cost" x="1256" y="448">빠름 · 많이</text>
+    <text class="name" x="24" y="124">단위</text>
+    <line class="range" x1="472" y1="120" x2="568" y2="120"/>
+    <circle class="dot" cx="472" cy="120" r="4"/>
+    <circle class="dot" cx="568" cy="120" r="4"/>
   </g>
-
-  <!-- 컴포넌트 -->
-  <g id="row-component">
-    <text class="row" x="64" y="529">컴포넌트</text>
-    <g class="node"><rect class="bar" x="296" y="500" width="208" height="40" rx="20"/><text class="bar-t" x="400" y="528">화면 규칙</text></g>
-    <text class="cost" x="1256" y="528">빠름 · 규칙마다</text>
-  </g>
-
-  <!-- 통합 -->
   <g id="row-integration">
-    <text class="row" x="64" y="609">통합</text>
-    <g class="node"><rect class="bar" x="528" y="580" width="672" height="40" rx="20"/><text class="bar-t" x="864" y="608">API부터 DB까지 실제로 연결</text></g>
-    <text class="cost" x="1256" y="608">보통 · 기능마다</text>
+    <text class="name" x="24" y="172">통합</text>
+    <line class="range" x1="328" y1="168" x2="712" y2="168"/>
+    <circle class="dot" cx="328" cy="168" r="4"/>
+    <circle class="dot" cx="712" cy="168" r="4"/>
   </g>
-
-  <!-- E2E -->
+  <g id="row-component">
+    <text class="name" x="24" y="220">컴포넌트</text>
+    <line class="range" x1="184" y1="216" x2="280" y2="216"/>
+    <circle class="dot" cx="184" cy="216" r="4"/>
+    <circle class="dot" cx="280" cy="216" r="4"/>
+  </g>
   <g id="row-e2e">
-    <text class="row" x="64" y="689">E2E</text>
-    <g class="node"><rect class="bar" x="296" y="660" width="904" height="40" rx="20"/><text class="bar-t" x="748" y="688">화면부터 DB까지 브라우저로 · 외부 시스템 제외</text></g>
-    <text class="cost" x="1256" y="688">느림 · 핵심 흐름만</text>
+    <text class="name" x="24" y="268">E2E</text>
+    <line class="range" x1="184" y1="264" x2="712" y2="264"/>
+    <circle class="dot" cx="184" cy="264" r="4"/>
+    <circle class="dot" cx="712" cy="264" r="4"/>
   </g>
 </svg>

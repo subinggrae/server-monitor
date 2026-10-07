@@ -31,3 +31,7 @@ Docker Secret 파일을 Spring Boot config tree로 읽는다.
 - 감수할 점: OS 환경 변수는 config tree보다 우선한다. 그래서 compose는 `SPRING_DATASOURCE_PASSWORD`를 넘기지 않는다. 빈 값이라도 넘기면 파일을 덮어쓴다.
 - 향후 고려사항: 새 secret은 `infrastructure/secrets/`에 `.example`과 함께 추가하고 compose의 `secrets`에 target 이름을 property 이름으로 적는다.
 - 확신도: 높음
+
+## 확인 방법
+
+원래 기록에 없다.

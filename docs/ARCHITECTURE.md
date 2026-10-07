@@ -22,14 +22,14 @@
 
 | 단위 | 역할 | 기술 | 통신 |
 |---|---|---|---|
-| `manager-web` | 운영자 화면. 설정 입력과 현재 상태 조회 | React 19, Vite, TanStack Query, Nginx | host `8081`. `/api`를 Nginx가 `manager-api:8080`으로 넘긴다 |
-| `manager-api` | 설정 저장, SD 응답, 상태 조회, Alert 수신, Telegram 전송, SNMP Discovery | Spring Boot 4, Java 21, JPA, Flyway | host `8080`. Manager Database는 JDBC, Prometheus·exporter·Telegram은 HTTP, 장비는 SNMP |
-| Manager Database | Manager의 모든 설정과 Alert 이력 저장 | MariaDB 또는 PostgreSQL. `local-db` profile이면 `manager-db`(MariaDB 11.4) | host `13306`(`MANAGER_DB_PORT`) |
-| `prometheus` | metric 수집, Alert 규칙 평가 | Prometheus v3.14.0. 보존 기간 15일 | host `9090`. `manager-api`의 SD를 주기적으로 조회 |
-| `alertmanager` | Alert 묶기, 중복 제거, Manager로 전달 | Alertmanager v0.34.1 | host `9093`. `manager-api` webhook 하나로 보낸다 |
+| `manager-web` | 운영자 화면(설정 입력과 현재 상태 조회) | React 19, Vite, TanStack Query, Nginx | host `8081`, Nginx가 `/api`를 `manager-api:8080`으로 넘긴다 |
+| `manager-api` | 설정 저장, SD 응답, 상태 조회, Alert 수신, Telegram 전송, SNMP Discovery | Spring Boot 4, Java 21, JPA, Flyway | host `8080`, Manager Database는 JDBC, Prometheus·exporter·Telegram은 HTTP, 장비는 SNMP |
+| Manager Database | Manager의 모든 설정과 Alert 이력 저장 | MariaDB 또는 PostgreSQL(`local-db` profile이면 `manager-db`, MariaDB 11.4) | host `13306`(`MANAGER_DB_PORT`) |
+| `prometheus` | metric 수집, Alert 규칙 평가 | Prometheus v3.14.0(보존 기간 15일) | host `9090`, `manager-api`의 SD를 주기적으로 조회 |
+| `alertmanager` | Alert 묶기, 중복 제거, Manager로 전달 | Alertmanager v0.34.1 | host `9093`, `manager-api` webhook 하나로 보낸다 |
 | `blackbox-exporter` | ICMP·TCP·HTTP·HTTPS 가용성 확인 | Blackbox Exporter v0.28.0 | host `9115` |
-| `snmp-exporter` | CPU·Memory·Storage 수집 | SNMP Exporter v0.30.1 | host에 열지 않는다. Docker network 안에서만 부른다 |
-| `snmp-test-agent` | 개발 환경에서 SNMP 흐름을 확인하는 테스트 장비 | `polinux/snmpd`. `snmp-test` profile | 운영에서는 띄우지 않는다 |
+| `snmp-exporter` | CPU·Memory·Storage 수집 | SNMP Exporter v0.30.1 | host에 열지 않고 Docker network 안에서만 부른다 |
+| `snmp-test-agent` | 개발 환경에서 SNMP 흐름을 확인하는 테스트 장비 | `polinux/snmpd`(`snmp-test` profile) | 운영에서는 띄우지 않는다 |
 | Telegram Bot API | 운영자에게 알림 전송 | 외부 서비스 | `manager-api`만 호출한다 |
 
 아직 구성하지 않은 단위가 있다.
@@ -37,19 +37,24 @@
 - **mysqld_exporter**: Database Target metric을 수집할 예정이다. `compose.yml`에 service가 없고 `MYSQLD_EXPORTER_URL` 설정만 있다.
 - **Grafana**: 상세 시계열 조회와 분석을 맡을 예정이다. `infrastructure/grafana/provisioning/`에 빈 디렉터리만 있다. 남은 일은 Prometheus를 기본 datasource로 등록하는 `provisioning/datasources/prometheus.yml` 작성, `provisioning/dashboards/` 아래 서버 가용성·리소스·DB 기본 dashboard 추가, `compose.yml`에 `grafana` service 추가다.
 
+## API와 데이터 모델
+
+- API 명세: 없다. API는 `backend/`의 `*Controller.java`가 정하고, 화면이 쓰는 요청·응답 타입은 `frontend/src/lib/api.ts`에 있다.
+- 데이터 모델: `backend/src/main/resources/db/migration/{mariadb,postgresql}/`의 Flyway migration이 schema의 기준이다. JPA entity는 Hibernate `ddl-auto: validate`로 이 schema와 맞는지만 확인한다.
+
 ## 코드 지도
 
 | 위치 | 책임 |
 |---|---|
-| `backend/` | `manager-api`. Spring Boot 애플리케이션 |
-| `backend/src/main/resources/db/migration/{mariadb,postgresql}/` | 제품별 Flyway migration. schema의 기준 |
-| `frontend/` | `manager-web`. React SPA와 Nginx 설정(`nginx.conf`) |
+| `backend/` | `manager-api`(Spring Boot 애플리케이션) |
+| `backend/src/main/resources/db/migration/{mariadb,postgresql}/` | 제품별 Flyway migration(schema의 기준) |
+| `frontend/` | `manager-web`(React SPA와 Nginx 설정 `nginx.conf`) |
 | `infrastructure/prometheus/` | Prometheus 설정과 Alert 규칙(`rules/`) |
 | `infrastructure/alertmanager/` | Alertmanager 설정 |
 | `infrastructure/blackbox/` | Blackbox Exporter module 정의 |
 | `infrastructure/snmp/test-agent/` | 테스트용 SNMP 장비의 `snmpd.conf` |
-| `infrastructure/grafana/` | Grafana provisioning 자리. 아직 비어 있다 |
-| `infrastructure/secrets/` | Docker Secret 파일. `*.example`만 Git에 있다 |
+| `infrastructure/grafana/` | Grafana provisioning 자리(아직 비어 있음) |
+| `infrastructure/secrets/` | Docker Secret 파일(Git에는 `*.example`만 있음) |
 | `compose.yml` | 전체 Docker Compose 구성 |
 | `scripts/verify` | 검증 진입점 |
 
@@ -67,10 +72,10 @@ Backend는 기능 중심으로 package를 나눈다. 각 package의 `package-inf
 | `check` | Blackbox 가용성 Check |
 | `prometheus` | HTTP SD 응답, PromQL 조회 |
 | `alert` | Alertmanager webhook 수신과 Alert 이력 |
-| `notification` | 전송과 결과 기록. `routing`은 Check와 Telegram 그룹 연결, `telegram`은 그룹 관리와 Bot API 호출 |
-| `database`, `database.provider` | Database Target. 아직 `package-info.java`만 있다 |
-| `threshold` | Threshold. 아직 `package-info.java`만 있다 |
-| `grafana` | Grafana 링크 생성. 아직 `package-info.java`만 있다 |
+| `notification` | 전송과 결과 기록(`routing`은 Check와 Telegram 그룹 연결, `telegram`은 그룹 관리와 Bot API 호출) |
+| `database`, `database.provider` | Database Target(아직 `package-info.java`만 있음) |
+| `threshold` | Threshold(아직 `package-info.java`만 있음) |
+| `grafana` | Grafana 링크 생성(아직 `package-info.java`만 있음) |
 
 | Frontend 위치 (`frontend/src/`) | 책임 |
 |---|---|
@@ -81,13 +86,24 @@ Backend는 기능 중심으로 package를 나눈다. 각 package의 `package-inf
 | `lib/api.ts` | Backend 호출, 타입, query key(`queryKeys`) |
 | `index.css` | 디자인 token |
 | `App.tsx` | Router와 TanStack Query 설정 |
-| `test/` | 컴포넌트 테스트 공통 준비 코드. 테스트 파일은 대상 옆에 `*.test.ts`나 `*.test.tsx`로 둔다 |
+| `test/` | 컴포넌트 테스트 공통 준비 코드 |
 
-E2E 테스트와 E2E 전용 Compose 구성은 `frontend/e2e/`에 있다. 기준은 [TESTING.md의 E2E 테스트](TESTING.md#e2e-테스트)에 있다.
+컴포넌트 테스트 파일은 대상 옆에 `*.test.ts`나 `*.test.tsx`로 둔다. E2E 테스트와 E2E 전용 Compose 구성은 `frontend/e2e/`에 있다. 기준은 [TESTING.md의 E2E 테스트](TESTING.md#e2e-테스트)에 있다.
 
 Query key는 `lib/api.ts`의 `queryKeys`에 모은다. Mutation이 끝나면 관련 query를 invalidate한다.
 
 ## 지켜야 할 경계
+
+### API를 호출하는 쪽
+
+`manager-api`의 API는 다른 팀이나 외부 고객이 부르지 않는다. 호출하는 쪽은 다음 넷이다.
+
+- `manager-web` 화면: `/api` 아래 설정·조회 API
+- Prometheus: `GET /api/prometheus/sd/blackbox`, `GET /api/prometheus/sd/snmp`. 응답과 label은 time series에 이어지므로 화면만 쓰는 API와 달리 바꾸면 호환성이 깨진다.
+- Alertmanager: `POST /api/integrations/alertmanager/webhook`
+- Telegram Bot API: `POST /api/integrations/telegram/webhook`
+
+화면만 쓰는 API의 응답을 바꾸면 같은 변경에서 화면도 고친다. Prometheus, Alertmanager, Telegram이 부르는 API의 요청·응답 형식은 [AGENTS.md의 작업 흐름](../AGENTS.md#작업-흐름)에서 위험 영역이다.
 
 ### 설정 파일과 Manager Database
 
@@ -136,12 +152,13 @@ Query key는 `lib/api.ts`의 `queryKeys`에 모은다. Mutation이 끝나면 관
 ### Frontend
 
 - `manager-web`에 Backend 주소를 넣지 않는다. `/api`는 개발 서버에서는 Vite proxy가, Docker에서는 Nginx가 Backend로 넘긴다. 같은 origin이라 CORS 설정이 없다.
-- 색과 간격은 `src/index.css`의 token으로 쓰고 화면에서 hex 값을 직접 쓰지 않는다. 화면 원칙은 [DESIGN.md](DESIGN.md)에 있다.
+- 색과 간격은 `src/index.css`의 token으로 쓰고 화면에서 hex 값을 직접 쓰지 않는다. 화면 원칙은 [DESIGN.md](design/DESIGN.md)에 있다.
 
 ## 공통 관심사
 
 - **수집 대상 전달**: `manager-api`가 `GET /api/prometheus/sd/blackbox`와 `GET /api/prometheus/sd/snmp`로 Prometheus `http_sd_configs` 형식의 대상 목록을 준다. Prometheus는 blackbox를 15초, snmp를 30초마다 조회한다. 이 API는 조회마다 Manager Database를 읽으므로 응답이 느려지지 않게 한다. Database Target용 `/api/prometheus/sd/mariadb`는 아직 없다.
 - **인증·권한**: 사용자 로그인과 권한 확인이 없다. 외부에서 들어오는 요청 가운데 Alertmanager webhook은 Bearer token(`alertmanager_webhook_token`)으로, Telegram webhook은 `X-Telegram-Bot-Api-Secret-Token` header의 webhook secret으로 검증한다.
+- **외부 입력 검증**: 화면에서 오는 요청 본문은 Controller의 `@Valid`와 `*Request` record의 Bean Validation으로 검증한다. Alertmanager와 Telegram webhook은 [인증·권한](#공통-관심사) 항목의 token과 secret을 먼저 확인한다. 외부 시스템 응답(Prometheus, SNMP 장비, Telegram)은 각 client가 처리한다.
 - **오류 처리**: `common.exception`의 `ApiExceptionHandler`가 예외를 Problem Details 응답으로 바꾼다. `server.error`가 예외 메시지와 stack trace를 응답에 넣지 않는다.
 - **관측**: `manager-api`는 actuator의 `health`, `info`, `prometheus` endpoint만 연다. `manager-web`의 Nginx는 `/actuator`를 넘기지 않는다. Prometheus는 Docker network 안에서 `manager-api:8080`을 직접 수집한다.
 - **설정과 비밀**: 일반 설정은 `.env`의 환경 변수로, 비밀은 `/run/secrets` 아래 파일을 Spring Boot config tree(`spring.config.import`)로 읽는다. 파일 목록은 [DEVELOPMENT.md의 비밀 파일](DEVELOPMENT.md#비밀-파일)에 있다.
