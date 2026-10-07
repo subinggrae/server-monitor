@@ -160,7 +160,7 @@ npm run dev
 | 변경 확인 | `git status`, `git diff`, `git diff --check` |
 | 기록 | `git add -p`, `git commit` |
 | 리뷰 요청 | 작업 브랜치를 push하고 PR(merge request)을 연다 |
-| 공유 반영 | 리뷰 승인과 필수 검사 통과 후 병합한다 |
+| 공유 반영 | 리뷰 승인과 로컬 전체 검증 후 병합한다 |
 
 - 원격 저장소: GitHub `origin` (https://github.com/subinggrae/server-monitor)
 - 작업 브랜치 이름: `종류/짧은-이름`. 종류는 [커밋](#커밋)의 종류를 쓴다. 예: `feat/짧은-이름`, `fix/짧은-이름`, `docs/짧은-이름`
@@ -168,7 +168,7 @@ npm run dev
 - 기본 브랜치(`main`)에 직접 커밋하거나 push하지 않는다.
 - PR 만들기: `git push -u origin HEAD` 후 `gh pr create --draft`. `gh`는 GitHub CLI이고, 처음 한 번 `gh auth login`이 필요하다. `gh`가 없으면 GitHub 웹 화면에서 draft PR을 연다.
 - PR 설명은 PR 템플릿이 있으면 그 형식을, 없으면 [AGENTS.md의 결과 보고](../AGENTS.md#결과-보고) 형식을 쓴다.
-- 저장소 설정에서 기본 브랜치를 보호한다. 리뷰 승인 1명 이상, 필수 검사 통과, 강제 push 금지를 켠다.
+- 저장소 설정에서 기본 브랜치를 보호한다. 리뷰 승인 1명 이상, 강제 push 금지를 켠다. CI를 붙이면 필수 검사 통과도 켠다.
 
 ## 커밋
 
