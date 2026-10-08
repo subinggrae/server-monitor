@@ -188,7 +188,7 @@ npm run dev
 
 AI 에이전트에게 비밀값 파일을 읽지 말라고 지시하는 것만으로는 막지 못한다. 실제로 막는 것은 에이전트 설정이다. 이 프로젝트의 에이전트 설정과 실행 환경 규칙은 다음과 같다.
 
-- 에이전트 설정: `.claude/settings.json`. Claude Code가 `.env`, `.env.*`(`.env.example` 제외), `*.pem`, `*.key`를 읽지 못하게 막고, `git push`, `git reset --hard`, `rm -rf`는 실행 전에 확인받는다. `infrastructure/secrets/`의 실제 값 파일은 이 설정이 막지 않는다.
+- 에이전트 설정: `.claude/settings.json`. Claude Code가 `.env`, `.env.*`(`.env.example` 제외), `*.pem`, `*.key`, `infrastructure/secrets/`의 실제 값 파일(`*.example` 제외)을 읽지 못하게 막고, `git push`, `git reset --hard`, `rm -rf`는 실행 전에 확인받는다.
 - 읽기 거부 설정은 에이전트의 파일 도구와 `cat` 같은 명령에 적용된다. 하지만 스크립트가 파일을 직접 여는 것까지는 막지 못하므로, 더 막아야 하면 에이전트의 sandbox나 dev container를 쓴다.
 - 에이전트가 쓰는 환경에 운영 자격 증명과 운영 DB 접속 정보를 두지 않는다.
 - 권한 확인을 끄는 모드는 격리한 컨테이너나 VM에서만 쓴다.

@@ -5,7 +5,9 @@
       "Read(.env.*)",
       "Read(!.env.example)",
       "Read(*.pem)",
-      "Read(*.key)"
+      "Read(*.key)",
+      "Read(infrastructure/secrets/*)",
+      "Read(!infrastructure/secrets/*.example)"
     ],
     "ask": [
       "Bash(git push *)",
