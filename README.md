@@ -23,6 +23,8 @@ docker compose --profile local-db up -d --build
 
 ## 문서
 
+알고 싶은 것에 따라 다음 문서를 읽는다.
+
 | 알고 싶은 것 | 문서 |
 |---|---|
 | 시스템 구조와 코드 위치 | [아키텍처](docs/ARCHITECTURE.md) |

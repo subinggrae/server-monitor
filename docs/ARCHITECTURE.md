@@ -18,7 +18,7 @@
 
 ## 실행 단위
 
-`compose.yml`이 모든 실행 단위를 정의한다. host에 여는 port는 모두 `127.0.0.1`에만 묶인다.
+`compose.yml`이 모든 실행 단위를 정의하고, host에 여는 port는 모두 `127.0.0.1`에만 묶인다. 단위마다 맡는 역할과 기술, 통신 방식은 다음과 같다.
 
 | 단위 | 역할 | 기술 | 통신 |
 |---|---|---|---|
@@ -39,10 +39,14 @@
 
 ## API와 데이터 모델
 
+API 명세와 데이터 모델의 원본 위치는 다음과 같다.
+
 - API 명세: 없다. API는 `backend/`의 `*Controller.java`가 정하고, 화면이 쓰는 요청·응답 타입은 `frontend/src/lib/api.ts`에 있다.
 - 데이터 모델: `backend/src/main/resources/db/migration/{mariadb,postgresql}/`의 Flyway migration이 schema의 기준이다. JPA entity는 Hibernate `ddl-auto: validate`로 이 schema와 맞는지만 확인한다.
 
 ## 코드 지도
+
+디렉터리와 주요 모듈의 책임은 다음과 같다.
 
 | 위치 | 책임 |
 |---|---|
@@ -93,6 +97,8 @@ Backend는 기능 중심으로 package를 나눈다. 각 package의 `package-inf
 Query key는 `lib/api.ts`의 `queryKeys`에 모은다. Mutation이 끝나면 관련 query를 invalidate한다.
 
 ## 지켜야 할 경계
+
+코드를 고칠 때 지켜야 할 경계를 영역별로 적는다.
 
 ### API를 호출하는 쪽
 
@@ -156,6 +162,8 @@ Query key는 `lib/api.ts`의 `queryKeys`에 모은다. Mutation이 끝나면 관
 
 ## 공통 관심사
 
+여러 모듈에 걸친 처리 방식은 다음과 같다.
+
 - **수집 대상 전달**: `manager-api`가 `GET /api/prometheus/sd/blackbox`와 `GET /api/prometheus/sd/snmp`로 Prometheus `http_sd_configs` 형식의 대상 목록을 준다. Prometheus는 blackbox를 15초, snmp를 30초마다 조회한다. 이 API는 조회마다 Manager Database를 읽으므로 응답이 느려지지 않게 한다. Database Target용 `/api/prometheus/sd/mariadb`는 아직 없다.
 - **인증·권한**: 사용자 로그인과 권한 확인이 없다. 외부에서 들어오는 요청 가운데 Alertmanager webhook은 Bearer token(`alertmanager_webhook_token`)으로, Telegram webhook은 `X-Telegram-Bot-Api-Secret-Token` header의 webhook secret으로 검증한다.
 - **외부 입력 검증**: 화면에서 오는 요청 본문은 Controller의 `@Valid`와 `*Request` record의 Bean Validation으로 검증한다. Alertmanager와 Telegram webhook은 [인증·권한](#공통-관심사) 항목의 token과 secret을 먼저 확인한다. 외부 시스템 응답(Prometheus, SNMP 장비, Telegram)은 각 client가 처리한다.
@@ -166,6 +174,8 @@ Query key는 `lib/api.ts`의 `queryKeys`에 모은다. Mutation이 끝나면 관
 - **시간**: Manager Database에는 UTC로 저장한다. 화면은 browser 시간대로, Telegram 메시지는 `MANAGER_TIME_ZONE`(기본 `Asia/Seoul`)으로 표시한다.
 
 ## 주요 결정
+
+구조를 이해하는 데 필요한 결정은 다음 ADR에 있다.
 
 - [0001. Prometheus Target을 HTTP Service Discovery로 관리한다](decisions/0001-prometheus-http-service-discovery.md)
 - [0002. Blackbox SD entry를 Check Target 단위로 만든다](decisions/0002-sd-entry-per-check-target.md)
