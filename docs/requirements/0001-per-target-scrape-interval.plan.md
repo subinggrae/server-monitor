@@ -26,13 +26,17 @@
 | `backend/build.gradle` | 테스트 의존성(`spring-boot-starter-test`, `junit-platform-launcher`), test 작업의 시간대·로케일 |
 | `backend/src/test/java/...` | 새 단위 테스트 |
 | `frontend/package.json`, `package-lock.json`, `vitest.config.ts` | Vitest, Testing Library, jsdom 개발 의존성과 `test` 스크립트, `check`에 test 추가 |
+| `frontend/tsconfig.node.json` | `vitest.config.ts`를 타입 검사에 포함 |
+| `frontend/src/test/setup.ts`, `render.tsx` | 테스트마다 화면 정리, fetch 대역과 QueryClient 렌더링 |
 | `frontend/src/lib/api.ts` | `MonitoringCheck`, `MonitoringCheckInput`, `ServerSnmp`, `ServerSnmpInput`에 `scrapeIntervalSeconds` |
+| `frontend/src/lib/scrapeInterval.ts` | 두 폼이 함께 쓰는 수집 주기 안내, 오류 문구, 입력 검증 |
 | `frontend/src/components/checks/CheckFormDialog.tsx`, `servers/ServerSnmpSection.tsx` | 수집 주기 입력 칸과 칸별 오류 |
 | `frontend/src/pages/CheckDetailPage.tsx` | Check 상세에 수집 주기 표시 |
 | `frontend/src/**/*.test.tsx` | 새 컴포넌트 테스트 |
-| `infrastructure/prometheus/prometheus.yml` | 두 job의 실제 주기를 SD의 `__scrape_interval__`이 정한다는 주석만 더함 |
-| `docs/ARCHITECTURE.md` | 지켜야 할 경계에 수집 주기 전달 방식 한 줄 |
+| `infrastructure/prometheus/prometheus.yml` | 주석만 더함: 두 job의 주기는 SD가 정함, `scrape_timeout`은 주기 하한보다 길게 두지 않음 |
+| `docs/ARCHITECTURE.md` | 지켜야 할 경계에 수집 주기 전달 방식과 `scrape_timeout` 제약 |
 | `docs/TESTING.md`, `docs/DEVELOPMENT.md` | 테스트 종류 표, 위치와 이름 규칙, 시간대 설정, 명령 표의 테스트 명령 |
+| `docs/assets/test-scope.svg` | 테스트 범위 그림에 단위 테스트와 컴포넌트 테스트 행 추가 |
 
 ### 데이터 모델 변경
 
@@ -104,7 +108,7 @@ Backend 테스트는 `cd backend && ./gradlew test`, Frontend 테스트는 `cd f
 - [x] Frontend 타입, 폼 입력 칸, Check 상세 표시 구현
 - [x] `prometheus.yml` 주석과 ARCHITECTURE.md 갱신
 - [x] 수동 확인(C5, C9)과 전체 검증
-- [ ] 새 세션이나 하위 에이전트의 리뷰
+- [x] 새 세션이나 하위 에이전트의 리뷰
 - [ ] 남길 결정을 ADR로 옮기고 이 계획을 지움(병합 전 마지막 커밋)
 
 ## 진행 중 발견
@@ -114,6 +118,8 @@ Backend 테스트는 `cd backend && ./gradlew test`, Frontend 테스트는 `cd f
 - `compose.yml`은 컨테이너와 volume 이름이 고정돼 있어, 그대로 띄우면 개발 DB에 V7이 적용되고 `main` 브랜치의 Flyway가 기동에 실패할 수 있다. 그래서 C5와 C9는 이름이 다른 임시 컨테이너와 네트워크(`sv-*`)에서 확인했다.
 - C5: 임시 MariaDB 11.4와 PostgreSQL 17에 V1~V6을 적용하고 Check와 SNMP 설정 행을 넣은 뒤 V7을 적용했다. 두 DB 모두 기존 행이 15, 열은 `INT NOT NULL DEFAULT 15`였다.
 - C9: 이 브랜치의 `manager-api` 이미지, Blackbox, Prometheus v3.14.0(저장소의 `prometheus.yml`)을 띄웠다. Check를 등록하자 대상 주기가 `15s`였다. API로 30초로 바꾸자 Prometheus 재시작이나 reload 없이(`StartedAt` 같음) 대상 주기가 `30s`로 바뀌었다. 이때 `probe_success`의 label 집합과 series 수(1)는 그대로였고, sample 간격이 15초에서 30초대로 늘었다. SNMP 설정 120초도 대상 주기 `120s`로 들어갔고 label에는 남지 않았다.
+- 하위 에이전트 리뷰(2026-10-14): P1·P2는 없었다. 반영한 것은 서비스가 수집 주기를 Entity로 넘기는지 확인하는 테스트(`MonitoringCheckServiceTest`, `ServerSnmpConfigStoreTest`), `scrape_timeout`과 주기 하한의 결합을 `prometheus.yml`과 ARCHITECTURE.md에 적은 것, 주석과 테스트 이름 정리다.
+- 리뷰가 짚었지만 확인하지 못한 것: 주기를 바꾸는 순간 Prometheus가 대상을 새로 만들면서 이전 수집이 stale marker를 남겨 `probe_success`에 짧은 공백이 생기는지는 보지 않았다. C9에서는 series 수와 label 집합만 확인했다. 공백이 생기면 pending 중인 Alert의 `for: 1m` 판단이 처음부터 다시 시작될 수 있다.
 
 ## 남길 결정
 
