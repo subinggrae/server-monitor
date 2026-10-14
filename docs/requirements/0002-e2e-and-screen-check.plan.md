@@ -32,21 +32,33 @@ Playwright 하나로 E2E, 화면 검사, 성능 검사를 실행한다. `fronten
 
 | 위치 | 변경 |
 |---|---|
-| `frontend/package.json`, `package-lock.json` | 개발 의존성 `@playwright/test`, `@axe-core/playwright`, `lighthouse` 추가. 스크립트 `test:e2e`, `test:screen`, `test:perf` 추가 |
-| `frontend/playwright.config.ts` | 새 파일. project 넷, `E2E_BASE_URL`, `timezoneId: 'Asia/Seoul'`, `locale: 'ko-KR'`, `forbidOnly: !!process.env.CI`, `retries: 0`, 실패 때만 스크린샷과 trace, 결과 폴더 `test-results/` |
-| `frontend/e2e/global-setup.ts` | 새 파일. 환경 접속 확인, 남은 `e2e-` Check 정리 |
-| `frontend/e2e/support/api.ts` | 새 파일. 테스트 데이터를 만들고 지우는 API 호출 |
-| `frontend/e2e/check-lifecycle.spec.ts` | 새 파일. 흐름 ① |
-| `frontend/e2e/dashboard-status.spec.ts` | 새 파일. 흐름 ② |
-| `frontend/e2e/screen.spec.ts` | 새 파일. 라우트마다 axe 검사와 넘침 검사 |
-| `frontend/e2e/perf.spec.ts` | 새 파일. Lighthouse 결과 출력 |
-| `frontend/tsconfig.node.json` | include에 `playwright.config.ts`, `e2e/**/*.ts` 추가. `npm run build`의 타입 검사에 들어간다 |
+| `frontend/package.json`, `package-lock.json` | 개발 의존성 셋과 스크립트 셋 추가(아래 목록) |
+| `frontend/playwright.config.ts` | 새 Playwright 설정(아래 목록) |
+| `frontend/e2e/global-setup.ts` | 새 전역 준비: 환경 접속 확인, 남은 `e2e-` Check 정리 |
+| `frontend/e2e/support/api.ts` | 새 도우미: 테스트 데이터를 만들고 지우는 API 호출 |
+| `frontend/e2e/check-lifecycle.spec.ts` | 새 테스트: 흐름 ① |
+| `frontend/e2e/dashboard-status.spec.ts` | 새 테스트: 흐름 ② |
+| `frontend/e2e/screen.spec.ts` | 새 테스트: 라우트마다 axe 검사와 넘침 검사 |
+| `frontend/e2e/perf.spec.ts` | 새 테스트: Lighthouse 결과 출력 |
+| `frontend/tsconfig.node.json` | include에 `playwright.config.ts`, `e2e/**/*.ts` 추가(`npm run build`가 타입 검사) |
 | `frontend/.gitignore` | `test-results/`, `playwright-report/` 추가 |
 | `docs/design/DESIGN.md` | 개요의 화면 검사 도구, 레이아웃의 기준 폭 |
 | `docs/TESTING.md` | 테스트 범위 문장, 종류별 기준에 E2E와 화면 검사 행, 결정적 실행의 재시도와 `.only` 거부, 위치와 이름에 `frontend/e2e/` |
 | `docs/assets/test-scope.svg` | E2E 행 추가 |
 | `docs/DEVELOPMENT.md` | 준비에 `npx playwright install chromium`, 명령 표에 E2E·화면 검사·성능 검사, 명령 이름 표에 `test:screen`, `test:perf` |
 | `docs/ARCHITECTURE.md` | 코드 지도에 `frontend/e2e` |
+
+`package.json`에 더하는 것은 다음과 같다.
+
+- 개발 의존성: `@playwright/test`, `@axe-core/playwright`, `lighthouse`
+- 스크립트: `test:e2e`(project `e2e`), `test:screen`(project `screen-1280`, `screen-1920`), `test:perf`(project `perf`)
+
+`playwright.config.ts`에는 다음을 둔다.
+
+- 위 project 넷과 화면 주소 `E2E_BASE_URL`
+- `timezoneId: 'Asia/Seoul'`, `locale: 'ko-KR'`
+- `forbidOnly: !!process.env.CI`, `retries: 0`
+- 실패 때만 스크린샷과 trace, 결과 폴더 `test-results/`
 
 ### 데이터 모델 변경
 
@@ -80,15 +92,22 @@ E2E와 화면 검사는 전체 실행 환경을 띄운 뒤 `frontend`에서 실�
 
 | 완료 기준 | 테스트 | 실행 명령과 기대 결과 |
 |---|---|---|
-| C1 | `check-lifecycle.spec.ts`: Check를 등록하면 목록과 상세에 보이고 삭제하면 목록에서 사라진다. `dashboard-status.spec.ts`: 닿지 않는 대상의 Check가 대시보드의 위험한 Check 표에 보인다 | `npm run test:e2e` 3회 연달아 통과 |
-| C2 | 위 두 테스트 | 저장 버튼 문구를 잠시 바꾸면 해당 단계 이름으로 실패하고 `test-results/`에 스크린샷이 남는다. 확인 뒤 되돌린다 |
-| C3 | 위 두 테스트와 전역 준비 | 실행 전후 `GET /api/checks`의 목록이 같다. 실행 중 Ctrl+C로 멈춘 뒤 다시 실행해도 통과한다 |
-| C4 | `screen.spec.ts`: 라우트마다 axe 위반이 없고 가로 넘침이 없다 | `npm run test:screen`. 입력 칸 하나의 라벨을 잠시 지우면 규칙 이름, 주소, project 이름(폭)과 함께 실패한다. 확인 뒤 되돌린다 |
+| C1 | `check-lifecycle.spec.ts`: Check를 등록하면 목록과 상세에 보이고 삭제하면 목록에서 사라진다 | `npm run test:e2e` 3회 연달아 통과 |
+| C1 | `dashboard-status.spec.ts`: 닿지 않는 대상의 Check가 대시보드의 위험한 Check 표에 보인다 | `npm run test:e2e` 3회 연달아 통과 |
+| C2 | 위 두 테스트 | 망가뜨린 단계 이름으로 실패하고 스크린샷이 남는다(아래 1) |
+| C3 | 위 두 테스트와 전역 준비 | 실행 전후 Check 목록이 같고, 중간에 멈춘 뒤 다시 실행해도 통과한다(아래 2) |
+| C4 | `screen.spec.ts`: 라우트마다 axe 위반이 없고 가로 넘침이 없다 | `npm run test:screen` 통과, 라벨을 지우면 실패한다(아래 3) |
 | C5 | `perf.spec.ts` | `npm run test:perf`가 대시보드의 성능 점수와 LCP, CLS, TBT를 출력한다 |
 | C6 | 전역 준비 | 환경을 내린 상태에서 `npm run test:e2e`, `npm run test:screen`이 30초 안에 접속 실패 메시지로 끝난다 |
 | C7 | 없음 | `npm run check` 출력에 Playwright 실행이 없다 |
 | C8 | 문서 검사 | `node scripts/check-docs.mjs --render` 오류 0, 그림 렌더링 확인 |
 | C9 | `screen.spec.ts` 첫 실행 | 기존 위반 목록을 보고에 쓰고 처리 방법을 묻는다 |
+
+표의 수동 확인은 다음처럼 한다.
+
+1. Check 폼의 저장 버튼 문구를 잠시 바꾸고 `npm run test:e2e`를 실행한다. 해당 단계 이름으로 실패하고 `test-results/`에 스크린샷이 남는지 본 뒤 되돌린다.
+2. 실행 전후 `GET /api/checks`의 목록을 비교한다. 실행 중 Ctrl+C로 멈춘 뒤 다시 실행해 통과하는지 본다.
+3. 입력 칸 하나의 라벨을 잠시 지우고 `npm run test:screen`을 실행한다. 규칙 이름, 주소, project 이름(폭)과 함께 실패하는지 본 뒤 되돌린다.
 
 ## 작업 순서
 
