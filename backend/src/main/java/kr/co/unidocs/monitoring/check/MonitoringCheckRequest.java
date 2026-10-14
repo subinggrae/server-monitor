@@ -35,6 +35,11 @@ public record MonitoringCheckRequest(
 
 		boolean enabled,
 
+		/** null이면 등록할 때는 15초, 수정할 때는 기존 주기입니다. */
+		@Min(value = 10, message = "수집 주기는 10초에서 240초 사이로 입력해 주세요.")
+		@Max(value = 240, message = "수집 주기는 10초에서 240초 사이로 입력해 주세요.")
+		Integer scrapeIntervalSeconds,
+
 		@NotEmpty(message = "확인할 대상을 하나 이상 입력해 주세요.")
 		@Size(max = 50, message = "한 Check에는 Target을 50개까지 넣을 수 있습니다.")
 		@Valid
