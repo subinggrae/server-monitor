@@ -62,6 +62,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 | `frontend/src/components` | 앱 공통 컴포넌트와 도메인별(`checks`, `servers`, `notifications`) 폼과 섹션 |
 | `frontend/src/components/ui` | 버튼, 다이얼로그, 입력, 표 같은 기본 UI |
 | `frontend/src/lib` | API 호출과 query 정의(`api.ts`), 표시 형식(`format.ts`) |
+| `frontend/e2e` | 전체 실행 환경에 실행하는 E2E, 화면 검사, 성능 검사(Playwright) |
 | `infrastructure/` | Prometheus, Alertmanager, Blackbox, SNMP 테스트 장비 설정과 비밀값 예시 파일 |
 
 `notification` 안에서 `routing`은 알림을 받을 그룹을 찾고, `telegram`은 그룹 관리와 Bot API 호출을 맡는다.

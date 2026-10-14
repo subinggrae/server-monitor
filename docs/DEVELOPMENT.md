@@ -13,9 +13,10 @@
 
 ```sh
 cd frontend && npm ci
+cd frontend && npx playwright install chromium
 ```
 
-Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다.
+Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 명령은 E2E와 화면 검사가 쓰는 Chromium을 받는다.
 
 ## 명령
 
@@ -28,6 +29,9 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다.
 | 전체 실행 | `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | SNMP 테스트 장비 | `docker compose --profile snmp-test up -d snmp-test-agent` | SNMP 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
+| E2E | `cd frontend && npm run test:e2e` | 전체 실행 환경을 띄운 뒤, 핵심 흐름이 걸린 변경을 마쳤을 때 |
+| 화면 검사 | `cd frontend && npm run test:screen` | 전체 실행 환경을 띄운 뒤, 화면을 바꿨을 때 |
+| 성능 검사 | `cd frontend && npm run test:perf` | 전체 실행 환경을 띄운 뒤, 화면의 성능을 확인할 때 |
 | 린트·타입 검사 | `cd frontend && npm run lint`(타입 검사는 빌드에 포함) | 커밋 전 |
 | 빌드 | `cd frontend && npm run build`, `cd backend && ./gradlew build` | 커밋 전, 빌드 설정이나 의존성을 바꿨을 때 |
 | 빌드 결과 미리 보기 | `cd frontend && npm run preview` | Frontend 빌드 결과를 확인할 때 |
@@ -44,6 +48,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다.
 | 전체 검증 | `check` | `check` |
 | 테스트 | `test` | `test` |
 | 종류별 테스트 | `test:unit`, `test:integration`, `test:e2e` | `integrationTest` |
+| 화면 검사, 성능 검사 | `test:screen`, `test:perf` | 없음 |
 | watch 모드로 다시 실행 | `test:watch` | 없음 |
 | 린트, 타입 검사 | `lint`, `typecheck` | 없음 |
 | 빌드 | `build` | `build` |

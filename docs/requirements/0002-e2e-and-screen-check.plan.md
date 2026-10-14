@@ -40,7 +40,8 @@ Playwright 하나로 E2E, 화면 검사, 성능 검사를 실행한다. `fronten
 | `frontend/e2e/dashboard-status.spec.ts` | 새 테스트: 흐름 ② |
 | `frontend/e2e/screen.spec.ts` | 새 테스트: 라우트마다 axe 검사와 넘침 검사 |
 | `frontend/e2e/perf.spec.ts` | 새 테스트: Lighthouse 결과 출력 |
-| `frontend/tsconfig.node.json` | include에 `playwright.config.ts`, `e2e/**/*.ts` 추가(`npm run build`가 타입 검사) |
+| `frontend/tsconfig.e2e.json`, `tsconfig.json` | 새 TypeScript 설정: `playwright.config.ts`와 `e2e/`(`npm run build`가 타입 검사) |
+| `frontend/e2e/support/env.ts` | 새 도우미: 화면 주소 `E2E_BASE_URL` |
 | `frontend/.gitignore` | `test-results/`, `playwright-report/` 추가 |
 | `docs/design/DESIGN.md` | 개요의 화면 검사 도구, 레이아웃의 기준 폭 |
 | `docs/TESTING.md` | 테스트 범위 문장, 종류별 기준에 E2E와 화면 검사 행, 결정적 실행의 재시도와 `.only` 거부, 위치와 이름에 `frontend/e2e/` |
@@ -111,20 +112,29 @@ E2E와 화면 검사는 전체 실행 환경을 띄운 뒤 `frontend`에서 실�
 
 ## 작업 순서
 
-- [ ] 의존성 설치 전 확인: 세 패키지의 설치 스크립트, `npm audit`. 설치 뒤 `npm query`로 새 패키지 라이선스 확인. `npx playwright install chromium`
-- [ ] Playwright 설정, 전역 준비, `tsconfig.node.json`, `.gitignore`, 스크립트(`build`: 의존성과 설정 커밋)
-- [ ] 흐름 ①, ② 테스트 작성과 실행(C1~C3, C6)
-- [ ] 화면 검사 테스트 작성과 첫 실행(C4, C9). 기존 위반 목록을 보고하고 처리 방법을 물음
-- [ ] 성능 검사 작성(C5)
-- [ ] DESIGN.md, TESTING.md, test-scope.svg, DEVELOPMENT.md, ARCHITECTURE.md 갱신(C8)
-- [ ] 전체 검증(C7)과 새 세션이나 하위 에이전트의 리뷰
+- [x] 의존성 설치 전 확인: 세 패키지의 설치 스크립트, `npm audit`. 설치 뒤 `npm query`로 새 패키지 라이선스 확인. `npx playwright install chromium`
+- [x] Playwright 설정, 전역 준비, TypeScript 설정, `.gitignore`, 스크립트(`build`: 의존성과 설정 커밋)
+- [x] 흐름 ①, ② 테스트 작성과 실행(C1~C3, C6)
+- [x] 화면 검사 테스트 작성과 첫 실행(C4, C9). 기존 위반 목록을 보고하고 처리 방법을 물음
+- [x] 성능 검사 작성(C5)
+- [x] DESIGN.md, TESTING.md, test-scope.svg, DEVELOPMENT.md, ARCHITECTURE.md 갱신(C8)
+- [x] 전체 검증(C7)
+- [ ] 새 세션이나 하위 에이전트의 리뷰
 - [ ] 토픽 브랜치를 푸시하고 PR을 만듦. 사람이 2026-10-14에 구현을 마치면 묻지 않고 PR을 만들라고 지시했다. 푸시 직전에 전체 검증을 다시 실행한다
 - [ ] 요구사항 상태를 구현됨으로 바꾸고 이 계획을 지움(병합 전 마지막 커밋)
 
 ## 진행 중 발견
 
 - 대시보드는 Check별 상태를 보이지 않고 위험한 Check만 표로 보인다(`DashboardPage.tsx`). 그래서 흐름 ②는 닿지 않는 대상의 Check가 그 표에 나타나는지로 확인한다.
-- `frontend/test-results/`가 Git에 추적되지 않은 채 있다. 안의 `.last-run.json`은 Playwright 형식이다. 이번에 `.gitignore`에 넣는다.
+- `frontend/test-results/`가 Git에 추적되지 않은 채 있다. 안의 `.last-run.json`은 Playwright 형식이다. 이번에 `.gitignore`에 넣었다.
+- 테스트 코드는 `document` 같은 DOM 타입을 쓴다. `tsconfig.node.json`은 DOM lib가 없어서 `tsconfig.e2e.json`을 따로 두고 `tsconfig.json`의 references에 더했다.
+- 의존성: 새 패키지 110개 가운데 허용 분류가 아닌 것은 axe-core(MPL-2.0) 둘뿐이고, 설치 스크립트는 없다. `npm audit`의 high 하나(`source-map-js` 1.2.1)는 `main`의 lockfile에도 있었다.
+- Playwright의 이름 찾기는 기본이 부분 일치라서, 저장 버튼 문구를 "저장하기"로 바꿔도 흐름 ①이 통과했다. 버튼, 대화상자, 라벨, 링크를 `exact: true`로 찾게 고친 뒤 C2를 다시 확인했다.
+- axe는 placeholder를 입력 칸의 이름으로 인정한다. 그래서 C4는 라벨과 placeholder가 모두 없는 입력 칸을 잠시 넣어 확인했고, `label` 규칙으로 실패했다.
+- 화면 검사 첫 실행(C9): 위반은 `color-contrast` 하나였다. `--subtle-foreground` 글자(사이드바 묶음 이름, 상태 문구 등)가 배경과 3.18:1이다. Not Found를 뺀 8개 화면, 두 폭 모두에서 나왔고 가로 넘침은 없었다. 사람이 2026-10-14에 기준선으로 두고 대비는 별도 작업에서 고치기로 정했다. `screen.spec.ts`의 기준선은 `text-subtle-foreground` 요소의 color-contrast만 뺀다.
+- 성능(C5): 대시보드 점수 100, LCP 0.7 s, CLS 0.012, TBT 0 ms
+- 이 PC에서는 다른 프로젝트가 8080과 5173을 쓰고 있었다. 그래서 저장소 밖 compose override로 `manager-api`의 호스트 포트를 바꿔 띄웠다. E2E는 8081만 쓰므로 영향이 없다. C2와 C4는 Vite 개발 서버(5174)에 `E2E_BASE_URL`로 실행해 확인했다.
+- 화면 검사는 밝은 모드만 본다. 다크 모드의 대비는 확인하지 않았다.
 
 ## 남길 결정
 
