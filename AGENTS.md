@@ -27,8 +27,7 @@
 ## 자주 쓰는 명령
 
 ```sh
-cd frontend && npm run lint
-cd frontend && npm run build
+cd frontend && npm run check
 cd backend && ./gradlew build
 cd frontend && npm ci
 node scripts/check-docs.mjs
