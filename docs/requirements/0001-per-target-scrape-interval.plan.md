@@ -38,7 +38,7 @@
 
 - `monitoring_checks.scrape_interval_seconds INT NOT NULL DEFAULT 15`를 더한다. 기존 행은 15가 된다.
 - `server_snmp_configs.scrape_interval_seconds INT NOT NULL DEFAULT 15`를 더한다. 기존 행은 15가 된다.
-- 허용 범위 10~240은 요청 DTO의 Bean Validation(`@Min(10)`, `@Max(240)`)으로 검증한다. DB 제약은 두지 않는다. 기존 열들도 범위를 DTO에서만 검증한다.
+- 허용 범위 10~240의 정수는 요청 DTO의 Bean Validation(`@DecimalMin`, `@DecimalMax`, `@Digits`)으로 검증한다. DB 제약은 두지 않는다. 기존 열들도 범위를 DTO에서만 검증한다.
 - Entity: 생성자에 `null`이 오면 15, `update`에 `null`이 오면 기존 값을 유지한다(요구사항 S6).
 
 ### 계약 변경
@@ -67,14 +67,14 @@
 - Prometheus가 `__scrape_interval__`을 받지 않는 경우: v3.14.0 문서와 실제 `/api/v1/targets`의 `scrapeInterval`로 확인한다(C9). 받지 않으면 구현을 멈추고 묻는다.
 - 주기가 길수록 Alert가 늦게 온다(최대 240초 + `for: 1m`): 요구사항의 하지 않는 것에 적었다. 화면 안내 문구에도 쓴다.
 - Prometheus 조회 기본 lookback(5분)보다 긴 주기를 받으면 값이 비는 구간이 생긴다: 상한을 240초로 둬서 막는다.
-- JSON의 소수(예: `15.5`)를 Jackson이 정수로 잘라 받을 수 있다: 화면은 정수만 보내도록 검증한다. API에서 실제로 잘라 받는지는 구현 중에 확인하고 진행 중 발견에 쓴다. 전역 Jackson 설정은 이번 범위가 아니다.
+- JSON의 소수(예: `15.5`)를 Jackson이 정수로 잘라 받을 수 있다: 실제로 잘라 받았다. 요청 DTO에서 `BigDecimal`과 `@Digits`로 막는다(진행 중 발견). 전역 Jackson 설정은 이번 범위가 아니다.
 - migration 되돌리기: 새 열만 더하므로 기존 데이터는 바뀌지 않는다. 배포를 되돌릴 때는 이전 버전 애플리케이션이 새 열을 무시하므로 열을 그대로 둬도 동작한다(`ddl-auto: validate`는 Entity에 없는 열을 문제 삼지 않는다). Flyway 이력을 되돌려야 하면 사람이 확인한 뒤 열을 지우고 `flyway_schema_history`의 V7 행을 지운다.
 
 ### 보안 위협
 
 - 바뀌는 신뢰 경계와 데이터 흐름: 없음. 화면용 API에 정수 필드 하나가 들어오고, 그 값이 SD 응답을 거쳐 Prometheus로 간다.
 - 잘못될 수 있는 것과 막는 방법
-  - 범위를 벗어난 주기(CWE-20): 1초 같은 값이 들어가면 대상과 exporter에 부하가 생기고, 큰 값은 감시 공백을 만든다. → 서버에서 `@Min(10)`, `@Max(240)`으로 거부한다. 화면 검증은 보조다.
+  - 범위를 벗어난 주기(CWE-20): 1초 같은 값이 들어가면 대상과 exporter에 부하가 생기고, 큰 값은 감시 공백을 만든다. → 서버에서 범위 밖 값과 소수를 거부한다. 화면 검증은 보조다.
   - SD label 값 주입(CWE-20): label 값은 서버가 정수에서 만든 문자열(`"{n}s"`)뿐이라 사용자 문자열이 들어가지 않는다.
 - 받아들이는 위험: 없음
 
@@ -89,26 +89,31 @@ Backend 테스트는 `cd backend && ./gradlew test`, Frontend 테스트는 `cd f
 | C3 | `BlackboxServiceDiscoveryServiceTest`: entry마다 `__scrape_interval__`이 Check의 주기로 들어 있고 기존 label과 targets가 그대로다 | `./gradlew test` |
 | C4 | `SnmpServiceDiscoveryServiceTest`: 같은 내용을 SNMP로 | `./gradlew test` |
 | C5 | 수동: MariaDB(`local-db` profile)와 임시 PostgreSQL 컨테이너에 기존 데이터를 둔 채 V7을 적용하고 두 열이 15인지 조회 | 결과를 보고에 적는다 |
-| C6 | `MonitoringCheckRequestTest`, `ServerSnmpRequestTest`: Validator로 9, 241은 위반, 10, 240은 통과 | `./gradlew test` |
+| C6 | `MonitoringCheckRequestTest`, `ServerSnmpRequestTest`: 9, 241, 15.5와 JSON의 15.5는 위반, 10, 240은 통과 | `./gradlew test` |
 | C7 | `MonitoringCheckTest`, `ServerSnmpConfigTest`: 생성할 때 `null`이면 15, 수정할 때 `null`이면 기존 값 | `./gradlew test` |
 | C8 | `CheckFormDialog.test.tsx`, `ServerSnmpSection.test.tsx`, `CheckDetailPage.test.tsx`: 요청에 주기를 담음, 범위 밖 오류 표시, 저장한 주기 표시 | `npm test` |
 | C9 | 수동: `docker compose --profile local-db up -d --build`로 띄우고 화면에서 주기를 30초로 바꾼 뒤, 재시작 없이 `/api/v1/targets`의 `scrapeInterval`이 `30s`인지, `probe_success`의 label 집합이 그대로인지 확인 | 결과를 보고에 적는다 |
 
 ## 작업 순서
 
-- [ ] 테스트 도구 도입: Backend `build.gradle` 테스트 의존성과 시간대, Frontend Vitest 설정과 `test`·`check` 스크립트. 의존성의 레지스트리 존재, 설치 스크립트, 라이선스 확인. TESTING.md와 DEVELOPMENT.md에 테스트 종류, 위치와 이름, 명령을 더함
-- [ ] Backend 완료 기준 테스트 작성(C1~C4, C6, C7)과 실패 확인
-- [ ] migration V7(두 vendor)과 Entity, DTO, 서비스 구현
-- [ ] SD 응답에 `__scrape_interval__` 추가
-- [ ] Frontend 컴포넌트 테스트 작성(C8)과 실패 확인
-- [ ] Frontend 타입, 폼 입력 칸, Check 상세 표시 구현
-- [ ] `prometheus.yml` 주석과 ARCHITECTURE.md 갱신
-- [ ] 수동 확인(C5, C9), 전체 검증, 새 세션이나 하위 에이전트의 리뷰
+- [x] 테스트 도구 도입: Backend `build.gradle` 테스트 의존성과 시간대, Frontend Vitest 설정과 `test`·`check` 스크립트. 의존성의 레지스트리 존재, 설치 스크립트, 라이선스 확인. TESTING.md와 DEVELOPMENT.md에 테스트 종류, 위치와 이름, 명령을 더함
+- [x] Backend 완료 기준 테스트 작성(C1~C4, C6, C7)과 실패 확인
+- [x] migration V7(두 vendor)과 Entity, DTO, 서비스 구현
+- [x] SD 응답에 `__scrape_interval__` 추가
+- [x] Frontend 컴포넌트 테스트 작성(C8)과 실패 확인
+- [x] Frontend 타입, 폼 입력 칸, Check 상세 표시 구현
+- [x] `prometheus.yml` 주석과 ARCHITECTURE.md 갱신
+- [x] 수동 확인(C5, C9)과 전체 검증
+- [ ] 새 세션이나 하위 에이전트의 리뷰
 - [ ] 남길 결정을 ADR로 옮기고 이 계획을 지움(병합 전 마지막 커밋)
 
 ## 진행 중 발견
 
-없음
+- JSON의 소수(`15.5`)를 `Integer` 필드가 15로 잘라 받아 검증을 지나갔다. 임시 환경에서 API로 보내 200과 저장된 15를 확인했다. 요구사항 S5를 만족하도록 두 요청 DTO의 수집 주기를 `BigDecimal`로 받고 `@Digits(fraction = 0)`로 거부한다. 전역 Jackson 설정은 공개 API(webhook)의 입력 처리까지 바꾸므로 고치지 않았다. C6 테스트에 JSON을 읽어 검증하는 사례를 더했다.
+- 저장소에 테스트 도구가 없어 이 변경에서 처음 들였다. JUnit(EPL-2.0)과 jsdom의 간접 의존성(MIT-0, BlueOak-1.0.0)은 조건 확인 분류라 사람이 2026-10-14에 쓰기로 골랐다. 기록은 각 의존성 커밋의 본문에 있다.
+- `compose.yml`은 컨테이너와 volume 이름이 고정돼 있어, 그대로 띄우면 개발 DB에 V7이 적용되고 `main` 브랜치의 Flyway가 기동에 실패할 수 있다. 그래서 C5와 C9는 이름이 다른 임시 컨테이너와 네트워크(`sv-*`)에서 확인했다.
+- C5: 임시 MariaDB 11.4와 PostgreSQL 17에 V1~V6을 적용하고 Check와 SNMP 설정 행을 넣은 뒤 V7을 적용했다. 두 DB 모두 기존 행이 15, 열은 `INT NOT NULL DEFAULT 15`였다.
+- C9: 이 브랜치의 `manager-api` 이미지, Blackbox, Prometheus v3.14.0(저장소의 `prometheus.yml`)을 띄웠다. Check를 등록하자 대상 주기가 `15s`였다. API로 30초로 바꾸자 Prometheus 재시작이나 reload 없이(`StartedAt` 같음) 대상 주기가 `30s`로 바뀌었다. 이때 `probe_success`의 label 집합과 series 수(1)는 그대로였고, sample 간격이 15초에서 30초대로 늘었다. SNMP 설정 120초도 대상 주기 `120s`로 들어갔고 label에는 남지 않았다.
 
 ## 남길 결정
 
