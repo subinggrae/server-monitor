@@ -33,7 +33,7 @@ class SnmpServiceDiscoveryServiceTest {
 			snmpConfigRepository, monitoredResourceRepository);
 
 	@Test
-	@DisplayName("entry에 서버의 수집 주기를 __scrape_interval__로 넣고 기존 label과 주소는 그대로 둔다")
+	@DisplayName("entry의 기존 label과 주소에 서버의 수집 주기 __scrape_interval__만 더한다")
 	void addsScrapeInterval() {
 		givenServer(5L, "web01", "10.0.0.5", new ServerSnmpConfig(5L, SnmpVersion.V2C, 161, "cipher", true, 120));
 

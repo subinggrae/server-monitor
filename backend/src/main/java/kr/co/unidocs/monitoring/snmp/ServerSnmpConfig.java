@@ -25,7 +25,7 @@ public class ServerSnmpConfig {
 
 	private static final String AUTH_NAME_PREFIX = "manager_server_";
 
-	/** prometheus.yml의 전역 scrape_interval과 같습니다. 이 기능 전에 등록한 설정도 이 주기였습니다. */
+	/** V7 migration의 열 기본값, prometheus.yml의 전역 scrape_interval과 같아야 합니다. */
 	private static final int DEFAULT_SCRAPE_INTERVAL_SECONDS = 15;
 
 	@Id

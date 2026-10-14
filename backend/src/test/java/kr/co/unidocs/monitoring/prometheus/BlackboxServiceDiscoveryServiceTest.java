@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class BlackboxServiceDiscoveryServiceTest {
 
 	@Test
-	@DisplayName("entry마다 Check의 수집 주기를 __scrape_interval__로 넣고 기존 label과 주소는 그대로 둔다")
+	@DisplayName("entry마다 기존 label과 주소에 Check의 수집 주기 __scrape_interval__만 더한다")
 	void addsScrapeIntervalToEachEntry() {
 		MonitoringCheck check = new MonitoringCheck("전자결재 Health", CheckType.TCP, "Production", null, true, 30);
 		ReflectionTestUtils.setField(check, "id", 3L);

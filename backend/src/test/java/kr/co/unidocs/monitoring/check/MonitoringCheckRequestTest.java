@@ -10,7 +10,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -56,11 +55,10 @@ class MonitoringCheckRequestTest {
 		assertThat(validator.validate(request(new BigDecimal(seconds)))).isEmpty();
 	}
 
-	@ParameterizedTest(name = "값 없음")
-	@NullSource
+	@Test
 	@DisplayName("수집 주기가 없어도 받는다")
-	void acceptsMissing(BigDecimal seconds) {
-		assertThat(validator.validate(request(seconds))).isEmpty();
+	void acceptsMissing() {
+		assertThat(validator.validate(request(null))).isEmpty();
 	}
 
 	@Test
