@@ -1,0 +1,48 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'kr.co.unidocs'
+version = '0.1.0-SNAPSHOT'
+description = 'Monitoring Manager - Prometheus based monitoring control plane'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
+	// Prometheus HTTP API를 호출할 때 씁니다.
+	// Spring Boot 4에서는 RestClient.Builder 자동 설정이 이 starter에 들어 있습니다.
+	implementation 'org.springframework.boot:spring-boot-starter-restclient'
+
+	// Resource Discovery와 연결 테스트에서 장비에 직접 SNMP로 묻습니다.
+	// 지속적인 metric 수집은 snmp_exporter가 맡습니다.
+	implementation 'org.snmp4j:snmp4j:3.13.1'
+
+	// Manager Database vendor is not fixed: both supported vendors ship with the app.
+	implementation 'org.flywaydb:flyway-mysql'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+	runtimeOnly 'org.postgresql:postgresql'
+
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+}
+
+tasks.named('bootJar') {
+	archiveFileName = 'monitoring-manager.jar'
+}

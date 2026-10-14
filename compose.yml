@@ -1,0 +1,272 @@
+# 외부 Manager DB 사용:          docker compose up -d --build
+# 로컬 개발용 MariaDB까지 사용:   docker compose --profile local-db up -d --build
+
+services:
+
+  manager-api:
+    build:
+      context: ./backend
+    image: monitoring-manager-api:local
+    container_name: manager-api
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    environment:
+      # 비밀번호는 여기에 넣지 않습니다. 환경변수가 config tree보다 우선해서 secret 파일을 덮어씁니다.
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?SPRING_DATASOURCE_URL이 필요합니다. .env.example을 참고해 주세요.}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?SPRING_DATASOURCE_USERNAME이 필요합니다.}
+
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-http://prometheus:9090}
+      ALERTMANAGER_URL: ${ALERTMANAGER_URL:-http://alertmanager:9093}
+      GRAFANA_URL: ${GRAFANA_URL:-http://localhost:3000}
+
+      BLACKBOX_EXPORTER_URL: ${BLACKBOX_EXPORTER_URL:-http://blackbox-exporter:9115}
+      SNMP_EXPORTER_URL: ${SNMP_EXPORTER_URL:-http://snmp-exporter:9116}
+      MYSQLD_EXPORTER_URL: ${MYSQLD_EXPORTER_URL:-http://mysqld-exporter:9104}
+
+      # 비어 있으면 /register를 쓸 수 없습니다. 외부에서 접근 가능한 HTTPS 주소가 필요합니다.
+      TELEGRAM_WEBHOOK_PUBLIC_URL: ${TELEGRAM_WEBHOOK_PUBLIC_URL:-}
+
+      # 실제 운영 그룹에 테스트 메시지를 보내지 않으려고 Mock 서버로 바꿀 수 있게 둔 값입니다.
+      TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
+
+      # Telegram 메시지에 적는 시각의 시간대입니다. DB에는 UTC로 저장합니다.
+      MANAGER_TIME_ZONE: ${MANAGER_TIME_ZONE:-Asia/Seoul}
+
+    # target이 곧 property 이름입니다. application.yml의 spring.config.import가 읽습니다.
+    secrets:
+      - source: manager_db_password
+        target: spring.datasource.password
+      - source: app_secret_key
+        target: monitoring-manager.secret-key
+      - source: telegram_bot_token
+        target: monitoring-manager.telegram.bot-token
+      - source: telegram_webhook_secret
+        target: monitoring-manager.telegram.webhook-secret
+      - source: alertmanager_webhook_token
+        target: monitoring-manager.notification.alertmanager-webhook-token
+
+    # snmp_exporter의 auth config를 여기에서 만들어 넣습니다.
+    # community 평문이 들어 있어 host에 bind하지 않고 container 사이에서만 씁니다.
+    volumes:
+      - snmp-runtime:/runtime
+
+    # manager-db에 depends_on을 걸지 않습니다. 걸면 외부 DB를 쓸 때도 local-db profile이 함께 켜집니다.
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+    networks:
+      - monitoring
+
+  manager-web:
+    build:
+      context: ./frontend
+    image: monitoring-manager-web:local
+    container_name: manager-web
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8081:80"
+
+    networks:
+      - monitoring
+
+  manager-db:
+    image: mariadb:11.4
+    container_name: manager-db
+    restart: unless-stopped
+
+    profiles:
+      - local-db
+
+    # 호스트에 이미 MariaDB나 MySQL이 떠 있으면 3306이 겹칩니다.
+    ports:
+      - "127.0.0.1:${MANAGER_DB_PORT:-13306}:3306"
+
+    environment:
+      MARIADB_DATABASE: ${MANAGER_DB_NAME:-monitoring_manager}
+      MARIADB_USER: ${MANAGER_DB_USER:-manager}
+      # manager-api도 같은 파일을 읽으므로 두 쪽 값이 어긋날 일이 없습니다.
+      MARIADB_PASSWORD_FILE: /run/secrets/manager_db_password
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/manager_db_root_password
+
+    secrets:
+      - manager_db_password
+      - manager_db_root_password
+
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+    volumes:
+      - manager-db-data:/var/lib/mysql
+
+    networks:
+      - monitoring
+
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.28.0
+
+    container_name: blackbox-exporter
+
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:9115:9115"
+
+    volumes:
+      - ./infrastructure/blackbox/blackbox.yml:/config/blackbox.yml:ro
+
+    command:
+      - --config.file=/config/blackbox.yml
+
+    networks:
+      - monitoring
+
+  snmp-exporter:
+    image: prom/snmp-exporter:v0.30.1
+
+    container_name: snmp-exporter
+
+    restart: unless-stopped
+
+    # host에 port를 열지 않습니다. /config는 auth 이름을 그대로 보여 줍니다.
+    # Prometheus와 Manager만 Docker network 안에서 부릅니다.
+
+    volumes:
+      # Manager가 만드는 auth config입니다. exporter는 읽기만 합니다.
+      - snmp-runtime:/runtime:ro
+
+    # module 정의는 image에 들어 있는 기본 config를 그대로 씁니다.
+    # auth만 담긴 파일을 뒤에 더하면 exporter가 둘을 합쳐서 읽습니다.
+    # community를 scrape 요청으로 받지 못하기 때문에 이렇게 나눕니다.
+    command:
+      - --config.file=/etc/snmp_exporter/snmp.yml
+      - --config.file=/runtime/snmp-auth.yml
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9116/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    networks:
+      - monitoring
+
+  # SNMP 흐름을 개발 환경에서 확인하려고 두는 테스트 장비입니다.
+  #   docker compose --profile snmp-test up -d snmp-test-agent
+  # 운영에서는 뜨지 않습니다.
+  snmp-test-agent:
+    image: polinux/snmpd
+
+    container_name: snmp-test-agent
+
+    profiles:
+      - snmp-test
+
+    restart: unless-stopped
+
+    volumes:
+      - ./infrastructure/snmp/test-agent/snmpd.conf:/etc/snmp/snmpd.conf:ro
+
+    networks:
+      - monitoring
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:v3.14.0
+    container_name: prometheus
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:9090:9090"
+
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+
+    networks:
+      - monitoring
+
+  alertmanager:
+    image: quay.io/prometheus/alertmanager:v0.34.1
+    container_name: alertmanager
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:9093:9093"
+
+    volumes:
+      - ./infrastructure/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+
+    # Telegram 전송은 Manager가 맡으므로 Alertmanager는 Bot Token을 받지 않습니다.
+    secrets:
+      - alertmanager_webhook_token
+
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --enable-feature=utf8-strict-mode
+
+    networks:
+      - monitoring
+
+# 노출되면 안 되는 값만 여기에 둡니다. 나머지 설정은 .env에 있습니다.
+# 아래 파일은 Git에 올리지 않습니다. 목록과 설정 방법은 docs/DEVELOPMENT.md에 있습니다.
+
+secrets:
+
+  manager_db_password:
+    file: ./infrastructure/secrets/manager_db_password
+
+  manager_db_root_password:
+    file: ./infrastructure/secrets/manager_db_root_password
+
+  app_secret_key:
+    file: ./infrastructure/secrets/app_secret_key
+
+  telegram_bot_token:
+    file: ./infrastructure/secrets/telegram_bot_token
+
+  telegram_webhook_secret:
+    file: ./infrastructure/secrets/telegram_webhook_secret
+
+  alertmanager_webhook_token:
+    file: ./infrastructure/secrets/alertmanager_webhook_token
+
+networks:
+
+  monitoring:
+    name: monitoring
+
+volumes:
+
+  prometheus-data:
+    name: prometheus-data
+
+  alertmanager-data:
+    name: alertmanager-data
+
+  # snmp_exporter의 auth config가 들어 있습니다. community 평문이 있으므로
+  # host에 bind하지 않고 manager-api와 snmp-exporter 사이에서만 씁니다.
+  snmp-runtime:
+    name: snmp-runtime
+
+  manager-db-data:
+    name: manager-db-data
