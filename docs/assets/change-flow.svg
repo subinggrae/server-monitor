@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 616" width="720" height="616" role="img" aria-labelledby="change-flow-title change-flow-desc">
+<title id="change-flow-title">모든 변경은 사람 리뷰를 거쳐 병합된다</title>
+<desc id="change-flow-desc">작업을 시작하면 변경 규모를 판단한다. 작은 변경은 바로 구현한다. 보통 변경은 요구사항을 쓰고 사람이 승인한 뒤 구현한다. 큰 변경은 요구사항을 쓰고 사람이 승인한 뒤, 계획을 쓰고 사람이 한 번 더 승인하고 구현한다. 구현에는 테스트, 자체 리뷰, 커밋이 들어간다. 모든 변경은 구현 뒤 사람이 리뷰하고 기본 브랜치에 병합한다(SVN은 커밋한다).</desc>
+<style>
+  svg { --paper: #FFFFFF; --ink: #2D3142; --muted: #5C667A; --edge: #8A92A3; --hair: #D9DCE1; --band: #F5F6F8; --accent: #C2410C; --accent-fill: #FFF4EE; }
+  @media (prefers-color-scheme: dark) {
+    svg { --paper: #0D1117; --ink: #E6EDF3; --muted: #9DA7B3; --edge: #7D8590; --hair: #30363D; --band: #161B22; --accent: #F0883E; --accent-fill: #2B1A10; }
+  }
+  text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: var(--ink); }
+  .paper { fill: var(--paper); }
+  .name { font-size: 14px; font-weight: 600; }
+  .sub { font-size: 12px; fill: var(--muted); }
+  .key { fill: var(--accent); }
+  .box { fill: var(--paper); stroke: var(--ink); stroke-width: 1; }
+  .box-key { fill: var(--accent-fill); stroke: var(--accent); stroke-width: 1.5; }
+  .edge { stroke: var(--edge); stroke-width: 1; fill: none; }
+  .edge-key { stroke: var(--accent); stroke-width: 1.5; fill: none; }
+  .arrow { fill: var(--edge); }
+  .arrow-key { fill: var(--accent); }
+</style>
+<defs>
+  <marker id="change-flow-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <path class="arrow" d="M0 0 L8 4 L0 8 z"/>
+  </marker>
+  <marker id="change-flow-arrow-key" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <path class="arrow-key" d="M0 0 L8 4 L0 8 z"/>
+  </marker>
+</defs>
+<rect class="paper" width="720" height="616"/>
+
+<!-- 연결선: 시작에서 판단까지 -->
+<g id="edges-start">
+  <path class="edge" d="M360 56 V88" marker-end="url(#change-flow-arrow)"/>
+</g>
+
+<!-- 연결선: 변경 규모에 따른 세 갈래 -->
+<g id="edges-branches">
+  <path class="edge" d="M280 128 H128 A8 8 0 0 0 120 136 V404 A8 8 0 0 0 128 412 H272" marker-end="url(#change-flow-arrow)"/>
+  <path class="edge" d="M360 168 V208" marker-end="url(#change-flow-arrow)"/>
+  <path class="edge" d="M440 128 H592 A8 8 0 0 1 600 136 V208" marker-end="url(#change-flow-arrow)"/>
+  <path class="edge" d="M360 264 V384" marker-end="url(#change-flow-arrow)"/>
+  <path class="edge" d="M600 264 V296" marker-end="url(#change-flow-arrow)"/>
+  <path class="edge" d="M600 352 V404 A8 8 0 0 1 592 412 H448" marker-end="url(#change-flow-arrow)"/>
+  <text class="sub" x="200" y="116" text-anchor="middle">작은 변경</text>
+  <text class="sub" x="368" y="192">보통 변경</text>
+  <text class="sub" x="520" y="116" text-anchor="middle">큰 변경</text>
+</g>
+
+<!-- 연결선: 구현 뒤 사람 리뷰와 병합 -->
+<g id="edges-review">
+  <path class="edge" d="M360 440 V472" marker-end="url(#change-flow-arrow)"/>
+  <path class="edge-key" d="M360 528 V560" marker-end="url(#change-flow-arrow-key)"/>
+</g>
+
+<!-- 노드: 시작과 판단 -->
+<g id="nodes-start">
+  <g class="node">
+    <rect class="box" x="296" y="16" width="128" height="40" rx="20"/>
+    <text class="name" x="360" y="40" text-anchor="middle">작업 시작</text>
+  </g>
+  <g class="node">
+    <path class="box" d="M360 88 L440 128 L360 168 L280 128 z"/>
+    <text class="name" x="360" y="132" text-anchor="middle">변경 규모</text>
+  </g>
+</g>
+
+<!-- 노드: 보통 변경 갈래 -->
+<g id="nodes-normal">
+  <g class="node">
+    <rect class="box" x="272" y="208" width="176" height="56" rx="4"/>
+    <text class="name" x="360" y="232" text-anchor="middle">요구사항 작성</text>
+    <text class="sub" x="360" y="252" text-anchor="middle">사람 승인</text>
+  </g>
+</g>
+
+<!-- 노드: 큰 변경 갈래 -->
+<g id="nodes-large">
+  <g class="node">
+    <rect class="box" x="512" y="208" width="176" height="56" rx="4"/>
+    <text class="name" x="600" y="232" text-anchor="middle">요구사항 작성</text>
+    <text class="sub" x="600" y="252" text-anchor="middle">사람 승인</text>
+  </g>
+  <g class="node">
+    <rect class="box" x="512" y="296" width="176" height="56" rx="4"/>
+    <text class="name" x="600" y="320" text-anchor="middle">계획 작성</text>
+    <text class="sub" x="600" y="340" text-anchor="middle">사람 승인</text>
+  </g>
+</g>
+
+<!-- 노드: 구현, 사람 리뷰, 병합 -->
+<g id="nodes-common">
+  <g class="node">
+    <rect class="box" x="272" y="384" width="176" height="56" rx="4"/>
+    <text class="name" x="360" y="408" text-anchor="middle">구현</text>
+    <text class="sub" x="360" y="428" text-anchor="middle">테스트, 자체 리뷰, 커밋</text>
+  </g>
+  <g class="node">
+    <rect class="box-key" x="272" y="472" width="176" height="56" rx="4"/>
+    <text class="name key" x="360" y="496" text-anchor="middle">리뷰</text>
+    <text class="sub" x="360" y="516" text-anchor="middle">사람</text>
+  </g>
+  <g class="node">
+    <rect class="box" x="296" y="560" width="128" height="40" rx="20"/>
+    <text class="name" x="360" y="584" text-anchor="middle">병합</text>
+  </g>
+</g>
+</svg>

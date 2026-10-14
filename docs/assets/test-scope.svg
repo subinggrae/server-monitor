@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752 112" width="752" height="112" role="img" aria-labelledby="test-scope-title test-scope-desc">
+  <title id="test-scope-title">지금은 정적 검사만 모든 계층을 코드 실행 없이 검사한다</title>
+  <desc id="test-scope-desc">열은 화면, API, 도메인 로직, DB와 외부 시스템 순서의 계층이다. 정적 검사는 코드를 실행하지 않고 모든 계층을 검사한다. 코드를 실행해 계층을 검사하는 테스트는 아직 없다.</desc>
+  <style>
+    svg { --paper: #FFFFFF; --ink: #2D3142; --muted: #5C667A; --edge: #8A92A3; --hair: #D9DCE1; --band: #F5F6F8; --accent: #C2410C; --accent-fill: #FFF4EE; }
+    @media (prefers-color-scheme: dark) {
+      svg { --paper: #0D1117; --ink: #E6EDF3; --muted: #9DA7B3; --edge: #7D8590; --hair: #30363D; --band: #161B22; --accent: #F0883E; --accent-fill: #2B1A10; }
+    }
+    text { font-family: Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; fill: var(--ink); }
+    .paper { fill: var(--paper); }
+    .name { font-size: 14px; font-weight: 600; }
+    .sub { font-size: 12px; fill: var(--muted); }
+    .band { fill: var(--band); }
+    .dot { fill: var(--ink); }
+    .range-dash { stroke: var(--edge); stroke-width: 2; stroke-dasharray: 2 6; stroke-linecap: round; }
+  </style>
+
+  <rect class="paper" width="752" height="112"/>
+
+  <!-- 열 바탕: 둘째와 넷째 열. 열은 x = 160 + 144 × 순서, 폭 144 -->
+  <g id="bands">
+    <rect class="band" x="304" y="16" width="144" height="80"/>
+    <rect class="band" x="592" y="16" width="144" height="80"/>
+  </g>
+
+  <!-- 열 이름: 계층 -->
+  <g id="columns">
+    <text class="sub" x="232" y="36" text-anchor="middle">화면</text>
+    <text class="sub" x="376" y="36" text-anchor="middle">API</text>
+    <text class="sub" x="520" y="36" text-anchor="middle">도메인 로직</text>
+    <text class="sub" x="664" y="36" text-anchor="middle">DB와 외부 시스템</text>
+  </g>
+
+  <!-- 행: 범위 선 y = 72. 행 이름 기준선은 선보다 4 위 -->
+  <g id="row-static">
+    <text class="name" x="24" y="68">정적 검사</text>
+    <text class="sub" x="24" y="88">코드 실행 없음</text>
+    <line class="range-dash" x1="184" y1="72" x2="712" y2="72"/>
+    <circle class="dot" cx="184" cy="72" r="4"/>
+    <circle class="dot" cx="712" cy="72" r="4"/>
+  </g>
+</svg>
