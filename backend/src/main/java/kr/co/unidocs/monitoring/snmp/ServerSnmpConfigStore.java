@@ -43,12 +43,12 @@ class ServerSnmpConfigStore {
 		if (existing.isPresent()) {
 			ServerSnmpConfig config = existing.get();
 			config.update(request.version(), request.port(), communityCipher, request.enabled(),
-					request.scrapeIntervalSeconds());
+					request.scrapeIntervalSecondsAsInt());
 			return snmpConfigRepository.save(config);
 		}
 
 		return snmpConfigRepository.save(new ServerSnmpConfig(serverId, request.version(), request.port(),
-				communityCipher, request.enabled(), request.scrapeIntervalSeconds()));
+				communityCipher, request.enabled(), request.scrapeIntervalSecondsAsInt()));
 	}
 
 	@Transactional

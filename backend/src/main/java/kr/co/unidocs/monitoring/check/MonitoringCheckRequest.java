@@ -1,6 +1,9 @@
 package kr.co.unidocs.monitoring.check;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -8,6 +11,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -35,15 +39,24 @@ public record MonitoringCheckRequest(
 
 		boolean enabled,
 
-		/** null이면 등록할 때는 15초, 수정할 때는 기존 주기입니다. */
-		@Min(value = 10, message = "수집 주기는 10초에서 240초 사이로 입력해 주세요.")
-		@Max(value = 240, message = "수집 주기는 10초에서 240초 사이로 입력해 주세요.")
-		Integer scrapeIntervalSeconds,
+		/**
+		 * null이면 등록할 때는 15초, 수정할 때는 기존 주기입니다.
+		 * Integer로 받으면 Jackson이 15.5를 15로 잘라 검증을 지나가므로 BigDecimal로 받습니다.
+		 */
+		@DecimalMin(value = "10", message = "수집 주기는 10초에서 240초 사이 정수로 입력해 주세요.")
+		@DecimalMax(value = "240", message = "수집 주기는 10초에서 240초 사이 정수로 입력해 주세요.")
+		@Digits(integer = 3, fraction = 0, message = "수집 주기는 10초에서 240초 사이 정수로 입력해 주세요.")
+		BigDecimal scrapeIntervalSeconds,
 
 		@NotEmpty(message = "확인할 대상을 하나 이상 입력해 주세요.")
 		@Size(max = 50, message = "한 Check에는 Target을 50개까지 넣을 수 있습니다.")
 		@Valid
 		List<TargetRequest> targets) {
+
+	/** 검증을 통과한 요청에서만 부릅니다. 그래서 정수로 바꿀 수 있습니다. */
+	public Integer scrapeIntervalSecondsAsInt() {
+		return (scrapeIntervalSeconds != null) ? scrapeIntervalSeconds.intValueExact() : null;
+	}
 
 	public record TargetRequest(
 
