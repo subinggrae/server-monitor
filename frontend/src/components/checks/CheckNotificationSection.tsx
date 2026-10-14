@@ -3,9 +3,10 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox, CheckboxLabel } from '@/components/ui/input'
+import { Checkbox, CheckboxLabel, Field, Input } from '@/components/ui/input'
 import { Section, SectionHeader } from '@/components/ui/section'
 import {
+  ApiError,
   apiPut,
   checkNotificationsQuery,
   queryKeys,
@@ -14,6 +15,7 @@ import {
   type CheckNotificationsInput,
   type NotificationBinding,
 } from '@/lib/api'
+import { parseRepeatIntervalMinutes, REPEAT_INTERVAL_ERROR, REPEAT_INTERVAL_HINT } from '@/lib/repeatInterval'
 
 type BindingRow = {
   telegramDestinationId: number
@@ -103,6 +105,8 @@ function NotificationForm({
       }
     }),
   )
+  const [repeatInterval, setRepeatInterval] = useState(String(notifications.repeatIntervalMinutes))
+  const [repeatIntervalError, setRepeatIntervalError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
   const selectedRows = rows.filter((row) => row.selected)
@@ -122,7 +126,34 @@ function NotificationForm({
       queryClient.invalidateQueries({ queryKey: queryKeys.notificationBindings })
       setSaved(true)
     },
+    onError: (error) => {
+      if (error instanceof ApiError && error.fieldErrors.repeatIntervalMinutes) {
+        setRepeatIntervalError(error.fieldErrors.repeatIntervalMinutes)
+      }
+    },
   })
+
+  const save = () => {
+    setSaved(false)
+    setRepeatIntervalError(null)
+
+    const repeatIntervalMinutes = parseRepeatIntervalMinutes(repeatInterval)
+    if (repeatIntervalMinutes === null) {
+      setRepeatIntervalError(REPEAT_INTERVAL_ERROR)
+      return
+    }
+
+    mutation.mutate({
+      bindings: selectedRows.map((row) => ({
+        telegramDestinationId: row.telegramDestinationId,
+        warningEnabled: row.warningEnabled,
+        criticalEnabled: row.criticalEnabled,
+        sendResolved: row.sendResolved,
+        enabled: true,
+      })),
+      repeatIntervalMinutes,
+    })
+  }
 
   return (
     <Section>
@@ -130,22 +161,7 @@ function NotificationForm({
         title="알림"
         description="고른 Telegram 그룹으로만 장애 알림이 갑니다."
         actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={mutation.isPending}
-            onClick={() =>
-              mutation.mutate({
-                bindings: selectedRows.map((row) => ({
-                  telegramDestinationId: row.telegramDestinationId,
-                  warningEnabled: row.warningEnabled,
-                  criticalEnabled: row.criticalEnabled,
-                  sendResolved: row.sendResolved,
-                  enabled: true,
-                })),
-              })
-            }
-          >
+          <Button variant="secondary" size="sm" disabled={mutation.isPending} onClick={save}>
             {mutation.isPending ? '저장 중…' : '저장'}
           </Button>
         }
@@ -210,12 +226,36 @@ function NotificationForm({
         ))}
       </div>
 
+      <Field
+        label="재발송 주기"
+        htmlFor="check-repeat-interval"
+        hint={REPEAT_INTERVAL_HINT}
+        error={repeatIntervalError ?? undefined}
+      >
+        <div className="flex items-center gap-2">
+          <Input
+            id="check-repeat-interval"
+            name="repeatIntervalMinutes"
+            inputMode="numeric"
+            autoComplete="off"
+            className="w-24"
+            value={repeatInterval}
+            onChange={(event) => {
+              setSaved(false)
+              setRepeatInterval(event.target.value)
+            }}
+            aria-invalid={Boolean(repeatIntervalError)}
+          />
+          <span className="text-[13px] text-muted-foreground">분</span>
+        </div>
+      </Field>
+
       <p className="text-xs text-muted-foreground">
         지금 Monitoring Check의 Alert는 Critical만 있습니다. Warning은 Threshold 기능을 만든 뒤에
         동작합니다.
       </p>
 
-      {mutation.isError ? (
+      {mutation.isError && !repeatIntervalError ? (
         <p className="text-[13px] text-destructive">저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
       ) : null}
       {saved ? <p className="text-[13px] text-muted-foreground">알림 설정을 저장했습니다.</p> : null}
