@@ -36,6 +36,7 @@ scrape_configs:
 
   # 사용자가 UI에서 등록한 Check입니다.
   # Target 목록은 Manager API에서 가져옵니다. 이 파일에 Target을 적지 않습니다.
+  # 수집 주기도 Check마다 SD label __scrape_interval__로 받습니다. 위의 전역 scrape_interval은 쓰지 않습니다.
   - job_name: manager-blackbox
     metrics_path: /probe
 
@@ -64,6 +65,7 @@ scrape_configs:
 
   # 사용자가 UI에서 SNMP를 설정한 서버입니다.
   # community는 여기에도 SD 응답에도 없습니다. exporter가 auth 이름으로 자기 config에서 찾습니다.
+  # 수집 주기도 서버마다 SD label __scrape_interval__로 받습니다. 위의 전역 scrape_interval은 쓰지 않습니다.
   - job_name: manager-snmp
     metrics_path: /snmp
 

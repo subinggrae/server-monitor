@@ -46,6 +46,9 @@ public class BlackboxServiceDiscoveryService {
 	 *
 	 * 알림 대상은 Manager Database가 정합니다.
 	 * Telegram chat id 같은 라우팅 정보를 label에 넣지 않습니다. (CLAUDE.md 4번)
+	 *
+	 * __scrape_interval__은 Prometheus가 이 대상의 수집 주기로 씁니다.
+	 * __로 시작하는 label은 relabel 뒤에 지워져 time series에 남지 않습니다.
 	 */
 	private ServiceDiscoveryTarget toTarget(MonitoringCheck check, MonitoringCheckTarget target) {
 		Map<String, String> labels = new LinkedHashMap<>();
@@ -55,6 +58,7 @@ public class BlackboxServiceDiscoveryService {
 		labels.put("module", check.getType().blackboxModule());
 		labels.put("environment", check.getEnvironment());
 		labels.put("check_name", check.getName());
+		labels.put("__scrape_interval__", check.getScrapeIntervalSeconds() + "s");
 
 		return new ServiceDiscoveryTarget(List.of(target.blackboxTarget()), labels);
 	}
