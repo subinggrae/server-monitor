@@ -22,7 +22,7 @@
 검토했지만 고르지 않은 방법은 다음과 같다.
 
 - 사용자가 주기를 바꿀 때마다 `alertmanager.yml`을 다시 쓰고 reload: 지켜야 할 경계를 어긴다. Check마다 route가 필요해 설정 파일이 대상 수만큼 커진다.
-- Manager API가 스케줄러로 `alert_events`의 FIRING 행을 다시 보냄: Alert가 아직 이어지는지는 Alertmanager의 webhook으로만 안다. Alertmanager가 멈췄을 때 끝난 장애를 계속 알릴 수 있다. 요구사항의 하지 않는 것이다.
+- Manager API가 스케줄러로 `alert_events`의 FIRING 행을 다시 보냄: Alert가 아직 이어지는지는 Alertmanager의 webhook으로만 안다. Alertmanager가 멈췄을 때 끝난 장애를 계속 알릴 수 있다. 요구사항도 이 방법을 하지 않는 것에 두었다.
 - `monitoring_checks`에 열을 더함: 테이블은 하나 줄지만 Check 등록·수정 API와 엔티티가 알림 설정을 알게 된다.
 
 ## 바뀌는 부분
