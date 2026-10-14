@@ -2,10 +2,12 @@ package kr.co.unidocs.monitoring.notification.routing;
 
 import java.util.List;
 
-public record CheckNotificationResponse(Long checkId, List<BindingResponse> bindings) {
+public record CheckNotificationResponse(Long checkId, List<BindingResponse> bindings, int repeatIntervalMinutes) {
 
-	public static CheckNotificationResponse of(Long checkId, List<CheckNotificationBinding> bindings) {
-		return new CheckNotificationResponse(checkId, bindings.stream().map(BindingResponse::of).toList());
+	public static CheckNotificationResponse of(Long checkId, List<CheckNotificationBinding> bindings,
+			int repeatIntervalMinutes) {
+		return new CheckNotificationResponse(checkId, bindings.stream().map(BindingResponse::of).toList(),
+				repeatIntervalMinutes);
 	}
 
 	public record BindingResponse(

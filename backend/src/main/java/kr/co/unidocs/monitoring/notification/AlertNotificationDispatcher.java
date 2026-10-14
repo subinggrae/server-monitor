@@ -4,6 +4,7 @@ import kr.co.unidocs.monitoring.alert.AlertStatus;
 import kr.co.unidocs.monitoring.config.MonitoringManagerProperties;
 import kr.co.unidocs.monitoring.notification.routing.CheckNotificationBinding;
 import kr.co.unidocs.monitoring.notification.routing.CheckNotificationBindingRepository;
+import kr.co.unidocs.monitoring.notification.routing.CheckNotificationSettingRepository;
 import kr.co.unidocs.monitoring.notification.telegram.TelegramClient;
 import kr.co.unidocs.monitoring.notification.telegram.TelegramDestination;
 import kr.co.unidocs.monitoring.notification.telegram.TelegramSendResult;
@@ -11,10 +12,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 알림 대상은 Manager Database가 정합니다. Prometheus label로 정하지 않습니다. (CLAUDE.md 4번)
@@ -29,6 +32,8 @@ public class AlertNotificationDispatcher {
 
 	private final CheckNotificationBindingRepository bindingRepository;
 
+	private final CheckNotificationSettingRepository settingRepository;
+
 	private final NotificationDeliveryRepository deliveryRepository;
 
 	private final TelegramClient telegramClient;
@@ -37,14 +42,19 @@ public class AlertNotificationDispatcher {
 
 	private final Duration dedupeWindow;
 
+	private final Clock clock;
+
 	AlertNotificationDispatcher(CheckNotificationBindingRepository bindingRepository,
-			NotificationDeliveryRepository deliveryRepository, TelegramClient telegramClient,
-			AlertMessageFormatter messageFormatter, MonitoringManagerProperties properties) {
+			CheckNotificationSettingRepository settingRepository, NotificationDeliveryRepository deliveryRepository,
+			TelegramClient telegramClient, AlertMessageFormatter messageFormatter,
+			MonitoringManagerProperties properties, Clock clock) {
 		this.bindingRepository = bindingRepository;
+		this.settingRepository = settingRepository;
 		this.deliveryRepository = deliveryRepository;
 		this.telegramClient = telegramClient;
 		this.messageFormatter = messageFormatter;
 		this.dedupeWindow = properties.notification().dedupeWindow();
+		this.clock = clock;
 	}
 
 	public void dispatch(AlertNotification notification) {
@@ -61,8 +71,12 @@ public class AlertNotificationDispatcher {
 			return;
 		}
 
+		// 재발송 주기는 화면에서 바꾸면 다음 webhook부터 바로 쓰이도록 알림마다 다시 읽습니다.
+		Duration repeatInterval = notification.resolved() ? null
+				: Duration.ofMinutes(settingRepository.findRepeatIntervalMinutes(notification.checkId()));
+
 		for (Recipient recipient : recipients) {
-			deliver(notification, recipient);
+			deliver(notification, recipient, repeatInterval);
 		}
 	}
 
@@ -92,10 +106,20 @@ public class AlertNotificationDispatcher {
 		return recipients;
 	}
 
-	private void deliver(AlertNotification notification, Recipient recipient) {
+	/** @param repeatInterval FIRING일 때만 있습니다. 복구 알림은 한 번만 보내므로 재발송 주기를 보지 않습니다. */
+	private void deliver(AlertNotification notification, Recipient recipient, Duration repeatInterval) {
 		AlertStatus alertStatus = notification.resolved() ? AlertStatus.RESOLVED : AlertStatus.FIRING;
 
-		if (recentlySent(notification.alertEventId(), recipient.destinationId(), alertStatus)) {
+		if (alertStatus == AlertStatus.FIRING && !dueForRepeat(notification.alertEventId(), recipient.destinationId(),
+				repeatInterval)) {
+			// 이어지는 Alert는 5분마다 webhook으로 다시 오므로, 건너뛴 것까지 기록하면 전송 기록을 읽기 어렵습니다.
+			log.debug("재발송 주기가 지나지 않아 보내지 않았습니다. alert_event_id={} destination_id={}",
+					notification.alertEventId(), recipient.destinationId());
+			return;
+		}
+
+		if (alertStatus == AlertStatus.RESOLVED
+				&& recentlySent(notification.alertEventId(), recipient.destinationId(), alertStatus)) {
 			log.info("짧은 시간 안에 이미 보낸 알림이라 건너뛰었습니다. alert_event_id={} destination_id={}",
 					notification.alertEventId(), recipient.destinationId());
 			record(notification, recipient, alertStatus, DeliveryStatus.SKIPPED, "짧은 시간 안에 이미 보낸 알림입니다.");
@@ -118,13 +142,24 @@ public class AlertNotificationDispatcher {
 		record(notification, recipient, alertStatus, DeliveryStatus.FAILED, result.errorMessage());
 	}
 
+	/** 실패한 전송은 세지 않습니다. 마지막으로 성공한 전송을 기준으로 판단합니다. */
+	private boolean dueForRepeat(Long alertEventId, Long destinationId, Duration repeatInterval) {
+		Optional<Instant> lastSentAt = deliveryRepository
+				.findFirstByAlertEventIdAndTelegramDestinationIdAndAlertStatusAndDeliveryStatusOrderByAttemptedAtDesc(
+						alertEventId, destinationId, AlertStatus.FIRING, DeliveryStatus.SENT)
+				.map(NotificationDelivery::getAttemptedAt);
+
+		return RepeatNotificationPolicy.shouldSend(lastSentAt, repeatInterval, clock.instant());
+	}
+
 	/**
 	 * Alertmanager는 webhook 응답이 늦으면 같은 payload를 곧바로 다시 보냅니다.
-	 * 그 재시도만 막고 repeat_interval에 따른 정상 반복 알림은 통과시켜야 해서 짧은 창으로만 확인합니다.
+	 * 복구 알림은 재발송 주기를 보지 않으므로 그 재시도를 짧은 창으로 막습니다.
+	 * FIRING은 재발송 주기의 하한(5분)이 이 창보다 길어 재발송 판단이 같은 역할을 합니다.
 	 * 실패한 전송은 세지 않습니다. 다시 보낼 수 있어야 합니다.
 	 */
 	private boolean recentlySent(Long alertEventId, Long destinationId, AlertStatus alertStatus) {
-		Instant since = Instant.now().minus(dedupeWindow);
+		Instant since = clock.instant().minus(dedupeWindow);
 
 		return deliveryRepository
 				.existsByAlertEventIdAndTelegramDestinationIdAndAlertStatusAndDeliveryStatusAndAttemptedAtAfter(
