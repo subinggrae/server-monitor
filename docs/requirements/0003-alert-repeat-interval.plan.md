@@ -1,7 +1,7 @@
 # 0003. Check마다 다른 알림 재발송 주기 구현 계획
 
 - 요구사항: [0003. Check마다 다른 알림 재발송 주기](0003-alert-repeat-interval.md)
-- 상태: 검토 중
+- 상태: 승인
 
 ## 접근 방법
 
@@ -17,7 +17,7 @@
 - 판단은 순수 함수(`RepeatNotificationPolicy`)로 떼어 현재 시각을 인자로 받는다. Dispatcher는 주입한 `Clock`으로 현재 시각을 얻는다. 지금 코드에는 `Clock` bean이 없어 `config`에 `Clock.systemUTC()` bean을 더한다.
 - Check 엔티티는 알림을 모르게 둔다(`CheckNotificationBinding`의 클래스 주석). 그래서 `monitoring_checks`에 열을 더하지 않고 `notification.routing` 패키지에 새 엔티티를 둔다.
 
-허용 오차가 필요한 이유는 다음과 같다. Alertmanager는 정확히 5분 간격으로 webhook을 보내지만, `attempted_at`은 Telegram 호출이 끝난 뒤 기록된다. 그래서 60분 주기라도 60분 뒤 webhook이 오면 경과 시간이 60분보다 조금 짧아 한 번 건너뛰고, 실제 재발송은 늘 65분 뒤가 된다. 허용 오차 1분을 두면 60분 뒤 webhook에서 보낸다. 1분은 webhook 간격(5분)보다 충분히 짧아 한 간격 일찍 보내는 일이 없다. 이 허용 오차는 요구사항 C2의 경계값 문장을 바꾸므로 사람에게 확인받는다.
+허용 오차가 필요한 이유는 다음과 같다. Alertmanager는 정확히 5분 간격으로 webhook을 보내지만, `attempted_at`은 Telegram 호출이 끝난 뒤 기록된다. 그래서 60분 주기라도 60분 뒤 webhook이 오면 경과 시간이 60분보다 조금 짧아 한 번 건너뛰고, 실제 재발송은 늘 65분 뒤가 된다. 허용 오차 1분을 두면 60분 뒤 webhook에서 보낸다. 1분은 webhook 간격(5분)보다 충분히 짧아 한 간격 일찍 보내는 일이 없다. 사람이 2026-10-14에 허용 오차를 두기로 정했고 요구사항 S2, S3, C2에 반영했다.
 
 검토했지만 고르지 않은 방법은 다음과 같다.
 
@@ -72,7 +72,7 @@
   - Alertmanager만 먼저 5분으로 바뀌면, 이전 Manager API는 2분 중복 방지만 하므로 5분마다 Telegram 알림을 보낸다.
   - 그래서 Manager API를 먼저 배포하고 Alertmanager 설정을 나중에 바꾼다. 되돌릴 때는 Alertmanager 설정을 먼저 1시간으로 되돌린다.
   - 이 순서는 PR 설명과 커밋 본문에 쓴다.
-- 허용 오차 때문에 주기보다 최대 1분 일찍 보냄: 요구사항에 그대로 쓴다(사람 확인 필요).
+- 허용 오차 때문에 주기보다 최대 1분 일찍 보냄: 요구사항과 화면 안내에 쓴다.
 - migration 되돌리기: 새 테이블만 더하므로 기존 데이터는 바뀌지 않는다. 이전 버전 애플리케이션은 새 테이블을 쓰지 않는다. Flyway 이력을 되돌려야 하면 사람이 확인한 뒤 테이블과 `flyway_schema_history`의 V8 행을 지운다.
 
 ### 보안 위협
