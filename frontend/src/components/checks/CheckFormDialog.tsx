@@ -15,6 +15,7 @@ import {
   type MonitoringCheck,
   type MonitoringCheckInput,
 } from '@/lib/api'
+import { parseScrapeIntervalSeconds, SCRAPE_INTERVAL_ERROR, SCRAPE_INTERVAL_HINT } from '@/lib/scrapeInterval'
 
 /** port는 입력 중 빈 값일 수 있어서 문자열로 둡니다. */
 type TargetRow = {
@@ -31,6 +32,8 @@ type FormState = {
   environment: string
   description: string | null
   enabled: boolean
+  /** port처럼 입력 중 빈 값일 수 있어서 문자열로 둡니다. */
+  scrapeInterval: string
   targets: TargetRow[]
 }
 
@@ -95,6 +98,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
     environment: check?.environment ?? 'Production',
     description: check?.description ?? null,
     enabled: check?.enabled ?? true,
+    scrapeInterval: String(check?.scrapeIntervalSeconds ?? 15),
     targets:
       check?.targets.map((target) => ({
         id: target.id,
@@ -145,12 +149,20 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
         event.preventDefault()
         setFieldErrors({})
         setFormError(null)
+
+        const scrapeIntervalSeconds = parseScrapeIntervalSeconds(form.scrapeInterval)
+        if (scrapeIntervalSeconds === null) {
+          setFieldErrors({ scrapeIntervalSeconds: SCRAPE_INTERVAL_ERROR })
+          return
+        }
+
         mutation.mutate({
           name: form.name,
           type: form.type,
           environment: form.environment,
           description: form.description,
           enabled: form.enabled,
+          scrapeIntervalSeconds,
           targets: form.targets.map((row) => ({
             id: row.id,
             target: row.target,
@@ -208,6 +220,27 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
             </Select>
           </Field>
         </div>
+
+        <Field
+          label="수집 주기"
+          htmlFor="check-scrape-interval"
+          hint={SCRAPE_INTERVAL_HINT}
+          error={fieldErrors.scrapeIntervalSeconds}
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              id="check-scrape-interval"
+              name="scrapeIntervalSeconds"
+              inputMode="numeric"
+              autoComplete="off"
+              className="w-24"
+              value={form.scrapeInterval}
+              onChange={(event) => setForm({ ...form, scrapeInterval: event.target.value })}
+              aria-invalid={Boolean(fieldErrors.scrapeIntervalSeconds)}
+            />
+            <span className="text-[13px] text-muted-foreground">초</span>
+          </div>
+        </Field>
 
         <div className="space-y-1.5">
           <div className="flex items-baseline justify-between">

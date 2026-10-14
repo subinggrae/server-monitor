@@ -25,6 +25,9 @@ public class ServerSnmpConfig {
 
 	private static final String AUTH_NAME_PREFIX = "manager_server_";
 
+	/** V7 migration의 열 기본값, prometheus.yml의 전역 scrape_interval과 같아야 합니다. */
+	private static final int DEFAULT_SCRAPE_INTERVAL_SECONDS = 15;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -45,6 +48,9 @@ public class ServerSnmpConfig {
 	@Column(name = "enabled", nullable = false)
 	private boolean enabled = true;
 
+	@Column(name = "scrape_interval_seconds", nullable = false)
+	private int scrapeIntervalSeconds = DEFAULT_SCRAPE_INTERVAL_SECONDS;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
@@ -54,21 +60,33 @@ public class ServerSnmpConfig {
 	protected ServerSnmpConfig() {
 	}
 
-	public ServerSnmpConfig(Long serverId, SnmpVersion version, int port, String communityCipher, boolean enabled) {
+	/** scrapeIntervalSeconds가 null이면 기본 주기(15초)입니다. */
+	public ServerSnmpConfig(Long serverId, SnmpVersion version, int port, String communityCipher, boolean enabled,
+			Integer scrapeIntervalSeconds) {
 		this.serverId = serverId;
 		this.version = version;
 		this.port = port;
 		this.communityCipher = communityCipher;
 		this.enabled = enabled;
+		if (scrapeIntervalSeconds != null) {
+			this.scrapeIntervalSeconds = scrapeIntervalSeconds;
+		}
 	}
 
-	/** communityCipher가 null이면 기존 값을 그대로 둡니다. 사용자가 새 값을 입력했을 때만 바뀝니다. */
-	public void update(SnmpVersion version, int port, String communityCipher, boolean enabled) {
+	/**
+	 * communityCipher가 null이면 기존 값을 그대로 둡니다. 사용자가 새 값을 입력했을 때만 바뀝니다.
+	 * scrapeIntervalSeconds도 null이면 기존 주기를 그대로 둡니다.
+	 */
+	public void update(SnmpVersion version, int port, String communityCipher, boolean enabled,
+			Integer scrapeIntervalSeconds) {
 		this.version = version;
 		this.port = port;
 		this.enabled = enabled;
 		if (communityCipher != null) {
 			this.communityCipher = communityCipher;
+		}
+		if (scrapeIntervalSeconds != null) {
+			this.scrapeIntervalSeconds = scrapeIntervalSeconds;
 		}
 	}
 
@@ -110,6 +128,10 @@ public class ServerSnmpConfig {
 
 	public boolean isEnabled() {
 		return enabled;
+	}
+
+	public int getScrapeIntervalSeconds() {
+		return scrapeIntervalSeconds;
 	}
 
 	public Instant getCreatedAt() {

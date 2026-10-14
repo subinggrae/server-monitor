@@ -27,6 +27,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다.
 | 개발 서버 | `cd frontend && npm run dev`, `cd backend && ./gradlew bootRun` | 화면이나 API를 직접 확인할 때 |
 | 전체 실행 | `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | SNMP 테스트 장비 | `docker compose --profile snmp-test up -d snmp-test-agent` | SNMP 수집 흐름을 확인할 때 |
+| 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
 | 린트·타입 검사 | `cd frontend && npm run lint`(타입 검사는 빌드에 포함) | 커밋 전 |
 | 빌드 | `cd frontend && npm run build`, `cd backend && ./gradlew build` | 커밋 전, 빌드 설정이나 의존성을 바꿨을 때 |
 | 빌드 결과 미리 보기 | `cd frontend && npm run preview` | Frontend 빌드 결과를 확인할 때 |

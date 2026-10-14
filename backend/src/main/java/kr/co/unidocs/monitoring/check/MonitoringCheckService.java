@@ -45,7 +45,8 @@ public class MonitoringCheckService {
 		List<NormalizedTarget> normalized = normalizeTargets(request);
 
 		MonitoringCheck check = new MonitoringCheck(request.name().trim(), request.type(),
-				request.environment().trim(), trimToNull(request.description()), request.enabled());
+				request.environment().trim(), trimToNull(request.description()), request.enabled(),
+				request.scrapeIntervalSecondsAsInt());
 		for (NormalizedTarget target : normalized) {
 			check.addTarget(target.target(), target.port(), target.enabled());
 		}
@@ -65,7 +66,7 @@ public class MonitoringCheckService {
 		List<NormalizedTarget> normalized = normalizeTargets(request);
 
 		check.update(request.name().trim(), request.type(), request.environment().trim(),
-				trimToNull(request.description()), request.enabled());
+				trimToNull(request.description()), request.enabled(), request.scrapeIntervalSecondsAsInt());
 		applyTargets(check, normalized);
 
 		// flush해야 응답에 새 Target의 id가 담깁니다.

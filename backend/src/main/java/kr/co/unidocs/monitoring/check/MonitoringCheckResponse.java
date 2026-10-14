@@ -13,6 +13,7 @@ public record MonitoringCheckResponse(
 		String environment,
 		String description,
 		boolean enabled,
+		int scrapeIntervalSeconds,
 		MonitoringStatus status,
 		int targetCount,
 		List<TargetResponse> targets,
@@ -26,7 +27,7 @@ public record MonitoringCheckResponse(
 
 		return new MonitoringCheckResponse(check.getId(), check.getName(), check.getType(),
 				check.getType().displayName(), check.getEnvironment(), check.getDescription(), check.isEnabled(),
-				snapshot.statusOf(check), targets.size(), targets, check.getCreatedAt(), check.getUpdatedAt());
+				check.getScrapeIntervalSeconds(), snapshot.statusOf(check), targets.size(), targets, check.getCreatedAt(), check.getUpdatedAt());
 	}
 
 	public record TargetResponse(

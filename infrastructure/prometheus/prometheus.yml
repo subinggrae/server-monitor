@@ -7,6 +7,8 @@
 
 global:
   scrape_interval: 15s
+  # Manager가 허용하는 가장 짧은 수집 주기(10초)보다 길게 두지 않습니다.
+  # timeout이 주기보다 길면 Prometheus가 그 대상을 수집하지 않습니다.
   scrape_timeout: 10s
   evaluation_interval: 15s
 
@@ -36,6 +38,7 @@ scrape_configs:
 
   # 사용자가 UI에서 등록한 Check입니다.
   # Target 목록은 Manager API에서 가져옵니다. 이 파일에 Target을 적지 않습니다.
+  # 수집 주기도 Check마다 SD label __scrape_interval__로 받습니다. 위의 전역 scrape_interval은 쓰지 않습니다.
   - job_name: manager-blackbox
     metrics_path: /probe
 
@@ -64,6 +67,7 @@ scrape_configs:
 
   # 사용자가 UI에서 SNMP를 설정한 서버입니다.
   # community는 여기에도 SD 응답에도 없습니다. exporter가 auth 이름으로 자기 config에서 찾습니다.
+  # 수집 주기도 서버마다 SD label __scrape_interval__로 받습니다. 위의 전역 scrape_interval은 쓰지 않습니다.
   - job_name: manager-snmp
     metrics_path: /snmp
 

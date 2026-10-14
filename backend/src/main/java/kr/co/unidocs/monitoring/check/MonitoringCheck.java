@@ -28,6 +28,9 @@ import java.util.List;
 @Table(name = "monitoring_checks")
 public class MonitoringCheck {
 
+	/** V7 migration의 열 기본값, prometheus.yml의 전역 scrape_interval과 같아야 합니다. */
+	private static final int DEFAULT_SCRAPE_INTERVAL_SECONDS = 15;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -48,6 +51,9 @@ public class MonitoringCheck {
 	@Column(name = "enabled", nullable = false)
 	private boolean enabled = true;
 
+	@Column(name = "scrape_interval_seconds", nullable = false)
+	private int scrapeIntervalSeconds = DEFAULT_SCRAPE_INTERVAL_SECONDS;
+
 	@OneToMany(mappedBy = "check", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("id asc")
 	private List<MonitoringCheckTarget> targets = new ArrayList<>();
@@ -61,20 +67,30 @@ public class MonitoringCheck {
 	protected MonitoringCheck() {
 	}
 
-	public MonitoringCheck(String name, CheckType type, String environment, String description, boolean enabled) {
+	/** scrapeIntervalSeconds가 null이면 기본 주기(15초)입니다. */
+	public MonitoringCheck(String name, CheckType type, String environment, String description, boolean enabled,
+			Integer scrapeIntervalSeconds) {
 		this.name = name;
 		this.type = type;
 		this.environment = environment;
 		this.description = description;
 		this.enabled = enabled;
+		if (scrapeIntervalSeconds != null) {
+			this.scrapeIntervalSeconds = scrapeIntervalSeconds;
+		}
 	}
 
-	public void update(String name, CheckType type, String environment, String description, boolean enabled) {
+	/** scrapeIntervalSeconds가 null이면 기존 주기를 그대로 둡니다. */
+	public void update(String name, CheckType type, String environment, String description, boolean enabled,
+			Integer scrapeIntervalSeconds) {
 		this.name = name;
 		this.type = type;
 		this.environment = environment;
 		this.description = description;
 		this.enabled = enabled;
+		if (scrapeIntervalSeconds != null) {
+			this.scrapeIntervalSeconds = scrapeIntervalSeconds;
+		}
 	}
 
 	public MonitoringCheckTarget addTarget(String target, Integer port, boolean enabled) {
@@ -124,6 +140,10 @@ public class MonitoringCheck {
 
 	public boolean isEnabled() {
 		return enabled;
+	}
+
+	public int getScrapeIntervalSeconds() {
+		return scrapeIntervalSeconds;
 	}
 
 	public List<MonitoringCheckTarget> getTargets() {

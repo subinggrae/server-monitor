@@ -66,6 +66,7 @@ export function CheckDetailPage() {
             <StatusDot status={check.status} />
             <span>{check.typeDisplayName}</span>
             <span>{check.environment}</span>
+            <span>{`수집 주기 ${check.scrapeIntervalSeconds}초`}</span>
             {check.enabled ? null : <span>사용 안 함</span>}
           </>
         }

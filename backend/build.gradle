@@ -41,6 +41,17 @@ dependencies {
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+	// 시간대와 로케일은 개발 PC마다 다르므로 여기에서 고정합니다.
+	systemProperty 'user.timezone', 'Asia/Seoul'
+	systemProperty 'user.language', 'ko'
+	systemProperty 'user.country', 'KR'
 }
 
 tasks.named('bootJar') {

@@ -118,6 +118,7 @@ export type MonitoringCheck = {
   environment: string
   description: string | null
   enabled: boolean
+  scrapeIntervalSeconds: number
   status: MonitoringStatus
   targetCount: number
   targets: MonitoringCheckTarget[]
@@ -135,6 +136,7 @@ export type MonitoringCheckInput = {
   environment: string
   description: string | null
   enabled: boolean
+  scrapeIntervalSeconds: number
   targets: {
     id?: number
     target: string
@@ -248,6 +250,8 @@ export type ServerSnmp = {
   port: number | null
   communityConfigured: boolean
   enabled: boolean
+  /** SNMP 설정이 없으면 null입니다. */
+  scrapeIntervalSeconds: number | null
   /** false면 저장은 됐지만 snmp_exporter에 반영되지 않은 상태입니다. */
   exporterSynced: boolean
   exporterMessage: string | null
@@ -259,6 +263,7 @@ export type ServerSnmpInput = {
   port: number
   community: string | null
   enabled: boolean
+  scrapeIntervalSeconds: number
 }
 
 export type SnmpTestResult = {

@@ -6,15 +6,16 @@ package kr.co.unidocs.monitoring.snmp;
  * exporterSynced가 false면 저장은 됐지만 snmp_exporter에 반영되지 않은 상태입니다.
  */
 public record ServerSnmpResponse(boolean configured, SnmpVersion version, Integer port, boolean communityConfigured,
-		boolean enabled, boolean exporterSynced, String exporterMessage) {
+		boolean enabled, Integer scrapeIntervalSeconds, boolean exporterSynced, String exporterMessage) {
 
 	public static ServerSnmpResponse notConfigured() {
-		return new ServerSnmpResponse(false, null, null, false, false, true, null);
+		return new ServerSnmpResponse(false, null, null, false, false, null, true, null);
 	}
 
 	static ServerSnmpResponse of(ServerSnmpConfig config, SnmpSyncStatus syncStatus) {
 		return new ServerSnmpResponse(true, config.getVersion(), config.getPort(), true, config.isEnabled(),
-				syncStatus.succeeded(), syncStatus.succeeded() ? null : syncStatus.message());
+				config.getScrapeIntervalSeconds(), syncStatus.succeeded(),
+				syncStatus.succeeded() ? null : syncStatus.message());
 	}
 
 }
