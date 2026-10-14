@@ -5,7 +5,7 @@
 
 ## 접근 방법
 
-Playwright 하나로 E2E, 화면 검사, 성능 검사를 실행한다. `frontend/playwright.config.ts`에 project 셋을 두고, 명령마다 project를 골라 실행한다.
+Playwright 하나로 E2E, 화면 검사, 성능 검사를 실행한다. `frontend/playwright.config.ts`에 project 넷을 두고, 명령마다 project를 골라 실행한다.
 
 | project | 하는 일 | 폭 |
 |---|---|---|
@@ -42,7 +42,7 @@ Playwright 하나로 E2E, 화면 검사, 성능 검사를 실행한다. `fronten
 | `frontend/e2e/perf.spec.ts` | 새 테스트: Lighthouse 결과 출력 |
 | `frontend/tsconfig.e2e.json`, `tsconfig.json` | 새 TypeScript 설정: `playwright.config.ts`와 `e2e/`(`npm run build`가 타입 검사) |
 | `frontend/e2e/support/env.ts` | 새 도우미: 화면 주소 `E2E_BASE_URL` |
-| `frontend/.gitignore` | `test-results/`, `playwright-report/` 추가 |
+| `frontend/.gitignore`, `frontend/.dockerignore` | `test-results/`, `playwright-report/` 추가 |
 | `docs/design/DESIGN.md` | 개요의 화면 검사 도구, 레이아웃의 기준 폭 |
 | `docs/TESTING.md` | 테스트 범위 문장, 종류별 기준에 E2E와 화면 검사 행, 결정적 실행의 재시도와 `.only` 거부, 위치와 이름에 `frontend/e2e/` |
 | `docs/assets/test-scope.svg` | E2E 행 추가 |
@@ -74,7 +74,7 @@ Playwright 하나로 E2E, 화면 검사, 성능 검사를 실행한다. `fronten
 - 개발 DB에 테스트 데이터가 쌓이거나 사람의 데이터를 지움: `e2e-` 접두사가 붙은 Check와 서버만 만들고 지운다. 전역 준비도 접두사로만 고른다.
 - 흐름 ②가 Prometheus 수집 시간 때문에 가끔 실패: 고정 시간 대신 상태가 바뀔 때까지 새로고침하며 최대 90초 기다린다. 새 테스트를 세 번 연달아 실행해 확인한다(C1). 그래도 흔들리면 멈추고 보고한다.
 - 화면 검사를 처음 실행하면 기존 위반이 한꺼번에 나와 명령이 실패한다: 요구사항 C9대로 목록을 보고하고, 이번에 고칠지 기준선으로 등록할지 묻는다. 묻기 전에는 예외로 등록하지 않는다.
-- 다른 브랜치의 이미지로 띄운 환경에서 실행하면 결과가 다를 수 있다: DEVELOPMENT.md에 같은 브랜치에서 `--build`로 띄운 뒤 실행한다고 쓴다.
+- 다른 브랜치의 이미지로 띄운 환경에서 실행하면 결과가 다를 수 있다: TESTING.md에 같은 브랜치에서 `--build`로 띄운 뒤 실행한다고 쓴다.
 - Lighthouse는 간접 의존성이 많다: 설치한 뒤 `npm query`로 새로 들어온 패키지의 라이선스를 모두 확인한다. 조건 확인이나 상업 이용 불가 분류가 있으면 멈추고 묻는다.
 - 되돌리기: 개발 의존성, 설정 파일, `frontend/e2e/`, 문서만 바뀐다. 커밋을 되돌리면 끝난다.
 
@@ -119,7 +119,7 @@ E2E와 화면 검사는 전체 실행 환경을 띄운 뒤 `frontend`에서 실�
 - [x] 성능 검사 작성(C5)
 - [x] DESIGN.md, TESTING.md, test-scope.svg, DEVELOPMENT.md, ARCHITECTURE.md 갱신(C8)
 - [x] 전체 검증(C7)
-- [ ] 새 세션이나 하위 에이전트의 리뷰
+- [x] 새 세션이나 하위 에이전트의 리뷰
 - [ ] 토픽 브랜치를 푸시하고 PR을 만듦. 사람이 2026-10-14에 구현을 마치면 묻지 않고 PR을 만들라고 지시했다. 푸시 직전에 전체 검증을 다시 실행한다
 - [ ] 요구사항 상태를 구현됨으로 바꾸고 이 계획을 지움(병합 전 마지막 커밋)
 
@@ -135,6 +135,14 @@ E2E와 화면 검사는 전체 실행 환경을 띄운 뒤 `frontend`에서 실�
 - 성능(C5): 대시보드 점수 100, LCP 0.7 s, CLS 0.012, TBT 0 ms
 - 이 PC에서는 다른 프로젝트가 8080과 5173을 쓰고 있었다. 그래서 저장소 밖 compose override로 `manager-api`의 호스트 포트를 바꿔 띄웠다. E2E는 8081만 쓰므로 영향이 없다. C2와 C4는 Vite 개발 서버(5174)에 `E2E_BASE_URL`로 실행해 확인했다.
 - 화면 검사는 밝은 모드만 본다. 다크 모드의 대비는 확인하지 않았다.
+- 하위 에이전트 리뷰(2026-10-14): P1·P2는 없었다. 반영한 것은 다음과 같다.
+  - 입력 칸 대부분이 대화상자 안에 있으므로 Check, 서버, Telegram 그룹 추가 대화상자도 검사한다.
+  - `E2E_BASE_URL`이 이 PC의 주소가 아니면 `E2E_ALLOW_REMOTE=1` 없이는 실행하지 않는다. 운영 데이터의 `e2e-` 항목을 지우지 않기 위해서다.
+  - 기준선은 요소의 여는 태그 class만 본다. 자식의 class로 부모의 위반까지 빠지는 것을 막는다.
+  - 상세 화면 준비가 실패하면 만든 것만 지운다. 테스트 이름, 주석 표기, 쓰지 않는 export, 효과 없는 설정을 정리했다.
+  - `frontend/.dockerignore`에 결과 폴더를 넣어 실패 기록이 이미지 빌드 맥락에 들어가지 않게 했다. 빌드 설정 파일이다.
+  - TESTING.md에 남을 수 있는 Alert 기록, 성능 검사의 정리 동작, 검사하지 않는 화면(다크 모드, 오류 화면)을 적었다.
+- 리뷰가 짚었지만 바꾸지 않은 것: 이미지 빌드의 `npm ci`가 Playwright와 Lighthouse 계열 개발 의존성까지 설치해 빌드가 느려진다. 최종 이미지에는 `dist`만 들어가므로 그대로 둔다.
 
 ## 남길 결정
 

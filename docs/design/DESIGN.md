@@ -25,7 +25,7 @@
 - 원하는 인상: 아직 정하지 않았다. 첫 화면을 만들기 전에 DIRECTION.md의 순서로 정한다.
 - 참고 화면: 아직 정하지 않았다. DIRECTION.md의 참고 화면 찾기로 정한다.
 - 화면 검사 도구: 전체 실행 환경을 띄운 뒤 `frontend`에서 실행한다.
-  - 접근성과 가로 넘침: `npm run test:screen`. Playwright에서 axe-core로 WCAG 2.2 AA를 검사하고, 기준 폭마다 모든 라우트를 연다.
+  - 접근성과 가로 넘침: `npm run test:screen`. Playwright에서 axe-core로 WCAG 2.2 AA를 검사하고, 기준 폭마다 모든 라우트와 추가 대화상자를 연다. 밝은 모드만 검사하므로 다크 모드의 대비는 따로 확인한다.
   - 성능: `npm run test:perf`. Lighthouse로 대시보드의 점수와 LCP, CLS, TBT를 본다.
   - 흔한 기본값: 도구 없이 [REVIEW.md의 코드 점검](REVIEW.md#코드-점검) 목록을 코드 검색으로 확인한다.
 - 승인: 화면 검사 도구와 기준 폭은 사람이 2026-10-14에 확인했다. 시각 체계는 사람 확인 전이다.

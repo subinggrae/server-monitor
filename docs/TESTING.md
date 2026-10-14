@@ -57,8 +57,10 @@
 
 E2E와 화면 검사는 다음처럼 실행한다.
 
-- 전체 실행 환경(`docker compose --profile local-db up -d --build`)을 같은 브랜치에서 띄운 뒤 실행한다. 화면 주소는 환경 변수 `E2E_BASE_URL`(기본 `http://localhost:8081`)로 바꾼다.
-- 환경에 접속하지 못하면 10초 안에 실패한다. 테스트 데이터는 이름이 `e2e-`로 시작하고, 실행이 끝나거나 다음 실행이 시작될 때 지운다.
+- 전체 실행 환경(`docker compose --profile local-db up -d --build`)을 같은 브랜치에서 띄운 뒤 실행한다. 화면 주소는 환경 변수 `E2E_BASE_URL`(기본 `http://localhost:8081`)로 바꾼다. 이 PC의 주소가 아니면 `E2E_ALLOW_REMOTE=1`을 함께 줄 때만 실행한다. 테스트 데이터를 만들고 지우기 때문이다.
+- 환경에 접속하지 못하면 10초 안에 실패한다. 테스트 데이터는 이름이 `e2e-`로 시작하고, 실행이 끝나거나 다음 실행(성능 검사 포함)이 시작될 때 지운다.
+- 실행이 중간에 멈춰 닿지 않는 대상의 `e2e-` Check가 1분 넘게 남으면 Alert가 생겨 Alert 목록에 남는다. 알림 그룹을 연결하지 않으므로 Telegram으로는 나가지 않는다.
+- 화면 검사는 모든 라우트와 Check, 서버, Telegram 그룹 추가 대화상자를 밝은 모드에서 검사한다. 다크 모드와 오류 화면은 검사하지 않는다. 빈 상태는 사람이 만든 데이터가 없을 때만 검사된다.
 - 화면 검사의 기준선은 `frontend/e2e/screen.spec.ts`에 있다. 지금은 `--subtle-foreground` 글자의 대비 부족(color-contrast) 하나다. 기준선에 없는 위반이 생기면 실패한다.
 - 성능은 `cd frontend && npm run test:perf`로 대시보드의 Lighthouse 점수와 LCP, CLS, TBT를 본다. 점수로 실패시키지 않는다.
 

@@ -16,7 +16,7 @@ cd frontend && npm ci
 cd frontend && npx playwright install chromium
 ```
 
-Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 명령은 E2E와 화면 검사가 쓰는 Chromium을 받는다.
+Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 명령은 E2E, 화면 검사, 성능 검사가 쓰는 Chromium을 받는다.
 
 ## 명령
 
