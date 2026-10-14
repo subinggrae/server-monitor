@@ -16,11 +16,13 @@ import {
   type ServerSnmpInput,
   type SnmpTestResult,
 } from '@/lib/api'
+import { parseScrapeIntervalSeconds, SCRAPE_INTERVAL_ERROR, SCRAPE_INTERVAL_HINT } from '@/lib/scrapeInterval'
 
 type FormState = {
   port: string
   community: string
   enabled: boolean
+  scrapeInterval: string
 }
 
 /** Community는 서버가 돌려주지 않습니다. 새로 입력했을 때만 바뀝니다. (CLAUDE.md 11번) */
@@ -50,6 +52,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
     port: String(snmp.port ?? 161),
     community: '',
     enabled: snmp.configured ? snmp.enabled : true,
+    scrapeInterval: String(snmp.scrapeIntervalSeconds ?? 15),
   }))
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
@@ -139,11 +142,18 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
             return
           }
 
+          const scrapeIntervalSeconds = parseScrapeIntervalSeconds(form.scrapeInterval)
+          if (scrapeIntervalSeconds === null) {
+            setFieldErrors({ scrapeIntervalSeconds: SCRAPE_INTERVAL_ERROR })
+            return
+          }
+
           saveMutation.mutate({
             version: 'V2C',
             port,
             community: form.community.trim() === '' ? null : form.community.trim(),
             enabled: form.enabled,
+            scrapeIntervalSeconds,
           })
         }}
       >
@@ -182,6 +192,27 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
             placeholder={snmp.communityConfigured ? '변경하지 않으면 비워 둡니다' : ''}
             aria-invalid={Boolean(fieldErrors.community)}
           />
+        </Field>
+
+        <Field
+          label="수집 주기"
+          htmlFor="snmp-scrape-interval"
+          hint={SCRAPE_INTERVAL_HINT}
+          error={fieldErrors.scrapeIntervalSeconds}
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              id="snmp-scrape-interval"
+              name="scrapeIntervalSeconds"
+              inputMode="numeric"
+              autoComplete="off"
+              className="w-24"
+              value={form.scrapeInterval}
+              onChange={(event) => setForm({ ...form, scrapeInterval: event.target.value })}
+              aria-invalid={Boolean(fieldErrors.scrapeIntervalSeconds)}
+            />
+            <span className="text-[13px] text-muted-foreground">초</span>
+          </div>
         </Field>
 
         <CheckboxLabel className="text-[13px]">
