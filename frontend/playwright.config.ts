@@ -15,7 +15,6 @@ export default defineConfig({
   outputDir: './test-results',
   // 테스트 데이터와 Prometheus 수집을 함께 쓰므로 하나씩 실행합니다.
   workers: 1,
-  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: 'list',

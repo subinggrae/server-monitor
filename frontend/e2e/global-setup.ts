@@ -1,9 +1,11 @@
 import { deleteLeftoverTestData, openApi } from './support/api.ts'
-import { baseURL } from './support/env.ts'
+import { assertSafeTarget, baseURL } from './support/env.ts'
 
 const CONNECT_TIMEOUT_MS = 10_000
 
 export default async function globalSetup() {
+  assertSafeTarget()
+
   const api = await openApi()
   try {
     try {

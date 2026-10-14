@@ -1,9 +1,9 @@
-import { request, type APIRequestContext } from '@playwright/test'
+import { request, type APIRequestContext, type APIResponse } from '@playwright/test'
 
 import { baseURL } from './env.ts'
 
 /** 이 접두사가 붙은 Check와 서버만 테스트 데이터로 보고 지웁니다. 사람이 만든 데이터를 지우지 않기 위해서입니다. */
-export const TEST_DATA_PREFIX = 'e2e-'
+const TEST_DATA_PREFIX = 'e2e-'
 
 export const testDataName = (label: string) =>
   `${TEST_DATA_PREFIX}${label}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -14,7 +14,7 @@ export async function openApi(): Promise<APIRequestContext> {
   return request.newContext({ baseURL })
 }
 
-async function ensureOk(response: Awaited<ReturnType<APIRequestContext['get']>>, action: string) {
+function ensureOk(response: APIResponse, action: string) {
   if (!response.ok()) {
     throw new Error(`${action} 요청이 실패했습니다. status=${response.status()}`)
   }
@@ -35,7 +35,7 @@ export async function createCheck(
       targets: [{ target: input.target, port: input.port, enabled: true }],
     },
   })
-  await ensureOk(response, 'Check 생성')
+  ensureOk(response, 'Check 생성')
   return (await response.json()) as Named
 }
 
@@ -43,31 +43,31 @@ export async function createServer(api: APIRequestContext, name: string): Promis
   const response = await api.post('/api/servers', {
     data: { name, host: '127.0.0.1', environment: 'Development', description: null, enabled: true },
   })
-  await ensureOk(response, '서버 생성')
+  ensureOk(response, '서버 생성')
   return (await response.json()) as Named
 }
 
 export async function listChecks(api: APIRequestContext): Promise<Named[]> {
   const response = await api.get('/api/checks')
-  await ensureOk(response, 'Check 목록 조회')
+  ensureOk(response, 'Check 목록 조회')
   return (await response.json()) as Named[]
 }
 
 async function listServers(api: APIRequestContext): Promise<Named[]> {
   const response = await api.get('/api/servers')
-  await ensureOk(response, '서버 목록 조회')
+  ensureOk(response, '서버 목록 조회')
   return (await response.json()) as Named[]
 }
 
 /** 이미 지워졌으면(404) 그대로 둡니다. 테스트가 화면에서 지운 뒤에도 정리 단계가 실패하지 않아야 합니다. */
 export async function deleteCheck(api: APIRequestContext, id: number) {
   const response = await api.delete(`/api/checks/${id}`)
-  if (response.status() !== 404) await ensureOk(response, 'Check 삭제')
+  if (response.status() !== 404) ensureOk(response, 'Check 삭제')
 }
 
 export async function deleteServer(api: APIRequestContext, id: number) {
   const response = await api.delete(`/api/servers/${id}`)
-  if (response.status() !== 404) await ensureOk(response, '서버 삭제')
+  if (response.status() !== 404) ensureOk(response, '서버 삭제')
 }
 
 /** 이전 실행이 중간에 멈춰 남긴 테스트 데이터를 지웁니다. */

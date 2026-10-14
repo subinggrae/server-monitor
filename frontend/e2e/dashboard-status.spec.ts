@@ -24,7 +24,7 @@ test('닿지 않는 대상의 Check는 수집된 뒤 대시보드의 위험한 C
   await test.step('blackbox-exporter에서 연결이 거부되는 TCP 대상으로 Check를 만든다', async () => {
     const api = await openApi()
     try {
-      // blackbox-exporter container 안의 1번 port에는 아무것도 없어서 연결이 바로 거부됩니다.
+      // blackbox-exporter 컨테이너 안의 1번 포트에는 아무것도 없어서 연결이 바로 거부됩니다.
       checkId = (await createCheck(api, { name: checkName, type: 'TCP', target: '127.0.0.1', port: 1 })).id
     } finally {
       await api.dispose()
