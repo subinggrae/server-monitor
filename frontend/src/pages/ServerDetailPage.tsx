@@ -110,7 +110,7 @@ export function ServerDetailPage() {
                 ...(server.description ? [{ label: '설명', value: server.description }] : []),
               ]}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-caption text-muted-foreground">
               아직 Threshold가 없어 사용률만으로 위험 여부를 판단하지 않습니다. SNMP로 값을 읽고 있으면
               정상으로 봅니다.
             </p>

@@ -135,19 +135,19 @@ function ServerForm({ server, onDone }: { server?: ServerTarget; onDone: () => v
         </Field>
 
         <div className="space-y-1">
-          <CheckboxLabel className="text-[13px]">
+          <CheckboxLabel className="text-body">
             <Checkbox
               checked={form.enabled}
               onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
             />
             이 서버를 모니터링합니다
           </CheckboxLabel>
-          <p className="pl-[1.375rem] text-xs text-muted-foreground">
+          <p className="pl-5.5 text-caption text-muted-foreground">
             끄면 목록에서 사용 안 함으로 표시합니다. Monitoring Check에는 영향을 주지 않습니다.
           </p>
         </div>
 
-        {formError ? <p className="text-[13px] text-destructive">{formError}</p> : null}
+        {formError ? <p className="text-body text-destructive">{formError}</p> : null}
       </DialogBody>
 
       <DialogFooter>

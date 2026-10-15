@@ -18,7 +18,7 @@ export function SettingsPage() {
           <SectionHeader title="연동 상태" />
 
           {systemInfo.isPending ? (
-            <p className="text-[13px] text-muted-foreground">확인 중입니다.</p>
+            <p className="text-body text-muted-foreground">확인 중입니다.</p>
           ) : systemInfo.isError ? (
             <ErrorState
               message="Backend에 연결할 수 없습니다. 서버가 떠 있는지 확인해 주세요."
@@ -46,7 +46,7 @@ export function SettingsPage() {
 
           {systemInfo.data?.grafanaUrl ? (
             <div className="flex items-center gap-3">
-              <span className="tabular text-[13px] text-muted-foreground">
+              <span className="tabular text-body text-muted-foreground">
                 {systemInfo.data.grafanaUrl}
               </span>
               <Button
@@ -58,7 +58,7 @@ export function SettingsPage() {
               </Button>
             </div>
           ) : (
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-body text-muted-foreground">
               Grafana 주소가 설정되지 않았습니다. 서버의 GRAFANA_URL을 확인해 주세요.
             </p>
           )}

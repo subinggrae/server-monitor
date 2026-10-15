@@ -61,13 +61,13 @@ export function ServerResourceSection({
       />
 
       {!snmpConfigured ? (
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-body text-muted-foreground">
           SNMP를 먼저 설정해야 Resource를 검색할 수 있습니다.
         </p>
       ) : null}
 
       {discoverMutation.isPending ? (
-        <p className="text-[13px] text-muted-foreground">리소스를 검색하고 있습니다.</p>
+        <p className="text-body text-muted-foreground">리소스를 검색하고 있습니다.</p>
       ) : null}
 
       {discovery ? (
@@ -81,7 +81,7 @@ export function ServerResourceSection({
       {resources.isPending ? (
         <TableSkeleton rows={3} columns={4} />
       ) : resources.isError ? (
-        <p className="text-[13px] text-destructive">Resource를 불러오지 못했습니다.</p>
+        <p className="text-body text-destructive">Resource를 불러오지 못했습니다.</p>
       ) : resources.data.length === 0 ? (
         <EmptyState
           title="모니터링할 Resource가 없습니다."
@@ -167,7 +167,7 @@ function DiscoveryResult({
 
   if (!result.success) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-[13px]">
+      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
         <p className="font-medium text-destructive">{result.message}</p>
       </div>
     )
@@ -175,7 +175,7 @@ function DiscoveryResult({
 
   if (result.resources.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-surface px-3 py-2.5 text-[13px]">
+      <div className="rounded-md border border-border bg-surface px-3 py-2.5 text-body">
         <p>{result.message}</p>
         <Button variant="ghost" size="sm" className="-ml-2.5 mt-1" onClick={onDone}>
           닫기
@@ -203,9 +203,9 @@ function DiscoveryResult({
     <div className="rounded-md border border-border bg-surface">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div>
-          <p className="text-[13px] font-medium">발견된 리소스</p>
+          <p className="text-body font-medium">발견된 리소스</p>
           {result.systemName ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{result.systemName}</p>
+            <p className="mt-0.5 text-caption text-muted-foreground">{result.systemName}</p>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
@@ -237,17 +237,17 @@ function DiscoveryResult({
       <div className="max-h-80 overflow-y-auto px-3 py-2.5">
         {grouped.map(([type, items]) => (
           <div key={type} className="mb-3 last:mb-0">
-            <p className="mb-1 text-xs font-medium text-muted-foreground">{type}</p>
+            <p className="mb-1 text-caption font-medium text-muted-foreground">{type}</p>
             <div className="space-y-1">
               {items.map((item) => (
-                <CheckboxLabel key={keyOf(item)} className="text-[13px]">
+                <CheckboxLabel key={keyOf(item)} className="text-body">
                   <Checkbox checked={selected.has(keyOf(item))} onChange={() => toggle(item)} />
                   <span className="tabular">{item.displayName}</span>
                   {item.totalBytes ? (
-                    <span className="text-xs text-subtle-foreground">{formatBytes(item.totalBytes)}</span>
+                    <span className="text-caption text-subtle-foreground">{formatBytes(item.totalBytes)}</span>
                   ) : null}
                   {item.resourceType === 'CPU' && item.description ? (
-                    <span className="text-xs text-subtle-foreground">{item.description}</span>
+                    <span className="text-caption text-subtle-foreground">{item.description}</span>
                   ) : null}
                 </CheckboxLabel>
               ))}
@@ -257,7 +257,7 @@ function DiscoveryResult({
       </div>
 
       {saveMutation.isError ? (
-        <p className="border-t border-border px-3 py-2 text-[13px] text-destructive">
+        <p className="border-t border-border px-3 py-2 text-body text-destructive">
           저장하지 못했습니다. 잠시 후 다시 시도해 주세요.
         </p>
       ) : null}

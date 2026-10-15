@@ -163,7 +163,7 @@ function TargetSummary({ check }: { check: MonitoringCheck }) {
     <div className="flex items-baseline gap-2">
       <span className="tabular truncate text-muted-foreground">{first.blackboxTarget}</span>
       {rest.length > 0 ? (
-        <span className="shrink-0 text-xs text-subtle-foreground">외 {rest.length}개</span>
+        <span className="shrink-0 text-caption text-subtle-foreground">외 {rest.length}개</span>
       ) : null}
     </div>
   )

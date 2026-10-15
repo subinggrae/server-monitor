@@ -238,16 +238,16 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
               onChange={(event) => setForm({ ...form, scrapeInterval: event.target.value })}
               aria-invalid={Boolean(fieldErrors.scrapeIntervalSeconds)}
             />
-            <span className="text-[13px] text-muted-foreground">초</span>
+            <span className="text-body text-muted-foreground">초</span>
           </div>
         </Field>
 
         <div className="space-y-1.5">
           <div className="flex items-baseline justify-between">
             <Label>확인할 대상</Label>
-            <span className="text-xs text-muted-foreground">{form.targets.length}개</span>
+            <span className="text-caption text-muted-foreground">{form.targets.length}개</span>
           </div>
-          <p className="text-xs text-muted-foreground">{targetField.hint}</p>
+          <p className="text-caption text-muted-foreground">{targetField.hint}</p>
 
           <div className="space-y-1.5 pt-0.5">
             {form.targets.map((row, index) => (
@@ -272,7 +272,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
                   />
                 ) : null}
 
-                <CheckboxLabel className="shrink-0 text-xs text-muted-foreground">
+                <CheckboxLabel className="shrink-0 text-caption text-muted-foreground">
                   <Checkbox
                     checked={row.enabled}
                     onChange={(event) => updateTarget(index, { enabled: event.target.checked })}
@@ -327,7 +327,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
           />
         </Field>
 
-        <CheckboxLabel className="text-[13px]">
+        <CheckboxLabel className="text-body">
           <Checkbox
             checked={form.enabled}
             onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
@@ -335,7 +335,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
           이 Check를 사용합니다
         </CheckboxLabel>
 
-        {formError ? <p className="text-[13px] text-destructive">{formError}</p> : null}
+        {formError ? <p className="text-body text-destructive">{formError}</p> : null}
       </DialogBody>
 
       <DialogFooter>

@@ -91,7 +91,7 @@ function TelegramSetupNotice() {
 
   if (!status.configured) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-[13px]">
+      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
         <p className="font-medium text-destructive">Telegram Bot Token이 설정되지 않았습니다.</p>
         <p className="mt-0.5 text-muted-foreground">
           그룹을 등록해도 메시지를 보낼 수 없습니다. 서버의 Docker Secret 또는 TELEGRAM_BOT_TOKEN
@@ -102,7 +102,7 @@ function TelegramSetupNotice() {
   }
 
   return (
-    <p className="text-[13px] text-muted-foreground">
+    <p className="text-body text-muted-foreground">
       {status.webhookConfigured
         ? 'Telegram 그룹에 Bot을 추가하고 /register를 보내면 아래 목록에 나타납니다. Chat ID를 직접 입력해도 됩니다.'
         : status.publicUrlConfigured
@@ -165,8 +165,8 @@ function DestinationTable({
                     <p
                       className={
                         testResult.result.success
-                          ? 'mt-0.5 text-xs text-muted-foreground'
-                          : 'mt-0.5 text-xs text-destructive'
+                          ? 'mt-0.5 text-caption text-muted-foreground'
+                          : 'mt-0.5 text-caption text-destructive'
                       }
                     >
                       {testResult.result.message}

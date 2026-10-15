@@ -34,7 +34,7 @@ export function TableSkeleton({ rows = 6, columns = 4 }: { rows?: number; column
 
 export function LoadingState({ message = '불러오는 중입니다.' }: { message?: string }) {
   return (
-    <p className="py-10 text-center text-[13px] text-muted-foreground" role="status">
+    <p className="py-10 text-center text-body text-muted-foreground" role="status">
       {message}
     </p>
   )
@@ -43,7 +43,7 @@ export function LoadingState({ message = '불러오는 중입니다.' }: { messa
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="rounded-md border border-border bg-surface px-4 py-10 text-center">
-      <p className="text-[13px] font-medium">{message}</p>
+      <p className="text-body font-medium">{message}</p>
       {onRetry ? (
         <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
           다시 시도
@@ -64,8 +64,8 @@ export function EmptyState({
 }) {
   return (
     <div className="rounded-md border border-dashed border-border px-4 py-12 text-center">
-      <p className="text-[13px] font-medium">{title}</p>
-      <p className="mx-auto mt-1 max-w-xl text-[13px] text-muted-foreground">{description}</p>
+      <p className="text-body font-medium">{title}</p>
+      <p className="mx-auto mt-1 max-w-xl text-body text-muted-foreground">{description}</p>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   )

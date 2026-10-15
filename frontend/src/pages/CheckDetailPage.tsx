@@ -84,7 +84,7 @@ export function CheckDetailPage() {
 
       <PageBody>
         {check.description ? (
-          <p className="max-w-2xl text-[13px] text-muted-foreground">{check.description}</p>
+          <p className="max-w-2xl text-body text-muted-foreground">{check.description}</p>
         ) : null}
 
         <Section>

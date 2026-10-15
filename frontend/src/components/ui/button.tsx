@@ -4,7 +4,7 @@ import type { ComponentProps } from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-1.5 rounded-md text-sm whitespace-nowrap ' +
+  'inline-flex items-center justify-center gap-1.5 rounded-md text-body whitespace-nowrap ' +
     'transition-colors disabled:pointer-events-none disabled:opacity-45',
   {
     variants: {
@@ -17,7 +17,7 @@ const buttonVariants = cva(
       },
       size: {
         default: 'h-8 px-3',
-        sm: 'h-7 px-2.5 text-[13px]',
+        sm: 'h-7 px-2.5 text-body',
         icon: 'size-7',
       },
     },

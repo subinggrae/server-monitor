@@ -37,7 +37,7 @@ export function ServerSnmpSection({ serverId }: { serverId: number }) {
     return (
       <Section>
         <SectionHeader title="SNMP" />
-        <p className="text-[13px] text-destructive">SNMP 설정을 불러오지 못했습니다.</p>
+        <p className="text-body text-destructive">SNMP 설정을 불러오지 못했습니다.</p>
       </Section>
     )
   }
@@ -120,7 +120,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
       />
 
       {snmp.configured && !snmp.exporterSynced ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-[13px]">
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
           <p className="font-medium text-destructive">snmp_exporter에 반영되지 않았습니다.</p>
           <p className="mt-0.5 text-muted-foreground">
             설정은 저장했지만 수집은 시작되지 않습니다. {snmp.exporterMessage}
@@ -211,11 +211,11 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
               onChange={(event) => setForm({ ...form, scrapeInterval: event.target.value })}
               aria-invalid={Boolean(fieldErrors.scrapeIntervalSeconds)}
             />
-            <span className="text-[13px] text-muted-foreground">초</span>
+            <span className="text-body text-muted-foreground">초</span>
           </div>
         </Field>
 
-        <CheckboxLabel className="text-[13px]">
+        <CheckboxLabel className="text-body">
           <Checkbox
             checked={form.enabled}
             onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
@@ -223,7 +223,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
           이 서버에서 SNMP로 수집합니다
         </CheckboxLabel>
 
-        {formError ? <p className="text-[13px] text-destructive">{formError}</p> : null}
+        {formError ? <p className="text-body text-destructive">{formError}</p> : null}
 
         <div className="flex items-center gap-2">
           <Button type="submit" disabled={saveMutation.isPending}>
@@ -237,12 +237,12 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
           >
             {testMutation.isPending ? '확인 중…' : '연결 테스트'}
           </Button>
-          {saved ? <span className="text-[13px] text-muted-foreground">저장했습니다.</span> : null}
+          {saved ? <span className="text-body text-muted-foreground">저장했습니다.</span> : null}
         </div>
       </form>
 
       {testResult ? (
-        <div className="max-w-md rounded-md border border-border bg-surface px-3 py-2.5 text-[13px]">
+        <div className="max-w-md rounded-md border border-border bg-surface px-3 py-2.5 text-body">
           <p className={testResult.success ? 'font-medium' : 'font-medium text-destructive'}>
             {testResult.message}
           </p>

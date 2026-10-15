@@ -43,7 +43,7 @@ export function CheckNotificationSection({ checkId }: { checkId: number }) {
     return (
       <Section>
         <SectionHeader title="알림" />
-        <p className="text-[13px] text-destructive">알림 설정을 불러오지 못했습니다.</p>
+        <p className="text-body text-destructive">알림 설정을 불러오지 못했습니다.</p>
       </Section>
     )
   }
@@ -52,7 +52,7 @@ export function CheckNotificationSection({ checkId }: { checkId: number }) {
     return (
       <Section>
         <SectionHeader title="알림" />
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-body text-muted-foreground">
           등록된 Telegram 그룹이 없습니다.{' '}
           <Link to="/notifications" className="text-foreground underline underline-offset-4">
             Telegram 그룹 등록하기
@@ -168,7 +168,7 @@ function NotificationForm({
       />
 
       {selectedRows.length === 0 ? (
-        <p className="text-[13px] text-critical">
+        <p className="text-body text-critical">
           알림 대상이 없습니다. 지금은 장애가 나도 Telegram 알림이 가지 않습니다.
         </p>
       ) : null}
@@ -183,15 +183,15 @@ function NotificationForm({
                   updateRow(row.telegramDestinationId, { selected: event.target.checked })
                 }
               />
-              <span className="text-[13px] font-medium">{row.name}</span>
+              <span className="text-body font-medium">{row.name}</span>
               {row.destinationEnabled ? null : (
-                <span className="text-xs text-muted-foreground">그룹이 꺼져 있어 알림이 가지 않습니다</span>
+                <span className="text-caption text-muted-foreground">그룹이 꺼져 있어 알림이 가지 않습니다</span>
               )}
             </CheckboxLabel>
 
             {row.selected ? (
-              <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 pl-[1.375rem]">
-                <CheckboxLabel className="text-[13px] text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 pl-5.5">
+                <CheckboxLabel className="text-body text-muted-foreground">
                   <Checkbox
                     checked={row.warningEnabled}
                     onChange={(event) =>
@@ -201,7 +201,7 @@ function NotificationForm({
                   Warning
                 </CheckboxLabel>
 
-                <CheckboxLabel className="text-[13px] text-muted-foreground">
+                <CheckboxLabel className="text-body text-muted-foreground">
                   <Checkbox
                     checked={row.criticalEnabled}
                     onChange={(event) =>
@@ -211,7 +211,7 @@ function NotificationForm({
                   Critical
                 </CheckboxLabel>
 
-                <CheckboxLabel className="text-[13px] text-muted-foreground">
+                <CheckboxLabel className="text-body text-muted-foreground">
                   <Checkbox
                     checked={row.sendResolved}
                     onChange={(event) =>
@@ -246,19 +246,19 @@ function NotificationForm({
             }}
             aria-invalid={Boolean(repeatIntervalError)}
           />
-          <span className="text-[13px] text-muted-foreground">분</span>
+          <span className="text-body text-muted-foreground">분</span>
         </div>
       </Field>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-caption text-muted-foreground">
         지금 Monitoring Check의 Alert는 Critical만 있습니다. Warning은 Threshold 기능을 만든 뒤에
         동작합니다.
       </p>
 
       {mutation.isError && !repeatIntervalError ? (
-        <p className="text-[13px] text-destructive">저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
+        <p className="text-body text-destructive">저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
       ) : null}
-      {saved ? <p className="text-[13px] text-muted-foreground">알림 설정을 저장했습니다.</p> : null}
+      {saved ? <p className="text-body text-muted-foreground">알림 설정을 저장했습니다.</p> : null}
     </Section>
   )
 }

@@ -3,8 +3,9 @@ import { Link } from 'react-router'
 
 import { PageBody, PageHeader } from '@/components/PageHeader'
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/QueryStates'
+import { AlertStatusLabel } from '@/components/StatusDot'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { alertsQuery, type AlertEvent } from '@/lib/api'
+import { alertsQuery } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 
 /** 장애 관리 기능은 만들지 않습니다. 언제 무엇이 장애였고 언제 풀렸는지만 봅니다. */
@@ -52,7 +53,7 @@ export function AlertListPage() {
                 {alerts.map((alert) => (
                   <TR key={alert.id}>
                     <TD>
-                      <AlertStatus alert={alert} />
+                      <AlertStatusLabel status={alert.status} />
                     </TD>
                     <TD className="text-muted-foreground">{severityLabel(alert.severity)}</TD>
                     <TD>
@@ -82,26 +83,6 @@ export function AlertListPage() {
         )}
       </PageBody>
     </>
-  )
-}
-
-function AlertStatus({ alert }: { alert: AlertEvent }) {
-  const firing = alert.status === 'FIRING'
-
-  return (
-    <span
-      className={
-        firing
-          ? 'inline-flex items-center gap-1.5 font-medium text-critical'
-          : 'inline-flex items-center gap-1.5 text-muted-foreground'
-      }
-    >
-      <span
-        className={firing ? 'size-1.5 rounded-full bg-critical' : 'size-1.5 rounded-full bg-ok'}
-        aria-hidden
-      />
-      {firing ? '발생 중' : '해소'}
-    </span>
   )
 }
 

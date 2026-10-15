@@ -122,7 +122,7 @@ export function ServerListPage() {
               ) : null}
             </TableFrame>
 
-            <p className="text-xs text-muted-foreground">
+            <p className="text-caption text-muted-foreground">
               Resource는 서버 상세에서 SNMP를 설정하고 검색해서 고릅니다. 아직 Threshold가 없어 사용률이
               높아도 위험으로 표시하지 않습니다.
             </p>

@@ -25,8 +25,8 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={title} className="max-w-md">
         <DialogBody>
-          <p className="whitespace-pre-line text-[13px] text-muted-foreground">{description}</p>
-          {errorMessage ? <p className="text-[13px] text-destructive">{errorMessage}</p> : null}
+          <p className="whitespace-pre-line text-body text-muted-foreground">{description}</p>
+          {errorMessage ? <p className="text-body text-destructive">{errorMessage}</p> : null}
         </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>

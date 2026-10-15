@@ -146,7 +146,7 @@ function DestinationForm({
           />
         </Field>
 
-        <CheckboxLabel className="text-[13px]">
+        <CheckboxLabel className="text-body">
           <Checkbox
             checked={form.enabled}
             onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
@@ -154,7 +154,7 @@ function DestinationForm({
           이 그룹으로 알림을 보냅니다
         </CheckboxLabel>
 
-        {formError ? <p className="text-[13px] text-destructive">{formError}</p> : null}
+        {formError ? <p className="text-body text-destructive">{formError}</p> : null}
       </DialogBody>
 
       <DialogFooter>
