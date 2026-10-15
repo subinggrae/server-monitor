@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { queryState } from '@/components/layout/state'
+import { Notice } from '@/components/layout/Notice'
 import { PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxLabel } from '@/components/ui/input'
@@ -166,9 +167,7 @@ function DiscoveryResult({
 
   if (!result.success) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
-        <p className="font-medium text-destructive">{result.message}</p>
-      </div>
+      <Notice tone="critical" title={result.message} />
     )
   }
 

@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { queryState } from '@/components/layout/state'
+import { Notice } from '@/components/layout/Notice'
 import { FormActions, PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxLabel, Field, Input, Select } from '@/components/ui/input'
@@ -130,10 +131,9 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
   return (
     <>
       {snmp.configured && !snmp.exporterSynced ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
-          <p className="font-medium text-destructive">설정은 저장했지만 SNMP 수집을 시작하지 못했습니다.</p>
-          {snmp.exporterMessage ? <p className="mt-0.5 text-muted-foreground">{snmp.exporterMessage}</p> : null}
-        </div>
+        <Notice tone="critical" title="설정은 저장했지만 SNMP 수집을 시작하지 못했습니다.">
+          {snmp.exporterMessage}
+        </Notice>
       ) : null}
 
       <form

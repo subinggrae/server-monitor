@@ -6,6 +6,7 @@ import { SnmpStateDot } from '@/components/StatusDot'
 import { Toolbar } from '@/components/Toolbar'
 import { queryState } from '@/components/layout/state'
 import { ListPage } from '@/components/layout/ListPage'
+import { Notice } from '@/components/layout/Notice'
 import { ServerFormDialog } from '@/components/servers/ServerFormDialog'
 import { SearchInput, Select } from '@/components/ui/input'
 import { Table, TableFrame, TableNotice, TBody, TD, TH, THead, TR } from '@/components/ui/table'
@@ -41,10 +42,9 @@ export function ServerListPage() {
         description="서버를 등록하고 SNMP로 CPU, 메모리, 스토리지 사용량을 수집합니다."
         primaryAction={{ label: '서버 추가', onClick: () => setFormOpen(true) }}
         notice={
-          <p className="text-body text-muted-foreground">
-            리소스는 서버 상세에서 SNMP를 설정하고 검색해서 고릅니다. 아직 임계값이 없어 사용률이
-            높아도 위험으로 표시하지 않습니다.
-          </p>
+          <Notice title="사용률이 높아도 아직 위험으로 표시하지 않습니다.">
+            임계값을 정하는 기능이 아직 없습니다. 리소스는 서버 상세에서 SNMP를 설정하고 찾아서 고릅니다.
+          </Notice>
         }
         state={queryState(
           { isPending, isError, refetch },

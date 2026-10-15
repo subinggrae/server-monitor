@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { queryState } from '@/components/layout/state'
 import { ListPage } from '@/components/layout/ListPage'
+import { Notice } from '@/components/layout/Notice'
 import { PageSection } from '@/components/layout/PageSection'
 import { TelegramDestinationDialog } from '@/components/notifications/TelegramDestinationDialog'
 import { Button } from '@/components/ui/button'
@@ -74,26 +75,30 @@ export function NotificationsPage() {
 function TelegramSetupNotice({ status }: { status: TelegramStatus }) {
   if (!status.configured) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
-        <p className="font-medium text-destructive">Telegram Bot Token이 설정되지 않았습니다.</p>
-        <p className="mt-0.5 text-muted-foreground">
-          그룹을 등록해도 메시지를 보낼 수 없습니다. Monitoring Manager의 Bot Token 설정을 확인해 주세요.
-        </p>
-        <p className="mt-0.5 text-caption text-muted-foreground">
-          Docker Secret이나 환경 변수 TELEGRAM_BOT_TOKEN으로 정합니다.
-        </p>
-      </div>
+      <Notice
+        tone="critical"
+        title="Telegram Bot Token이 설정되지 않았습니다."
+        hint="Docker Secret이나 환경 변수 TELEGRAM_BOT_TOKEN으로 정합니다."
+      >
+        그룹을 등록해도 메시지를 보낼 수 없습니다. Monitoring Manager의 Bot Token 설정을 확인해 주세요.
+      </Notice>
+    )
+  }
+
+  if (status.webhookConfigured) {
+    return (
+      <Notice title="그룹에서 /register를 보내면 자동으로 등록됩니다.">
+        Telegram 그룹에 Bot을 추가하고 /register를 보내면 아래 목록에 나타납니다. Chat ID를 직접 입력해도 됩니다.
+      </Notice>
     )
   }
 
   return (
-    <p className="text-body text-muted-foreground">
-      {status.webhookConfigured
-        ? 'Telegram 그룹에 Bot을 추가하고 /register를 보내면 아래 목록에 나타납니다. Chat ID를 직접 입력해도 됩니다.'
-        : status.publicUrlConfigured
-          ? 'Telegram Webhook이 아직 등록되지 않아 /register를 쓸 수 없습니다. Monitoring Manager 로그에서 등록하지 못한 이유를 확인해 주세요. 그때까지는 Chat ID를 직접 등록합니다.'
-          : 'Telegram Webhook이 설정되지 않아 /register를 쓸 수 없습니다. Chat ID를 직접 등록해 주세요.'}
-    </p>
+    <Notice title="/register를 쓸 수 없어 Chat ID를 직접 등록합니다.">
+      {status.publicUrlConfigured
+        ? 'Telegram Webhook을 아직 등록하지 못했습니다. Monitoring Manager 로그에서 이유를 확인해 주세요.'
+        : 'Telegram Webhook이 설정되지 않았습니다.'}
+    </Notice>
   )
 }
 
