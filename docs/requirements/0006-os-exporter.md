@@ -1,4 +1,4 @@
-# 0006. 서버 자원 수집을 SNMP에서 OS exporter로 바꾸기
+# 0006. SNMP를 걷어내고 OS exporter로 서버 자원 수집
 
 - 상태: 승인
 - 작성일: 2026-10-15
@@ -6,16 +6,19 @@
 
 ## 배경
 
+서버 감시는 두 가지로 나뉜다. 서버가 살아 있는지는 Blackbox Exporter가 Ping(ICMP), TCP, HTTP로 수시로 확인하고, 실패가 이어지면 알림을 보낸다(감시 항목, Check). CPU, Memory, Storage는 임계치를 넘으면 알리려고 수집한다. 임계치 알림은 [#14](https://github.com/subinggrae/server-monitor/issues/14)에서 만든다. 이 작업은 두 번째 역할의 수집 방식을 SNMP에서 OS exporter로 바꾸고, SNMP를 완전히 걷어낸다(사람 확인: 2026-10-15).
+
 지금은 서버의 CPU, Memory, Storage를 SNMP로 수집한다. 대상 서버에 snmpd를 켜야 하고, Manager는 community를 암호화해 저장한 뒤 `snmp-runtime` volume에 평문 auth 파일로 써서 snmp_exporter에 넘긴다. 수집할 수 있는 값도 적다. Linux에서는 RAM 사용량에 cache와 buffer가 들어가 실제보다 높게 보이고, CPU는 1분 평균 정수만 받는다.
 
-서버 상태, 리소스 수집, 수집 주기(0001)가 모두 SNMP 설정에 매달려 있다. SNMP 설정이 없으면 서버 상태를 알 수 없고 수집 주기도 정할 수 없다.
+서버 상태, 리소스 수집, 수집 주기(0001)가 모두 SNMP 설정에 매달려 있다. 서버 목록과 상세의 상태는 "SNMP 값을 읽고 있는가"로 정해져, 자원 수집 상태가 서버 생존처럼 보인다.
 
 ## 목표
 
 - 서버의 CPU, Memory, Storage를 OS exporter로 수집한다. OS exporter는 Linux의 [node_exporter](https://github.com/prometheus/node_exporter)(기본 포트 9100)와 Windows의 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(기본 포트 9182)를 말한다.
 - 두 exporter의 값을 OS와 관계없는 공통 이름(사용률 %, 크기, 사용량)으로 맞춘다. 화면과 이후의 알림 규칙(#14)은 공통 이름만 쓴다.
 - 서버마다 exporter 수집을 켜고 끄고, 포트와 수집 주기(10~240초)를 화면에서 정한다. 다시 띄우지 않아도 반영된다.
-- SNMP 수집과 그 설정, community 저장, snmp_exporter와 테스트 장비를 없앤다.
+- SNMP를 완전히 걷어낸다. 수집 코드와 설정, community 저장과 그 암호화, snmp_exporter와 테스트 장비, 화면의 SNMP 절과 문구가 남지 않는다.
+- 서버 화면은 자원 수집 상태만 보인다. 서버가 살아 있는지는 지금처럼 Blackbox 감시 항목이 판단하고 알린다.
 - Linux의 Memory 사용률은 cache와 buffer를 뺀 실제 사용량(available 기준)으로 보인다.
 
 ## 하지 않는 것
@@ -25,7 +28,8 @@
 - 사용률 알림. #14(요구사항 0004)에서 이 작업의 공통 이름을 써서 만든다.
 - 수집 실패 알림. #6에서 이 작업의 수집 대상을 기준으로 다시 정한다.
 - 기존 SNMP time series를 새 이름으로 이어 붙이는 것. 과거 값은 Prometheus 보존 기간(15일) 동안만 남는다.
-- 대상 서버의 snmpd를 끄거나 방화벽을 정리하는 것. 운영 절차로 안내한다.
+- 서버 생존 감시를 서버와 자동으로 묶는 것. 생존 감시는 사용자가 만든 감시 항목(Blackbox)이 맡는다.
+- 대상 서버의 snmpd를 끄거나 방화벽을 정리하는 것. 배포 절차(DB 백업, Prometheus 재시작, `snmp-runtime` volume 삭제, snmpd 정리)는 PR 설명에만 적는다(사람 확인: 2026-10-15).
 - exporter 접근에 인증(TLS, basic auth)을 거는 것. 별도 작업으로 넘겼다([#15](https://github.com/subinggrae/server-monitor/issues/15), 사람 확인: 2026-10-15).
 - 기존 SNMP 설정, 수집 주기, 리소스 선택을 새 수집으로 옮기는 것. 모두 지우고 새로 설정한다(사람 확인: 2026-10-15).
 
@@ -35,8 +39,8 @@
 2. 서버 상세의 수집 절에서 OS exporter 수집을 켜고, 포트(OS에 따라 9100이나 9182가 미리 들어 있음)와 수집 주기를 정한 뒤 저장한다. 절에는 대상 서버 방화벽에서 Prometheus와 Monitoring Manager만 그 포트에 접근하게 하라는 안내와 exporter 설치 안내 링크가 보인다. [연결 시험]을 누르면 Manager가 그 주소의 exporter `/metrics`를 직접 읽어 닿는지와 exporter 종류·버전을 보인다(사람 확인: 2026-10-15).
 3. 수집을 켜면 리소스 절의 [리소스 찾기]가 exporter가 내보내는 CPU, Memory, 디스크(Linux는 mountpoint, Windows는 드라이브) 목록을 보이고, 사용자가 감시할 것을 고른다.
 4. 고른 리소스의 사용률, 사용량, 크기, 수집 시각이 표에 보인다.
-5. exporter가 없거나 닿지 않는 서버는 서버 목록과 상세에서 "응답 없음"으로 보이고, 자원 감시를 하지 않는다. 가용성 감시 항목(Check)은 지금처럼 동작한다.
-6. 이 기능을 배포하면 모든 서버가 수집 꺼짐, 고른 리소스 없음 상태가 된다. 서버 목록 위 알림 띠에 "SNMP 수집을 끝냈습니다. 서버마다 OS exporter를 설치하고 수집을 켜 주세요."가 보인다.
+5. 서버 목록과 상세는 서버마다 수집 상태(수집 중, 수집 실패, 수집 꺼짐, 설정 안 함)를 보인다. exporter가 없거나 닿지 않으면 "수집 실패"이고, 이것은 서버가 죽었다는 뜻이 아니다. 서버가 살아 있는지는 감시 항목(Check)이 지금처럼 판단한다.
+6. 이 기능을 배포하면 모든 서버가 "설정 안 함" 상태가 된다. 따로 안내 문구는 두지 않는다.
 
 ## 동작
 
@@ -72,7 +76,7 @@
 - **S7. exporter에 닿지 않음**
   - 상황: 수집을 켰는데 exporter가 없거나 포트가 막혀 있다.
   - 행동: 연결 시험을 하거나 수집 주기가 지난다.
-  - 결과: 연결 시험은 닿지 못한 이유(연결 거부, 시간 초과, HTTP 오류)와 확인할 것을 보인다. 서버 상태는 "응답 없음"이다. 설정은 저장된 채로 둔다.
+  - 결과: 연결 시험은 닿지 못한 이유(연결 거부, 시간 초과, HTTP 오류)와 확인할 것을 보인다. 수집 상태는 "수집 실패"이다. 설정은 저장된 채로 둔다.
 - **S8. OS가 다름**
   - 상황: Windows로 등록한 서버의 포트에서 node_exporter가 응답한다.
   - 행동: 연결 시험을 한다.
@@ -90,7 +94,7 @@
 
 - 접근 권한: 지금과 같다. 화면용 API에는 인증이 없고 포트를 `127.0.0.1`에만 묶는다.
 - 외부 입력: 화면용 API의 OS, 포트, 수집 주기, 리소스 선택. exporter의 `/metrics` 응답(신뢰할 수 없는 입력, 지금의 "장비의 SNMP 응답"을 대신함)
-- 민감한 정보: SNMP community를 더는 저장하지 않는다. 배포할 때 DB의 `community_cipher`와 `snmp-runtime` volume의 평문 auth 파일을 지운다(volume 삭제는 배포 절차에 쓴다). exporter는 인증 없이 열리므로 대상 서버의 방화벽에서 Prometheus와 Monitoring Manager만 접근하게 하라고 화면과 문서에 안내한다. 인증은 [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다룬다.
+- 민감한 정보: SNMP community를 더는 저장하지 않는다. 배포할 때 DB의 `community_cipher`와 `snmp-runtime` volume의 평문 auth 파일을 지운다. DB에 암호화해 저장하는 인증 정보가 없어지므로, 그 암호화 서비스와 비밀값 `APP_SECRET_KEY`도 지운다(사람 확인: 2026-10-15). #15에서 인증 정보를 저장하게 되면 그때 다시 정한다. exporter는 인증 없이 열리므로 대상 서버의 방화벽에서 Prometheus와 Monitoring Manager만 접근하게 하라고 화면과 문서에 안내한다. 인증은 [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다룬다.
 - 서버 쪽 요청 위조: 연결 시험과 리소스 찾기는 Manager가 사용자가 입력한 호스트와 포트로 HTTP 요청을 보낸다. 지금 SNMP 연결 시험과 같은 성격이다. 경로는 `/metrics`로 고정하고, 응답 크기와 시간에 한도를 두며, 응답 본문을 화면에 그대로 보이지 않는다.
 - 남길 보안 이벤트: 없음
 
@@ -110,7 +114,8 @@
 - [ ] C5. 공통 recording rule이 두 exporter의 값을 같은 이름과 단위로 만든다. Linux Memory는 available 기준이다. (S4) — 확인: `promtool test rules`
 - [ ] C6. migration 뒤 SNMP 설정, community, 리소스 선택이 사라지고, 서버는 남아 OS가 Linux이며 수집이 꺼져 있다. MariaDB와 PostgreSQL에서 같다. (S6) — 확인: 두 DB에 migration 적용 후 수동 조회
 - [ ] C7. `docker compose`로 띄운 환경에서 node_exporter 테스트 컨테이너를 서버로 등록하고 수집을 켜면, 다시 띄우지 않고 사용률이 화면에 보인다. (S1, S3, S4) — 확인: 수동 확인
-- [ ] C8. 저장소에 SNMP 수집 코드, 설정, 컨테이너, 의존성(snmp4j)이 남지 않고, 문서가 새 구조를 설명한다. — 확인: 코드 검색, 문서 검사
+- [ ] C8. 저장소에 SNMP 수집 코드, 설정, 컨테이너, 의존성(snmp4j), 암호화 서비스와 `APP_SECRET_KEY`, 화면의 SNMP 문구가 남지 않고, 문서가 새 구조를 설명한다. 기록 문서(이전 요구사항, 적용한 migration)는 고치지 않는다. — 확인: 코드 검색, 문서 검사
+- [ ] C9. 서버 목록과 상세가 수집 상태를 보이고, exporter에 닿지 않아도 서버의 감시 항목 상태와 알림은 바뀌지 않는다. (사용자 경험 5, S7) — 확인: 단위 테스트, 수동 확인
 
 ## 확인 필요
 
