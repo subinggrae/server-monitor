@@ -18,10 +18,11 @@ route:
 
   group_wait: 30s
   group_interval: 5m
-  # 이어지는 Alert를 5분마다 Manager로 다시 보냅니다. 실제로 Telegram에 다시 보낼지는
-  # Manager가 Check별 재발송 주기(Manager Database, 5~1440분)로 정합니다.
-  # 재발송 주기의 하한(5분)보다 길게 두지 않습니다. 길면 짧은 주기가 지켜지지 않습니다.
-  repeat_interval: 5m
+  # 이어지는 Alert를 group_interval(5분)마다 Manager로 다시 보냅니다. 실제로 Telegram에 다시
+  # 보낼지는 Manager가 Check별 재발송 주기(Manager Database, 5~1440분)로 정합니다.
+  # group_interval보다 짧게 둡니다. 같게 두면 다음 시점에 경과 시간이 조금 모자라
+  # 한 번씩 건너뛰어 10분마다 보냅니다.
+  repeat_interval: 4m
 
 receivers:
   - name: manager-webhook

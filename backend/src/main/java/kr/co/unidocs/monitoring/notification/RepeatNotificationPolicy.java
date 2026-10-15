@@ -7,7 +7,7 @@ import java.util.Optional;
 /**
  * Alert가 이어지는 동안 같은 그룹에 Telegram 알림을 다시 보낼지 정합니다.
  *
- * Alertmanager는 이어지는 Alert를 repeat_interval(5m)마다 webhook으로 다시 보냅니다.
+ * Alertmanager는 이어지는 Alert를 group_interval(5m)마다 webhook으로 다시 보냅니다(repeat_interval 4m).
  * 실제로 다시 보낼지는 Check마다 정한 재발송 주기로 여기서 판단합니다.
  */
 final class RepeatNotificationPolicy {

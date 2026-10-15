@@ -23,7 +23,7 @@ public record CheckNotificationRequest(
 
 		/**
 		 * null이면 기존 주기를 그대로 둡니다.
-		 * 하한 5분은 alertmanager.yml의 repeat_interval(5m)입니다. 그보다 자주 webhook이 오지 않습니다.
+		 * 하한 5분은 alertmanager.yml의 group_interval(5m)입니다. 이어지는 Alert의 webhook은 그보다 자주 오지 않습니다.
 		 * Integer로 받으면 Jackson이 15.5를 15로 잘라 검증을 지나가므로 BigDecimal로 받습니다.
 		 */
 		@DecimalMin(value = "5", message = "재발송 주기는 5분에서 1440분 사이 정수로 입력해 주세요.")
