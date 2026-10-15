@@ -1,6 +1,6 @@
 # 0006. 서버 자원 수집을 SNMP에서 OS exporter로 바꾸기
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-10-15
 - 관련: [#12](https://github.com/subinggrae/server-monitor/issues/12), [0001](0001-per-target-scrape-interval.md), [#6](https://github.com/subinggrae/server-monitor/issues/6), [#14](https://github.com/subinggrae/server-monitor/issues/14), [#13](https://github.com/subinggrae/server-monitor/issues/13), [#15](https://github.com/subinggrae/server-monitor/issues/15)
 
