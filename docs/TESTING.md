@@ -33,13 +33,13 @@
 이 프로젝트의 설정은 다음과 같다.
 
 - 시간대와 로케일: `Asia/Seoul`, `ko-KR`. Backend는 `build.gradle`의 test 작업, Frontend는 `frontend/vitest.config.ts`에서 정한다.
-- CI의 재시도와 `.only` 거부: CI 없음. CI를 붙일 때 정한다.
+- CI의 재시도와 `.only` 거부: CI 없음. Playwright는 `frontend/playwright.config.ts`에서 재시도를 끄고(`retries: 0`), 환경 변수 `CI`가 있으면 `.only`를 거부한다(`forbidOnly`). 시간대와 로케일도 같은 파일에서 정한다.
 
 ## 테스트 범위
 
-테스트 종류마다 검사하는 계층이 다르다. 범위가 넓은 테스트일수록 느리므로 적게 쓴다. 지금은 컴포넌트 테스트가 화면을, 단위 테스트가 API와 도메인 로직을 검사하고, DB와 외부 시스템은 코드를 실행해 검사하는 테스트가 없다.
+테스트 종류마다 검사하는 계층이 다르다. 범위가 넓은 테스트일수록 느리므로 적게 쓴다. 지금은 컴포넌트 테스트가 화면을, 단위 테스트가 API와 도메인 로직을 검사한다. DB와 외부 시스템까지 함께 검사하는 것은 핵심 흐름 두 개를 확인하는 E2E 테스트뿐이다.
 
-![DB와 외부 시스템은 코드를 실행해 검사하는 테스트가 없다](assets/test-scope.svg)
+![DB와 외부 시스템까지 함께 검사하는 것은 E2E 테스트뿐이다](assets/test-scope.svg)
 
 ## 종류별 기준
 
@@ -50,8 +50,19 @@
 | 정적 검사 | 타입 오류, 문법 오류, 금지 패턴 | 항상, 별도 테스트 없이 | 해당 없음 | `cd frontend && npm run lint`, `cd frontend && npm run build`(타입 검사), `cd backend && ./gradlew build`(컴파일) |
 | 단위 테스트 | Backend의 요청 검증, 응답 변환, Entity 규칙, HTTP SD 목록 | DB 없이 확인할 수 있는 Backend 동작 | DB 쿼리, migration, 실제 HTTP 호출 | `cd backend && ./gradlew test` |
 | 컴포넌트 테스트 | 화면에 보이는 값, 입력 검증, 화면이 보내는 요청 | 입력과 API 응답에 따라 바뀌는 화면 | 화면 모양, 실제 Backend 연동 | `cd frontend && npm test` |
+| E2E | 핵심 사용자 흐름이 전체 실행 환경에서 끝까지 동작하는지 | Check 등록부터 삭제까지, 수집 결과가 대시보드에 보이기까지 | 하위 테스트로 확인할 수 있는 예외와 경계값 | `cd frontend && npm run test:e2e` |
+| 화면 검사 | 기준 폭마다 접근성 위반(WCAG 2.2 AA)과 가로 넘침 | 화면을 바꿨을 때 | 화면 모양과 문구 | `cd frontend && npm run test:screen` |
 
 단위 테스트는 Repository를 Mockito로 바꾸고, 컴포넌트 테스트는 `frontend/src/test/render.tsx`의 `fakeApi`로 fetch를 바꾼다.
+
+E2E와 화면 검사는 다음처럼 실행한다.
+
+- 전체 실행 환경(`docker compose --profile local-db up -d --build`)을 같은 브랜치에서 띄운 뒤 실행한다. 화면 주소는 환경 변수 `E2E_BASE_URL`(기본 `http://localhost:8081`)로 바꾼다. 이 PC의 주소가 아니면 `E2E_ALLOW_REMOTE=1`을 함께 줄 때만 실행한다. 테스트 데이터를 만들고 지우기 때문이다.
+- 환경에 접속하지 못하면 10초 안에 실패한다. 테스트 데이터는 이름이 `e2e-`로 시작하고, 실행이 끝나거나 다음 실행(성능 검사 포함)이 시작될 때 지운다.
+- 실행이 중간에 멈춰 닿지 않는 대상의 `e2e-` Check가 1분 넘게 남으면 Alert가 생겨 Alert 목록에 남는다. 알림 그룹을 연결하지 않으므로 Telegram으로는 나가지 않는다.
+- 화면 검사는 모든 라우트와 Check, 서버, Telegram 그룹 추가 대화상자를 밝은 모드에서 검사한다. 다크 모드와 오류 화면은 검사하지 않는다. 빈 상태는 사람이 만든 데이터가 없을 때만 검사된다.
+- 화면 검사의 기준선은 `frontend/e2e/screen.spec.ts`에 있다. 지금은 `--subtle-foreground` 글자의 대비 부족(color-contrast) 하나다. 기준선에 없는 위반이 생기면 실패한다.
+- 성능은 `cd frontend && npm run test:perf`로 대시보드의 Lighthouse 점수와 LCP, CLS, TBT를 본다. 점수로 실패시키지 않는다.
 
 스냅샷 테스트는 오류 메시지나 직렬화 결과처럼 짧고 리뷰할 수 있는 출력에만 쓴다.
 
@@ -140,6 +151,7 @@
 
 - Backend: `backend/src/test/java/` 아래, 검사하는 클래스와 같은 패키지에 `클래스이름Test.java`로 둔다.
 - Frontend: 검사하는 파일 옆에 `파일이름.test.tsx`로 둔다. 여러 테스트가 함께 쓰는 대역과 설정은 `frontend/src/test/`에 둔다.
+- E2E와 화면 검사: `frontend/e2e/`에 `흐름-이름.spec.ts`로 둔다. 테스트 데이터를 만드는 API 호출은 `frontend/e2e/support/`에 둔다.
 
 실패 보고에는 테스트 이름이 가장 먼저 보인다. 그래서 이름만 읽고도 무엇이 깨졌는지 알 수 있게 다음과 같이 쓴다.
 
