@@ -72,7 +72,8 @@ AI 생성물과 생성 AI 서비스는 다음처럼 다룬다.
 
 - 출처 표시가 필요한 것(Apache-2.0의 NOTICE, CC BY, 공공누리, OFL)은 오픈소스 고지 화면에 싣고, 고지 화면은 설정이나 서비스 정보 화면에서 링크한다. lockfile은 기록만 대신하므로 패키지로 들인 것도 고지는 필요하다. 고지 화면이 아직 없으면 고지가 필요한 것을 들인 변경의 보고에 적고, 고지 화면을 만들지 [AGENTS.md의 사람에게 묻기](../AGENTS.md#사람에게-묻기)대로 묻는다.
 - 프로덕션 빌드는 번들한 패키지의 라이선스 파일을 만든다. 그래서 라이선스 주석을 지우는 설정(esbuild `legalComments: 'none'` 등)을 쓰지 않는다.
-- 라이선스 파일 설정: 아직 정하지 않았다. Frontend 번들러 Vite의 `build.license` 설정을 정한다.
+- 라이선스 파일 설정: Vite의 `build.license`로 번들한 패키지 라이선스를 `dist/licenses.txt`에 낸다(`frontend/vite.config.ts`).
+- 고지 화면: 설정 화면의 "오픈소스 고지" 절이 `/licenses.txt`와 직접 넣은 라이선스 전문(`frontend/public/licenses/`)을 링크한다.
 - 라이선스 검사: 아직 정하지 않았다. 도구를 정한다.
 
 ## 사람이 하는 일
@@ -91,4 +92,6 @@ AI는 라이선스를 찾고, 분류 표와 대조하고, 기록과 고지 파�
 
 직접 넣은 파일과 그 출처, 라이선스를 적는다.
 
-아직 없다.
+| 파일 | 출처 | 라이선스 | 권리자 | 허락된 용도 |
+|---|---|---|---|---|
+| `frontend/public/licenses/pretendard-OFL.txt` | https://github.com/orioncactus/pretendard 의 `LICENSE`(2026-10-15 받음) | OFL-1.1 원문 | Kil Hyung-jin 외 | 글꼴 패키지 `pretendard`를 웹 폰트로 배포할 때 함께 싣는 라이선스 전문 |
