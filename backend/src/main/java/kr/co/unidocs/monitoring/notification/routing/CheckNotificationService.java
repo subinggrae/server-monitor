@@ -47,10 +47,12 @@ public class CheckNotificationService {
 	/**
 	 * 목록에 없는 연결은 지웁니다. 기존 연결은 id를 유지한 채로 설정만 바꿉니다.
 	 * 재발송 주기가 없으면 기존 주기를 그대로 둡니다.
+	 * 설정 행이나 연결이 없는 Check에 저장이 동시에 오면 둘 다 새로 넣으려다 키가 겹쳐 실패합니다.
+	 * 그래서 Check 행을 먼저 잠가 같은 Check의 저장을 차례로 처리합니다.
 	 */
 	@Transactional
 	public CheckNotificationResponse replace(Long checkId, CheckNotificationRequest request) {
-		requireCheck(checkId);
+		checkRepository.findByIdForUpdate(checkId).orElseThrow(() -> new MonitoringCheckNotFoundException(checkId));
 
 		Integer repeatIntervalMinutes = request.repeatIntervalMinutesAsInt();
 		if (repeatIntervalMinutes != null) {

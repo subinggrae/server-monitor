@@ -1,5 +1,6 @@
 package kr.co.unidocs.monitoring.notification.routing;
 
+import kr.co.unidocs.monitoring.check.MonitoringCheck;
 import kr.co.unidocs.monitoring.check.MonitoringCheckRepository;
 import kr.co.unidocs.monitoring.notification.telegram.TelegramDestinationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,7 @@ class CheckNotificationServiceTest {
 	@BeforeEach
 	void stubCollaborators() {
 		when(checkRepository.existsById(CHECK_ID)).thenReturn(true);
+		when(checkRepository.findByIdForUpdate(CHECK_ID)).thenReturn(Optional.of(mock(MonitoringCheck.class)));
 		when(bindingRepository.findAllByCheckId(CHECK_ID)).thenReturn(List.of());
 		when(settingRepository.findById(anyLong()))
 				.then(invocation -> Optional.ofNullable(storedSettings.get(invocation.<Long>getArgument(0))));
