@@ -27,7 +27,8 @@
   - 이어지는 Alert마다 5분에 한 번 webhook과 DB 쓰기가 생긴다.
   - 실제 재발송은 주기보다 최대 5분 늦거나 1분 이르다.
   - 재발송 주기의 하한은 `group_interval`보다 짧을 수 없다.
-  - 배포 순서가 중요하다. Manager를 먼저 배포하고 Alertmanager 설정을 나중에 바꾼다. 되돌릴 때는 Alertmanager 설정을 먼저 되돌린다. 이전 Manager는 짧은 중복 방지만 하므로, 순서가 바뀌면 5분마다 알림이 간다.
+  - 배포 순서가 중요하다. Manager를 먼저 배포하고 Alertmanager 설정을 나중에 바꾼다. 되돌릴 때는 Alertmanager 설정을 먼저 되돌린다. 이전 Manager는 짧은 중복 방지만 하므로, 순서가 바뀌면 5분마다 알림이 간다. `alertmanager.yml`은 파일을 그대로 mount하므로, 파일이 바뀌어도 Alertmanager에 reload(`POST /-/reload`)나 재시작을 해야 반영된다. 그래서 코드를 받는 시점이 아니라 reload하는 시점이 순서를 정한다.
+  - 마지막 성공 전송 뒤 주기가 지난 상태에서 Telegram 전송이 계속 실패하면 webhook마다(5분) 다시 시도하고 FAILED를 기록한다.
 - 다시 볼 신호: 5분보다 짧은 재발송 주기가 필요해지거나, Check 수가 늘어 webhook 처리가 느려질 때
 
 ## 확인 방법

@@ -73,6 +73,8 @@
   - 그래서 Manager API를 먼저 배포하고 Alertmanager 설정을 나중에 바꾼다. 되돌릴 때는 Alertmanager 설정을 먼저 1시간으로 되돌린다.
   - 이 순서는 PR 설명과 커밋 본문에 쓴다.
 - 허용 오차 때문에 주기보다 최대 1분 일찍 보냄: 요구사항과 화면 안내에 쓴다.
+- Telegram 전송이 계속 실패함(봇이 그룹에서 빠짐 등): 실패는 보낸 것으로 세지 않으므로(요구사항 S9) webhook마다 5분 간격으로 다시 시도하고 FAILED와 WARN 로그를 남긴다. 이전에는 Alertmanager 주기(1시간)마다였다. 전송 기록 화면에서 실패가 반복되는 것으로 알아챈다.
+- 같은 Alert의 webhook이 겹쳐 오면 두 요청이 모두 기록 없음을 보고 두 번 보낼 수 있다. 이 변경 전부터 있던 경쟁이고, Manager가 늘 바로 200으로 답하므로 드물다.
 - migration 되돌리기: 새 테이블만 더하므로 기존 데이터는 바뀌지 않는다. 이전 버전 애플리케이션은 새 테이블을 쓰지 않는다. Flyway 이력을 되돌려야 하면 사람이 확인한 뒤 테이블과 `flyway_schema_history`의 V8 행을 지운다.
 
 ### 보안 위협
@@ -93,7 +95,7 @@ Backend는 `cd backend && ./gradlew test`, Frontend는 `cd frontend && npm test`
 | C2 | `RepeatNotificationPolicyTest`: 기록 없음은 보냄, 주기에서 허용 오차를 뺀 시각 경계에서 보냄, 그 직전은 보내지 않음 | `./gradlew test` |
 | C2 | `AlertNotificationDispatcherTest`: 주기 전이면 Telegram을 부르지 않고 전송 기록도 남기지 않음 | `./gradlew test` |
 | C3 | `AlertNotificationDispatcherTest`: 같은 마지막 전송 시각에서 주기를 바꾸면 결과가 바뀜 | `./gradlew test` |
-| C4 | `AlertNotificationDispatcherTest`: 첫 FIRING과 RESOLVED는 주기와 관계없이 보냄 | `./gradlew test` |
+| C4 | `AlertNotificationDispatcherTest`: 첫 FIRING과 RESOLVED는 주기와 관계없이 보냄, RESOLVED를 2분 안에 다시 받으면 SKIPPED | `./gradlew test` |
 | C5 | `AlertNotificationDispatcherTest`: FAILED 기록만 있으면 보냄 | `./gradlew test` |
 | C6 | 수동: MariaDB와 임시 PostgreSQL에 기존 Check를 둔 채 V8을 적용하고, 알림 설정 조회 API가 60을 돌려주는지 확인 | 결과를 보고에 적는다 |
 | C7 | `CheckNotificationRequestTest`: 4, 1441, 15.5, JSON의 15.5는 위반, 5와 1440은 통과 | `./gradlew test` |
@@ -116,7 +118,7 @@ C9는 전체 실행 환경에서 다음 순서로 확인한다.
 - [x] Frontend 컴포넌트 테스트 작성(C8)과 실패 확인, 화면 구현
 - [x] `alertmanager.yml`, `dedupe-window` 주석, ARCHITECTURE.md, ADR
 - [x] 수동 확인(C6, C9)과 전체 검증
-- [ ] 새 세션이나 하위 에이전트의 리뷰
+- [x] 새 세션이나 하위 에이전트의 리뷰
 - [ ] 토픽 브랜치를 푸시하고 PR을 만듦. 사람이 2026-10-14에 구현을 마치면 묻지 않고 PR을 만들라고 지시했다. 푸시 직전에 전체 검증을 다시 실행하고, PR 설명에 배포 순서(Manager API 먼저, Alertmanager 설정 나중)를 쓴다
 - [ ] 요구사항 상태를 구현됨으로 바꾸고 이 계획을 지움(병합 전 마지막 커밋)
 
@@ -125,7 +127,8 @@ C9는 전체 실행 환경에서 다음 순서로 확인한다.
 - Alertmanager webhook으로 받는 `AlertNotification`에는 첫 수신인지 반복 수신인지 구분하는 값이 없다. `AlertEventService.record`는 반복 수신에도 같은 알림을 돌려준다. 그래서 첫 알림 여부를 전송 기록(마지막 SENT가 있는가)으로 판단한다.
 - 계획과 달라진 것: `repeat_interval`을 `5m`이 아니라 `4m`으로 둔다. C9에서 `repeat_interval`과 `group_interval`을 모두 5분으로 두자, 첫 알림 뒤 다음 webhook이 5분이 아니라 10분 뒤에 왔다(23:25:31 → 23:35:30). Alertmanager는 `group_interval` 시점마다 마지막 전송 뒤 `repeat_interval`이 지났는지 보는데, 그 시점에는 경과 시간이 조금 모자라 한 번씩 건너뛴다. 4분으로 바꾸고 reload하자 5분마다 왔다. Alertmanager는 "repeat_interval이 group_interval보다 짧아 다음 group_interval까지 반복하지 않는다"는 경고를 남기는데, 이것이 의도한 동작이다. 계획의 접근 방법과 바뀌는 부분 표의 `5m`은 이 발견으로 `4m`이 됐다.
 - C6: 임시 MariaDB 11.4와 PostgreSQL 17에서 V7 애플리케이션으로 Check를 만든 뒤 V8 애플리케이션을 띄웠다. 두 DB 모두 Flyway가 V8까지 성공했다. 기존 Check의 재발송 주기는 60, 15로 저장하면 응답과 재조회가 15, 4분은 400, 주기 없이 저장하면 15가 그대로였다. Check를 지우면 설정 행도 지워졌다.
-- C9: 실제 Telegram 대신 `{"ok":true}`를 돌려주는 임시 서버를 쓰고, 비밀값은 모두 임시 값으로 바꾼 별도 compose project(`rp0003`)에서 확인했다. 닿지 않는 TCP 대상의 Check에 그룹을 연결하고 주기를 5분으로 두자 SENT가 23:40:58, 23:45:57에 났다. 다시 띄우지 않고 10분으로 바꾸자 다음 SENT는 23:55:57이었다. Alertmanager의 webhook 전송 수는 6이었다. 23:50 webhook은 왔지만 보내지 않았고 전송 기록도 남지 않았다.
+- C9: 실제 Telegram 대신 `{"ok":true}`를 돌려주는 임시 서버를 쓰고, 비밀값은 모두 임시 값으로 바꾼 별도 compose project(`rp0003`)에서 확인했다. 닿지 않는 TCP 대상의 Check에 그룹을 연결하고 주기를 5분으로 두자 SENT가 23:40:58, 23:45:57에 났다. 다시 띄우지 않고 10분으로 바꾸자 다음 SENT는 23:55:57이었다. Alertmanager의 webhook 전송 수는 6이었다. 23:50 webhook은 왔지만 보내지 않았고 전송 기록도 남지 않았다. 위험 항목에 적은 webhook 응답 시간은 재지 않았다.
+- 하위 에이전트 리뷰(2026-10-15): P1·P2는 없었다. 반영한 것은 복구 알림의 2분 중복 방지 테스트, 요구사항의 바뀌지 않는 것 문구(중복 방지는 복구 알림에만 남음), ADR의 Alertmanager reload 시점과 전송 실패 반복, 이 계획의 위험 항목, 주석 둘이다. 바꾸지 않은 것은 판단과 기록의 시각 출처가 다른 것(판단은 주입한 `Clock`, 기록은 `@PrePersist`의 `Instant.now()`)과, 설정 행이 없는 Check에 저장 요청이 동시에 오면 기본 키 충돌로 500이 날 수 있는 점이다. 둘 다 운영 영향이 작다.
 
 ## 남길 결정
 

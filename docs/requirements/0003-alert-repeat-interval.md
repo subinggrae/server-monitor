@@ -89,7 +89,7 @@
 
 - Alertmanager webhook의 요청 형식, Bearer token 확인, 응답(Telegram 전송이 실패해도 200)
 - 받은 Alert를 `alert_events`에 기록하는 방식
-- Alertmanager의 즉시 재시도를 막는 2분 중복 방지
+- 복구 알림에서 Alertmanager의 즉시 재시도를 막는 2분 중복 방지. 이어지는 Alert의 즉시 재시도는 재발송 판단(하한 5분에서 허용 오차 1분을 뺀 4분)이 막는다.
 - Check와 그룹 연결마다 정하는 Warning, Critical, 복구 알림 설정
 - Alert 규칙, Alert label, HTTP SD 응답의 label
 - 알림을 받을 Telegram 그룹을 Manager Database가 정하는 것
