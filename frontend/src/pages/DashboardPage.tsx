@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 
+import { RecentAlertTable } from '@/components/alerts/RecentAlertTable'
 import { OverviewPage } from '@/components/layout/OverviewPage'
 import { PageSection } from '@/components/layout/PageSection'
-import { AlertStatusLabel, StatusCount } from '@/components/StatusDot'
+import { StatusCount } from '@/components/StatusDot'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import {
@@ -115,7 +116,7 @@ export function DashboardPage() {
               : { kind: 'loading' }
         }
       >
-        <RecentAlerts alerts={(alerts.data ?? []).slice(0, RECENT_ALERT_LIMIT)} />
+        <RecentAlertTable alerts={(alerts.data ?? []).slice(0, RECENT_ALERT_LIMIT)} />
       </PageSection>
 
       <PageSection
@@ -198,43 +199,6 @@ function CriticalTable({ checks, startedAt }: { checks: MonitoringCheck[]; start
               </TR>
             )
           })}
-        </TBody>
-      </Table>
-    </TableFrame>
-  )
-}
-
-function RecentAlerts({ alerts }: { alerts: AlertEvent[] }) {
-  return (
-    <TableFrame>
-      <Table>
-        <THead>
-          <tr>
-            <TH className="w-24">상태</TH>
-            <TH>내용</TH>
-            <TH className="w-52">대상</TH>
-            <TH className="w-44">발생</TH>
-          </tr>
-        </THead>
-        <TBody>
-          {alerts.map((alert) => (
-            <TR key={alert.id}>
-              <TD>
-                <AlertStatusLabel status={alert.status} />
-              </TD>
-              <TD>
-                {alert.checkId ? (
-                  <Link to={`/monitoring/checks/${alert.checkId}`} className="hover:underline">
-                    {alert.summary ?? alert.alertName}
-                  </Link>
-                ) : (
-                  (alert.summary ?? alert.alertName)
-                )}
-              </TD>
-              <TD className="address max-w-0 truncate text-muted-foreground">{alert.instance ?? '-'}</TD>
-              <TD className="tabular text-muted-foreground">{formatDateTime(alert.startsAt)}</TD>
-            </TR>
-          ))}
         </TBody>
       </Table>
     </TableFrame>

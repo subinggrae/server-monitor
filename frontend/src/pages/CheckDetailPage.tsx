@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
+import { RecentAlertTable } from '@/components/alerts/RecentAlertTable'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { StatusDot } from '@/components/StatusDot'
 import { CheckFormDialog } from '@/components/checks/CheckFormDialog'
@@ -12,7 +13,9 @@ import { PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
 import { DetailList } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { apiDelete, checkDetailQuery, queryKeys } from '@/lib/api'
+import { alertsQuery, apiDelete, checkDetailQuery, queryKeys } from '@/lib/api'
+
+const RECENT_ALERT_LIMIT = 5
 
 export function CheckDetailPage() {
   const { checkId: rawCheckId } = useParams()
@@ -33,6 +36,10 @@ export function CheckDetailPage() {
   })
 
   const check = checkResult.data
+
+  // 장애 API는 최근 기록만 돌려줍니다. 그 안에서 이 감시 항목의 것만 고릅니다.
+  const alerts = useQuery(alertsQuery)
+  const recentAlerts = (alerts.data ?? []).filter((alert) => alert.checkId === checkId).slice(0, RECENT_ALERT_LIMIT)
 
   return (
     <>
@@ -99,6 +106,25 @@ export function CheckDetailPage() {
                   </TBody>
                 </Table>
               </TableFrame>
+            </PageSection>
+
+            <PageSection
+              title="최근 장애"
+              actions={
+                <Link
+                  to="/alerts"
+                  className="text-body text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  장애 기록 전체
+                </Link>
+              }
+              state={queryState(
+                alerts,
+                '장애 기록을 불러오지 못했습니다.',
+                recentAlerts.length === 0 ? { title: '최근에 기록된 장애가 없습니다.' } : null,
+              )}
+            >
+              <RecentAlertTable alerts={recentAlerts} />
             </PageSection>
 
             <CheckNotificationSection checkId={checkId} />
