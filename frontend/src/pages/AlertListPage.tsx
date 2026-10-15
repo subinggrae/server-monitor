@@ -1,12 +1,20 @@
 import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { Link } from 'react-router'
 
 import { AlertStatusLabel } from '@/components/StatusDot'
+import { Toolbar } from '@/components/Toolbar'
 import { queryState } from '@/components/layout/state'
 import { ListPage } from '@/components/layout/ListPage'
+import { Select } from '@/components/ui/input'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { alertsQuery } from '@/lib/api'
+import { alertsQuery, type AlertStatus } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
+import { pickParam, useSearchParamState } from '@/lib/searchParams'
+
+const STATUS_LABELS: Record<AlertStatus, string> = { FIRING: '발생 중', RESOLVED: '복구' }
+
+const STATUSES = Object.keys(STATUS_LABELS) as AlertStatus[]
 
 /** 장애 관리 기능은 만들지 않습니다. 언제 무엇이 장애였고 언제 풀렸는지만 봅니다. */
 export function AlertListPage() {
@@ -15,6 +23,21 @@ export function AlertListPage() {
     // 장애 상황에서는 목록이 자주 바뀝니다.
     refetchInterval: 30_000,
   })
+  const { params, update } = useSearchParamState()
+  const statusFilter = pickParam(params.get('status'), STATUSES)
+
+  // 발생 중인 장애를 위에 두고, 그 안에서는 최근에 시작한 것부터 보입니다.
+  const visibleAlerts = useMemo(
+    () =>
+      (alerts ?? [])
+        .filter((alert) => statusFilter === null || alert.status === statusFilter)
+        .sort(
+          (a, b) =>
+            STATUSES.indexOf(a.status) - STATUSES.indexOf(b.status) ||
+            new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime(),
+        ),
+    [alerts, statusFilter],
+  )
 
   return (
     <ListPage
@@ -32,6 +55,27 @@ export function AlertListPage() {
           : null,
       )}
       skeletonColumns={6}
+      toolbar={
+        <Toolbar
+          count={`${visibleAlerts.length}건 / 전체 ${alerts?.length ?? 0}건`}
+          activeFilters={statusFilter ? [`상태 ${STATUS_LABELS[statusFilter]}`] : []}
+          onReset={() => update({ status: null })}
+        >
+          <Select
+            value={statusFilter ?? 'ALL'}
+            onChange={(event) => update({ status: event.target.value === 'ALL' ? null : event.target.value })}
+            className="w-36"
+            aria-label="상태 필터"
+          >
+            <option value="ALL">상태 전체</option>
+            {STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {STATUS_LABELS[status]}
+              </option>
+            ))}
+          </Select>
+        </Toolbar>
+      }
     >
       <TableFrame>
         <Table>
@@ -46,7 +90,7 @@ export function AlertListPage() {
             </tr>
           </THead>
           <TBody>
-            {(alerts ?? []).map((alert) => (
+            {visibleAlerts.map((alert) => (
               <TR key={alert.id}>
                 <TD>
                   <AlertStatusLabel status={alert.status} />
@@ -54,19 +98,14 @@ export function AlertListPage() {
                 <TD className="text-muted-foreground">{severityLabel(alert.severity)}</TD>
                 <TD>
                   {alert.checkId ? (
-                    <Link
-                      to={`/monitoring/checks/${alert.checkId}`}
-                      className="hover:underline"
-                    >
+                    <Link to={`/monitoring/checks/${alert.checkId}`} className="hover:underline">
                       {alert.summary ?? alert.alertName}
                     </Link>
                   ) : (
                     <span>{alert.summary ?? alert.alertName}</span>
                   )}
                 </TD>
-                <TD className="tabular max-w-0 truncate text-muted-foreground">
-                  {alert.instance ?? '-'}
-                </TD>
+                <TD className="address max-w-0 truncate text-muted-foreground">{alert.instance ?? '-'}</TD>
                 <TD className="tabular text-muted-foreground">{formatDateTime(alert.startsAt)}</TD>
                 <TD className="tabular text-muted-foreground">
                   {alert.resolvedAt ? formatDateTime(alert.resolvedAt) : '-'}
