@@ -7,7 +7,7 @@
 
 재발송 판단을 Alertmanager에서 Manager API로 옮긴다.
 
-- Alertmanager의 `repeat_interval`을 `1h`에서 `5m`으로 줄인다. 배포할 때 한 번만 바꾸고, 사용자 설정과 관계없이 고정한다. 그러면 Alert가 이어지는 동안 Alertmanager가 5분마다 webhook을 보낸다. 이 값은 재발송 주기의 하한(5분)과 같고 `group_interval: 5m`보다 짧지 않다.
+- Alertmanager의 `repeat_interval`을 `1h`에서 `group_interval`(5m)보다 짧은 `4m`으로 줄인다(진행 중 발견에서 `5m`을 고쳤다). 배포할 때 한 번만 바꾸고, 사용자 설정과 관계없이 고정한다. 그러면 Alert가 이어지는 동안 Alertmanager가 `group_interval`마다, 곧 5분마다 webhook을 보낸다. 재발송 주기의 하한(5분)은 이 간격과 같다.
 - 재발송 주기는 새 테이블 `check_notification_settings`에 Check마다 한 행으로 둔다. 행이 없으면 60분으로 본다. 그래서 기존 Check와 새 Check에 행을 미리 만들지 않아도 요구사항 S6을 만족한다.
 - `AlertNotificationDispatcher`가 FIRING 알림을 보낼 때, 그 Alert와 그룹의 마지막 SENT 전송 시각을 읽는다.
   - 기록이 없으면 보낸다. 첫 알림이거나 앞선 전송이 모두 실패했다.
@@ -29,7 +29,7 @@
 
 | 위치 | 변경 |
 |---|---|
-| `infrastructure/alertmanager/alertmanager.yml` | `repeat_interval: 1h` → `5m`, 이유 주석 |
+| `infrastructure/alertmanager/alertmanager.yml` | `repeat_interval: 1h` → `4m`(진행 중 발견), 이유 주석 |
 | `backend/src/main/resources/db/migration/{mariadb,postgresql}/V8__check_notification_settings.sql` | 새 테이블 |
 | `backend/.../notification/routing/CheckNotificationSetting.java`, `CheckNotificationSettingRepository.java` | 새 엔티티와 Repository |
 | `backend/.../notification/routing/CheckNotificationRequest.java`, `CheckNotificationResponse.java` | `repeatIntervalMinutes` 필드 |
@@ -109,13 +109,13 @@ C9는 전체 실행 환경에서 다음 순서로 확인한다.
 
 ## 작업 순서
 
-- [ ] `parseIntegerInRange` 리팩터링(`refactor` 커밋)
-- [ ] Backend 완료 기준 테스트 작성(C1~C5, C7)과 실패 확인
-- [ ] V8 migration(두 vendor), 엔티티, Repository, 알림 설정 API
-- [ ] `RepeatNotificationPolicy`, `Clock` bean, Dispatcher 판단
-- [ ] Frontend 컴포넌트 테스트 작성(C8)과 실패 확인, 화면 구현
-- [ ] `alertmanager.yml`, `dedupe-window` 주석, ARCHITECTURE.md, ADR
-- [ ] 수동 확인(C6, C9)과 전체 검증
+- [x] `parseIntegerInRange` 리팩터링(`refactor` 커밋)
+- [x] Backend 완료 기준 테스트 작성(C1~C5, C7)과 실패 확인
+- [x] V8 migration(두 vendor), 엔티티, Repository, 알림 설정 API
+- [x] `RepeatNotificationPolicy`, `Clock` bean, Dispatcher 판단
+- [x] Frontend 컴포넌트 테스트 작성(C8)과 실패 확인, 화면 구현
+- [x] `alertmanager.yml`, `dedupe-window` 주석, ARCHITECTURE.md, ADR
+- [x] 수동 확인(C6, C9)과 전체 검증
 - [ ] 새 세션이나 하위 에이전트의 리뷰
 - [ ] 토픽 브랜치를 푸시하고 PR을 만듦. 사람이 2026-10-14에 구현을 마치면 묻지 않고 PR을 만들라고 지시했다. 푸시 직전에 전체 검증을 다시 실행하고, PR 설명에 배포 순서(Manager API 먼저, Alertmanager 설정 나중)를 쓴다
 - [ ] 요구사항 상태를 구현됨으로 바꾸고 이 계획을 지움(병합 전 마지막 커밋)
@@ -123,7 +123,10 @@ C9는 전체 실행 환경에서 다음 순서로 확인한다.
 ## 진행 중 발견
 
 - Alertmanager webhook으로 받는 `AlertNotification`에는 첫 수신인지 반복 수신인지 구분하는 값이 없다. `AlertEventService.record`는 반복 수신에도 같은 알림을 돌려준다. 그래서 첫 알림 여부를 전송 기록(마지막 SENT가 있는가)으로 판단한다.
+- 계획과 달라진 것: `repeat_interval`을 `5m`이 아니라 `4m`으로 둔다. C9에서 `repeat_interval`과 `group_interval`을 모두 5분으로 두자, 첫 알림 뒤 다음 webhook이 5분이 아니라 10분 뒤에 왔다(23:25:31 → 23:35:30). Alertmanager는 `group_interval` 시점마다 마지막 전송 뒤 `repeat_interval`이 지났는지 보는데, 그 시점에는 경과 시간이 조금 모자라 한 번씩 건너뛴다. 4분으로 바꾸고 reload하자 5분마다 왔다. Alertmanager는 "repeat_interval이 group_interval보다 짧아 다음 group_interval까지 반복하지 않는다"는 경고를 남기는데, 이것이 의도한 동작이다. 계획의 접근 방법과 바뀌는 부분 표의 `5m`은 이 발견으로 `4m`이 됐다.
+- C6: 임시 MariaDB 11.4와 PostgreSQL 17에서 V7 애플리케이션으로 Check를 만든 뒤 V8 애플리케이션을 띄웠다. 두 DB 모두 Flyway가 V8까지 성공했다. 기존 Check의 재발송 주기는 60, 15로 저장하면 응답과 재조회가 15, 4분은 400, 주기 없이 저장하면 15가 그대로였다. Check를 지우면 설정 행도 지워졌다.
+- C9: 실제 Telegram 대신 `{"ok":true}`를 돌려주는 임시 서버를 쓰고, 비밀값은 모두 임시 값으로 바꾼 별도 compose project(`rp0003`)에서 확인했다. 닿지 않는 TCP 대상의 Check에 그룹을 연결하고 주기를 5분으로 두자 SENT가 23:40:58, 23:45:57에 났다. 다시 띄우지 않고 10분으로 바꾸자 다음 SENT는 23:55:57이었다. Alertmanager의 webhook 전송 수는 6이었다. 23:50 webhook은 왔지만 보내지 않았고 전송 기록도 남지 않았다.
 
 ## 남길 결정
 
-- Alert가 이어지는 동안의 재발송 판단은 Manager API가 Check별 재발송 주기로 한다. Alertmanager의 `repeat_interval`은 판단 간격(5분)으로 고정한다. 재발송 주기의 하한은 이 값보다 짧을 수 없다.
+- Alert가 이어지는 동안의 재발송 판단은 Manager API가 Check별 재발송 주기로 한다. Alertmanager는 `group_interval`(5분)마다 webhook을 보내도록 `repeat_interval`을 그보다 짧은 4분으로 고정한다. 재발송 주기의 하한은 `group_interval`보다 짧을 수 없다.

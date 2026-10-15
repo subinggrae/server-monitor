@@ -18,7 +18,7 @@
 
 ## 결정
 
-세 번째 선택지를 고른다. `alertmanager.yml`의 `repeat_interval`을 사용자 설정과 관계없이 5분으로 고정한다. 재발송 주기(5~1440분, 기본 60분)는 Check마다 `check_notification_settings`에 둔다. Manager는 FIRING webhook을 받을 때마다 그 Alert와 그룹의 마지막 성공 전송 뒤 `재발송 주기 - 1분`이 지났는지 보고 보낸다. 1분은 전송 시각이 Telegram 호출 뒤에 기록돼 생기는 지연 때문에 한 webhook 간격을 건너뛰지 않게 하는 허용 오차다. 복구 알림은 재발송 주기를 보지 않는다.
+세 번째 선택지를 고른다. `alertmanager.yml`의 `repeat_interval`을 사용자 설정과 관계없이 `group_interval`(5분)보다 짧은 4분으로 고정해, Alertmanager가 이어지는 Alert를 5분마다 webhook으로 보내게 한다. 두 값을 같게 두면 다음 시점에 경과 시간이 조금 모자라 한 번씩 건너뛰므로 10분마다 보낸다. 재발송 주기(5~1440분, 기본 60분)는 Check마다 `check_notification_settings`에 둔다. Manager는 FIRING webhook을 받을 때마다 그 Alert와 그룹의 마지막 성공 전송 뒤 `재발송 주기 - 1분`이 지났는지 보고 보낸다. 1분은 전송 시각이 Telegram 호출 뒤에 기록돼 생기는 지연 때문에 한 webhook 간격을 건너뛰지 않게 하는 허용 오차다. 복구 알림은 재발송 주기를 보지 않는다.
 
 ## 결과
 
@@ -26,11 +26,11 @@
 - 감수할 점:
   - 이어지는 Alert마다 5분에 한 번 webhook과 DB 쓰기가 생긴다.
   - 실제 재발송은 주기보다 최대 5분 늦거나 1분 이르다.
-  - 재발송 주기의 하한은 `repeat_interval`보다 짧을 수 없다.
+  - 재발송 주기의 하한은 `group_interval`보다 짧을 수 없다.
   - 배포 순서가 중요하다. Manager를 먼저 배포하고 Alertmanager 설정을 나중에 바꾼다. 되돌릴 때는 Alertmanager 설정을 먼저 되돌린다. 이전 Manager는 짧은 중복 방지만 하므로, 순서가 바뀌면 5분마다 알림이 간다.
 - 다시 볼 신호: 5분보다 짧은 재발송 주기가 필요해지거나, Check 수가 늘어 webhook 처리가 느려질 때
 
 ## 확인 방법
 
 - `AlertNotificationDispatcherTest`, `RepeatNotificationPolicyTest`
-- 리뷰에서 확인: `alertmanager.yml`의 `repeat_interval`이 재발송 주기 하한(요청 DTO의 `@DecimalMin`)보다 길지 않은지
+- 리뷰에서 확인: `alertmanager.yml`의 `repeat_interval`이 `group_interval`보다 짧고, `group_interval`이 재발송 주기 하한(요청 DTO의 `@DecimalMin`)보다 길지 않은지
