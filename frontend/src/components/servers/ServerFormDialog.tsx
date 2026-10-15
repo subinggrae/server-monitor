@@ -75,8 +75,8 @@ function ServerForm({
       onOpenChange={onOpenChange}
       title={server ? '서버 수정' : '서버 추가'}
       description="감시할 서버를 등록합니다. 등록한 뒤 서버 상세에서 SNMP를 설정하면 CPU, 메모리, 스토리지 사용량을 수집합니다."
-      submitLabel="저장"
-      pendingLabel="저장 중…"
+      submitLabel={server ? '저장' : '추가'}
+      pendingLabel={server ? '저장 중…' : '추가 중…'}
       pending={mutation.isPending}
       formError={formError}
       onSubmit={() => {

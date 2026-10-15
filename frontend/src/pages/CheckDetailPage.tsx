@@ -13,9 +13,17 @@ import { PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
 import { DetailList } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { alertsQuery, apiDelete, checkDetailQuery, queryKeys } from '@/lib/api'
+import { firingSince } from '@/lib/alerts'
+import { alertsQuery, apiDelete, checkDetailQuery, queryKeys, type MonitoringCheck } from '@/lib/api'
+import { formatDateTime, formatElapsed, formatTime } from '@/lib/format'
 
 const RECENT_ALERT_LIMIT = 5
+
+/** 대상마다 따로 확인하므로 가장 늦게 확인한 대상의 시각을 씁니다. */
+function latestCheckedAt(check: MonitoringCheck | undefined) {
+  const times = (check?.targets ?? []).flatMap((target) => (target.checkedAt ? [target.checkedAt] : []))
+  return times.length === 0 ? null : times.reduce((latest, time) => (new Date(time) > new Date(latest) ? time : latest))
+}
 
 export function CheckDetailPage() {
   const { checkId: rawCheckId } = useParams()
@@ -40,6 +48,8 @@ export function CheckDetailPage() {
   // 장애 API는 최근 기록만 돌려줍니다. 그 안에서 이 감시 항목의 것만 고릅니다.
   const alerts = useQuery(alertsQuery)
   const recentAlerts = (alerts.data ?? []).filter((alert) => alert.checkId === checkId).slice(0, RECENT_ALERT_LIMIT)
+  const since = firingSince(alerts.data ?? []).get(checkId)
+  const lastCheckedAt = latestCheckedAt(check)
 
   return (
     <>
@@ -54,7 +64,17 @@ export function CheckDetailPage() {
           check ? (
             <>
               <StatusDot status={check.status} />
+              {check.status === 'CRITICAL' ? (
+                since ? (
+                  <span className="tabular font-medium text-foreground" title={formatDateTime(since)}>
+                    {formatElapsed(since)}
+                  </span>
+                ) : (
+                  <span>시작 시각 모름</span>
+                )
+              ) : null}
               {check.enabled ? null : <span>사용 안 함</span>}
+              {lastCheckedAt ? <span className="tabular">마지막 확인 {formatTime(lastCheckedAt)}</span> : null}
             </>
           ) : undefined
         }

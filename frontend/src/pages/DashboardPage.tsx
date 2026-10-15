@@ -7,12 +7,12 @@ import { PageSection } from '@/components/layout/PageSection'
 import { StatusCount } from '@/components/StatusDot'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
+import { firingSince } from '@/lib/alerts'
 import {
   alertsQuery,
   checksQuery,
   serversQuery,
   systemInfoQuery,
-  type AlertEvent,
   type MonitoringCheck,
   SNMP_STATE_LABELS,
   type ServerTarget,
@@ -150,21 +150,6 @@ function Freshness({ updatedAt, stale }: { updatedAt: number; stale: boolean }) 
       마지막 확인 {formatTime(updatedAt)} · 30초마다 새로고침
     </span>
   )
-}
-
-/** 감시 항목마다 발생 중인 장애 가운데 가장 이른 시작 시각입니다. 장애 기록에 없으면 비어 있습니다. */
-function firingSince(alerts: AlertEvent[]) {
-  const since = new Map<number, string>()
-  for (const alert of alerts) {
-    if (alert.status !== 'FIRING' || alert.checkId === null) {
-      continue
-    }
-    const current = since.get(alert.checkId)
-    if (!current || new Date(alert.startsAt) < new Date(current)) {
-      since.set(alert.checkId, alert.startsAt)
-    }
-  }
-  return since
 }
 
 function CriticalTable({ checks, startedAt }: { checks: MonitoringCheck[]; startedAt: Map<number, string> }) {

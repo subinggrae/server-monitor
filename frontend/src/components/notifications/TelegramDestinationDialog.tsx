@@ -84,8 +84,8 @@ function DestinationForm({
       onOpenChange={onOpenChange}
       title={destination ? 'Telegram 그룹 수정' : 'Telegram 그룹 추가'}
       description="Chat ID를 직접 입력합니다. Telegram 그룹에서 /register를 보내 등록할 수도 있습니다."
-      submitLabel="저장"
-      pendingLabel="저장 중…"
+      submitLabel={destination ? '저장' : '추가'}
+      pendingLabel={destination ? '저장 중…' : '추가 중…'}
       pending={mutation.isPending}
       formError={formError}
       onSubmit={() => {

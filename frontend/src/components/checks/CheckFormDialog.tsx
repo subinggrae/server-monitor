@@ -150,8 +150,8 @@ function CheckForm({
       title={check ? '감시 항목 수정' : '감시 항목 추가'}
       description="같은 애플리케이션이 서버 여러 대에서 동작하면 대상을 여러 개 등록합니다."
       size="xl"
-      submitLabel="저장"
-      pendingLabel="저장 중…"
+      submitLabel={check ? '저장' : '추가'}
+      pendingLabel={check ? '저장 중…' : '추가 중…'}
       pending={mutation.isPending}
       formError={formError}
       onSubmit={() => {

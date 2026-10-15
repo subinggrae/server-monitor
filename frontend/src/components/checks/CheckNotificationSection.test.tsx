@@ -38,6 +38,18 @@ async function saveWithInterval(minutes: string) {
   await user.click(screen.getByRole('button', { name: '저장' }))
 }
 
+describe('Check 알림 설정의 받는 그룹', () => {
+  it('받는 그룹이 없으면 위험이 아닌 경고 안내로 알린다', async () => {
+    givenApi()
+
+    renderWithQueryClient(<CheckNotificationSection checkId={3} />)
+
+    const title = await screen.findByText('받는 그룹이 없습니다.')
+    expect(title.closest('[role="status"]')).not.toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
 describe('Check 알림 설정의 재발송 주기', () => {
   it('저장된 재발송 주기로 시작한다', async () => {
     givenApi()

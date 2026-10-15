@@ -83,6 +83,11 @@ export function AlertStatusLabel({ status, className }: { status: AlertStatus; c
   return <StatusLabel style={ALERT_STATES[status]} className={className} />
 }
 
+/** 장애는 아니지만 사람이 알아 두어야 하는 설정 상태입니다. 예: 받는 그룹이 없음 */
+export function WarningLabel({ label, className }: { label: string; className?: string }) {
+  return <StatusLabel style={{ label, mark: 'warning' }} className={className} />
+}
+
 export function StatusCount({ status, label, value }: { status: MonitoringStatus; label: string; value: number }) {
   return (
     <div className="flex items-center gap-2">

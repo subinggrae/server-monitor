@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
 import type { ContentState } from '@/components/layout/ContentState'
+import { Notice } from '@/components/layout/Notice'
 import { FormActions, PageSection } from '@/components/layout/PageSection'
 import { Checkbox, CheckboxLabel, Field, Input } from '@/components/ui/input'
 import {
@@ -161,9 +162,9 @@ function NotificationForm({
   return (
     <form className="space-y-3" onSubmit={save} noValidate>
       {selectedRows.length === 0 ? (
-        <p className="text-body text-critical">
-          받는 그룹이 없습니다. 지금은 장애가 나도 Telegram 알림이 가지 않습니다.
-        </p>
+        <Notice tone="warning" title="받는 그룹이 없습니다.">
+          지금은 장애가 나도 Telegram 알림이 가지 않습니다. 아래에서 받는 그룹을 골라 저장해 주세요.
+        </Notice>
       ) : null}
 
       <div className="overflow-hidden rounded-md border border-border bg-surface">

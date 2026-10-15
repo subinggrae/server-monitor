@@ -27,7 +27,7 @@ test('Check를 등록하면 목록과 상세에 보이고 삭제하면 목록에
     await dialog.getByLabel('종류', { exact: true }).selectOption('TCP')
     await dialog.getByLabel('호스트 1', { exact: true }).fill('127.0.0.1')
     await dialog.getByLabel('포트 1', { exact: true }).fill('1')
-    await dialog.getByRole('button', { name: '저장', exact: true }).click()
+    await dialog.getByRole('button', { name: '추가', exact: true }).click()
     await expect(dialog).toBeHidden()
   })
 

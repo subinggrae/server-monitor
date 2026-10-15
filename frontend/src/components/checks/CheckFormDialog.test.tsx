@@ -45,8 +45,22 @@ async function fillNewCheck(scrapeInterval: string) {
   const interval = screen.getByLabelText('수집 주기')
   await user.clear(interval)
   await user.type(interval, scrapeInterval)
-  await user.click(screen.getByRole('button', { name: '저장' }))
+  await user.click(screen.getByRole('button', { name: '추가' }))
 }
+
+describe('Check 폼의 실행 버튼', () => {
+  it('새 감시 항목은 추가, 기존 감시 항목은 저장이다', () => {
+    fakeApi({ 'GET /api/check-types': { body: CHECK_TYPES } })
+
+    const { unmount } = renderWithQueryClient(<CheckFormDialog open onOpenChange={() => {}} />)
+    expect(screen.getByRole('button', { name: '추가' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '저장' })).toBeNull()
+    unmount()
+
+    renderWithQueryClient(<CheckFormDialog open onOpenChange={() => {}} check={SAVED_CHECK} />)
+    expect(screen.getByRole('button', { name: '저장' })).toBeTruthy()
+  })
+})
 
 describe('Check 폼의 수집 주기', () => {
   it('새 Check는 15초로 시작한다', () => {

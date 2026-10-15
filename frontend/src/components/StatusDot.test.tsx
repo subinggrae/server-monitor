@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { AlertStatusLabel, StatusDot } from '@/components/StatusDot'
+import { AlertStatusLabel, StatusDot, WarningLabel } from '@/components/StatusDot'
 
 describe('상태 표시', () => {
   it('상태마다 문구를 함께 보인다', () => {
@@ -34,5 +34,13 @@ describe('상태 표시', () => {
     expect(screen.getByText('발생 중')).toBeTruthy()
     expect(firing.querySelector('svg')).not.toBeNull()
     expect(resolved.querySelector('svg')).toBeNull()
+  })
+
+  it('설정 경고는 위험 아이콘이 아닌 경고 모양으로 보인다', () => {
+    const { container } = render(<WarningLabel label="없음" />)
+
+    expect(screen.getByText('없음')).toBeTruthy()
+    expect(container.querySelector('svg')).toBeNull()
+    expect(container.querySelector('.rotate-45')).not.toBeNull()
   })
 })

@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { WarningLabel } from '@/components/StatusDot'
+import { Toolbar } from '@/components/Toolbar'
 import { queryState } from '@/components/layout/state'
 import { ListPage } from '@/components/layout/ListPage'
 import { Notice } from '@/components/layout/Notice'
@@ -55,6 +57,7 @@ export function NotificationsPage() {
             : null,
         )}
         skeletonColumns={5}
+        toolbar={<Toolbar count={`${destinations.data?.length ?? 0}개`} />}
         aside={<BindingOverview />}
       >
         <DestinationTable
@@ -220,7 +223,7 @@ function BindingOverview() {
         summaries.length === 0
           ? undefined
           : missing > 0
-            ? `받는 그룹이 없는 감시 항목이 ${missing}개 있습니다. 이 감시 항목은 장애가 나도 알림이 가지 않습니다.`
+            ? `받는 그룹이 없는 감시 항목 ${missing}개는 장애가 나도 알림이 가지 않습니다.`
             : '모든 감시 항목에 받는 그룹이 있습니다.'
       }
       state={queryState(
@@ -252,7 +255,7 @@ function BindingOverview() {
                 <TD className="text-muted-foreground">{summary.environment}</TD>
                 <TD>
                   {summary.bindings.length === 0 ? (
-                    <span className="text-critical">없음</span>
+                    <WarningLabel label="없음" />
                   ) : (
                     <span className="text-muted-foreground">
                       {summary.bindings.map((binding) => binding.telegramDestinationName).join(', ')}

@@ -12,7 +12,7 @@ export function Toolbar({
   activeFilters = [],
   onReset,
 }: {
-  children: ReactNode
+  children?: ReactNode
   count?: ReactNode
   activeFilters?: string[]
   onReset?: () => void
