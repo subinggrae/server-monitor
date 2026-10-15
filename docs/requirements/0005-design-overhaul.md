@@ -22,7 +22,7 @@
   - 사실과 다른 안내가 다섯 곳 있다. 예: 대시보드와 서버 화면이 이미 만든 SNMP 수집을 "아직 설정하지 않았다", "사용할 예정"이라고 안내한다.
   - [RULES.md의 화면 글](../design/RULES.md#화면-글)이 금지한 내부 용어(Backend, Prometheus, Alertmanager, Service Discovery, snmp_exporter)와 코드 값(`MEMORY`, `STORAGE`)이 화면에 나온다. 사용자를 탓하는 오류 문구("형식이 올바르지 않습니다")와 같은 오류의 다른 문구도 있다.
 
-조사한 참고 화면과 UX 근거는 [DESIGN.md의 참고 화면](../design/DESIGN.md#개요)과 [트렌드 기록](../design/DESIGN.md#트렌드-기록)에 둔다.
+조사한 참고 화면은 [DESIGN.md 개요](../design/DESIGN.md#개요)에 둔다. 시각 체계는 사람이 2026-10-15에 미리 보기 페이지로 확인했다.
 
 ## 목표
 
@@ -83,7 +83,12 @@
 - **S7. 화면 글**
   - 상황: 사용자가 메뉴, 제목, 버튼, 표 머리글, 안내, 오류를 읽는다.
   - 행동: 화면을 오간다.
-  - 결과: 같은 개념은 모든 화면에서 같은 말이고, [TERMS.md](../TERMS.md)의 표기를 따른다.
+  - 결과: 같은 개념은 모든 화면에서 같은 말이고, [TERMS.md](../TERMS.md)의 표기를 따른다. 표기는 다음 기준으로 정한다(사람 확인: 2026-10-15). 이 기준에 맞춰 PRODUCT.md의 "기술 용어는 영어 그대로" 제약과 TERMS.md의 화면 글 표를 고친다.
+    - 장비나 외부 서비스에서 그대로 찾아야 하는 이름(SNMP, Community, Chat ID, Grafana, Telegram)은 영어로 쓴다.
+    - 굳은 외래어(리소스, 호스트, 포트, 필터)는 한글로 쓴다.
+    - 이 제품의 개념은 한국어로 쓴다. Check는 감시 항목, Alert는 장애, Resolved는 복구, Critical·Warning은 위험·경고, Threshold는 임계값이다. "알림"은 Telegram으로 보내는 일에만 쓴다.
+    - 메뉴와 화면 제목에서만 `감시 항목(Check)`처럼 영어를 함께 쓴다.
+    - 근거: 감시 도구는 감시 단위와 장애 이벤트를 다른 이름으로 나누고(PagerDuty, Better Stack), Alert를 "경고"로 옮기면 Warning과 겹친다(Grafana 한국어판). NN/g는 전문가가 확실히 아는 말만 전문 용어로 두라고 한다.
 
 ### 예외 동작
 
@@ -122,7 +127,6 @@
 
 ## 확인 필요
 
-- 화면 용어를 어떻게 정할까요? (가정: 장비나 외부 서비스에서 그대로 찾아야 하는 이름(SNMP, Community, Chat ID, Grafana, Telegram)은 영어로, 굳은 외래어(리소스, 호스트, 포트, 필터)는 한글로, 이 제품의 개념은 한국어로 쓴다. Check는 감시 항목, Alert는 장애, Resolved는 복구, Critical·Warning은 위험·경고, Threshold는 임계값으로 쓰고, 메뉴와 화면 제목에서만 `감시 항목(Check)`처럼 영어를 함께 쓴다. 근거: 감시 도구는 감시 단위와 장애 이벤트를 다른 이름으로 나누고(PagerDuty, Better Stack), Alert를 "경고"로 옮기면 Warning과 겹친다(Grafana 한국어판). NN/g는 전문가가 확실히 아는 말만 전문 용어로 두라고 한다. 이렇게 정하면 PRODUCT.md의 "기술 용어는 영어 그대로" 제약과 TERMS.md를 고친다)
 - 창만 닫는 버튼을 RULES.md대로 "닫기"로 바꿀까요? 지금 대화상자 넷이 "취소"를 쓴다. (가정: RULES.md대로 "닫기"로 바꾼다)
 - 사용자가 설치와 환경 변수 설정까지 하나요? 화면에 `TELEGRAM_BOT_TOKEN`, `GRAFANA_URL` 같은 변수 이름을 쓸지가 이것으로 정해진다. (가정: 운영 담당자가 설치도 맡는다. 변수 이름은 본문이 아니라 보조 문구에 둔다)
 - 대시보드 새로고침 간격은 30초면 될까요? (가정: 30초. Alert 목록과 같다)
