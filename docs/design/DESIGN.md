@@ -29,7 +29,7 @@
   - [Linear UI 재설계](https://linear.app/now/how-we-redesigned-the-linear-ui): 적은 입력값에서 밝은 테마와 다크 테마를 함께 만들고, 크롬의 색을 줄여 내용을 앞에 둔다.
   - 피할 화면: [Grafana Node Exporter Full](https://grafana.com/grafana/dashboards/1860-node-exporter-full/). 패널 141개와 원형 gauge를 나란히 두어 "지금 무엇이 문제인가"에 답하지 못한다.
 - 화면 검사 도구: 전체 실행 환경을 띄운 뒤 `frontend`에서 실행한다.
-  - 접근성과 가로 넘침: `npm run test:screen`. Playwright에서 axe-core로 WCAG 2.2 AA를 검사하고, 기준 폭마다 모든 라우트와 추가 대화상자를 연다. 밝은 모드만 검사하므로 다크 모드의 대비는 따로 확인한다.
+  - 접근성과 가로 넘침: `npm run test:screen`. Playwright에서 axe-core로 WCAG 2.2 AA를 검사하고, 기준 폭과 밝은·다크 모드마다 모든 라우트, 추가 대화상자, API가 실패한 오류 상태를 연다. 기준선은 없다.
   - 성능: `npm run test:perf`. Lighthouse로 대시보드의 점수와 LCP, CLS, TBT를 본다.
   - 흔한 기본값: 도구 없이 [REVIEW.md의 코드 점검](REVIEW.md#코드-점검) 목록을 코드 검색으로 확인한다.
 - 승인: 화면 검사 도구와 기준 폭은 사람이 2026-10-14에, 시각 체계는 2026-10-15에 미리 보기 페이지로 확인했다.
