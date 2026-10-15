@@ -133,6 +133,19 @@ class AlertNotificationDispatcherTest {
 	}
 
 	@Test
+	@DisplayName("복구 알림을 2분 안에 다시 받으면 보내지 않고 SKIPPED로 기록한다")
+	void skipsResolvedRetriedWithinDedupeWindow() {
+		givenRepeatInterval(60);
+		givenDelivery(AlertStatus.RESOLVED, DeliveryStatus.SENT, NOW.minus(Duration.ofSeconds(30)));
+
+		dispatcher.dispatch(resolved());
+
+		verify(telegramClient, never()).sendMessage(anyLong(), any(), anyString());
+		assertThat(deliveries).extracting(NotificationDelivery::getDeliveryStatus)
+				.containsExactly(DeliveryStatus.SENT, DeliveryStatus.SKIPPED);
+	}
+
+	@Test
 	@DisplayName("실패한 전송만 있으면 보낸 것으로 세지 않고 다시 보낸다")
 	void ignoresFailedDeliveries() {
 		givenRepeatInterval(60);

@@ -19,7 +19,7 @@ import java.time.Instant;
 @Table(name = "check_notification_settings")
 public class CheckNotificationSetting {
 
-	/** Alertmanager의 repeat_interval이 1시간이던 때와 같은 값입니다. */
+	/** 설정 행이 없는 Check도 이 주기로 다시 알림을 받습니다. */
 	public static final int DEFAULT_REPEAT_INTERVAL_MINUTES = 60;
 
 	@Id
