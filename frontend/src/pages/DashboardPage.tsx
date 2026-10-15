@@ -7,10 +7,21 @@ import { AlertStatusLabel, StatusCount } from '@/components/StatusDot'
 import { Button } from '@/components/ui/button'
 import { Section, SectionHeader } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { alertsQuery, checksQuery, serversQuery, systemInfoQuery, type MonitoringStatus } from '@/lib/api'
+import {
+  alertsQuery,
+  checksQuery,
+  serversQuery,
+  systemInfoQuery,
+  type MonitoringStatus,
+  SNMP_STATE_LABELS,
+  type ServerTarget,
+  type SnmpState,
+} from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 
 const RECENT_ALERT_LIMIT = 5
+
+const SNMP_STATE_ORDER: SnmpState[] = ['CONNECTED', 'NO_RESPONSE', 'DISABLED', 'NOT_CONFIGURED']
 
 export function DashboardPage() {
   const systemInfo = useQuery(systemInfoQuery)
@@ -42,13 +53,13 @@ export function DashboardPage() {
 
       <PageBody>
         <Section>
-          <SectionHeader title="Monitoring Check" />
+          <SectionHeader title="감시 항목" />
 
           {checks.isPending ? (
-            <p className="text-body text-muted-foreground">확인 중입니다.</p>
+            <p className="text-body text-muted-foreground">불러오는 중…</p>
           ) : checks.isError ? (
             <ErrorState
-              message="Check 상태를 불러오지 못했습니다."
+              message="감시 항목 상태를 불러오지 못했습니다."
               onRetry={() => checks.refetch()}
             />
           ) : (
@@ -64,7 +75,7 @@ export function DashboardPage() {
 
         {criticalChecks.length > 0 ? (
           <Section>
-            <SectionHeader title="지금 위험한 Check" />
+            <SectionHeader title="지금 위험한 감시 항목" />
             <TableFrame>
               <Table>
                 <TBody>
@@ -94,14 +105,14 @@ export function DashboardPage() {
           </Section>
         ) : checks.isSuccess ? (
           <Section>
-            <SectionHeader title="지금 위험한 Check" />
-            <p className="text-body text-muted-foreground">위험 상태인 Check가 없습니다.</p>
+            <SectionHeader title="지금 위험한 감시 항목" />
+            <p className="text-body text-muted-foreground">위험 상태인 감시 항목이 없습니다.</p>
           </Section>
         ) : null}
 
         <Section>
           <SectionHeader
-            title="최근 Alert"
+            title="최근 장애"
             actions={
               <Link
                 to="/alerts"
@@ -115,18 +126,18 @@ export function DashboardPage() {
           {alerts.isPending ? (
             <TableSkeleton rows={3} columns={4} />
           ) : alerts.isError ? (
-            <p className="text-body text-muted-foreground">Alert를 불러오지 못했습니다.</p>
+            <p className="text-body text-muted-foreground">장애 기록을 불러오지 못했습니다.</p>
           ) : recentAlerts.length === 0 ? (
-            <p className="text-body text-muted-foreground">받은 Alert가 없습니다.</p>
+            <p className="text-body text-muted-foreground">기록된 장애가 없습니다.</p>
           ) : (
             <TableFrame>
               <Table>
                 <THead>
                   <tr>
                     <TH className="w-24">상태</TH>
-                    <TH>Check</TH>
+                    <TH>내용</TH>
                     <TH className="w-52">대상</TH>
-                    <TH className="w-28">발생</TH>
+                    <TH className="w-44">발생</TH>
                   </tr>
                 </THead>
                 <TBody>
@@ -157,18 +168,33 @@ export function DashboardPage() {
         <Section>
           <SectionHeader title="서버" />
           {servers.isPending ? (
-            <p className="text-body text-muted-foreground">확인 중입니다.</p>
+            <p className="text-body text-muted-foreground">불러오는 중…</p>
           ) : servers.isError ? (
             <p className="text-body text-muted-foreground">서버 목록을 불러오지 못했습니다.</p>
           ) : (
-            <p className="text-body text-muted-foreground">
-              <span className="tabular font-medium text-foreground">{servers.data.length}</span>대
-              등록했습니다. Resource 모니터링(SNMP)을 아직 설정하지 않아 서버 상태는 계산하지
-              않습니다.
-            </p>
+            <ServerSummary servers={servers.data} />
           )}
         </Section>
       </PageBody>
     </>
+  )
+}
+
+function ServerSummary({ servers }: { servers: ServerTarget[] }) {
+  if (servers.length === 0) {
+    return <p className="text-body text-muted-foreground">등록한 서버가 없습니다.</p>
+  }
+
+  const snmpCounts = SNMP_STATE_ORDER.map((state) => ({
+    state,
+    count: servers.filter((server) => server.snmpState === state).length,
+  })).filter(({ count }) => count > 0)
+
+  return (
+    <p className="text-body text-muted-foreground">
+      서버 <span className="tabular font-medium text-foreground">{servers.length}</span>대를 등록했습니다.
+      SNMP 상태는{' '}
+      {snmpCounts.map(({ state, count }) => `${SNMP_STATE_LABELS[state]} ${count}대`).join(', ')}입니다.
+    </p>
   )
 }

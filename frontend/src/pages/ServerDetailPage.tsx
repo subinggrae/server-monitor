@@ -18,7 +18,7 @@ type TabValue = 'overview' | 'resources' | 'snmp'
 
 const TABS: { value: TabValue; label: string }[] = [
   { value: 'overview', label: '개요' },
-  { value: 'resources', label: 'Resource' },
+  { value: 'resources', label: '리소스' },
   { value: 'snmp', label: 'SNMP' },
 ]
 
@@ -46,7 +46,7 @@ export function ServerDetailPage() {
   if (serverResult.isPending) {
     return (
       <PageBody>
-        <LoadingState message="서버 정보를 불러오는 중입니다." />
+        <LoadingState message="서버 정보를 불러오는 중…" />
       </PageBody>
     )
   }
@@ -102,16 +102,16 @@ export function ServerDetailPage() {
             <SectionHeader title="서버 정보" />
             <DetailList
               items={[
-                { label: 'Host', value: <span className="tabular">{server.host}</span> },
+                { label: '호스트', value: <span className="tabular">{server.host}</span> },
                 { label: '환경', value: server.environment },
-                { label: '모니터링', value: server.enabled ? '사용' : '사용 안 함' },
+                { label: '감시', value: server.enabled ? '사용' : '사용 안 함' },
                 { label: 'SNMP', value: <SnmpStateDot state={server.snmpState} /> },
-                { label: 'Resource', value: `${server.monitoredResourceCount}개` },
+                { label: '리소스', value: `${server.monitoredResourceCount}개` },
                 ...(server.description ? [{ label: '설명', value: server.description }] : []),
               ]}
             />
             <p className="text-caption text-muted-foreground">
-              아직 Threshold가 없어 사용률만으로 위험 여부를 판단하지 않습니다. SNMP로 값을 읽고 있으면
+              아직 임계값이 없어 사용률만으로 위험 여부를 판단하지 않습니다. SNMP로 값을 읽고 있으면
               정상으로 봅니다.
             </p>
           </Section>
@@ -131,7 +131,7 @@ export function ServerDetailPage() {
         onOpenChange={setDeleting}
         title="이 서버를 삭제할까요?"
         description={
-          'SNMP 설정과 고른 Resource가 함께 삭제됩니다.\nMonitoring Check는 서버에 속하지 않으므로 그대로 남습니다.'
+          'SNMP 설정과 고른 리소스가 함께 삭제됩니다.\n감시 항목은 서버에 속하지 않으므로 그대로 남습니다.'
         }
         pending={deleteMutation.isPending}
         errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}

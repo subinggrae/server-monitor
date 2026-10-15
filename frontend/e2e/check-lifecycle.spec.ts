@@ -20,13 +20,13 @@ test('Check를 등록하면 목록과 상세에 보이고 삭제하면 목록에
   await test.step('Check를 등록한다', async () => {
     await page.goto('/monitoring')
     // 빈 목록이면 같은 이름의 버튼이 빈 상태 안에도 있습니다.
-    await page.getByRole('button', { name: 'Check 추가', exact: true }).first().click()
+    await page.getByRole('button', { name: '감시 항목 추가', exact: true }).first().click()
 
-    const dialog = page.getByRole('dialog', { name: 'Check 추가', exact: true })
+    const dialog = page.getByRole('dialog', { name: '감시 항목 추가', exact: true })
     await dialog.getByLabel('이름', { exact: true }).fill(checkName)
     await dialog.getByLabel('종류', { exact: true }).selectOption('TCP')
-    await dialog.getByLabel('Host 1', { exact: true }).fill('127.0.0.1')
-    await dialog.getByLabel('Port 1', { exact: true }).fill('1')
+    await dialog.getByLabel('호스트 1', { exact: true }).fill('127.0.0.1')
+    await dialog.getByLabel('포트 1', { exact: true }).fill('1')
     await dialog.getByRole('button', { name: '저장', exact: true }).click()
     await expect(dialog).toBeHidden()
   })
@@ -39,7 +39,7 @@ test('Check를 등록하면 목록과 상세에 보이고 삭제하면 목록에
 
   await test.step('상세에서 Check를 삭제한다', async () => {
     await page.getByRole('button', { name: '삭제', exact: true }).click()
-    const confirm = page.getByRole('dialog', { name: '이 Check를 삭제할까요?', exact: true })
+    const confirm = page.getByRole('dialog', { name: '이 감시 항목을 삭제할까요?', exact: true })
     await confirm.getByRole('button', { name: '삭제', exact: true }).click()
 
     await expect(page).toHaveURL(/\/monitoring$/)

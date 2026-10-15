@@ -34,7 +34,7 @@ export function CheckDetailPage() {
   if (checkResult.isPending) {
     return (
       <PageBody>
-        <LoadingState message="Check 정보를 불러오는 중입니다." />
+        <LoadingState message="감시 항목을 불러오는 중…" />
       </PageBody>
     )
   }
@@ -46,7 +46,7 @@ export function CheckDetailPage() {
           message={
             checkResult.error instanceof Error
               ? checkResult.error.message
-              : 'Check 정보를 불러오지 못했습니다.'
+              : '감시 항목을 불러오지 못했습니다.'
           }
           onRetry={() => checkResult.refetch()}
         />
@@ -60,7 +60,7 @@ export function CheckDetailPage() {
     <>
       <PageHeader
         title={check.name}
-        back={{ to: '/monitoring', label: 'Check 목록' }}
+        back={{ to: '/monitoring', label: '감시 항목 목록' }}
         meta={
           <>
             <StatusDot status={check.status} />
@@ -90,7 +90,7 @@ export function CheckDetailPage() {
         <Section>
           <SectionHeader
             title="확인 대상"
-            description={`Prometheus가 확인하는 주소 ${check.targetCount}개입니다.`}
+            description={`확인하는 주소 ${check.targetCount}개입니다.`}
             actions={
               <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
                 대상 편집
@@ -130,8 +130,8 @@ export function CheckDetailPage() {
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
-        title="이 Check를 삭제할까요?"
-        description={`확인 대상 ${check.targetCount}개가 함께 삭제됩니다.\n삭제하면 다음 Service Discovery 갱신부터 Prometheus 모니터링 대상에서 빠집니다.`}
+        title="이 감시 항목을 삭제할까요?"
+        description={`확인 대상 ${check.targetCount}개가 함께 삭제됩니다.\n삭제하면 잠시 뒤부터 이 주소들을 확인하지 않습니다.`}
         pending={deleteMutation.isPending}
         errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
         onConfirm={() => deleteMutation.mutate()}

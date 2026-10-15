@@ -39,7 +39,7 @@ export function ServerListPage() {
     <>
       <PageHeader
         title="서버"
-        description="서버 자산을 등록합니다. SNMP 기반 CPU, Memory, Storage 모니터링에 사용할 예정입니다."
+        description="서버를 등록하고 SNMP로 CPU, 메모리, 스토리지 사용량을 수집합니다."
         actions={<Button onClick={() => setFormOpen(true)}>서버 추가</Button>}
       />
 
@@ -54,7 +54,7 @@ export function ServerListPage() {
         ) : servers.length === 0 ? (
           <EmptyState
             title="등록된 서버가 없습니다."
-            description="서버를 등록해 두면 SNMP Resource 모니터링을 붙일 때 바로 사용할 수 있습니다."
+            description="서버를 추가한 뒤 서버 상세에서 SNMP를 설정하면 CPU, 메모리, 스토리지 사용량을 수집합니다."
             action={<Button onClick={() => setFormOpen(true)}>서버 추가</Button>}
           />
         ) : (
@@ -63,7 +63,7 @@ export function ServerListPage() {
               <SearchInput
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
-                placeholder="이름 또는 Host"
+                placeholder="이름 또는 호스트"
                 className="w-64"
                 aria-label="서버 검색"
               />
@@ -87,10 +87,10 @@ export function ServerListPage() {
                 <THead>
                   <tr>
                     <TH>이름</TH>
-                    <TH className="w-44">Host</TH>
+                    <TH className="w-44">호스트</TH>
                     <TH className="w-32">환경</TH>
                     <TH className="w-32">SNMP</TH>
-                    <TH className="w-24 text-right">Resource</TH>
+                    <TH className="w-24 text-right">리소스</TH>
                   </tr>
                 </THead>
                 <TBody>
@@ -118,12 +118,12 @@ export function ServerListPage() {
               </Table>
 
               {visibleServers.length === 0 ? (
-                <TableNotice>조건에 맞는 서버가 없습니다. 검색어나 filter를 바꿔 보세요.</TableNotice>
+                <TableNotice>조건에 맞는 서버가 없습니다. 검색어나 필터를 바꿔 보세요.</TableNotice>
               ) : null}
             </TableFrame>
 
             <p className="text-caption text-muted-foreground">
-              Resource는 서버 상세에서 SNMP를 설정하고 검색해서 고릅니다. 아직 Threshold가 없어 사용률이
+              리소스는 서버 상세에서 SNMP를 설정하고 검색해서 고릅니다. 아직 임계값이 없어 사용률이
               높아도 위험으로 표시하지 않습니다.
             </p>
           </div>

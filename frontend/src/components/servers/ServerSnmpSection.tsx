@@ -109,7 +109,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
     <Section>
       <SectionHeader
         title="SNMP"
-        description="Agent를 설치하지 않고 CPU, Memory, Storage를 수집합니다."
+        description="에이전트를 설치하지 않고 CPU, 메모리, 스토리지를 수집합니다."
         actions={
           snmp.configured ? (
             <Button variant="destructive-ghost" size="sm" onClick={() => setRemoving(true)}>
@@ -121,10 +121,8 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
 
       {snmp.configured && !snmp.exporterSynced ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
-          <p className="font-medium text-destructive">snmp_exporter에 반영되지 않았습니다.</p>
-          <p className="mt-0.5 text-muted-foreground">
-            설정은 저장했지만 수집은 시작되지 않습니다. {snmp.exporterMessage}
-          </p>
+          <p className="font-medium text-destructive">설정은 저장했지만 SNMP 수집을 시작하지 못했습니다.</p>
+          {snmp.exporterMessage ? <p className="mt-0.5 text-muted-foreground">{snmp.exporterMessage}</p> : null}
         </div>
       ) : null}
 
@@ -138,7 +136,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
 
           const port = Number(form.port.trim())
           if (!Number.isInteger(port) || port < 1 || port > 65535) {
-            setFieldErrors({ port: 'Port는 1에서 65535 사이 숫자로 입력해 주세요.' })
+            setFieldErrors({ port: '포트는 1에서 65535 사이 숫자로 입력해 주세요.' })
             return
           }
 
@@ -163,7 +161,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
           </Select>
         </Field>
 
-        <Field label="Port" htmlFor="snmp-port" error={fieldErrors.port}>
+        <Field label="포트" htmlFor="snmp-port" error={fieldErrors.port}>
           <Input
             id="snmp-port"
             value={form.port}
@@ -179,7 +177,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
           hint={
             snmp.communityConfigured
               ? '설정되어 있습니다. 바꿀 때만 새 값을 입력해 주세요.'
-              : '장비에 설정한 read community를 입력해 주세요.'
+              : '장비에 설정한 읽기 전용 Community를 입력해 주세요.'
           }
           error={fieldErrors.community}
         >
@@ -251,7 +249,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
               <DetailList
                 items={[
                   { label: '장비 이름', value: testResult.systemName ?? '-' },
-                  { label: '응답 시간', value: `${testResult.responseTimeMs ?? 0} ms` },
+                  { label: '응답 시간', value: `${testResult.responseTimeMs ?? 0} ms` },
                   ...(testResult.systemDescription
                     ? [{ label: '설명', value: testResult.systemDescription }]
                     : []),
@@ -267,9 +265,10 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
         onOpenChange={setRemoving}
         title="SNMP 설정을 해제할까요?"
         description={
-          '저장한 Community가 지워지고 이 서버의 Resource 수집이 멈춥니다.\n서버와 고른 Resource 목록은 그대로 남습니다.'
+          '저장한 Community가 지워지고 이 서버의 리소스 수집이 멈춥니다.\n서버와 고른 리소스 목록은 그대로 남습니다.'
         }
         confirmLabel="해제"
+        pendingLabel="해제 중…"
         pending={deleteMutation.isPending}
         errorMessage={deleteMutation.isError ? '해제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
         onConfirm={() => deleteMutation.mutate()}

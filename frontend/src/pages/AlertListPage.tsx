@@ -19,8 +19,8 @@ export function AlertListPage() {
   return (
     <>
       <PageHeader
-        title="Alert"
-        description="Prometheus가 감지하고 Alertmanager가 전달한 Alert입니다. 알림 대상은 Check 상세에서 정합니다."
+        title="장애 기록(Alert)"
+        description="감시 항목에서 감지한 장애와 복구 시각입니다. 알림을 받는 그룹은 감시 항목 상세에서 정합니다."
       />
 
       <PageBody>
@@ -28,13 +28,13 @@ export function AlertListPage() {
           <TableSkeleton columns={6} />
         ) : isError ? (
           <ErrorState
-            message={error instanceof Error ? error.message : 'Alert를 불러오지 못했습니다.'}
+            message={error instanceof Error ? error.message : '장애 기록을 불러오지 못했습니다.'}
             onRetry={() => refetch()}
           />
         ) : alerts.length === 0 ? (
           <EmptyState
-            title="받은 Alert가 없습니다."
-            description="아직 장애가 감지되지 않았거나, Alertmanager가 Manager로 Alert를 보내지 않고 있습니다."
+            title="기록된 장애가 없습니다."
+            description="장애가 감지되면 여기에 기록됩니다. 감시 항목이 위험 상태인데 기록이 없으면 Alertmanager가 Monitoring Manager로 장애를 보내는지 설치 설정을 확인해 주세요."
           />
         ) : (
           <TableFrame>
@@ -43,10 +43,10 @@ export function AlertListPage() {
                 <tr>
                   <TH className="w-24">상태</TH>
                   <TH className="w-24">심각도</TH>
-                  <TH className="w-80">Check</TH>
+                  <TH className="w-80">내용</TH>
                   <TH>대상</TH>
-                  <TH className="w-28">발생</TH>
-                  <TH className="w-28">해소</TH>
+                  <TH className="w-44">발생</TH>
+                  <TH className="w-44">복구</TH>
                 </tr>
               </THead>
               <TBody>
@@ -89,10 +89,10 @@ export function AlertListPage() {
 /** Alertmanager가 보내는 severity를 그대로 보여 주지 않고 화면 문구로 바꿉니다. */
 function severityLabel(severity: string | null) {
   if (severity === 'critical') {
-    return 'Critical'
+    return '위험'
   }
   if (severity === 'warning') {
-    return 'Warning'
+    return '경고'
   }
   return severity ?? '-'
 }

@@ -41,7 +41,7 @@ const OUT_OF_RANGE_MESSAGE = '수집 주기는 10초에서 240초 사이 정수�
 async function fillNewCheck(scrapeInterval: string) {
   const user = userEvent.setup()
   await user.type(screen.getByLabelText('이름'), '전자결재 Health')
-  await user.type(screen.getByLabelText('Target 1'), '10.0.0.1')
+  await user.type(screen.getByLabelText('대상 1'), '10.0.0.1')
   const interval = screen.getByLabelText('수집 주기')
   await user.clear(interval)
   await user.type(interval, scrapeInterval)

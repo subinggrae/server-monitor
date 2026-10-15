@@ -48,9 +48,9 @@ export function CheckListPage() {
   return (
     <>
       <PageHeader
-        title="Monitoring Check"
-        description="URL, Port, Ping 상태를 확인합니다. 하나의 Check에 대상을 여러 개 넣을 수 있습니다."
-        actions={<Button onClick={() => setFormOpen(true)}>Check 추가</Button>}
+        title="감시 항목(Check)"
+        description="Ping, TCP, HTTP, HTTPS로 대상이 응답하는지 확인합니다. 감시 항목 하나에 대상을 여러 개 넣을 수 있습니다."
+        actions={<Button onClick={() => setFormOpen(true)}>감시 항목 추가</Button>}
       />
 
       <PageBody>
@@ -58,14 +58,14 @@ export function CheckListPage() {
           <TableSkeleton columns={5} />
         ) : isError ? (
           <ErrorState
-            message={error instanceof Error ? error.message : 'Check 목록을 불러오지 못했습니다.'}
+            message={error instanceof Error ? error.message : '감시 항목을 불러오지 못했습니다.'}
             onRetry={() => refetch()}
           />
         ) : checks.length === 0 ? (
           <EmptyState
-            title="등록된 Check가 없습니다."
-            description="Ping, HTTP, HTTPS, TCP 상태 확인을 추가할 수 있습니다. 서버를 먼저 등록하지 않아도 됩니다."
-            action={<Button onClick={() => setFormOpen(true)}>Check 추가</Button>}
+            title="등록된 감시 항목이 없습니다."
+            description="감시 항목을 추가하면 Ping, TCP, HTTP, HTTPS로 대상이 응답하는지 확인합니다. 서버를 먼저 등록하지 않아도 됩니다."
+            action={<Button onClick={() => setFormOpen(true)}>감시 항목 추가</Button>}
           />
         ) : (
           <div className="space-y-3">
@@ -75,7 +75,7 @@ export function CheckListPage() {
                 onChange={(event) => setKeyword(event.target.value)}
                 placeholder="이름 또는 대상 주소"
                 className="w-64"
-                aria-label="Check 검색"
+                aria-label="감시 항목 검색"
               />
               <Select
                 value={environmentFilter}
@@ -140,7 +140,7 @@ export function CheckListPage() {
               </Table>
 
               {visibleChecks.length === 0 ? (
-                <TableNotice>조건에 맞는 Check가 없습니다. 검색어나 filter를 바꿔 보세요.</TableNotice>
+                <TableNotice>조건에 맞는 감시 항목이 없습니다. 검색어나 필터를 바꿔 보세요.</TableNotice>
               ) : null}
             </TableFrame>
           </div>

@@ -35,7 +35,7 @@ export function NotificationsPage() {
     <>
       <PageHeader
         title="Telegram 그룹"
-        description="장애 알림을 받을 Telegram 그룹을 관리합니다. Bot Token은 서버가 관리하므로 입력하지 않습니다."
+        description="장애 알림을 받을 Telegram 그룹을 관리합니다. Bot Token은 Monitoring Manager가 관리하므로 입력하지 않습니다."
         actions={<Button onClick={openNew}>그룹 추가</Button>}
       />
 
@@ -59,7 +59,7 @@ export function NotificationsPage() {
           ) : destinations.data.length === 0 ? (
             <EmptyState
               title="등록된 Telegram 그룹이 없습니다."
-              description="그룹을 등록해야 장애 알림을 받을 수 있습니다. 등록한 뒤 Check 상세에서 알림 대상으로 연결해 주세요."
+              description="그룹을 추가해야 장애 알림을 받을 수 있습니다. 추가한 뒤 감시 항목 상세에서 받는 그룹으로 골라 주세요."
               action={<Button onClick={openNew}>그룹 추가</Button>}
             />
           ) : (
@@ -94,8 +94,10 @@ function TelegramSetupNotice() {
       <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
         <p className="font-medium text-destructive">Telegram Bot Token이 설정되지 않았습니다.</p>
         <p className="mt-0.5 text-muted-foreground">
-          그룹을 등록해도 메시지를 보낼 수 없습니다. 서버의 Docker Secret 또는 TELEGRAM_BOT_TOKEN
-          설정을 확인해 주세요.
+          그룹을 등록해도 메시지를 보낼 수 없습니다. Monitoring Manager의 Bot Token 설정을 확인해 주세요.
+        </p>
+        <p className="mt-0.5 text-caption text-muted-foreground">
+          Docker Secret이나 환경 변수 TELEGRAM_BOT_TOKEN으로 정합니다.
         </p>
       </div>
     )
@@ -106,7 +108,7 @@ function TelegramSetupNotice() {
       {status.webhookConfigured
         ? 'Telegram 그룹에 Bot을 추가하고 /register를 보내면 아래 목록에 나타납니다. Chat ID를 직접 입력해도 됩니다.'
         : status.publicUrlConfigured
-          ? 'Telegram Webhook이 아직 등록되지 않아 /register를 쓸 수 없습니다. 서버 로그에서 등록 실패 이유를 확인해 주세요. 그때까지는 Chat ID를 직접 등록합니다.'
+          ? 'Telegram Webhook이 아직 등록되지 않아 /register를 쓸 수 없습니다. Monitoring Manager 로그에서 등록하지 못한 이유를 확인해 주세요. 그때까지는 Chat ID를 직접 등록합니다.'
           : 'Telegram Webhook이 설정되지 않아 /register를 쓸 수 없습니다. Chat ID를 직접 등록해 주세요.'}
     </p>
   )
@@ -151,7 +153,7 @@ function DestinationTable({
             <tr>
               <TH className="w-80">이름</TH>
               <TH className="w-44">Chat ID</TH>
-              <TH className="w-20">Topic</TH>
+              <TH className="w-20">토픽 ID</TH>
               <TH className="w-24">사용 여부</TH>
               <TH className="text-right">동작</TH>
             </tr>
@@ -184,7 +186,7 @@ function DestinationTable({
                       disabled={testMutation.isPending}
                       onClick={() => testMutation.mutate(destination.id)}
                     >
-                      테스트 메시지
+                      테스트 메시지 보내기
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => onEdit(destination)}>
                       수정
@@ -208,7 +210,7 @@ function DestinationTable({
         open={Boolean(deleting)}
         onOpenChange={(open) => (open ? undefined : setDeleting(undefined))}
         title="이 Telegram 그룹을 삭제할까요?"
-        description={`${deleting?.name ?? ''} 그룹으로는 더 이상 알림이 가지 않습니다.\n이 그룹에 연결해 둔 Check의 알림 설정도 함께 사라집니다.`}
+        description={`${deleting?.name ?? ''} 그룹으로는 더 이상 알림이 가지 않습니다.\n이 그룹을 받는 그룹으로 고른 감시 항목의 알림 설정도 함께 사라집니다.`}
         pending={deleteMutation.isPending}
         errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
         onConfirm={() => (deleting ? deleteMutation.mutate(deleting.id) : undefined)}
@@ -230,11 +232,11 @@ function BindingOverview() {
   return (
     <Section>
       <SectionHeader
-        title="Check별 알림 대상"
+        title="감시 항목별 받는 그룹"
         description={
           missing > 0
-            ? `${missing}개 Check에 알림 대상이 없습니다. 장애가 나도 알림이 가지 않습니다.`
-            : '모든 Check에 알림 대상이 있습니다.'
+            ? `받는 그룹이 없는 감시 항목이 ${missing}개 있습니다. 이 감시 항목은 장애가 나도 알림이 가지 않습니다.`
+            : '모든 감시 항목에 받는 그룹이 있습니다.'
         }
       />
 
@@ -242,9 +244,9 @@ function BindingOverview() {
         <Table>
           <THead>
             <tr>
-              <TH className="w-96">Check</TH>
+              <TH className="w-96">감시 항목</TH>
               <TH className="w-32">환경</TH>
-              <TH>알림 대상</TH>
+              <TH>받는 그룹</TH>
             </tr>
           </THead>
           <TBody>

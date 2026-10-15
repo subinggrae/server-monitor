@@ -1,6 +1,6 @@
 import { TriangleAlert } from 'lucide-react'
 
-import type { AlertStatus, MonitoringStatus, SnmpState } from '@/lib/api'
+import { SNMP_STATE_LABELS, type AlertStatus, type MonitoringStatus, type SnmpState } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 /**
@@ -64,10 +64,10 @@ export function StatusDot({ status, className }: { status: MonitoringStatus; cla
 }
 
 const SNMP_STATES: Record<SnmpState, StatusStyle> = {
-  CONNECTED: { label: '연결됨', mark: 'ok' },
-  NO_RESPONSE: { label: '응답 없음', mark: 'critical' },
-  DISABLED: { label: '사용 안 함', mark: 'off' },
-  NOT_CONFIGURED: { label: '미설정', mark: 'off' },
+  CONNECTED: { label: SNMP_STATE_LABELS.CONNECTED, mark: 'ok' },
+  NO_RESPONSE: { label: SNMP_STATE_LABELS.NO_RESPONSE, mark: 'critical' },
+  DISABLED: { label: SNMP_STATE_LABELS.DISABLED, mark: 'off' },
+  NOT_CONFIGURED: { label: SNMP_STATE_LABELS.NOT_CONFIGURED, mark: 'off' },
 }
 
 export function SnmpStateDot({ state, className }: { state: SnmpState; className?: string }) {
@@ -76,7 +76,7 @@ export function SnmpStateDot({ state, className }: { state: SnmpState; className
 
 const ALERT_STATES: Record<AlertStatus, StatusStyle> = {
   FIRING: { label: '발생 중', mark: 'critical' },
-  RESOLVED: { label: '해소', mark: 'ok' },
+  RESOLVED: { label: '복구', mark: 'ok' },
 }
 
 export function AlertStatusLabel({ status, className }: { status: AlertStatus; className?: string }) {

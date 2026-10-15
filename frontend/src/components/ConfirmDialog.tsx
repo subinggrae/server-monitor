@@ -8,6 +8,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = '삭제',
+  pendingLabel = '삭제 중…',
   pending = false,
   errorMessage,
   onConfirm,
@@ -17,6 +18,8 @@ export function ConfirmDialog({
   title: string
   description: string
   confirmLabel?: string
+  /** 요청 중 실행 버튼에 보일 문구입니다. 동작 이름으로 씁니다. 예: `해제 중…` */
+  pendingLabel?: string
   pending?: boolean
   errorMessage?: string
   onConfirm: () => void
@@ -30,10 +33,10 @@ export function ConfirmDialog({
         </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
-            취소
+            닫기
           </Button>
           <Button variant="destructive" onClick={onConfirm} disabled={pending}>
-            {pending ? '처리 중…' : confirmLabel}
+            {pending ? pendingLabel : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

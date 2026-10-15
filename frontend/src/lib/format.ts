@@ -1,11 +1,9 @@
-/**
- * 서버는 모든 시각을 UTC로 내려줍니다. 화면에서는 보는 사람의 시간대로 바꿔 보여 줍니다.
- * 표 안에서 줄바꿈이 생기지 않도록 24시간 표기를 씁니다.
- */
+/** 서버는 모든 시각을 UTC로 내려줍니다. 화면에서는 보는 사람의 시간대로 바꿔 보여 줍니다. */
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
+
+/** `2026. 10. 7. 오전 10:20`처럼 한글 맞춤법의 날짜와 시각 형식으로 씁니다. */
 export function formatDateTime(value: string) {
-  const date = new Date(value)
-  const pad = (part: number) => String(part).padStart(2, '0')
-  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return DATE_TIME_FORMAT.format(new Date(value))
 }
 
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
@@ -19,7 +17,7 @@ export function formatBytes(bytes: number) {
     unit += 1
   }
   const digits = value < 10 && unit > 0 ? 1 : 0
-  return `${value.toFixed(digits)} ${BYTE_UNITS[unit]}`
+  return `${value.toFixed(digits)} ${BYTE_UNITS[unit]}`
 }
 
 export function formatPercent(value: number) {

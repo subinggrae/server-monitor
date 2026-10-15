@@ -25,7 +25,9 @@ export class ApiError extends Error {
   }
 }
 
-const FALLBACK_MESSAGE = '서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+const FALLBACK_MESSAGE = '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+
+const NETWORK_ERROR_MESSAGE = 'Monitoring Manager에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
@@ -36,7 +38,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     })
   } catch {
     // 네트워크 자체가 끊긴 경우입니다.
-    throw new ApiError(FALLBACK_MESSAGE, 0)
+    throw new ApiError(NETWORK_ERROR_MESSAGE, 0)
   }
 
   if (!response.ok) {
@@ -75,6 +77,13 @@ export type SystemInfo = {
 }
 
 export type SnmpState = 'NOT_CONFIGURED' | 'DISABLED' | 'CONNECTED' | 'NO_RESPONSE'
+
+export const SNMP_STATE_LABELS: Record<SnmpState, string> = {
+  CONNECTED: '연결됨',
+  NO_RESPONSE: '응답 없음',
+  DISABLED: '사용 안 함',
+  NOT_CONFIGURED: '설정 안 됨',
+}
 
 export type ServerTarget = {
   id: number

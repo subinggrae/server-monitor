@@ -66,7 +66,7 @@ test.describe('접근성 위반과 가로 넘침', () => {
 
   // 입력 칸 대부분이 대화상자에 있어 화면만으로는 라벨 누락을 놓칩니다.
   for (const [path, button] of [
-    ['/monitoring', 'Check 추가'],
+    ['/monitoring', '감시 항목 추가'],
     ['/infrastructure', '서버 추가'],
     ['/notifications', '그룹 추가'],
   ] as const) {

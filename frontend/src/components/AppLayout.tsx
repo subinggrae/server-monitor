@@ -23,10 +23,10 @@ const NAV_SECTIONS: NavSection[] = [
     items: [{ to: '/', label: '대시보드', icon: LayoutDashboard, end: true }],
   },
   {
-    title: '모니터링',
+    title: '감시',
     items: [
-      { to: '/monitoring', label: 'Check', icon: Activity },
-      { to: '/alerts', label: 'Alert', icon: BellRing },
+      { to: '/monitoring', label: '감시 항목(Check)', icon: Activity },
+      { to: '/alerts', label: '장애 기록(Alert)', icon: BellRing },
     ],
   },
   {
@@ -103,7 +103,7 @@ function BackendStatus() {
           )}
           aria-hidden
         />
-        {isError ? 'Backend 연결 끊김' : isPending ? '연결 확인 중' : (data?.application ?? '')}
+        {isError ? 'Monitoring Manager 연결 끊김' : isPending ? '연결 확인 중…' : (data?.application ?? '')}
       </span>
     </div>
   )

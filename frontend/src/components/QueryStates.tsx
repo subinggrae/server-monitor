@@ -9,7 +9,7 @@ export function TableSkeleton({ rows = 6, columns = 4 }: { rows?: number; column
     <div
       className="overflow-hidden rounded-md border border-border bg-surface"
       role="status"
-      aria-label="불러오는 중입니다."
+      aria-label="불러오는 중…"
     >
       <div className="h-8 border-b border-border bg-surface-subtle" />
       {Array.from({ length: rows }).map((_, rowIndex) => (
@@ -32,7 +32,7 @@ export function TableSkeleton({ rows = 6, columns = 4 }: { rows?: number; column
   )
 }
 
-export function LoadingState({ message = '불러오는 중입니다.' }: { message?: string }) {
+export function LoadingState({ message = '불러오는 중…' }: { message?: string }) {
   return (
     <p className="py-10 text-center text-body text-muted-foreground" role="status">
       {message}

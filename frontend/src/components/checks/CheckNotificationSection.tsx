@@ -55,7 +55,7 @@ export function CheckNotificationSection({ checkId }: { checkId: number }) {
         <p className="text-body text-muted-foreground">
           등록된 Telegram 그룹이 없습니다.{' '}
           <Link to="/notifications" className="text-foreground underline underline-offset-4">
-            Telegram 그룹 등록하기
+            Telegram 그룹 추가
           </Link>
         </p>
       </Section>
@@ -169,7 +169,7 @@ function NotificationForm({
 
       {selectedRows.length === 0 ? (
         <p className="text-body text-critical">
-          알림 대상이 없습니다. 지금은 장애가 나도 Telegram 알림이 가지 않습니다.
+          받는 그룹이 없습니다. 지금은 장애가 나도 Telegram 알림이 가지 않습니다.
         </p>
       ) : null}
 
@@ -198,7 +198,7 @@ function NotificationForm({
                       updateRow(row.telegramDestinationId, { warningEnabled: event.target.checked })
                     }
                   />
-                  Warning
+                  경고
                 </CheckboxLabel>
 
                 <CheckboxLabel className="text-body text-muted-foreground">
@@ -208,7 +208,7 @@ function NotificationForm({
                       updateRow(row.telegramDestinationId, { criticalEnabled: event.target.checked })
                     }
                   />
-                  Critical
+                  위험
                 </CheckboxLabel>
 
                 <CheckboxLabel className="text-body text-muted-foreground">
@@ -251,8 +251,7 @@ function NotificationForm({
       </Field>
 
       <p className="text-caption text-muted-foreground">
-        지금 Monitoring Check의 Alert는 Critical만 있습니다. Warning은 Threshold 기능을 만든 뒤에
-        동작합니다.
+        감시 항목의 장애는 지금 위험 단계만 있습니다.
       </p>
 
       {mutation.isError && !repeatIntervalError ? (

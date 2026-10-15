@@ -44,23 +44,23 @@ const ENVIRONMENTS = ['Production', 'Staging', 'Development', 'Other']
 /** Type이 바뀌면 입력 칸의 의미도 바뀌므로 안내 문구를 함께 바꿉니다. */
 const TARGET_FIELD: Record<CheckTypeName, { label: string; hint: string; placeholder: string }> = {
   ICMP: {
-    label: 'Target',
-    hint: 'Ping을 보낼 IP 또는 hostname을 입력합니다.',
+    label: '대상',
+    hint: 'Ping을 보낼 IP 또는 호스트 이름을 입력합니다.',
     placeholder: '10.10.10.15',
   },
   TCP: {
-    label: 'Host',
-    hint: '연결을 확인할 IP 또는 hostname을 입력합니다. 대상마다 Port를 따로 정할 수 있습니다.',
+    label: '호스트',
+    hint: '연결을 확인할 IP 또는 호스트 이름을 입력합니다. 대상마다 포트를 따로 정할 수 있습니다.',
     placeholder: '10.10.10.15',
   },
   HTTP: {
     label: 'URL',
-    hint: 'http:// 로 시작하는 전체 주소를 입력합니다. 2xx 응답이면 정상으로 봅니다.',
+    hint: 'http://로 시작하는 전체 주소를 입력합니다. 2xx 응답이면 정상으로 봅니다.',
     placeholder: 'http://10.0.0.11:8080/actuator/health',
   },
   HTTPS: {
     label: 'URL',
-    hint: 'https:// 로 시작하는 전체 주소를 입력합니다. 2xx 응답이면 정상으로 봅니다.',
+    hint: 'https://로 시작하는 전체 주소를 입력합니다. 2xx 응답이면 정상으로 봅니다.',
     placeholder: 'https://service.example.com/health',
   },
 }
@@ -77,7 +77,7 @@ export function CheckFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title={check ? 'Check 수정' : 'Check 추가'}
+        title={check ? '감시 항목 수정' : '감시 항목 추가'}
         description="같은 애플리케이션이 서버 여러 대에서 동작하면 대상을 여러 개 등록합니다."
         className="max-w-2xl"
       >
@@ -268,7 +268,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
                     value={row.port}
                     onChange={(event) => updateTarget(index, { port: event.target.value })}
                     placeholder="3306"
-                    aria-label={`Port ${index + 1}`}
+                    aria-label={`포트 ${index + 1}`}
                   />
                 ) : null}
 
@@ -323,7 +323,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
                 description: event.target.value.trim() === '' ? null : event.target.value,
               })
             }
-            placeholder="무엇을 확인하는 Check인지 적어 두면 나중에 찾기 쉽습니다."
+            placeholder="무엇을 확인하는 감시 항목인지 적어 두면 나중에 찾기 쉽습니다."
           />
         </Field>
 
@@ -332,7 +332,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
             checked={form.enabled}
             onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
           />
-          이 Check를 사용합니다
+          이 감시 항목을 사용합니다
         </CheckboxLabel>
 
         {formError ? <p className="text-body text-destructive">{formError}</p> : null}
@@ -340,7 +340,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
 
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onDone} disabled={mutation.isPending}>
-          취소
+          닫기
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? '저장 중…' : '저장'}

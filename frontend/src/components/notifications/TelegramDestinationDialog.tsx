@@ -118,7 +118,7 @@ function DestinationForm({
         <Field
           label="Chat ID"
           htmlFor="destination-chat-id"
-          hint="Telegram 그룹의 식별자입니다. 그룹은 -1001234567890 처럼 -로 시작합니다."
+          hint="Telegram 그룹의 식별자입니다. 그룹은 -1001234567890처럼 -로 시작합니다."
           error={fieldErrors.chatId}
         >
           <Input
@@ -131,9 +131,9 @@ function DestinationForm({
         </Field>
 
         <Field
-          label="Message Thread ID"
+          label="토픽 ID"
           htmlFor="destination-thread-id"
-          hint="Forum topic을 쓰는 그룹에만 입력합니다. 보통은 비워 둡니다."
+          hint="토픽을 쓰는 그룹에만 입력합니다. 보통은 비워 둡니다."
           error={fieldErrors.messageThreadId}
         >
           <Input
@@ -159,7 +159,7 @@ function DestinationForm({
 
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onDone} disabled={mutation.isPending}>
-          취소
+          닫기
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? '저장 중…' : '저장'}

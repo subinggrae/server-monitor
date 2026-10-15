@@ -14,11 +14,14 @@ import {
   type DiscoveredResource,
   type MonitoredResourceInput,
   type ResourceDiscoveryResult,
+  type ResourceType,
   type ResourceUsage,
 } from '@/lib/api'
 import { formatBytes, formatDateTime, formatPercent } from '@/lib/format'
 
 const TYPE_ORDER = { CPU: 0, MEMORY: 1, STORAGE: 2 } as const
+
+const TYPE_LABELS: Record<ResourceType, string> = { CPU: 'CPU', MEMORY: '메모리', STORAGE: '스토리지' }
 
 export function ServerResourceSection({
   serverId,
@@ -36,7 +39,7 @@ export function ServerResourceSection({
     onError: () =>
       setDiscovery({
         success: false,
-        message: 'SNMP 응답을 받지 못했습니다. Host, Port, Community와 네트워크 접근을 확인해 주세요.',
+        message: 'SNMP 응답을 받지 못했습니다. 호스트, 포트, Community와 네트워크 접근을 확인해 주세요.',
         systemName: null,
         systemDescription: null,
         resources: [],
@@ -46,8 +49,8 @@ export function ServerResourceSection({
   return (
     <Section>
       <SectionHeader
-        title="Resource"
-        description="검색해서 찾은 것 중 모니터링할 항목만 고릅니다."
+        title="리소스"
+        description="검색해서 찾은 리소스 가운데 수집할 것만 고릅니다."
         actions={
           <Button
             variant="secondary"
@@ -62,12 +65,12 @@ export function ServerResourceSection({
 
       {!snmpConfigured ? (
         <p className="text-body text-muted-foreground">
-          SNMP를 먼저 설정해야 Resource를 검색할 수 있습니다.
+          SNMP를 먼저 설정해야 리소스를 검색할 수 있습니다.
         </p>
       ) : null}
 
       {discoverMutation.isPending ? (
-        <p className="text-body text-muted-foreground">리소스를 검색하고 있습니다.</p>
+        <p className="text-body text-muted-foreground">리소스를 검색하는 중…</p>
       ) : null}
 
       {discovery ? (
@@ -81,11 +84,11 @@ export function ServerResourceSection({
       {resources.isPending ? (
         <TableSkeleton rows={3} columns={4} />
       ) : resources.isError ? (
-        <p className="text-body text-destructive">Resource를 불러오지 못했습니다.</p>
+        <p className="text-body text-destructive">리소스를 불러오지 못했습니다.</p>
       ) : resources.data.length === 0 ? (
         <EmptyState
-          title="모니터링할 Resource가 없습니다."
-          description="SNMP를 설정한 뒤 리소스 검색을 실행하면 CPU, Memory, Storage를 고를 수 있습니다."
+          title="수집하는 리소스가 없습니다."
+          description="SNMP를 설정한 뒤 리소스 검색을 실행하면 CPU, 메모리, 스토리지를 고를 수 있습니다."
         />
       ) : (
         <UsageTable resources={resources.data} />
@@ -110,13 +113,13 @@ function UsageTable({ resources }: { resources: ResourceUsage[] }) {
             <TH>이름</TH>
             <TH className="w-20 text-right">사용률</TH>
             <TH className="w-44 text-right">사용량</TH>
-            <TH className="w-28">수집 시각</TH>
+            <TH className="w-44">수집 시각</TH>
           </tr>
         </THead>
         <TBody>
           {sorted.map((resource) => (
             <TR key={resource.id}>
-              <TD className="text-muted-foreground">{resource.resourceType}</TD>
+              <TD className="text-muted-foreground">{TYPE_LABELS[resource.resourceType]}</TD>
               <TD className="tabular">{resource.displayName}</TD>
               <TD className="tabular text-right">
                 {resource.usagePercent == null ? (
@@ -210,7 +213,7 @@ function DiscoveryResult({
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onDone} disabled={saveMutation.isPending}>
-            취소
+            닫기
           </Button>
           <Button
             size="sm"
@@ -237,7 +240,7 @@ function DiscoveryResult({
       <div className="max-h-80 overflow-y-auto px-3 py-2.5">
         {grouped.map(([type, items]) => (
           <div key={type} className="mb-3 last:mb-0">
-            <p className="mb-1 text-caption font-medium text-muted-foreground">{type}</p>
+            <p className="mb-1 text-caption font-medium text-muted-foreground">{TYPE_LABELS[type]}</p>
             <div className="space-y-1">
               {items.map((item) => (
                 <CheckboxLabel key={keyOf(item)} className="text-body">
@@ -270,7 +273,7 @@ function keyOf(item: DiscoveredResource) {
 }
 
 function groupByType(resources: DiscoveredResource[]) {
-  const groups = new Map<string, DiscoveredResource[]>()
+  const groups = new Map<ResourceType, DiscoveredResource[]>()
   for (const resource of resources) {
     const existing = groups.get(resource.resourceType)
     if (existing) {
@@ -279,8 +282,5 @@ function groupByType(resources: DiscoveredResource[]) {
       groups.set(resource.resourceType, [resource])
     }
   }
-  return [...groups.entries()].sort(
-    (left, right) =>
-      TYPE_ORDER[left[0] as keyof typeof TYPE_ORDER] - TYPE_ORDER[right[0] as keyof typeof TYPE_ORDER],
-  )
+  return [...groups.entries()].sort((left, right) => TYPE_ORDER[left[0]] - TYPE_ORDER[right[0]])
 }

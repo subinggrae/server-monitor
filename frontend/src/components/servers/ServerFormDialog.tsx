@@ -28,7 +28,7 @@ export function ServerFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         title={server ? '서버 수정' : '서버 추가'}
-        description="서버 자산 정보를 등록합니다. SNMP Resource 모니터링에 사용할 예정입니다."
+        description="감시할 서버를 등록합니다. 등록한 뒤 서버 상세에서 SNMP를 설정하면 CPU, 메모리, 스토리지 사용량을 수집합니다."
       >
         {/* Dialog를 닫으면 이 component가 사라집니다.
             그래서 입력값을 초기화하는 effect가 따로 필요하지 않습니다. */}
@@ -92,9 +92,9 @@ function ServerForm({ server, onDone }: { server?: ServerTarget; onDone: () => v
         </Field>
 
         <Field
-          label="Host / IP"
+          label="호스트"
           htmlFor="server-host"
-          hint="IP 또는 hostname을 입력합니다. http:// 같은 주소는 넣지 않습니다."
+          hint="IP 또는 호스트 이름을 입력합니다. http:// 같은 주소는 넣지 않습니다."
           error={fieldErrors.host}
         >
           <Input
@@ -140,10 +140,10 @@ function ServerForm({ server, onDone }: { server?: ServerTarget; onDone: () => v
               checked={form.enabled}
               onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
             />
-            이 서버를 모니터링합니다
+            이 서버를 감시합니다
           </CheckboxLabel>
           <p className="pl-5.5 text-caption text-muted-foreground">
-            끄면 목록에서 사용 안 함으로 표시합니다. Monitoring Check에는 영향을 주지 않습니다.
+            끄면 이 서버의 SNMP 수집을 멈추고 목록에서 사용 안 함으로 표시합니다. 감시 항목에는 영향을 주지 않습니다.
           </p>
         </div>
 
@@ -152,7 +152,7 @@ function ServerForm({ server, onDone }: { server?: ServerTarget; onDone: () => v
 
       <DialogFooter>
         <Button type="button" variant="secondary" onClick={onDone} disabled={mutation.isPending}>
-          취소
+          닫기
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? '저장 중…' : '저장'}
