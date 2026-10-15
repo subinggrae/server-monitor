@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
-import { Button } from '@/components/ui/button'
+import type { ContentState } from '@/components/layout/ContentState'
+import { FormActions, PageSection } from '@/components/layout/PageSection'
 import { Checkbox, CheckboxLabel, Field, Input } from '@/components/ui/input'
-import { Section, SectionHeader } from '@/components/ui/section'
 import {
   ApiError,
   apiPut,
@@ -35,44 +35,46 @@ export function CheckNotificationSection({ checkId }: { checkId: number }) {
   const destinations = useQuery(telegramDestinationsQuery)
   const notifications = useQuery(checkNotificationsQuery(checkId))
 
-  if (destinations.isPending || notifications.isPending) {
-    return null
-  }
+  const state: ContentState =
+    destinations.isPending || notifications.isPending
+      ? { kind: 'loading' }
+      : destinations.isError || notifications.isError
+        ? {
+            kind: 'error',
+            message: '알림 설정을 불러오지 못했습니다.',
+            onRetry: () => {
+              if (destinations.isError) {
+                void destinations.refetch()
+              }
+              if (notifications.isError) {
+                void notifications.refetch()
+              }
+            },
+          }
+        : { kind: 'ready' }
 
-  if (destinations.isError || notifications.isError) {
-    return (
-      <Section>
-        <SectionHeader title="알림" />
-        <p className="text-body text-destructive">알림 설정을 불러오지 못했습니다.</p>
-      </Section>
-    )
-  }
-
-  if (destinations.data.length === 0) {
-    return (
-      <Section>
-        <SectionHeader title="알림" />
+  return (
+    <PageSection title="알림" description="고른 Telegram 그룹으로만 장애 알림이 갑니다." state={state}>
+      {destinations.data?.length === 0 ? (
         <p className="text-body text-muted-foreground">
           등록된 Telegram 그룹이 없습니다.{' '}
           <Link to="/notifications" className="text-foreground underline underline-offset-4">
             Telegram 그룹 추가
           </Link>
         </p>
-      </Section>
-    )
-  }
-
-  return (
-    <NotificationForm
-      key={notifications.dataUpdatedAt}
-      checkId={checkId}
-      notifications={notifications.data}
-      destinations={destinations.data.map((destination) => ({
-        id: destination.id,
-        name: destination.name,
-        enabled: destination.enabled,
-      }))}
-    />
+      ) : destinations.data && notifications.data ? (
+        <NotificationForm
+          key={notifications.dataUpdatedAt}
+          checkId={checkId}
+          notifications={notifications.data}
+          destinations={destinations.data.map((destination) => ({
+            id: destination.id,
+            name: destination.name,
+            enabled: destination.enabled,
+          }))}
+        />
+      ) : null}
+    </PageSection>
   )
 }
 
@@ -133,7 +135,8 @@ function NotificationForm({
     },
   })
 
-  const save = () => {
+  const save = (event: FormEvent) => {
+    event.preventDefault()
     setSaved(false)
     setRepeatIntervalError(null)
 
@@ -156,17 +159,7 @@ function NotificationForm({
   }
 
   return (
-    <Section>
-      <SectionHeader
-        title="알림"
-        description="고른 Telegram 그룹으로만 장애 알림이 갑니다."
-        actions={
-          <Button variant="secondary" size="sm" disabled={mutation.isPending} onClick={save}>
-            {mutation.isPending ? '저장 중…' : '저장'}
-          </Button>
-        }
-      />
-
+    <form className="space-y-3" onSubmit={save} noValidate>
       {selectedRows.length === 0 ? (
         <p className="text-body text-critical">
           받는 그룹이 없습니다. 지금은 장애가 나도 Telegram 알림이 가지 않습니다.
@@ -254,10 +247,18 @@ function NotificationForm({
         감시 항목의 장애는 지금 위험 단계만 있습니다.
       </p>
 
-      {mutation.isError && !repeatIntervalError ? (
-        <p className="text-body text-destructive">저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
-      ) : null}
-      {saved ? <p className="text-body text-muted-foreground">알림 설정을 저장했습니다.</p> : null}
-    </Section>
+      <FormActions
+        submitLabel="저장"
+        pendingLabel="저장 중…"
+        pending={mutation.isPending}
+        result={
+          mutation.isError && !repeatIntervalError
+            ? { kind: 'error', text: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.' }
+            : saved
+              ? { kind: 'success', text: '알림 설정을 저장했습니다.' }
+              : null
+        }
+      />
+    </form>
   )
 }

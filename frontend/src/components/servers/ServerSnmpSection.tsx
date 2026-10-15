@@ -1,10 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { queryState } from '@/components/layout/state'
+import { FormActions, PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxLabel, Field, Input, Select } from '@/components/ui/input'
-import { DetailList, Section, SectionHeader } from '@/components/ui/section'
+import { DetailList } from '@/components/ui/section'
 import {
   ApiError,
   apiDelete,
@@ -27,22 +29,58 @@ type FormState = {
 
 /** Community는 서버가 돌려주지 않습니다. 새로 입력했을 때만 바뀝니다. (CLAUDE.md 11번) */
 export function ServerSnmpSection({ serverId }: { serverId: number }) {
+  const queryClient = useQueryClient()
   const snmp = useQuery(serverSnmpQuery(serverId))
+  const [removing, setRemoving] = useState(false)
 
-  if (snmp.isPending) {
-    return null
-  }
+  const deleteMutation = useMutation({
+    mutationFn: () => apiDelete(`/api/servers/${serverId}/snmp`),
+    onSuccess: () => {
+      setRemoving(false)
+      invalidateSnmp(queryClient, serverId)
+    },
+  })
 
-  if (snmp.isError) {
-    return (
-      <Section>
-        <SectionHeader title="SNMP" />
-        <p className="text-body text-destructive">SNMP 설정을 불러오지 못했습니다.</p>
-      </Section>
-    )
-  }
+  return (
+    <>
+      <PageSection
+        title="SNMP"
+        description="에이전트를 설치하지 않고 CPU, 메모리, 스토리지를 수집합니다."
+        actions={
+          snmp.data?.configured ? (
+            <Button variant="destructive-ghost" size="sm" onClick={() => setRemoving(true)}>
+              SNMP 해제
+            </Button>
+          ) : null
+        }
+        state={queryState(snmp, 'SNMP 설정을 불러오지 못했습니다.')}
+      >
+        {snmp.data ? <SnmpForm key={snmp.dataUpdatedAt} serverId={serverId} snmp={snmp.data} /> : null}
+      </PageSection>
 
-  return <SnmpForm key={snmp.dataUpdatedAt} serverId={serverId} snmp={snmp.data} />
+      <ConfirmDialog
+        open={removing}
+        onOpenChange={setRemoving}
+        title="SNMP 설정을 해제할까요?"
+        description={
+          '저장한 Community가 지워지고 이 서버의 리소스 수집이 멈춥니다.\n서버와 고른 리소스 목록은 그대로 남습니다.'
+        }
+        confirmLabel="해제"
+        pendingLabel="해제 중…"
+        pending={deleteMutation.isPending}
+        errorMessage={deleteMutation.isError ? '해제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
+        onConfirm={() => deleteMutation.mutate()}
+      />
+    </>
+  )
+}
+
+/** SNMP 설정이 바뀌면 리소스와 서버의 SNMP 상태도 함께 바뀝니다. */
+function invalidateSnmp(queryClient: QueryClient, serverId: number) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.serverSnmp(serverId) })
+  queryClient.invalidateQueries({ queryKey: queryKeys.serverResources(serverId) })
+  queryClient.invalidateQueries({ queryKey: queryKeys.servers })
+  queryClient.invalidateQueries({ queryKey: queryKeys.serverDetail(serverId) })
 }
 
 function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
@@ -58,21 +96,13 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
   const [formError, setFormError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [testResult, setTestResult] = useState<SnmpTestResult | null>(null)
-  const [removing, setRemoving] = useState(false)
-
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.serverSnmp(serverId) })
-    queryClient.invalidateQueries({ queryKey: queryKeys.serverResources(serverId) })
-    queryClient.invalidateQueries({ queryKey: queryKeys.servers })
-    queryClient.invalidateQueries({ queryKey: queryKeys.serverDetail(serverId) })
-  }
 
   const saveMutation = useMutation({
     mutationFn: (input: ServerSnmpInput) => apiPut<ServerSnmp>(`/api/servers/${serverId}/snmp`, input),
     onSuccess: () => {
       setSaved(true)
       setTestResult(null)
-      invalidate()
+      invalidateSnmp(queryClient, serverId)
     },
     onError: (error) => {
       if (error instanceof ApiError) {
@@ -97,28 +127,8 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
       }),
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: () => apiDelete(`/api/servers/${serverId}/snmp`),
-    onSuccess: () => {
-      setRemoving(false)
-      invalidate()
-    },
-  })
-
   return (
-    <Section>
-      <SectionHeader
-        title="SNMP"
-        description="에이전트를 설치하지 않고 CPU, 메모리, 스토리지를 수집합니다."
-        actions={
-          snmp.configured ? (
-            <Button variant="destructive-ghost" size="sm" onClick={() => setRemoving(true)}>
-              SNMP 해제
-            </Button>
-          ) : null
-        }
-      />
-
+    <>
       {snmp.configured && !snmp.exporterSynced ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
           <p className="font-medium text-destructive">설정은 저장했지만 SNMP 수집을 시작하지 못했습니다.</p>
@@ -221,12 +231,18 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
           이 서버에서 SNMP로 수집합니다
         </CheckboxLabel>
 
-        {formError ? <p className="text-body text-destructive">{formError}</p> : null}
-
-        <div className="flex items-center gap-2">
-          <Button type="submit" disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? '저장 중…' : '저장'}
-          </Button>
+        <FormActions
+          submitLabel="저장"
+          pendingLabel="저장 중…"
+          pending={saveMutation.isPending}
+          result={
+            formError
+              ? { kind: 'error', text: formError }
+              : saved
+                ? { kind: 'success', text: '저장했습니다.' }
+                : null
+          }
+        >
           <Button
             type="button"
             variant="secondary"
@@ -235,8 +251,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
           >
             {testMutation.isPending ? '확인 중…' : '연결 테스트'}
           </Button>
-          {saved ? <span className="text-body text-muted-foreground">저장했습니다.</span> : null}
-        </div>
+        </FormActions>
       </form>
 
       {testResult ? (
@@ -249,7 +264,7 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
               <DetailList
                 items={[
                   { label: '장비 이름', value: testResult.systemName ?? '-' },
-                  { label: '응답 시간', value: `${testResult.responseTimeMs ?? 0} ms` },
+                  { label: '응답 시간', value: `${testResult.responseTimeMs ?? 0} ms` },
                   ...(testResult.systemDescription
                     ? [{ label: '설명', value: testResult.systemDescription }]
                     : []),
@@ -259,20 +274,6 @@ function SnmpForm({ serverId, snmp }: { serverId: number; snmp: ServerSnmp }) {
           ) : null}
         </div>
       ) : null}
-
-      <ConfirmDialog
-        open={removing}
-        onOpenChange={setRemoving}
-        title="SNMP 설정을 해제할까요?"
-        description={
-          '저장한 Community가 지워지고 이 서버의 리소스 수집이 멈춥니다.\n서버와 고른 리소스 목록은 그대로 남습니다.'
-        }
-        confirmLabel="해제"
-        pendingLabel="해제 중…"
-        pending={deleteMutation.isPending}
-        errorMessage={deleteMutation.isError ? '해제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
-        onConfirm={() => deleteMutation.mutate()}
-      />
-    </Section>
+    </>
   )
 }

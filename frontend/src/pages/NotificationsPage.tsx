@@ -3,11 +3,11 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { PageBody, PageHeader } from '@/components/PageHeader'
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/QueryStates'
+import { queryState } from '@/components/layout/state'
+import { ListPage } from '@/components/layout/ListPage'
+import { PageSection } from '@/components/layout/PageSection'
 import { TelegramDestinationDialog } from '@/components/notifications/TelegramDestinationDialog'
 import { Button } from '@/components/ui/button'
-import { Section, SectionHeader } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import {
   apiDelete,
@@ -17,12 +17,14 @@ import {
   telegramDestinationsQuery,
   telegramStatusQuery,
   type TelegramDestination,
+  type TelegramStatus,
   type TestMessageResult,
 } from '@/lib/api'
 
 /** Check별 알림 설정은 Check 상세에서 합니다. 같은 설정을 두 화면에 두지 않습니다. */
 export function NotificationsPage() {
   const destinations = useQuery(telegramDestinationsQuery)
+  const { data: telegramStatus } = useQuery(telegramStatusQuery)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<TelegramDestination | undefined>()
 
@@ -33,48 +35,35 @@ export function NotificationsPage() {
 
   return (
     <>
-      <PageHeader
+      <ListPage
         title="Telegram 그룹"
         description="장애 알림을 받을 Telegram 그룹을 관리합니다. Bot Token은 Monitoring Manager가 관리하므로 입력하지 않습니다."
-        actions={<Button onClick={openNew}>그룹 추가</Button>}
-      />
-
-      <PageBody>
-        <TelegramSetupNotice />
-
-        <Section>
-          <SectionHeader title="알림을 받을 그룹" />
-
-          {destinations.isPending ? (
-            <TableSkeleton rows={3} columns={5} />
-          ) : destinations.isError ? (
-            <ErrorState
-              message={
-                destinations.error instanceof Error
-                  ? destinations.error.message
-                  : 'Telegram 그룹을 불러오지 못했습니다.'
+        primaryAction={{ label: '그룹 추가', onClick: openNew }}
+        notice={telegramStatus ? <TelegramSetupNotice status={telegramStatus} /> : undefined}
+        state={queryState(
+          destinations,
+          destinations.error instanceof Error
+            ? destinations.error.message
+            : 'Telegram 그룹을 불러오지 못했습니다.',
+          destinations.data?.length === 0
+            ? {
+                title: '등록된 Telegram 그룹이 없습니다.',
+                description:
+                  '그룹을 추가해야 장애 알림을 받을 수 있습니다. 추가한 뒤 감시 항목 상세에서 받는 그룹으로 골라 주세요.',
               }
-              onRetry={() => destinations.refetch()}
-            />
-          ) : destinations.data.length === 0 ? (
-            <EmptyState
-              title="등록된 Telegram 그룹이 없습니다."
-              description="그룹을 추가해야 장애 알림을 받을 수 있습니다. 추가한 뒤 감시 항목 상세에서 받는 그룹으로 골라 주세요."
-              action={<Button onClick={openNew}>그룹 추가</Button>}
-            />
-          ) : (
-            <DestinationTable
-              destinations={destinations.data}
-              onEdit={(destination) => {
-                setEditing(destination)
-                setFormOpen(true)
-              }}
-            />
-          )}
-        </Section>
-
-        <BindingOverview />
-      </PageBody>
+            : null,
+        )}
+        skeletonColumns={5}
+        aside={<BindingOverview />}
+      >
+        <DestinationTable
+          destinations={destinations.data ?? []}
+          onEdit={(destination) => {
+            setEditing(destination)
+            setFormOpen(true)
+          }}
+        />
+      </ListPage>
 
       <TelegramDestinationDialog open={formOpen} onOpenChange={setFormOpen} destination={editing} />
     </>
@@ -82,13 +71,7 @@ export function NotificationsPage() {
 }
 
 /** /register가 동작하지 않는 환경이라면 그 이유를 먼저 보여 줘야 합니다. */
-function TelegramSetupNotice() {
-  const { data: status } = useQuery(telegramStatusQuery)
-
-  if (!status) {
-    return null
-  }
-
+function TelegramSetupNotice({ status }: { status: TelegramStatus }) {
   if (!status.configured) {
     return (
       <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-body">
@@ -221,25 +204,26 @@ function DestinationTable({
 
 /** 수정은 Check 상세에서 합니다. 여기는 알림 대상이 비어 있는 Check를 찾는 용도입니다. */
 function BindingOverview() {
-  const { data: summaries, isPending, isError } = useQuery(notificationBindingsQuery)
-
-  if (isPending || isError || !summaries || summaries.length === 0) {
-    return null
-  }
-
+  const bindings = useQuery(notificationBindingsQuery)
+  const summaries = bindings.data ?? []
   const missing = summaries.filter((summary) => summary.bindings.length === 0).length
 
   return (
-    <Section>
-      <SectionHeader
-        title="감시 항목별 받는 그룹"
-        description={
-          missing > 0
+    <PageSection
+      title="감시 항목별 받는 그룹"
+      description={
+        summaries.length === 0
+          ? undefined
+          : missing > 0
             ? `받는 그룹이 없는 감시 항목이 ${missing}개 있습니다. 이 감시 항목은 장애가 나도 알림이 가지 않습니다.`
             : '모든 감시 항목에 받는 그룹이 있습니다.'
-        }
-      />
-
+      }
+      state={queryState(
+        bindings,
+        '감시 항목별 받는 그룹을 불러오지 못했습니다.',
+        bindings.data?.length === 0 ? { title: '등록된 감시 항목이 없습니다.' } : null,
+      )}
+    >
       <TableFrame>
         <Table>
           <THead>
@@ -275,6 +259,6 @@ function BindingOverview() {
           </TBody>
         </Table>
       </TableFrame>
-    </Section>
+    </PageSection>
   )
 }

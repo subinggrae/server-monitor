@@ -3,13 +3,14 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { PageBody, PageHeader } from '@/components/PageHeader'
-import { ErrorState, LoadingState } from '@/components/QueryStates'
 import { StatusDot } from '@/components/StatusDot'
 import { CheckFormDialog } from '@/components/checks/CheckFormDialog'
 import { CheckNotificationSection } from '@/components/checks/CheckNotificationSection'
+import { queryState } from '@/components/layout/state'
+import { DetailPage } from '@/components/layout/DetailPage'
+import { PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
-import { Section, SectionHeader } from '@/components/ui/section'
+import { DetailList } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import { apiDelete, checkDetailQuery, queryKeys } from '@/lib/api'
 
@@ -31,44 +32,24 @@ export function CheckDetailPage() {
     },
   })
 
-  if (checkResult.isPending) {
-    return (
-      <PageBody>
-        <LoadingState message="감시 항목을 불러오는 중…" />
-      </PageBody>
-    )
-  }
-
-  if (checkResult.isError) {
-    return (
-      <PageBody>
-        <ErrorState
-          message={
-            checkResult.error instanceof Error
-              ? checkResult.error.message
-              : '감시 항목을 불러오지 못했습니다.'
-          }
-          onRetry={() => checkResult.refetch()}
-        />
-      </PageBody>
-    )
-  }
-
   const check = checkResult.data
 
   return (
     <>
-      <PageHeader
-        title={check.name}
+      <DetailPage
         back={{ to: '/monitoring', label: '감시 항목 목록' }}
+        title={check?.name}
+        state={queryState(
+          checkResult,
+          checkResult.error instanceof Error ? checkResult.error.message : '감시 항목을 불러오지 못했습니다.',
+        )}
         meta={
-          <>
-            <StatusDot status={check.status} />
-            <span>{check.typeDisplayName}</span>
-            <span>{check.environment}</span>
-            <span>{`수집 주기 ${check.scrapeIntervalSeconds}초`}</span>
-            {check.enabled ? null : <span>사용 안 함</span>}
-          </>
+          check ? (
+            <>
+              <StatusDot status={check.status} />
+              {check.enabled ? null : <span>사용 안 함</span>}
+            </>
+          ) : undefined
         }
         actions={
           <>
@@ -80,62 +61,66 @@ export function CheckDetailPage() {
             </Button>
           </>
         }
-      />
+        summary={
+          check ? (
+            <DetailList
+              items={[
+                { label: '종류', value: check.typeDisplayName },
+                { label: '환경', value: check.environment },
+                { label: '수집 주기', value: `${check.scrapeIntervalSeconds}초` },
+                ...(check.description ? [{ label: '설명', value: check.description }] : []),
+              ]}
+            />
+          ) : undefined
+        }
+      >
+        {check ? (
+          <>
+            <PageSection title="확인 대상" description={`확인하는 주소 ${check.targetCount}개입니다.`}>
+              <TableFrame>
+                <Table>
+                  <THead>
+                    <tr>
+                      <TH>주소</TH>
+                      <TH className="w-28">사용 여부</TH>
+                      <TH className="w-32">상태</TH>
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {check.targets.map((target) => (
+                      <TR key={target.id}>
+                        <TD className="tabular break-all">{target.blackboxTarget}</TD>
+                        <TD className="text-muted-foreground">{target.enabled ? '사용' : '사용 안 함'}</TD>
+                        <TD>
+                          <StatusDot status={target.status} />
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </TableFrame>
+            </PageSection>
 
-      <PageBody>
-        {check.description ? (
-          <p className="max-w-2xl text-body text-muted-foreground">{check.description}</p>
+            <CheckNotificationSection checkId={checkId} />
+          </>
         ) : null}
+      </DetailPage>
 
-        <Section>
-          <SectionHeader
-            title="확인 대상"
-            description={`확인하는 주소 ${check.targetCount}개입니다.`}
-            actions={
-              <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
-                대상 편집
-              </Button>
-            }
+      {check ? (
+        <>
+          <CheckFormDialog open={formOpen} onOpenChange={setFormOpen} check={check} />
+
+          <ConfirmDialog
+            open={deleting}
+            onOpenChange={setDeleting}
+            title="이 감시 항목을 삭제할까요?"
+            description={`확인 대상 ${check.targetCount}개가 함께 삭제됩니다.\n삭제하면 잠시 뒤부터 이 주소들을 확인하지 않습니다.`}
+            pending={deleteMutation.isPending}
+            errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
+            onConfirm={() => deleteMutation.mutate()}
           />
-
-          <TableFrame>
-            <Table>
-              <THead>
-                <tr>
-                  <TH>주소</TH>
-                  <TH className="w-28">사용 여부</TH>
-                  <TH className="w-32">상태</TH>
-                </tr>
-              </THead>
-              <TBody>
-                {check.targets.map((target) => (
-                  <TR key={target.id}>
-                    <TD className="tabular break-all">{target.blackboxTarget}</TD>
-                    <TD className="text-muted-foreground">{target.enabled ? '사용' : '사용 안 함'}</TD>
-                    <TD>
-                      <StatusDot status={target.status} />
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </TableFrame>
-        </Section>
-
-        <CheckNotificationSection checkId={checkId} />
-      </PageBody>
-
-      <CheckFormDialog open={formOpen} onOpenChange={setFormOpen} check={check} />
-
-      <ConfirmDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        title="이 감시 항목을 삭제할까요?"
-        description={`확인 대상 ${check.targetCount}개가 함께 삭제됩니다.\n삭제하면 잠시 뒤부터 이 주소들을 확인하지 않습니다.`}
-        pending={deleteMutation.isPending}
-        errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
-        onConfirm={() => deleteMutation.mutate()}
-      />
+        </>
+      ) : null}
     </>
   )
 }

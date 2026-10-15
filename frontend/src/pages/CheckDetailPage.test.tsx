@@ -34,6 +34,8 @@ describe('Check 상세 화면', () => {
       </MemoryRouter>,
     )
 
-    expect(await screen.findByText('수집 주기 45초')).toBeTruthy()
+    // 주요 속성은 요약의 속성 목록(dt 이름, dd 값)에 있습니다.
+    const term = await screen.findByText('수집 주기', { selector: 'dt' })
+    expect(term.nextElementSibling?.textContent).toBe('45초')
   })
 })

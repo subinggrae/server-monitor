@@ -2,8 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
+import { FormDialog } from '@/components/layout/FormDialog'
+import { useOpenCount } from '@/components/layout/state'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogBody, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox, CheckboxLabel, Field, Input, Label, Select, Textarea } from '@/components/ui/input'
 import {
   ApiError,
@@ -74,23 +75,22 @@ export function CheckFormDialog({
   onOpenChange: (open: boolean) => void
   check?: MonitoringCheck
 }) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        title={check ? '감시 항목 수정' : '감시 항목 추가'}
-        description="같은 애플리케이션이 서버 여러 대에서 동작하면 대상을 여러 개 등록합니다."
-        className="max-w-2xl"
-      >
-        {/* Dialog를 닫으면 이 component가 사라지므로 입력값이 자동으로 초기화됩니다. */}
-        <CheckForm check={check} onDone={() => onOpenChange(false)} />
-      </DialogContent>
-    </Dialog>
-  )
+  // 열 때마다 key가 바뀌어 입력값과 오류가 처음 상태로 돌아갑니다.
+  const openCount = useOpenCount(open)
+  return <CheckForm key={openCount} open={open} onOpenChange={onOpenChange} check={check} />
 }
 
-function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => void }) {
+function CheckForm({
+  open,
+  onOpenChange,
+  check,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  check?: MonitoringCheck
+}) {
   const queryClient = useQueryClient()
-  const { data: checkTypes } = useQuery(checkTypesQuery)
+  const { data: checkTypes } = useQuery({ ...checkTypesQuery, enabled: open })
 
   const [form, setForm] = useState<FormState>(() => ({
     name: check?.name ?? '',
@@ -130,7 +130,7 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.checks })
       queryClient.invalidateQueries({ queryKey: queryKeys.checkDetail(saved.id) })
-      onDone()
+      onOpenChange(false)
     },
     onError: (error) => {
       if (error instanceof ApiError) {
@@ -144,9 +144,17 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
   })
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={check ? '감시 항목 수정' : '감시 항목 추가'}
+      description="같은 애플리케이션이 서버 여러 대에서 동작하면 대상을 여러 개 등록합니다."
+      size="xl"
+      submitLabel="저장"
+      pendingLabel="저장 중…"
+      pending={mutation.isPending}
+      formError={formError}
+      onSubmit={() => {
         setFieldErrors({})
         setFormError(null)
 
@@ -172,180 +180,167 @@ function CheckForm({ check, onDone }: { check?: MonitoringCheck; onDone: () => v
         })
       }}
     >
-      <DialogBody>
-        <Field label="이름" htmlFor="check-name" error={fieldErrors.name}>
-          <Input
-            id="check-name"
-            value={form.name}
-            onChange={(event) => setForm({ ...form, name: event.target.value })}
-            placeholder="전자결재 Health"
-            aria-invalid={Boolean(fieldErrors.name)}
-            autoFocus
-          />
-        </Field>
+      <Field label="이름" htmlFor="check-name" error={fieldErrors.name}>
+        <Input
+          id="check-name"
+          value={form.name}
+          onChange={(event) => setForm({ ...form, name: event.target.value })}
+          placeholder="전자결재 Health"
+          aria-invalid={Boolean(fieldErrors.name)}
+          autoFocus
+        />
+      </Field>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="종류" htmlFor="check-type" error={fieldErrors.type}>
-            <Select
-              id="check-type"
-              value={form.type}
-              onChange={(event) =>
-                // Type이 바뀌면 대상 입력의 의미가 달라지므로 줄을 비우고 새로 받습니다.
-                setForm({
-                  ...form,
-                  type: event.target.value as CheckTypeName,
-                  targets: [{ ...EMPTY_TARGET }],
-                })
-              }
-            >
-              {(checkTypes ?? []).map((item) => (
-                <option key={item.type} value={item.type}>
-                  {item.displayName}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field label="환경" htmlFor="check-environment" error={fieldErrors.environment}>
-            <Select
-              id="check-environment"
-              value={form.environment}
-              onChange={(event) => setForm({ ...form, environment: event.target.value })}
-            >
-              {ENVIRONMENTS.map((environment) => (
-                <option key={environment} value={environment}>
-                  {environment}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-
-        <Field
-          label="수집 주기"
-          htmlFor="check-scrape-interval"
-          hint={SCRAPE_INTERVAL_HINT}
-          error={fieldErrors.scrapeIntervalSeconds}
-        >
-          <div className="flex items-center gap-2">
-            <Input
-              id="check-scrape-interval"
-              name="scrapeIntervalSeconds"
-              inputMode="numeric"
-              autoComplete="off"
-              className="w-24"
-              value={form.scrapeInterval}
-              onChange={(event) => setForm({ ...form, scrapeInterval: event.target.value })}
-              aria-invalid={Boolean(fieldErrors.scrapeIntervalSeconds)}
-            />
-            <span className="text-body text-muted-foreground">초</span>
-          </div>
-        </Field>
-
-        <div className="space-y-1.5">
-          <div className="flex items-baseline justify-between">
-            <Label>확인할 대상</Label>
-            <span className="text-caption text-muted-foreground">{form.targets.length}개</span>
-          </div>
-          <p className="text-caption text-muted-foreground">{targetField.hint}</p>
-
-          <div className="space-y-1.5 pt-0.5">
-            {form.targets.map((row, index) => (
-              <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
-                <Input
-                  value={row.target}
-                  onChange={(event) => updateTarget(index, { target: event.target.value })}
-                  placeholder={targetField.placeholder}
-                  aria-label={`${targetField.label} ${index + 1}`}
-                />
-
-                {capability?.requiresPort ? (
-                  <Input
-                    type="number"
-                    min={1}
-                    max={65535}
-                    className="w-24"
-                    value={row.port}
-                    onChange={(event) => updateTarget(index, { port: event.target.value })}
-                    placeholder="3306"
-                    aria-label={`포트 ${index + 1}`}
-                  />
-                ) : null}
-
-                <CheckboxLabel className="shrink-0 text-caption text-muted-foreground">
-                  <Checkbox
-                    checked={row.enabled}
-                    onChange={(event) => updateTarget(index, { enabled: event.target.checked })}
-                  />
-                  사용
-                </CheckboxLabel>
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  // 대상이 하나뿐이면 지울 수 없습니다. Check에는 대상이 하나 이상 있어야 합니다.
-                  disabled={form.targets.length === 1}
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      targets: form.targets.filter((_, rowIndex) => rowIndex !== index),
-                    })
-                  }
-                  aria-label={`대상 ${index + 1} 삭제`}
-                >
-                  <Trash2 className="size-3.5" aria-hidden />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="-ml-2.5"
-            onClick={() => setForm({ ...form, targets: [...form.targets, { ...EMPTY_TARGET }] })}
-          >
-            <Plus className="size-3.5" aria-hidden />
-            대상 추가
-          </Button>
-        </div>
-
-        <Field label="설명" htmlFor="check-description" error={fieldErrors.description}>
-          <Textarea
-            id="check-description"
-            value={form.description ?? ''}
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="종류" htmlFor="check-type" error={fieldErrors.type}>
+          <Select
+            id="check-type"
+            value={form.type}
             onChange={(event) =>
+              // Type이 바뀌면 대상 입력의 의미가 달라지므로 줄을 비우고 새로 받습니다.
               setForm({
                 ...form,
-                description: event.target.value.trim() === '' ? null : event.target.value,
+                type: event.target.value as CheckTypeName,
+                targets: [{ ...EMPTY_TARGET }],
               })
             }
-            placeholder="무엇을 확인하는 감시 항목인지 적어 두면 나중에 찾기 쉽습니다."
-          />
+          >
+            {(checkTypes ?? []).map((item) => (
+              <option key={item.type} value={item.type}>
+                {item.displayName}
+              </option>
+            ))}
+          </Select>
         </Field>
 
-        <CheckboxLabel className="text-body">
-          <Checkbox
-            checked={form.enabled}
-            onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
+        <Field label="환경" htmlFor="check-environment" error={fieldErrors.environment}>
+          <Select
+            id="check-environment"
+            value={form.environment}
+            onChange={(event) => setForm({ ...form, environment: event.target.value })}
+          >
+            {ENVIRONMENTS.map((environment) => (
+              <option key={environment} value={environment}>
+                {environment}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      <Field
+        label="수집 주기"
+        htmlFor="check-scrape-interval"
+        hint={SCRAPE_INTERVAL_HINT}
+        error={fieldErrors.scrapeIntervalSeconds}
+      >
+        <div className="flex items-center gap-2">
+          <Input
+            id="check-scrape-interval"
+            name="scrapeIntervalSeconds"
+            inputMode="numeric"
+            autoComplete="off"
+            className="w-24"
+            value={form.scrapeInterval}
+            onChange={(event) => setForm({ ...form, scrapeInterval: event.target.value })}
+            aria-invalid={Boolean(fieldErrors.scrapeIntervalSeconds)}
           />
-          이 감시 항목을 사용합니다
-        </CheckboxLabel>
+          <span className="text-body text-muted-foreground">초</span>
+        </div>
+      </Field>
 
-        {formError ? <p className="text-body text-destructive">{formError}</p> : null}
-      </DialogBody>
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between">
+          <Label>확인할 대상</Label>
+          <span className="text-caption text-muted-foreground">{form.targets.length}개</span>
+        </div>
+        <p className="text-caption text-muted-foreground">{targetField.hint}</p>
 
-      <DialogFooter>
-        <Button type="button" variant="secondary" onClick={onDone} disabled={mutation.isPending}>
-          닫기
+        <div className="space-y-1.5 pt-0.5">
+          {form.targets.map((row, index) => (
+            <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
+              <Input
+                value={row.target}
+                onChange={(event) => updateTarget(index, { target: event.target.value })}
+                placeholder={targetField.placeholder}
+                aria-label={`${targetField.label} ${index + 1}`}
+              />
+
+              {capability?.requiresPort ? (
+                <Input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  className="w-24"
+                  value={row.port}
+                  onChange={(event) => updateTarget(index, { port: event.target.value })}
+                  placeholder="3306"
+                  aria-label={`포트 ${index + 1}`}
+                />
+              ) : null}
+
+              <CheckboxLabel className="shrink-0 text-caption text-muted-foreground">
+                <Checkbox
+                  checked={row.enabled}
+                  onChange={(event) => updateTarget(index, { enabled: event.target.checked })}
+                />
+                사용
+              </CheckboxLabel>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                // 대상이 하나뿐이면 지울 수 없습니다. Check에는 대상이 하나 이상 있어야 합니다.
+                disabled={form.targets.length === 1}
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    targets: form.targets.filter((_, rowIndex) => rowIndex !== index),
+                  })
+                }
+                aria-label={`대상 ${index + 1} 삭제`}
+              >
+                <Trash2 className="size-3.5" aria-hidden />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-2.5"
+          onClick={() => setForm({ ...form, targets: [...form.targets, { ...EMPTY_TARGET }] })}
+        >
+          <Plus className="size-3.5" aria-hidden />
+          대상 추가
         </Button>
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? '저장 중…' : '저장'}
-        </Button>
-      </DialogFooter>
-    </form>
+      </div>
+
+      <Field label="설명" htmlFor="check-description" error={fieldErrors.description}>
+        <Textarea
+          id="check-description"
+          value={form.description ?? ''}
+          onChange={(event) =>
+            setForm({
+              ...form,
+              description: event.target.value.trim() === '' ? null : event.target.value,
+            })
+          }
+          placeholder="무엇을 확인하는 감시 항목인지 적어 두면 나중에 찾기 쉽습니다."
+        />
+      </Field>
+
+      <CheckboxLabel className="text-body">
+        <Checkbox
+          checked={form.enabled}
+          onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
+        />
+        이 감시 항목을 사용합니다
+      </CheckboxLabel>
+    </FormDialog>
   )
 }

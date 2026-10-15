@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { EmptyState, TableSkeleton } from '@/components/QueryStates'
+import { queryState } from '@/components/layout/state'
+import { PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxLabel } from '@/components/ui/input'
-import { Section, SectionHeader } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import {
   apiPost,
@@ -47,22 +47,21 @@ export function ServerResourceSection({
   })
 
   return (
-    <Section>
-      <SectionHeader
-        title="리소스"
-        description="검색해서 찾은 리소스 가운데 수집할 것만 고릅니다."
-        actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!snmpConfigured || discoverMutation.isPending}
-            onClick={() => discoverMutation.mutate()}
-          >
-            {discoverMutation.isPending ? '검색 중…' : '리소스 검색'}
-          </Button>
-        }
-      />
-
+    <PageSection
+      title="리소스"
+      description="검색해서 찾은 리소스 가운데 수집할 것만 고릅니다."
+      actions={
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!snmpConfigured || discoverMutation.isPending}
+          onClick={() => discoverMutation.mutate()}
+        >
+          {discoverMutation.isPending ? '검색 중…' : '리소스 검색'}
+        </Button>
+      }
+      state={queryState(resources, '리소스를 불러오지 못했습니다.')}
+    >
       {!snmpConfigured ? (
         <p className="text-body text-muted-foreground">
           SNMP를 먼저 설정해야 리소스를 검색할 수 있습니다.
@@ -81,19 +80,16 @@ export function ServerResourceSection({
         />
       ) : null}
 
-      {resources.isPending ? (
-        <TableSkeleton rows={3} columns={4} />
-      ) : resources.isError ? (
-        <p className="text-body text-destructive">리소스를 불러오지 못했습니다.</p>
-      ) : resources.data.length === 0 ? (
-        <EmptyState
-          title="수집하는 리소스가 없습니다."
-          description="SNMP를 설정한 뒤 리소스 검색을 실행하면 CPU, 메모리, 스토리지를 고를 수 있습니다."
-        />
-      ) : (
+      {/* 비어 있어도 위의 검색 결과는 보여야 하므로 빈 상태를 절의 state로 두지 않습니다. */}
+      {resources.data?.length === 0 ? (
+        <p className="text-body text-muted-foreground">
+          수집하는 리소스가 없습니다. SNMP를 설정한 뒤 리소스 검색을 실행하면 CPU, 메모리, 스토리지를 고를 수
+          있습니다.
+        </p>
+      ) : resources.data ? (
         <UsageTable resources={resources.data} />
-      )}
-    </Section>
+      ) : null}
+    </PageSection>
   )
 }
 

@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 
-import { PageBody, PageHeader } from '@/components/PageHeader'
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/QueryStates'
 import { AlertStatusLabel } from '@/components/StatusDot'
+import { queryState } from '@/components/layout/state'
+import { ListPage } from '@/components/layout/ListPage'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import { alertsQuery } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
@@ -17,72 +17,66 @@ export function AlertListPage() {
   })
 
   return (
-    <>
-      <PageHeader
-        title="장애 기록(Alert)"
-        description="감시 항목에서 감지한 장애와 복구 시각입니다. 알림을 받는 그룹은 감시 항목 상세에서 정합니다."
-      />
-
-      <PageBody>
-        {isPending ? (
-          <TableSkeleton columns={6} />
-        ) : isError ? (
-          <ErrorState
-            message={error instanceof Error ? error.message : '장애 기록을 불러오지 못했습니다.'}
-            onRetry={() => refetch()}
-          />
-        ) : alerts.length === 0 ? (
-          <EmptyState
-            title="기록된 장애가 없습니다."
-            description="장애가 감지되면 여기에 기록됩니다. 감시 항목이 위험 상태인데 기록이 없으면 Alertmanager가 Monitoring Manager로 장애를 보내는지 설치 설정을 확인해 주세요."
-          />
-        ) : (
-          <TableFrame>
-            <Table>
-              <THead>
-                <tr>
-                  <TH className="w-24">상태</TH>
-                  <TH className="w-24">심각도</TH>
-                  <TH className="w-80">내용</TH>
-                  <TH>대상</TH>
-                  <TH className="w-44">발생</TH>
-                  <TH className="w-44">복구</TH>
-                </tr>
-              </THead>
-              <TBody>
-                {alerts.map((alert) => (
-                  <TR key={alert.id}>
-                    <TD>
-                      <AlertStatusLabel status={alert.status} />
-                    </TD>
-                    <TD className="text-muted-foreground">{severityLabel(alert.severity)}</TD>
-                    <TD>
-                      {alert.checkId ? (
-                        <Link
-                          to={`/monitoring/checks/${alert.checkId}`}
-                          className="hover:underline"
-                        >
-                          {alert.summary ?? alert.alertName}
-                        </Link>
-                      ) : (
-                        <span>{alert.summary ?? alert.alertName}</span>
-                      )}
-                    </TD>
-                    <TD className="tabular max-w-0 truncate text-muted-foreground">
-                      {alert.instance ?? '-'}
-                    </TD>
-                    <TD className="tabular text-muted-foreground">{formatDateTime(alert.startsAt)}</TD>
-                    <TD className="tabular text-muted-foreground">
-                      {alert.resolvedAt ? formatDateTime(alert.resolvedAt) : '-'}
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </TableFrame>
-        )}
-      </PageBody>
-    </>
+    <ListPage
+      title="장애 기록(Alert)"
+      description="감시 항목에서 감지한 장애와 복구 시각입니다. 알림을 받는 그룹은 감시 항목 상세에서 정합니다."
+      state={queryState(
+        { isPending, isError, refetch },
+        error instanceof Error ? error.message : '장애 기록을 불러오지 못했습니다.',
+        alerts?.length === 0
+          ? {
+              title: '기록된 장애가 없습니다.',
+              description:
+                '장애가 감지되면 여기에 기록됩니다. 감시 항목이 위험 상태인데 기록이 없으면 Alertmanager가 Monitoring Manager로 장애를 보내는지 설치 설정을 확인해 주세요.',
+            }
+          : null,
+      )}
+      skeletonColumns={6}
+    >
+      <TableFrame>
+        <Table>
+          <THead>
+            <tr>
+              <TH className="w-24">상태</TH>
+              <TH className="w-24">심각도</TH>
+              <TH className="w-80">내용</TH>
+              <TH>대상</TH>
+              <TH className="w-44">발생</TH>
+              <TH className="w-44">복구</TH>
+            </tr>
+          </THead>
+          <TBody>
+            {(alerts ?? []).map((alert) => (
+              <TR key={alert.id}>
+                <TD>
+                  <AlertStatusLabel status={alert.status} />
+                </TD>
+                <TD className="text-muted-foreground">{severityLabel(alert.severity)}</TD>
+                <TD>
+                  {alert.checkId ? (
+                    <Link
+                      to={`/monitoring/checks/${alert.checkId}`}
+                      className="hover:underline"
+                    >
+                      {alert.summary ?? alert.alertName}
+                    </Link>
+                  ) : (
+                    <span>{alert.summary ?? alert.alertName}</span>
+                  )}
+                </TD>
+                <TD className="tabular max-w-0 truncate text-muted-foreground">
+                  {alert.instance ?? '-'}
+                </TD>
+                <TD className="tabular text-muted-foreground">{formatDateTime(alert.startsAt)}</TD>
+                <TD className="tabular text-muted-foreground">
+                  {alert.resolvedAt ? formatDateTime(alert.resolvedAt) : '-'}
+                </TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      </TableFrame>
+    </ListPage>
   )
 }
 
@@ -96,4 +90,3 @@ function severityLabel(severity: string | null) {
   }
   return severity ?? '-'
 }
-
