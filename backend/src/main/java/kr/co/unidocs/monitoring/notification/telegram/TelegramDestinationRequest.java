@@ -15,7 +15,7 @@ public record TelegramDestinationRequest(
 		@NotNull(message = "Chat ID를 입력해 주세요. Telegram 그룹에서 /register를 보내면 자동으로 등록할 수도 있습니다.")
 		Long chatId,
 
-		@Min(value = 1, message = "Message Thread ID는 1 이상의 값이어야 합니다.")
+		@Min(value = 1, message = "토픽 ID는 1 이상 숫자로 입력해 주세요.")
 		Integer messageThreadId,
 
 		boolean enabled) {

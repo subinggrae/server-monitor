@@ -78,14 +78,14 @@ public class SnmpAuthConfigSyncService {
 			writeAtomically(render(configs));
 		}
 		catch (IOException ex) {
-			return record(SnmpSyncStatus.failed("auth config 파일을 쓰지 못했습니다. 경로와 권한을 확인해 주세요."), configs.size(), ex);
+			return record(SnmpSyncStatus.failed("수집 설정을 적용하지 못했습니다. 계속되면 Monitoring Manager 로그에서 SNMP 설정 파일 경로와 권한을 확인해 주세요."), configs.size(), ex);
 		}
 
 		try {
 			reloader.reload();
 		}
 		catch (Exception ex) {
-			return record(SnmpSyncStatus.failed("snmp_exporter에 reload를 요청하지 못했습니다. exporter가 떠 있는지 확인해 주세요."),
+			return record(SnmpSyncStatus.failed("수집 설정을 적용하지 못했습니다. 계속되면 snmp-exporter가 실행 중인지 확인해 주세요."),
 					configs.size(), ex);
 		}
 

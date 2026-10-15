@@ -105,10 +105,10 @@ public class MonitoringCheckService {
 		return switch (status) {
 			case OK -> "모든 대상이 정상입니다.";
 			case CRITICAL -> "확인에 실패한 대상이 있습니다. 아래 목록에서 어떤 주소인지 확인해 주세요.";
-			case DISABLED -> "사용하지 않는 Check입니다.";
+			case DISABLED -> "사용하지 않는 감시 항목입니다.";
 			case UNKNOWN -> prometheusAvailable
-					? "Prometheus에서 아직 수집된 Metric이 없습니다. 잠시 후 다시 확인해 주세요."
-					: "Prometheus에 연결할 수 없어 상태를 확인하지 못했습니다. 관리자에게 문의해 주세요.";
+					? "아직 수집한 결과가 없습니다. 잠시 후 다시 확인해 주세요."
+					: "수집 결과를 읽지 못해 상태를 확인하지 못했습니다. 계속되면 Prometheus가 실행 중인지 확인해 주세요.";
 		};
 	}
 
@@ -139,7 +139,7 @@ public class MonitoringCheckService {
 
 			MonitoringCheckTarget found = existing.get(target.id());
 			if (found == null) {
-				throw new InvalidCheckConfigurationException("이 Check에 속하지 않는 대상이 있습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
+				throw new InvalidCheckConfigurationException("이 감시 항목에 속하지 않는 대상이 있습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.");
 			}
 			found.update(target.target(), target.port(), target.enabled());
 			keptIds.add(target.id());
@@ -183,7 +183,7 @@ public class MonitoringCheckService {
 				requireHost(target);
 				if (request.port() == null) {
 					throw new InvalidCheckConfigurationException(
-							"TCP Check는 대상마다 Port가 필요합니다. 1부터 65535 사이의 값을 입력해 주세요.");
+							"TCP 감시 항목은 대상마다 포트가 필요합니다. 1에서 65535 사이 숫자로 입력해 주세요.");
 				}
 				yield new NormalizedTarget(request.id(), target, request.port(), request.enabled());
 			}
@@ -198,10 +198,10 @@ public class MonitoringCheckService {
 	private void requireHost(String target) {
 		if (!target.matches(HOST_PATTERN)) {
 			throw new InvalidCheckConfigurationException(
-					"대상에는 IP 또는 hostname만 입력할 수 있습니다. 예: 10.10.10.15, web01.internal");
+					"대상에는 IP나 호스트 이름만 입력할 수 있습니다. 예: 10.10.10.15, web01.internal");
 		}
 		if (target.length() > 255) {
-			throw new InvalidCheckConfigurationException("Host는 255자까지 입력할 수 있습니다.");
+			throw new InvalidCheckConfigurationException("호스트 이름은 255자까지 입력할 수 있습니다.");
 		}
 	}
 
@@ -211,24 +211,24 @@ public class MonitoringCheckService {
 			uri = new URI(target);
 		}
 		catch (URISyntaxException ex) {
-			throw new InvalidCheckConfigurationException("URL 형식이 올바르지 않습니다. 예: http://10.10.10.15:8080/health");
+			throw new InvalidCheckConfigurationException("URL을 http://주소:포트/경로 형태로 입력해 주세요. 예: http://10.10.10.15:8080/health");
 		}
 
 		String scheme = uri.getScheme();
 		if (scheme == null || uri.getHost() == null) {
-			throw new InvalidCheckConfigurationException("URL 형식이 올바르지 않습니다. 예: http://10.10.10.15:8080/health");
+			throw new InvalidCheckConfigurationException("URL을 http://주소:포트/경로 형태로 입력해 주세요. 예: http://10.10.10.15:8080/health");
 		}
 
 		// file이나 gopher 같은 scheme을 막습니다.
 		String expectedScheme = type.requiredUrlScheme();
 		if (!expectedScheme.equalsIgnoreCase(scheme)) {
 			throw new InvalidCheckConfigurationException(
-					type.displayName() + " Check의 URL은 " + expectedScheme + ":// 로 시작해야 합니다.");
+					type.displayName() + " 감시 항목의 URL은 " + expectedScheme + ":// 로 시작해야 합니다.");
 		}
 
 		int port = uri.getPort();
 		if (port != -1 && (port < 1 || port > 65535)) {
-			throw new InvalidCheckConfigurationException("URL의 Port는 1부터 65535 사이의 값이어야 합니다.");
+			throw new InvalidCheckConfigurationException("URL의 포트는 1에서 65535 사이 숫자로 입력해 주세요.");
 		}
 	}
 

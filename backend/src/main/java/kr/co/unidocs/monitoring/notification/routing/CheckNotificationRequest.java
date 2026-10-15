@@ -17,7 +17,7 @@ import java.util.List;
 public record CheckNotificationRequest(
 
 		@NotNull(message = "알림 대상 목록이 필요합니다. 없으면 빈 목록을 보내 주세요.")
-		@Size(max = 50, message = "한 Check에는 알림 그룹을 50개까지 연결할 수 있습니다.")
+		@Size(max = 50, message = "감시 항목 하나에는 받는 그룹을 50개까지 연결할 수 있습니다.")
 		@Valid
 		List<BindingRequest> bindings,
 
