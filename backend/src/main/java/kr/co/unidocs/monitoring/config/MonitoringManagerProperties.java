@@ -75,7 +75,10 @@ public record MonitoringManagerProperties(
 
 	public record Notification(
 
-			/** alertmanager.yml의 group_interval(5m)보다 작아야 정상적인 반복 알림까지 막지 않습니다. */
+			/**
+			 * 복구 알림을 Alertmanager가 곧바로 다시 보낼 때 한 번만 보내도록 막는 창입니다.
+			 * 이어지는 Alert의 재발송은 Check별 재발송 주기가 정합니다.
+			 */
 			@NotNull Duration dedupeWindow,
 
 			/** DB에는 UTC로 저장합니다. 이 값은 Backend가 직접 만드는 Telegram 메시지에만 씁니다. */

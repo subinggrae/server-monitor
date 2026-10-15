@@ -76,6 +76,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 - PromQL은 `prometheus` 패키지 안에서만 만든다.
 - Check 대상 하나가 HTTP SD entry 하나다. 대상의 id와 SD label은 Prometheus time series의 이름표이므로, 바꾸면 쌓아 온 time series가 끊긴다.
 - Check와 SNMP 서버의 수집 주기(10~240초)는 Manager Database에 두고, SD entry의 `__scrape_interval__` label로 Prometheus에 전한다. `__`로 시작하는 label은 relabel 뒤에 지워져 time series 이름표가 되지 않는다. 그래서 `manager-blackbox`, `manager-snmp` job은 `prometheus.yml`의 `scrape_interval`을 쓰지 않는다. `prometheus.yml`의 `scrape_timeout`은 수집 주기 하한(10초)보다 길게 두지 않는다. timeout이 주기보다 긴 대상을 Prometheus가 수집하지 않기 때문이다.
+- Alert가 이어지는 동안 Telegram 알림을 다시 보내는 주기(5~1440분)는 Check마다 Manager Database에 둔다. Alertmanager는 이어지는 Alert를 `group_interval`(5분)마다 webhook으로 다시 보내고, Manager가 마지막 성공 전송 뒤 그 Check의 주기가 지났는지 보고 보낸다. 그래서 `alertmanager.yml`의 `repeat_interval`(4분)은 `group_interval`보다 짧게 두고, 재발송 주기 하한은 `group_interval`보다 짧게 두지 않는다. `repeat_interval`을 `group_interval`과 같게 두면 Alertmanager가 한 번씩 건너뛰어 10분마다 보낸다. 결정과 이유는 [ADR 0001](decisions/0001-alert-repeat-in-manager.md)에 있다.
 - Manager Database는 MariaDB와 PostgreSQL을 함께 지원한다. Flyway migration은 두 vendor 디렉터리에 같은 version으로 둔다. 접속 URL이 vendor를 정하고, 지원하지 않는 DB면 기동에 실패한다.
 - API를 호출하는 쪽은 다음과 같다. 받던 입력을 거부하거나 응답을 바꾸는 변경이 호환성을 깨는지 이 범위로 판단한다.
   - 화면용 `/api/*`: 이 저장소의 화면만 호출한다.

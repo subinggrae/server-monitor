@@ -216,6 +216,8 @@ export type NotificationBinding = {
 export type CheckNotifications = {
   checkId: number
   bindings: NotificationBinding[]
+  /** 장애가 이어지는 동안 다시 알리는 주기입니다. 저장한 적 없으면 60입니다. */
+  repeatIntervalMinutes: number
 }
 
 export type CheckNotificationsInput = {
@@ -226,6 +228,7 @@ export type CheckNotificationsInput = {
     sendResolved: boolean
     enabled: boolean
   }[]
+  repeatIntervalMinutes: number
 }
 
 /** 연결이 없는 Check도 들어 있습니다. */

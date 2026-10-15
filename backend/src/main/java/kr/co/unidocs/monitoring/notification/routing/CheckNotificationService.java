@@ -22,13 +22,17 @@ public class CheckNotificationService {
 
 	private final CheckNotificationBindingRepository bindingRepository;
 
+	private final CheckNotificationSettingRepository settingRepository;
+
 	private final TelegramDestinationRepository destinationRepository;
 
 	private final MonitoringCheckRepository checkRepository;
 
 	CheckNotificationService(CheckNotificationBindingRepository bindingRepository,
-			TelegramDestinationRepository destinationRepository, MonitoringCheckRepository checkRepository) {
+			CheckNotificationSettingRepository settingRepository, TelegramDestinationRepository destinationRepository,
+			MonitoringCheckRepository checkRepository) {
 		this.bindingRepository = bindingRepository;
+		this.settingRepository = settingRepository;
 		this.destinationRepository = destinationRepository;
 		this.checkRepository = checkRepository;
 	}
@@ -36,13 +40,25 @@ public class CheckNotificationService {
 	@Transactional(readOnly = true)
 	public CheckNotificationResponse findByCheck(Long checkId) {
 		requireCheck(checkId);
-		return CheckNotificationResponse.of(checkId, bindingRepository.findAllByCheckId(checkId));
+		return CheckNotificationResponse.of(checkId, bindingRepository.findAllByCheckId(checkId),
+				settingRepository.findRepeatIntervalMinutes(checkId));
 	}
 
-	/** 목록에 없는 연결은 지웁니다. 기존 연결은 id를 유지한 채로 설정만 바꿉니다. */
+	/**
+	 * 목록에 없는 연결은 지웁니다. 기존 연결은 id를 유지한 채로 설정만 바꿉니다.
+	 * 재발송 주기가 없으면 기존 주기를 그대로 둡니다.
+	 */
 	@Transactional
 	public CheckNotificationResponse replace(Long checkId, CheckNotificationRequest request) {
 		requireCheck(checkId);
+
+		Integer repeatIntervalMinutes = request.repeatIntervalMinutesAsInt();
+		if (repeatIntervalMinutes != null) {
+			CheckNotificationSetting setting = settingRepository.findById(checkId)
+					.orElseGet(() -> new CheckNotificationSetting(checkId, repeatIntervalMinutes));
+			setting.changeRepeatIntervalMinutes(repeatIntervalMinutes);
+			settingRepository.save(setting);
+		}
 
 		Map<Long, TelegramDestination> destinations = loadDestinations(request.bindings());
 		Map<Long, CheckNotificationBinding> existing = bindingRepository.findAllByCheckId(checkId).stream()
@@ -78,7 +94,8 @@ public class CheckNotificationService {
 		// flush해야 응답에 새 연결의 id가 담깁니다.
 		bindingRepository.flush();
 
-		return CheckNotificationResponse.of(checkId, bindingRepository.findAllByCheckId(checkId));
+		return CheckNotificationResponse.of(checkId, bindingRepository.findAllByCheckId(checkId),
+				settingRepository.findRepeatIntervalMinutes(checkId));
 	}
 
 	@Transactional(readOnly = true)
