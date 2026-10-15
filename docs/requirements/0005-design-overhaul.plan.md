@@ -1,7 +1,7 @@
 # 0005. 시각 체계와 화면 전면 재정비 구현 계획
 
 - 요구사항: [0005. 시각 체계와 화면 전면 재정비](0005-design-overhaul.md)
-- 상태: 검토 중
+- 상태: 승인
 
 ## 접근 방법
 
@@ -43,7 +43,8 @@
 | `docs/PRODUCT.md`, `docs/TERMS.md` | 용어 기준과 화면 글 표 |
 | `docs/design/DESIGN.md` | 컴포넌트 절의 새 패턴(지속 시간 표시, URL 정렬·필터) |
 | `docs/TESTING.md` | 화면 검사가 다크 모드와 오류 화면을 검사함, 기준선 없음 |
-| `docs/LICENSES.md` | 고지: Pretendard(OFL) 출처 표시 위치 |
+| `frontend/src/pages/SettingsPage.tsx`, `vite.config.ts` | 오픈소스 고지 절: Pretendard(OFL-1.1) 출처와 라이선스, 번들한 패키지 라이선스 파일(Vite `build.license`) 링크(사람 확인: 2026-10-15) |
+| `docs/LICENSES.md` | 고지 위치와 라이선스 파일 설정 |
 
 ### 화면 글 수정 목록
 
@@ -126,7 +127,8 @@
 
 ## 작업 순서
 
-- [ ] `pretendard` 설치 전 확인(설치 스크립트, `npm audit`)과 설치, 글꼴 불러오기(`build` 커밋)
+- [ ] `pretendard` 설치 전 확인(설치 스크립트, `npm audit`)과 설치, 글꼴 불러오기(`build` 커밋), 설정 화면의 오픈소스 고지 절
+- 순서: 이 작업을 0004보다 먼저 구현하고 병합한다. 0004 브랜치는 그 뒤 `main` 위로 옮긴다(사람 확인: 2026-10-15).
 - [ ] 토큰 파일의 색·글자·그림자·움직임 토큰
 - [ ] 화면 검사 넓히기: 다크 모드 project와 오류 화면 검사를 먼저 더하고 지금 위반 목록 확인, 토큰 적용 뒤 기준선 삭제
 - [ ] `StatusDot` 테스트와 구현, 장애 상태 일원화
