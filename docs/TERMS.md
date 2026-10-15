@@ -36,3 +36,16 @@
 |---|---|---|---|
 | 로그인 | 접속(log-in의 뜻) | KRDS 로그인 패턴(국립국어원 다듬은 말은 정착률이 낮음) | 2026-10-07 |
 | 비밀번호 | 패스워드, 암호(password의 뜻) | KRDS 로그인 패턴(KRDS 안에서도 패스워드를 섞음, Apple은 암호) | 2026-10-07 |
+| 감시 항목 | Check, Monitoring Check, 모니터(Check의 뜻) | 제품 개념은 한국어로 쓰고 메뉴와 제목에서만 병기(요구사항 0005, Uptime Kuma는 모니터) | 2026-10-15 |
+| 장애 | Alert, 경고(Alert의 뜻) | 감시 단위와 장애 이벤트를 나눔(PagerDuty, Zabbix의 장애, Grafana는 Alert와 Warning이 모두 경고라 겹침) | 2026-10-15 |
+| 알림 | 장애(Telegram 발송의 뜻) | 알림은 Telegram으로 보내는 일에만 씀 | 2026-10-15 |
+| 복구 | 해소, Resolved | Telegram 메시지와 복구 알림 설정이 이미 복구를 씀(Zabbix, Grafana는 해결됨) | 2026-10-15 |
+| 위험, 경고 | Critical, Warning | 상태 이름 위험과 심각도를 한 말로 맞춤 | 2026-10-15 |
+| 임계값 | Threshold | Grafana, Zabbix 한국어판 | 2026-10-15 |
+| 리소스 | Resource | 굳은 외래어(WRITING.md의 용어) | 2026-10-15 |
+| 호스트, 호스트 이름 | Host, hostname | 굳은 외래어(Zabbix 한국어판) | 2026-10-15 |
+| 받는 그룹 | 알림 대상(Telegram 그룹의 뜻) | 대상은 확인하는 주소에만 씀 | 2026-10-15 |
+| 설정 안 됨 | 미설정 | 설정 화면이 이미 설정 안 됨을 씀 | 2026-10-15 |
+| 토픽 ID | Message Thread ID, Topic | 한 칸을 두 이름으로 부르던 것을 하나로 맞춤 | 2026-10-15 |
+| Monitoring Manager | Backend, 서버(이 제품의 뜻) | 서버는 감시하는 서버에만 씀(RULES.md의 화면 글) | 2026-10-15 |
+| 닫기 | 취소(창만 닫는 버튼의 뜻) | RULES.md의 화면 글 | 2026-10-15 |

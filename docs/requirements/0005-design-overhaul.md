@@ -18,7 +18,7 @@
 - Check 목록에 정렬이 없고 위험한 Check가 먼저 보이지 않는다. Alert 목록에서는 발생 중인 Alert와 해결된 Alert가 시간순으로 섞이고, 상태 표시가 다른 화면과 따로 구현돼 있다.
 - 화면 글이 한 번에 이해하기 어렵다. 2026-10-15에 화면과 Backend 오류 문구를 모두 모아 검토한 결과는 다음과 같다.
   - Check, Alert, Resource, Threshold를 영어 그대로 쓴다. "알림"이 장애 이벤트(Alert)와 Telegram 발송을 함께 가리키고, "대상"이 확인하는 주소와 알림을 받는 그룹을 함께 가리킨다.
-  - 같은 개념을 화면마다 다르게 부른다. 예: 같은 목록을 "Check", "Monitoring Check", "Check 목록"으로, 같은 값을 "Message Thread ID"와 "Topic"으로, 같은 상태를 "해소"와 "복구"로 부른다.
+  - 같은 개념을 화면마다 다르게 부른다. 예: 같은 목록을 "Check", "Monitoring Check", "Check 목록"으로, 같은 값을 "Message Thread ID"와 "Topic"으로, 같은 상태를 `해소`와 `복구`로 부른다.
   - 사실과 다른 안내가 다섯 곳 있다. 예: 대시보드와 서버 화면이 이미 만든 SNMP 수집을 "아직 설정하지 않았다", "사용할 예정"이라고 안내한다.
   - [RULES.md의 화면 글](../design/RULES.md#화면-글)이 금지한 내부 용어(Backend, Prometheus, Alertmanager, Service Discovery, snmp_exporter)와 코드 값(`MEMORY`, `STORAGE`)이 화면에 나온다. 사용자를 탓하는 오류 문구("형식이 올바르지 않습니다")와 같은 오류의 다른 문구도 있다.
 
