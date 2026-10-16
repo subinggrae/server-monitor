@@ -40,6 +40,19 @@ type FormState = {
 
 const EMPTY_TARGET: TargetRow = { target: '', port: '', enabled: true }
 
+/** 이 폼이 칸 아래에 그리는 오류입니다. 서버가 보낸 칸 이름(Bean Validation의 경로)과 같습니다. */
+const RENDERED_FIELDS = new Set(['name', 'type', 'environment', 'scrapeIntervalSeconds', 'description', 'targets'])
+
+const TARGET_FIELD_ERROR = /^targets\[\d+\]\.(target|port)$/
+
+/** 그릴 칸이 없는 오류는 폼 오류 자리에 보여야 사용자가 저장되지 않은 이유를 압니다. */
+function firstUnrenderedError(fieldErrors: Record<string, string>) {
+  const entry = Object.entries(fieldErrors).find(
+    ([field]) => !RENDERED_FIELDS.has(field) && !TARGET_FIELD_ERROR.test(field),
+  )
+  return entry ? entry[1] : null
+}
+
 const ENVIRONMENTS = ['Production', 'Staging', 'Development', 'Other']
 
 /** Type이 바뀌면 입력 칸의 의미도 바뀌므로 안내 문구를 함께 바꿉니다. */
@@ -136,7 +149,9 @@ function CheckForm({
       if (error instanceof ApiError) {
         setFieldErrors(error.fieldErrors)
         // 여러 값을 함께 봐야 하는 오류는 fieldErrors 없이 메시지로만 옵니다.
-        setFormError(Object.keys(error.fieldErrors).length > 0 ? null : error.message)
+        setFormError(
+          Object.keys(error.fieldErrors).length > 0 ? firstUnrenderedError(error.fieldErrors) : error.message,
+        )
         return
       }
       setFormError('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')
@@ -257,56 +272,68 @@ function CheckForm({
         <p className="text-caption text-muted-foreground">{targetField.hint}</p>
 
         <div className="space-y-1.5 pt-0.5">
-          {form.targets.map((row, index) => (
-            <div key={row.id ?? `new-${index}`} className="flex items-center gap-2">
-              <Input
-                value={row.target}
-                onChange={(event) => updateTarget(index, { target: event.target.value })}
-                placeholder={targetField.placeholder}
-                aria-label={`${targetField.label} ${index + 1}`}
-              />
+          {form.targets.map((row, index) => {
+            const targetError = fieldErrors[`targets[${index}].target`]
+            const portError = fieldErrors[`targets[${index}].port`]
+            return (
+              <div key={row.id ?? `new-${index}`} className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={row.target}
+                    onChange={(event) => updateTarget(index, { target: event.target.value })}
+                    placeholder={targetField.placeholder}
+                    aria-label={`${targetField.label} ${index + 1}`}
+                    aria-invalid={Boolean(targetError)}
+                  />
 
-              {capability?.requiresPort ? (
-                <Input
-                  type="number"
-                  min={1}
-                  max={65535}
-                  className="w-24"
-                  value={row.port}
-                  onChange={(event) => updateTarget(index, { port: event.target.value })}
-                  placeholder="3306"
-                  aria-label={`포트 ${index + 1}`}
-                />
-              ) : null}
+                  {capability?.requiresPort ? (
+                    <Input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      className="w-24"
+                      value={row.port}
+                      onChange={(event) => updateTarget(index, { port: event.target.value })}
+                      placeholder="3306"
+                      aria-label={`포트 ${index + 1}`}
+                      aria-invalid={Boolean(portError)}
+                    />
+                  ) : null}
 
-              <CheckboxLabel className="shrink-0 text-caption text-muted-foreground">
-                <Checkbox
-                  checked={row.enabled}
-                  onChange={(event) => updateTarget(index, { enabled: event.target.checked })}
-                />
-                사용
-              </CheckboxLabel>
+                  <CheckboxLabel className="shrink-0 text-caption text-muted-foreground">
+                    <Checkbox
+                      checked={row.enabled}
+                      onChange={(event) => updateTarget(index, { enabled: event.target.checked })}
+                    />
+                    사용
+                  </CheckboxLabel>
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                // 대상이 하나뿐이면 지울 수 없습니다. Check에는 대상이 하나 이상 있어야 합니다.
-                disabled={form.targets.length === 1}
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    targets: form.targets.filter((_, rowIndex) => rowIndex !== index),
-                  })
-                }
-                aria-label={`대상 ${index + 1} 삭제`}
-              >
-                <Trash2 className="size-3.5" aria-hidden />
-              </Button>
-            </div>
-          ))}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    // 대상이 하나뿐이면 지울 수 없습니다. Check에는 대상이 하나 이상 있어야 합니다.
+                    disabled={form.targets.length === 1}
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        targets: form.targets.filter((_, rowIndex) => rowIndex !== index),
+                      })
+                    }
+                    aria-label={`대상 ${index + 1} 삭제`}
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
+                  </Button>
+                </div>
+                {targetError ? <p className="text-caption text-destructive">{targetError}</p> : null}
+                {portError ? <p className="text-caption text-destructive">{portError}</p> : null}
+              </div>
+            )
+          })}
         </div>
+
+        {fieldErrors.targets ? <p className="text-caption text-destructive">{fieldErrors.targets}</p> : null}
 
         <Button
           type="button"
