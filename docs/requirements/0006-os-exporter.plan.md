@@ -1,7 +1,7 @@
 # 0006. SNMP를 걷어내고 OS exporter로 서버 자원 수집 구현 계획
 
 - 요구사항: [0006. SNMP를 걷어내고 OS exporter로 서버 자원 수집](0006-os-exporter.md)
-- 상태: 검토 중
+- 상태: 승인
 
 ## 접근 방법
 
@@ -111,7 +111,7 @@ metric 이름 근거(2026-10-15 공식 저장소에서 확인한 것과 추측�
 | node | `node_filesystem_size_bytes`, `node_filesystem_avail_bytes`와 label `device`, `fstype`, `mountpoint` | **추측**(소스의 필드 이름만 확인), 표본으로 확인 |
 | windows | v0.32.0의 memory metric 이름 변경 | 영향 미확인, 구현 전에 릴리스 변경 내역 확인 |
 
-- CPU: `100 * (1 - avg by (server_id) (irate(<idle 카운터>[10m])))`. `irate`는 직전 두 수집 사이 평균이라 서버마다 다른 주기(10~240초)와 뜻이 맞는다(권장안, 계획 승인 때 확인). Windows도 idle 기준이고, 작업 관리자 값과 조금 다를 수 있음을 화면 안내에 쓴다.
+- CPU: `100 * (1 - avg by (server_id) (irate(<idle 카운터>[10m])))`. `irate`는 직전 두 수집 사이 평균이라 서버마다 다른 주기(10~240초)와 뜻이 맞는다(사람 확인: 2026-10-16). Windows도 idle 기준이고, 작업 관리자 값과 조금 다를 수 있음을 화면 안내에 쓴다.
 - Memory: 크기 Total, 사용량 Total − Available(Linux는 cache·buffer 제외).
 - Storage: 크기 size, 사용량 size − avail(ext4 예약 블록 때문에 `df`보다 조금 높을 수 있음). Linux 제외 fstype `tmpfs|ramfs|devtmpfs|overlay|squashfs|nsfs|autofs|fuse\..*` 등, Windows는 `^[A-Z]:$`만 받는다. 제외 목록은 규칙 파일과 Java `FilesystemFilter` 두 곳에 있으므로 Java 테스트가 규칙 파일을 읽어 같은지 확인한다.
 - 화면은 `up{job="manager-os"}`과 위 세 규칙만 조회한다(PromQL은 `prometheus` 패키지에만).
@@ -159,7 +159,7 @@ metric 이름 근거(2026-10-15 공식 저장소에서 확인한 것과 추측�
   - 화면의 외부 문자열(CWE-79): React escape, `dangerouslySetInnerHTML` 없음(리뷰).
   - 평문 비밀값(CWE-312): `snmp-runtime` volume 삭제를 배포 절차에 쓴다. C8 코드 검색.
   - 대상 label 위조: `honor_labels` 기본값(리뷰).
-- 받아들이는 위험(요구사항에서 사람이 2026-10-15에 정함): exporter가 인증 없이 평문 HTTP로 열림(CWE-319, CWE-306, #15에서 다룸). 연결 시험으로 내부 포트가 열렸는지 알 수 있음(SNMP 연결 시험과 같은 수준, 화면용 API는 `127.0.0.1`에만 묶임). 링크 로컬(169.254.0.0/16) 주소는 막지 않는다(권장안, 계획 승인 때 확인).
+- 받아들이는 위험(요구사항에서 사람이 2026-10-15에 정함): exporter가 인증 없이 평문 HTTP로 열림(CWE-319, CWE-306, #15에서 다룸). 연결 시험으로 내부 포트가 열렸는지 알 수 있음(SNMP 연결 시험과 같은 수준, 화면용 API는 `127.0.0.1`에만 묶임). 링크 로컬(169.254.0.0/16) 주소는 막지 않는다(사람 확인: 2026-10-16).
 
 ## 테스트 계획
 
@@ -213,15 +213,15 @@ os-test-node-exporter:
 | `README.md` | "서버 SNMP 수집"을 "서버 자원 수집(OS exporter)"으로, exporter 설치와 방화벽 안내 링크 |
 | `docs/PRODUCT.md` | 목적 문장, 영어로 쓰는 이름에서 SNMP·Community를 빼고 node_exporter·windows_exporter 추가 |
 | `docs/TERMS.md` | OS exporter, 수집, 수집 설정, 수집 상태 문구 |
-| `AGENTS.md` 168행 | 위험 영역의 SNMP 문구(지침 파일이라 계획 승인 때 사람에게 물음, 제안은 아래) |
+| `AGENTS.md` 프로젝트 고유 규칙 | 위험 영역의 SNMP 문구(아래 문구로 바꾸기로 함, 사람 확인: 2026-10-16) |
 
-- AGENTS.md 168행 제안: "`infrastructure/`의 Prometheus·Alertmanager·Blackbox·SNMP 설정"을 "Prometheus 설정과 규칙, Alertmanager·Blackbox 설정"으로, "SNMP community를 저장·전달·기록하는 방식"을 "exporter 접근 방식"으로 바꾼다.
+- AGENTS.md 문구: "`infrastructure/`의 Prometheus·Alertmanager·Blackbox·SNMP 설정"을 "Prometheus 설정과 규칙, Alertmanager·Blackbox 설정"으로, "SNMP community를 저장·전달·기록하는 방식"을 "exporter 접근 방식"으로 바꾼다.
 
 ## 작업 순서
 
 - 순서: 요구사항 0005가 병합된 뒤 이 브랜치를 `main` 위로 옮겨 시작한다(사람 확인: 2026-10-15).
-- [ ] 계획 승인. 이때 함께 확인: CPU `irate[10m]`(권장), 링크 로컬 주소를 막지 않음(권장), AGENTS.md 168행 문구
-- [ ] ADR 번호 확인(병합된 ADR과 열린 PR), ADR 둘 초안(남길 결정)
+- [x] 계획 승인(2026-10-16). CPU `irate[10m]`, 링크 로컬 주소를 막지 않음, AGENTS.md 문구 변경을 함께 승인
+- [ ] ADR 둘 초안(남길 결정). 번호는 0004, 0005(0003은 미병합 브랜치 `feature/resource-threshold-alert`가 씀)
 - [ ] `os-test` 컨테이너 추가, 표본 두 개 만들고 "추측" metric 이름 확정. 다르면 계획을 고친다
 - [ ] 규칙 테스트를 쓰고 실패 확인 → `server-resources.yml`(C5), TESTING.md·DEVELOPMENT.md 규칙 테스트
 - [ ] C3·C4 테스트 실패 확인 → `exporter` 패키지의 클라이언트·파서·필터
