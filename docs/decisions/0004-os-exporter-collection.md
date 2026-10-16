@@ -23,6 +23,7 @@
 
 - 수집 설정(사용 여부, 포트, 수집 주기)은 서버당 0~1행의 `server_exporter_configs`에 둔다. 서버에는 OS(`LINUX`, `WINDOWS`)만 더한다.
 - Prometheus는 `GET /api/prometheus/sd/os-exporter`로 대상을 받아 `manager-os` job으로 `/metrics`를 수집한다. SD label은 `server_id`, `server_name`, `environment`, `os`, `__scrape_interval__`이다(수집 주기 전달은 ADR 0002와 같다).
+- `manager-os` job은 `metric_relabel_configs`의 keep 규칙으로 CPU, Memory, Storage 계산에 쓰는 series만 저장한다. 다른 지표가 필요해지면 그때 keep 목록과 필요한 테이블을 더한다.
 - 연결 시험과 리소스 찾기는 Manager가 `http://{host}:{port}/metrics`를 한 번 직접 읽는다. 경로를 고정하고, `GET`만 보내며, 리다이렉트를 따르지 않고, 크기와 시간에 한도를 둔다.
 - 서버가 살아 있는지는 Blackbox 감시 항목이 판단한다. 서버 화면은 `up{job="manager-os"}`로 정한 수집 상태만 보인다.
 - community 암호화가 없어지므로 암호화 서비스와 `APP_SECRET_KEY`를 지운다.

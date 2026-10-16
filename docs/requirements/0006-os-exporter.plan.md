@@ -80,7 +80,7 @@ Manager ── GET http://host:port/metrics (연결 시험, 리소스 찾기만.
              "os": "LINUX", "__scrape_interval__": "30s"}}]
 ```
 
-- `prometheus.yml`의 `manager-os` job: `metrics_path: /metrics`, `http_sd_configs`(refresh 30s), `sample_limit: 50000`(추측. windows_exporter의 service collector 크기를 보고 정함), `honor_labels`는 기본값(false)으로 두어 exporter가 대상 label을 위조하지 못하게 한다. `relabel_configs`는 없다.
+- `prometheus.yml`의 `manager-os` job: `metrics_path: /metrics`, `http_sd_configs`(refresh 30s), `sample_limit: 50000`(추측. windows_exporter의 service collector 크기를 보고 정함), `honor_labels`는 기본값(false)으로 두어 exporter가 대상 label을 위조하지 못하게 한다. `relabel_configs`는 없다. `metric_relabel_configs`에 keep 규칙 하나를 두어 recording rule이 읽는 series(두 exporter의 CPU idle 카운터, Memory Total·Available, 디스크 size·avail/free)만 저장한다(사람 확인: 2026-10-16, 요구사항 C10). `sample_limit`은 keep 뒤의 개수에 걸리므로 CPU 수와 디스크 수를 보고 정한다.
 - 공통 recording rule(ADR로 남김, 0004가 그대로 씀): `manager:resource_usage_percent`(0~100), `manager:resource_used_bytes`, `manager:resource_size_bytes`. label은 `server_id`, `resource_type`(CPU, MEMORY, STORAGE), `resource_key`뿐이다(`max by`로 끝냄).
 - 화면용 API(이 저장소의 화면만 호출)
 
@@ -177,6 +177,7 @@ Backend `cd backend && ./gradlew test`, Frontend `cd frontend && npm test`, 규�
 | C6 | 수동: 이름이 다른 임시 MariaDB 11.4와 PostgreSQL 17에 V8까지 적용하고 데이터를 넣은 뒤 V9를 두 번 적용 | 결과를 진행 중 발견에 적음 |
 | C7 | 수동: 아래 절차 | 결과를 진행 중 발견에 적음 |
 | C8 | `git grep -n -i "snmp\|community\|APP_SECRET_KEY\|SecretEncryption"`의 남은 위치가 기록 문서(요구사항 0001·0006, 적용한 migration)뿐, 문서 검사(`--render`)와 전체 검증 통과 | 명령 결과 |
+| C10 | 수동: C7 절차 5 | 결과를 진행 중 발견에 적음 |
 | C9 | `ServerTargetServiceTest`의 수집 상태 다섯 값, 수동 확인에서 exporter를 멈춰도 감시 항목 상태와 알림이 그대로 | `./gradlew test`, 수동 |
 
 C7 절차(임시 compose project, Telegram은 `TELEGRAM_API_BASE_URL=http://127.0.0.1:1`로 막음):
@@ -185,7 +186,7 @@ C7 절차(임시 compose project, Telegram은 `TELEGRAM_API_BASE_URL=http://127.
 2. 서버를 추가한다(호스트 `os-test-node-exporter`, OS Linux). [연결 시험]에서 node_exporter와 버전, OS를 Windows로 바꾸면 불일치 안내가 보이는지 본다.
 3. 수집을 켜고 30초로 저장한다. 재시작 없이 1분 안에 Prometheus `/api/v1/targets`에 `manager-os` 대상, `scrapeInterval: 30s`, label 다섯 개가 보이는지 본다.
 4. [리소스 찾기]에서 CPU, Memory, `/data`가 보이고 tmpfs가 없는지, 고르고 저장한 뒤 사용률이 보이는지 본다. `manager:resource_usage_percent`와 화면 값, 컨테이너 `/proc/meminfo`의 MemAvailable을 비교한다.
-5. 수집 주기를 120초로 바꿔 재시작 없이 반영되는지 본다.
+5. 수집 주기를 120초로 바꿔 재시작 없이 반영되는지 본다. Prometheus의 `manager-os` series 이름 목록이 keep 규칙의 이름과 `up` 등 scrape 자체 series뿐인지 본다(C10).
 6. 이 서버 호스트를 대상으로 하는 ICMP 감시 항목을 만든 뒤 `docker stop os-test-node-exporter`를 하고, 수집 상태만 "수집 실패"가 되고 감시 항목은 그대로인지 본다(C9).
 7. 화면 검사(`npm run test:screen`)를 실행한다.
 

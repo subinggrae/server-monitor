@@ -24,7 +24,7 @@
 ## 하지 않는 것
 
 - exporter를 대상 서버에 설치하거나 업데이트하는 것. 설치 안내 링크만 보인다.
-- CPU, Memory, Storage 밖의 지표(네트워크, 프로세스, 서비스 상태 등)를 화면에 보이는 것. exporter가 내보내는 다른 값은 Prometheus와 Grafana에서 볼 수 있다.
+- CPU, Memory, Storage 밖의 지표(네트워크, 프로세스, 서비스 상태 등)를 수집하는 것. exporter가 내보내는 다른 값은 Prometheus에 저장하지 않으므로 화면, Manager Database, Grafana 어디에서도 볼 수 없다. 다른 지표가 필요해지면 그때 필요한 설정과 테이블을 더한다(사람 확인: 2026-10-16).
 - 사용률 알림. #14(요구사항 0004)에서 이 작업의 공통 이름을 써서 만든다.
 - 수집 실패 알림. #6에서 이 작업의 수집 대상을 기준으로 다시 정한다.
 - 기존 SNMP time series를 새 이름으로 이어 붙이는 것. 과거 값은 Prometheus 보존 기간(15일) 동안만 남는다.
@@ -109,6 +109,7 @@
 
 - [ ] C1. 서버의 OS와 수집 설정(사용 여부, 포트, 수집 주기)을 저장하면 조회 API와 화면에 보이고, 허용하지 않는 값은 400과 칸별 오류를 돌려준다. (S1, S5, S9) — 확인: 단위 테스트, 컴포넌트 테스트
 - [ ] C2. 새 HTTP SD 응답에 수집을 켠 서버만 `host:port`와 `server_id`, `server_name`, `environment`, `os`, `__scrape_interval__` label로 들어간다. (S1, S5) — 확인: 단위 테스트
+- [ ] C10. Prometheus는 OS exporter에서 CPU, Memory, Storage 계산에 쓰는 series와 `up`만 저장하고, 그 밖의 series는 수집 단계에서 버린다. (하지 않는 것) — 확인: 수동 확인(C7 환경에서 Prometheus의 `manager-os` series 이름 목록)
 - [ ] C3. node_exporter와 windows_exporter의 `/metrics` 표본으로 연결 시험이 exporter 종류와 버전을 알아내고, OS가 다르면 알린다. 크기·시간 한도를 넘거나 형식이 아닌 응답은 실패로 끝낸다. (S2, S7, S8, S10) — 확인: 단위 테스트(표본 파일)
 - [ ] C4. 두 exporter의 표본으로 리소스 찾기가 CPU, Memory, 디스크 목록을 만들고 임시 파일 시스템을 뺀다. (S3) — 확인: 단위 테스트(표본 파일)
 - [ ] C5. 공통 recording rule이 두 exporter의 값을 같은 이름과 단위로 만든다. Linux Memory는 available 기준이다. (S4) — 확인: `promtool test rules`
