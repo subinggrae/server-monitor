@@ -1,6 +1,8 @@
 package kr.co.unidocs.monitoring.check;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
@@ -31,5 +33,10 @@ public interface MonitoringCheckRepository extends JpaRepository<MonitoringCheck
 			where c.id = :checkId
 			""")
 	Optional<MonitoringCheck> findByIdWithTargets(Long checkId);
+
+	/** 같은 Check에 딸린 설정을 동시에 저장할 때 차례로 처리하려고 Check 행을 잠급니다. transaction이 끝나면 풀립니다. */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select c from MonitoringCheck c where c.id = :checkId")
+	Optional<MonitoringCheck> findByIdForUpdate(Long checkId);
 
 }

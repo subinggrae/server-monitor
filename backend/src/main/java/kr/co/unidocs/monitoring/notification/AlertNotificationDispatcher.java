@@ -17,7 +17,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.IntStream;
 
 /**
  * 알림 대상은 Manager Database가 정합니다. Prometheus label로 정하지 않습니다. (CLAUDE.md 4번)
@@ -43,6 +47,9 @@ public class AlertNotificationDispatcher {
 	private final Duration dedupeWindow;
 
 	private final Clock clock;
+
+	/** Alert마다 락을 만들면 계속 쌓이므로, 고정된 수의 락을 나눠 씁니다. 가상 스레드를 막지 않게 synchronized 대신 씁니다. */
+	private final Lock[] deliveryLocks = IntStream.range(0, 64).mapToObj(i -> new ReentrantLock()).toArray(Lock[]::new);
 
 	AlertNotificationDispatcher(CheckNotificationBindingRepository bindingRepository,
 			CheckNotificationSettingRepository settingRepository, NotificationDeliveryRepository deliveryRepository,
@@ -106,8 +113,25 @@ public class AlertNotificationDispatcher {
 		return recipients;
 	}
 
-	/** @param repeatInterval FIRING일 때만 있습니다. 복구 알림은 한 번만 보내므로 재발송 주기를 보지 않습니다. */
+	/**
+	 * 같은 Alert의 webhook이 겹쳐 오면 둘 다 보낸 기록이 없다고 보고 두 번 보냅니다.
+	 * 그래서 기록 확인부터 전송 기록까지를 Alert와 그룹마다 하나씩만 하게 묶습니다.
+	 * manager-api는 인스턴스가 하나라 프로세스 안의 락으로 충분합니다.
+	 */
 	private void deliver(AlertNotification notification, Recipient recipient, Duration repeatInterval) {
+		Lock lock = deliveryLocks[Math.floorMod(Objects.hash(notification.alertEventId(), recipient.destinationId()),
+				deliveryLocks.length)];
+		lock.lock();
+		try {
+			deliverExclusively(notification, recipient, repeatInterval);
+		}
+		finally {
+			lock.unlock();
+		}
+	}
+
+	/** @param repeatInterval FIRING일 때만 있습니다. 복구 알림은 한 번만 보내므로 재발송 주기를 보지 않습니다. */
+	private void deliverExclusively(AlertNotification notification, Recipient recipient, Duration repeatInterval) {
 		AlertStatus alertStatus = notification.resolved() ? AlertStatus.RESOLVED : AlertStatus.FIRING;
 
 		if (alertStatus == AlertStatus.FIRING && !dueForRepeat(notification.alertEventId(), recipient.destinationId(),

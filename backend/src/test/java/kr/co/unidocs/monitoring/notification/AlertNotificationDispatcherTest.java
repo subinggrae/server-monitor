@@ -20,9 +20,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -54,7 +57,7 @@ class AlertNotificationDispatcherTest {
 	private final TelegramClient telegramClient = mock(TelegramClient.class);
 
 	/** 전송 기록 저장소를 흉내 냅니다. 조회 조건(상태 포함)을 실제 query처럼 적용합니다. */
-	private final List<NotificationDelivery> deliveries = new ArrayList<>();
+	private final List<NotificationDelivery> deliveries = new CopyOnWriteArrayList<>();
 
 	private AlertNotificationDispatcher dispatcher;
 
@@ -154,6 +157,42 @@ class AlertNotificationDispatcherTest {
 		dispatcher.dispatch(firing());
 
 		verify(telegramClient, times(1)).sendMessage(anyLong(), any(), anyString());
+	}
+
+	@Test
+	@DisplayName("같은 Alert의 webhook이 겹쳐 와도 Telegram으로 한 번만 보낸다")
+	void sendsOnceForOverlappingWebhooks() throws InterruptedException {
+		givenRepeatInterval(60);
+		CountDownLatch firstSending = new CountDownLatch(1);
+		CountDownLatch releaseFirst = new CountDownLatch(1);
+		AtomicInteger sendCount = new AtomicInteger();
+		when(telegramClient.sendMessage(anyLong(), any(), anyString())).then(invocation -> {
+			if (sendCount.incrementAndGet() == 1) {
+				firstSending.countDown();
+				releaseFirst.await(5, TimeUnit.SECONDS);
+			}
+			return TelegramSendResult.sent();
+		});
+
+		Thread first = Thread.ofPlatform().start(() -> dispatcher.dispatch(firing()));
+		assertThat(firstSending.await(5, TimeUnit.SECONDS)).isTrue();
+		Thread second = Thread.ofPlatform().start(() -> dispatcher.dispatch(firing()));
+		awaitBlockedOrSent(second, sendCount);
+		releaseFirst.countDown();
+		first.join(5_000);
+		second.join(5_000);
+
+		assertThat(sendCount).hasValue(1);
+		assertThat(deliveries).extracting(NotificationDelivery::getDeliveryStatus).containsExactly(DeliveryStatus.SENT);
+	}
+
+	/** 두 번째 webhook이 첫 전송을 기다리며 멈추거나, 기다리지 않고 보낼 때까지 기다립니다. */
+	private void awaitBlockedOrSent(Thread second, AtomicInteger sendCount) {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+		while (second.getState() != Thread.State.WAITING && sendCount.get() < 2 && second.isAlive()
+				&& System.nanoTime() < deadline) {
+			Thread.onSpinWait();
+		}
 	}
 
 	private void givenRepeatInterval(int minutes) {
