@@ -1,6 +1,3 @@
-import type { ReactNode } from 'react'
-
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /** 화면 전체를 spinner로 막지 않고 표가 들어올 자리를 그대로 남겨 둡니다. */
@@ -9,7 +6,7 @@ export function TableSkeleton({ rows = 6, columns = 4 }: { rows?: number; column
     <div
       className="overflow-hidden rounded-md border border-border bg-surface"
       role="status"
-      aria-label="불러오는 중입니다."
+      aria-label="불러오는 중…"
     >
       <div className="h-8 border-b border-border bg-surface-subtle" />
       {Array.from({ length: rows }).map((_, rowIndex) => (
@@ -28,45 +25,6 @@ export function TableSkeleton({ rows = 6, columns = 4 }: { rows?: number; column
           ))}
         </div>
       ))}
-    </div>
-  )
-}
-
-export function LoadingState({ message = '불러오는 중입니다.' }: { message?: string }) {
-  return (
-    <p className="py-10 text-center text-[13px] text-muted-foreground" role="status">
-      {message}
-    </p>
-  )
-}
-
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  return (
-    <div className="rounded-md border border-border bg-surface px-4 py-10 text-center">
-      <p className="text-[13px] font-medium">{message}</p>
-      {onRetry ? (
-        <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
-          다시 시도
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
-export function EmptyState({
-  title,
-  description,
-  action,
-}: {
-  title: string
-  description: string
-  action?: ReactNode
-}) {
-  return (
-    <div className="rounded-md border border-dashed border-border px-4 py-12 text-center">
-      <p className="text-[13px] font-medium">{title}</p>
-      <p className="mx-auto mt-1 max-w-xl text-[13px] text-muted-foreground">{description}</p>
-      {action ? <div className="mt-4">{action}</div> : null}
     </div>
   )
 }

@@ -41,6 +41,17 @@ export default defineConfig({
       testMatch: /screen\.spec\.ts/,
       use: { ...desktop, viewport: { width: 1920, height: 1080 } },
     },
+    // 다크 모드는 토큰 값이 따로 있어 대비를 따로 잽니다.
+    {
+      name: 'screen-1280-dark',
+      testMatch: /screen\.spec\.ts/,
+      use: { ...desktop, viewport: { width: 1280, height: 800 }, colorScheme: 'dark' },
+    },
+    {
+      name: 'screen-1920-dark',
+      testMatch: /screen\.spec\.ts/,
+      use: { ...desktop, viewport: { width: 1920, height: 1080 }, colorScheme: 'dark' },
+    },
     {
       name: 'perf',
       testMatch: /perf\.spec\.ts/,

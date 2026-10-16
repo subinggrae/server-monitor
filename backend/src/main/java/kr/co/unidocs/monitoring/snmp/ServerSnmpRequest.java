@@ -20,9 +20,9 @@ public record ServerSnmpRequest(
 		@NotNull(message = "SNMP 버전을 선택해 주세요.")
 		SnmpVersion version,
 
-		@NotNull(message = "Port를 입력해 주세요.")
-		@Min(value = 1, message = "Port는 1에서 65535 사이여야 합니다.")
-		@Max(value = 65535, message = "Port는 1에서 65535 사이여야 합니다.")
+		@NotNull(message = "포트를 입력해 주세요.")
+		@Min(value = 1, message = "포트는 1에서 65535 사이 숫자로 입력해 주세요.")
+		@Max(value = 65535, message = "포트는 1에서 65535 사이 숫자로 입력해 주세요.")
 		Integer port,
 
 		String community,

@@ -1,17 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
+import { RecentAlertTable } from '@/components/alerts/RecentAlertTable'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { PageBody, PageHeader } from '@/components/PageHeader'
-import { ErrorState, LoadingState } from '@/components/QueryStates'
 import { StatusDot } from '@/components/StatusDot'
 import { CheckFormDialog } from '@/components/checks/CheckFormDialog'
 import { CheckNotificationSection } from '@/components/checks/CheckNotificationSection'
+import { queryState } from '@/components/layout/state'
+import { DetailPage } from '@/components/layout/DetailPage'
+import { PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
-import { Section, SectionHeader } from '@/components/ui/section'
+import { DetailList } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { apiDelete, checkDetailQuery, queryKeys } from '@/lib/api'
+import { firingSince } from '@/lib/alerts'
+import { alertsQuery, apiDelete, checkDetailQuery, queryKeys, type MonitoringCheck } from '@/lib/api'
+import { formatDateTime, formatElapsed, formatTime } from '@/lib/format'
+
+const RECENT_ALERT_LIMIT = 5
+
+const REFRESH_INTERVAL = 30_000
+
+/** 대상마다 따로 확인하므로 가장 늦게 확인한 대상의 시각을 씁니다. */
+function latestCheckedAt(check: MonitoringCheck | undefined) {
+  const times = (check?.targets ?? []).flatMap((target) => (target.checkedAt ? [target.checkedAt] : []))
+  return times.length === 0 ? null : times.reduce((latest, time) => (new Date(time) > new Date(latest) ? time : latest))
+}
 
 export function CheckDetailPage() {
   const { checkId: rawCheckId } = useParams()
@@ -19,7 +33,8 @@ export function CheckDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const checkResult = useQuery(checkDetailQuery(checkId))
+  // 머리의 지속 시간과 마지막 확인 시각이 열어 둔 채로도 바뀌어야 합니다. 대시보드와 같은 간격입니다.
+  const checkResult = useQuery({ ...checkDetailQuery(checkId), refetchInterval: REFRESH_INTERVAL })
   const [formOpen, setFormOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -31,44 +46,39 @@ export function CheckDetailPage() {
     },
   })
 
-  if (checkResult.isPending) {
-    return (
-      <PageBody>
-        <LoadingState message="Check 정보를 불러오는 중입니다." />
-      </PageBody>
-    )
-  }
-
-  if (checkResult.isError) {
-    return (
-      <PageBody>
-        <ErrorState
-          message={
-            checkResult.error instanceof Error
-              ? checkResult.error.message
-              : 'Check 정보를 불러오지 못했습니다.'
-          }
-          onRetry={() => checkResult.refetch()}
-        />
-      </PageBody>
-    )
-  }
-
   const check = checkResult.data
+
+  // 장애 API는 최근 기록만 돌려줍니다. 그 안에서 이 감시 항목의 것만 고릅니다.
+  const alerts = useQuery({ ...alertsQuery, refetchInterval: REFRESH_INTERVAL })
+  const recentAlerts = (alerts.data ?? []).filter((alert) => alert.checkId === checkId).slice(0, RECENT_ALERT_LIMIT)
+  const since = firingSince(alerts.data ?? []).get(checkId)
+  const lastCheckedAt = latestCheckedAt(check)
 
   return (
     <>
-      <PageHeader
-        title={check.name}
-        back={{ to: '/monitoring', label: 'Check 목록' }}
+      <DetailPage
+        back={{ to: '/monitoring', label: '감시 항목 목록' }}
+        title={check?.name}
+        state={queryState(
+          checkResult,
+          checkResult.error instanceof Error ? checkResult.error.message : '감시 항목을 불러오지 못했습니다.',
+        )}
         meta={
-          <>
-            <StatusDot status={check.status} />
-            <span>{check.typeDisplayName}</span>
-            <span>{check.environment}</span>
-            <span>{`수집 주기 ${check.scrapeIntervalSeconds}초`}</span>
-            {check.enabled ? null : <span>사용 안 함</span>}
-          </>
+          check ? (
+            <>
+              <StatusDot status={check.status} />
+              {check.status === 'CRITICAL' ? (
+                since ? (
+                  <span className="tabular font-medium text-foreground" title={formatDateTime(since)}>
+                    {formatElapsed(since)}
+                  </span>
+                ) : (
+                  <span>시작 시각 모름</span>
+                )
+              ) : null}
+              {lastCheckedAt ? <span className="tabular">마지막 확인 {formatTime(lastCheckedAt)}</span> : null}
+            </>
+          ) : undefined
         }
         actions={
           <>
@@ -80,62 +90,85 @@ export function CheckDetailPage() {
             </Button>
           </>
         }
-      />
+        summary={
+          check ? (
+            <DetailList
+              items={[
+                { label: '종류', value: check.typeDisplayName },
+                { label: '환경', value: check.environment },
+                { label: '수집 주기', value: `${check.scrapeIntervalSeconds}초` },
+                ...(check.description ? [{ label: '설명', value: check.description }] : []),
+              ]}
+            />
+          ) : undefined
+        }
+      >
+        {check ? (
+          <>
+            <PageSection title="확인 대상" description={`확인하는 주소 ${check.targetCount}개입니다.`}>
+              <TableFrame>
+                <Table>
+                  <THead>
+                    <tr>
+                      <TH>주소</TH>
+                      <TH className="w-28">사용 여부</TH>
+                      <TH className="w-32">상태</TH>
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {check.targets.map((target) => (
+                      <TR key={target.id}>
+                        <TD className="tabular break-all">{target.blackboxTarget}</TD>
+                        <TD className="text-muted-foreground">{target.enabled ? '사용' : '사용 안 함'}</TD>
+                        <TD>
+                          <StatusDot status={target.status} />
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </TableFrame>
+            </PageSection>
 
-      <PageBody>
-        {check.description ? (
-          <p className="max-w-2xl text-[13px] text-muted-foreground">{check.description}</p>
+            <PageSection
+              title="최근 장애"
+              actions={
+                <Link
+                  to="/alerts"
+                  className="text-body text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                >
+                  장애 기록 전체
+                </Link>
+              }
+              state={queryState(
+                alerts,
+                '장애 기록을 불러오지 못했습니다.',
+                recentAlerts.length === 0 ? { title: '최근에 기록된 장애가 없습니다.' } : null,
+              )}
+            >
+              <RecentAlertTable alerts={recentAlerts} />
+            </PageSection>
+
+            <CheckNotificationSection checkId={checkId} />
+          </>
         ) : null}
+      </DetailPage>
 
-        <Section>
-          <SectionHeader
-            title="확인 대상"
-            description={`Prometheus가 확인하는 주소 ${check.targetCount}개입니다.`}
-            actions={
-              <Button variant="secondary" size="sm" onClick={() => setFormOpen(true)}>
-                대상 편집
-              </Button>
-            }
+      {check ? (
+        <>
+          <CheckFormDialog open={formOpen} onOpenChange={setFormOpen} check={check} />
+
+          <ConfirmDialog
+            open={deleting}
+            onOpenChange={setDeleting}
+            title="이 감시 항목을 삭제할까요?"
+            description={`확인 대상 ${check.targetCount}개가 함께 삭제됩니다.\n삭제하면 잠시 뒤부터 이 주소들을 확인하지 않습니다.`}
+            pending={deleteMutation.isPending}
+            errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
+            onConfirm={() => deleteMutation.mutate()}
           />
-
-          <TableFrame>
-            <Table>
-              <THead>
-                <tr>
-                  <TH>주소</TH>
-                  <TH className="w-28">사용 여부</TH>
-                  <TH className="w-32">상태</TH>
-                </tr>
-              </THead>
-              <TBody>
-                {check.targets.map((target) => (
-                  <TR key={target.id}>
-                    <TD className="tabular break-all">{target.blackboxTarget}</TD>
-                    <TD className="text-muted-foreground">{target.enabled ? '사용' : '사용 안 함'}</TD>
-                    <TD>
-                      <StatusDot status={target.status} />
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </TableFrame>
-        </Section>
-
-        <CheckNotificationSection checkId={checkId} />
-      </PageBody>
-
-      <CheckFormDialog open={formOpen} onOpenChange={setFormOpen} check={check} />
-
-      <ConfirmDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        title="이 Check를 삭제할까요?"
-        description={`확인 대상 ${check.targetCount}개가 함께 삭제됩니다.\n삭제하면 다음 Service Discovery 갱신부터 Prometheus 모니터링 대상에서 빠집니다.`}
-        pending={deleteMutation.isPending}
-        errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
-        onConfirm={() => deleteMutation.mutate()}
-      />
+        </>
+      ) : null}
     </>
   )
 }

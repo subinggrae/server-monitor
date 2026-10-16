@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 const FIELD_CLASS =
-  'w-full rounded-md border border-border bg-surface px-2.5 text-sm text-foreground ' +
+  'w-full rounded-md border border-border bg-surface px-2.5 text-body text-foreground ' +
   'placeholder:text-subtle-foreground hover:border-border-strong ' +
   'disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive'
 
@@ -34,7 +34,7 @@ export function SearchInput({ className, ...props }: ComponentProps<'input'>) {
 }
 
 export function Label({ className, ...props }: ComponentProps<'label'>) {
-  return <label className={cn('block text-[13px] font-medium', className)} {...props} />
+  return <label className={cn('block text-body font-medium', className)} {...props} />
 }
 
 export function Checkbox({ className, ...props }: ComponentProps<'input'>) {
@@ -42,7 +42,7 @@ export function Checkbox({ className, ...props }: ComponentProps<'input'>) {
 }
 
 export function CheckboxLabel({ className, ...props }: ComponentProps<'label'>) {
-  return <label className={cn('flex items-center gap-2 text-sm', className)} {...props} />
+  return <label className={cn('flex items-center gap-2 text-body', className)} {...props} />
 }
 
 export function Field({
@@ -61,9 +61,9 @@ export function Field({
   return (
     <div className="space-y-1.5">
       <Label htmlFor={htmlFor}>{label}</Label>
-      {hint && !error ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint && !error ? <p className="text-caption text-muted-foreground">{hint}</p> : null}
       {children}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="text-caption text-destructive">{error}</p> : null}
     </div>
   )
 }

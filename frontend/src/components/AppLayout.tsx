@@ -23,10 +23,10 @@ const NAV_SECTIONS: NavSection[] = [
     items: [{ to: '/', label: '대시보드', icon: LayoutDashboard, end: true }],
   },
   {
-    title: '모니터링',
+    title: '감시',
     items: [
-      { to: '/monitoring', label: 'Check', icon: Activity },
-      { to: '/alerts', label: 'Alert', icon: BellRing },
+      { to: '/monitoring', label: '감시 항목(Check)', icon: Activity },
+      { to: '/alerts', label: '장애 기록(Alert)', icon: BellRing },
     ],
   },
   {
@@ -47,14 +47,14 @@ export function AppLayout() {
     <div className="flex min-h-screen bg-background text-foreground">
       <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r border-border bg-sidebar">
         <div className="px-4 py-4">
-          <p className="text-[13px] font-semibold">Monitoring Manager</p>
+          <p className="text-body font-semibold">Monitoring Manager</p>
         </div>
 
         <nav className="flex-1 space-y-5 overflow-y-auto px-2 pb-4">
           {NAV_SECTIONS.map((section, index) => (
             <div key={section.title ?? `section-${index}`} className="space-y-0.5">
               {section.title ? (
-                <p className="px-2 pb-1 text-[11px] font-medium text-subtle-foreground">
+                <p className="px-2 pb-1 text-caption font-medium text-subtle-foreground">
                   {section.title}
                 </p>
               ) : null}
@@ -65,10 +65,10 @@ export function AppLayout() {
                   end={end}
                   className={({ isActive }) =>
                     cn(
-                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
+                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-body transition-colors',
                       isActive
                         ? 'bg-accent font-medium text-foreground'
-                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                     )
                   }
                 >
@@ -95,7 +95,7 @@ function BackendStatus() {
 
   return (
     <div className="border-t border-border px-4 py-2.5">
-      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
         <span
           className={cn(
             'size-1.5 shrink-0 rounded-full',
@@ -103,7 +103,7 @@ function BackendStatus() {
           )}
           aria-hidden
         />
-        {isError ? 'Backend 연결 끊김' : isPending ? '연결 확인 중' : (data?.application ?? '')}
+        {isError ? 'Monitoring Manager 연결 끊김' : isPending ? '연결 확인 중…' : (data?.application ?? '')}
       </span>
     </div>
   )

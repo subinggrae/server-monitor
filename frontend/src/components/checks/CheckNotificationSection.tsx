@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
-import { Button } from '@/components/ui/button'
+import type { ContentState } from '@/components/layout/ContentState'
+import { Notice } from '@/components/layout/Notice'
+import { FormActions, PageSection } from '@/components/layout/PageSection'
 import { Checkbox, CheckboxLabel, Field, Input } from '@/components/ui/input'
-import { Section, SectionHeader } from '@/components/ui/section'
 import {
   ApiError,
   apiPut,
@@ -35,44 +36,46 @@ export function CheckNotificationSection({ checkId }: { checkId: number }) {
   const destinations = useQuery(telegramDestinationsQuery)
   const notifications = useQuery(checkNotificationsQuery(checkId))
 
-  if (destinations.isPending || notifications.isPending) {
-    return null
-  }
-
-  if (destinations.isError || notifications.isError) {
-    return (
-      <Section>
-        <SectionHeader title="알림" />
-        <p className="text-[13px] text-destructive">알림 설정을 불러오지 못했습니다.</p>
-      </Section>
-    )
-  }
-
-  if (destinations.data.length === 0) {
-    return (
-      <Section>
-        <SectionHeader title="알림" />
-        <p className="text-[13px] text-muted-foreground">
-          등록된 Telegram 그룹이 없습니다.{' '}
-          <Link to="/notifications" className="text-foreground underline underline-offset-4">
-            Telegram 그룹 등록하기
-          </Link>
-        </p>
-      </Section>
-    )
-  }
+  const state: ContentState =
+    destinations.isPending || notifications.isPending
+      ? { kind: 'loading' }
+      : destinations.isError || notifications.isError
+        ? {
+            kind: 'error',
+            message: '알림 설정을 불러오지 못했습니다.',
+            onRetry: () => {
+              if (destinations.isError) {
+                void destinations.refetch()
+              }
+              if (notifications.isError) {
+                void notifications.refetch()
+              }
+            },
+          }
+        : { kind: 'ready' }
 
   return (
-    <NotificationForm
-      key={notifications.dataUpdatedAt}
-      checkId={checkId}
-      notifications={notifications.data}
-      destinations={destinations.data.map((destination) => ({
-        id: destination.id,
-        name: destination.name,
-        enabled: destination.enabled,
-      }))}
-    />
+    <PageSection title="알림" description="고른 Telegram 그룹으로만 장애 알림이 갑니다." state={state}>
+      {destinations.data?.length === 0 ? (
+        <p className="text-body text-muted-foreground">
+          등록된 Telegram 그룹이 없습니다.{' '}
+          <Link to="/notifications" className="text-foreground underline underline-offset-4">
+            Telegram 그룹 추가
+          </Link>
+        </p>
+      ) : destinations.data && notifications.data ? (
+        <NotificationForm
+          key={notifications.dataUpdatedAt}
+          checkId={checkId}
+          notifications={notifications.data}
+          destinations={destinations.data.map((destination) => ({
+            id: destination.id,
+            name: destination.name,
+            enabled: destination.enabled,
+          }))}
+        />
+      ) : null}
+    </PageSection>
   )
 }
 
@@ -133,7 +136,8 @@ function NotificationForm({
     },
   })
 
-  const save = () => {
+  const save = (event: FormEvent) => {
+    event.preventDefault()
     setSaved(false)
     setRepeatIntervalError(null)
 
@@ -156,21 +160,11 @@ function NotificationForm({
   }
 
   return (
-    <Section>
-      <SectionHeader
-        title="알림"
-        description="고른 Telegram 그룹으로만 장애 알림이 갑니다."
-        actions={
-          <Button variant="secondary" size="sm" disabled={mutation.isPending} onClick={save}>
-            {mutation.isPending ? '저장 중…' : '저장'}
-          </Button>
-        }
-      />
-
+    <form className="space-y-3" onSubmit={save} noValidate>
       {selectedRows.length === 0 ? (
-        <p className="text-[13px] text-critical">
-          알림 대상이 없습니다. 지금은 장애가 나도 Telegram 알림이 가지 않습니다.
-        </p>
+        <Notice tone="warning" title="받는 그룹이 없습니다.">
+          지금은 장애가 나도 Telegram 알림이 가지 않습니다. 아래에서 받는 그룹을 골라 저장해 주세요.
+        </Notice>
       ) : null}
 
       <div className="overflow-hidden rounded-md border border-border bg-surface">
@@ -183,35 +177,35 @@ function NotificationForm({
                   updateRow(row.telegramDestinationId, { selected: event.target.checked })
                 }
               />
-              <span className="text-[13px] font-medium">{row.name}</span>
+              <span className="text-body font-medium">{row.name}</span>
               {row.destinationEnabled ? null : (
-                <span className="text-xs text-muted-foreground">그룹이 꺼져 있어 알림이 가지 않습니다</span>
+                <span className="text-caption text-muted-foreground">그룹이 꺼져 있어 알림이 가지 않습니다</span>
               )}
             </CheckboxLabel>
 
             {row.selected ? (
-              <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 pl-[1.375rem]">
-                <CheckboxLabel className="text-[13px] text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 pl-5.5">
+                <CheckboxLabel className="text-body text-muted-foreground">
                   <Checkbox
                     checked={row.warningEnabled}
                     onChange={(event) =>
                       updateRow(row.telegramDestinationId, { warningEnabled: event.target.checked })
                     }
                   />
-                  Warning
+                  경고
                 </CheckboxLabel>
 
-                <CheckboxLabel className="text-[13px] text-muted-foreground">
+                <CheckboxLabel className="text-body text-muted-foreground">
                   <Checkbox
                     checked={row.criticalEnabled}
                     onChange={(event) =>
                       updateRow(row.telegramDestinationId, { criticalEnabled: event.target.checked })
                     }
                   />
-                  Critical
+                  위험
                 </CheckboxLabel>
 
-                <CheckboxLabel className="text-[13px] text-muted-foreground">
+                <CheckboxLabel className="text-body text-muted-foreground">
                   <Checkbox
                     checked={row.sendResolved}
                     onChange={(event) =>
@@ -246,19 +240,26 @@ function NotificationForm({
             }}
             aria-invalid={Boolean(repeatIntervalError)}
           />
-          <span className="text-[13px] text-muted-foreground">분</span>
+          <span className="text-body text-muted-foreground">분</span>
         </div>
       </Field>
 
-      <p className="text-xs text-muted-foreground">
-        지금 Monitoring Check의 Alert는 Critical만 있습니다. Warning은 Threshold 기능을 만든 뒤에
-        동작합니다.
+      <p className="text-caption text-muted-foreground">
+        감시 항목의 장애는 지금 위험 단계만 있습니다.
       </p>
 
-      {mutation.isError && !repeatIntervalError ? (
-        <p className="text-[13px] text-destructive">저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
-      ) : null}
-      {saved ? <p className="text-[13px] text-muted-foreground">알림 설정을 저장했습니다.</p> : null}
-    </Section>
+      <FormActions
+        submitLabel="저장"
+        pendingLabel="저장 중…"
+        pending={mutation.isPending}
+        result={
+          mutation.isError && !repeatIntervalError
+            ? { kind: 'error', text: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.' }
+            : saved
+              ? { kind: 'success', text: '알림 설정을 저장했습니다.' }
+              : null
+        }
+      />
+    </form>
   )
 }

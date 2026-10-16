@@ -3,11 +3,14 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { PageBody, PageHeader } from '@/components/PageHeader'
-import { EmptyState, ErrorState, TableSkeleton } from '@/components/QueryStates'
+import { WarningLabel } from '@/components/StatusDot'
+import { Toolbar } from '@/components/Toolbar'
+import { queryState } from '@/components/layout/state'
+import { ListPage } from '@/components/layout/ListPage'
+import { Notice } from '@/components/layout/Notice'
+import { PageSection } from '@/components/layout/PageSection'
 import { TelegramDestinationDialog } from '@/components/notifications/TelegramDestinationDialog'
 import { Button } from '@/components/ui/button'
-import { Section, SectionHeader } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import {
   apiDelete,
@@ -17,12 +20,14 @@ import {
   telegramDestinationsQuery,
   telegramStatusQuery,
   type TelegramDestination,
+  type TelegramStatus,
   type TestMessageResult,
 } from '@/lib/api'
 
 /** Check별 알림 설정은 Check 상세에서 합니다. 같은 설정을 두 화면에 두지 않습니다. */
 export function NotificationsPage() {
   const destinations = useQuery(telegramDestinationsQuery)
+  const { data: telegramStatus } = useQuery(telegramStatusQuery)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<TelegramDestination | undefined>()
 
@@ -33,48 +38,36 @@ export function NotificationsPage() {
 
   return (
     <>
-      <PageHeader
+      <ListPage
         title="Telegram 그룹"
-        description="장애 알림을 받을 Telegram 그룹을 관리합니다. Bot Token은 서버가 관리하므로 입력하지 않습니다."
-        actions={<Button onClick={openNew}>그룹 추가</Button>}
-      />
-
-      <PageBody>
-        <TelegramSetupNotice />
-
-        <Section>
-          <SectionHeader title="알림을 받을 그룹" />
-
-          {destinations.isPending ? (
-            <TableSkeleton rows={3} columns={5} />
-          ) : destinations.isError ? (
-            <ErrorState
-              message={
-                destinations.error instanceof Error
-                  ? destinations.error.message
-                  : 'Telegram 그룹을 불러오지 못했습니다.'
+        description="장애 알림을 받을 Telegram 그룹을 관리합니다. Bot Token은 Monitoring Manager가 관리하므로 입력하지 않습니다."
+        primaryAction={{ label: '그룹 추가', onClick: openNew }}
+        notice={telegramStatus ? <TelegramSetupNotice status={telegramStatus} /> : undefined}
+        state={queryState(
+          destinations,
+          destinations.error instanceof Error
+            ? destinations.error.message
+            : 'Telegram 그룹을 불러오지 못했습니다.',
+          destinations.data?.length === 0
+            ? {
+                title: '등록된 Telegram 그룹이 없습니다.',
+                description:
+                  '그룹을 추가해야 장애 알림을 받을 수 있습니다. 추가한 뒤 감시 항목 상세에서 받는 그룹으로 골라 주세요.',
               }
-              onRetry={() => destinations.refetch()}
-            />
-          ) : destinations.data.length === 0 ? (
-            <EmptyState
-              title="등록된 Telegram 그룹이 없습니다."
-              description="그룹을 등록해야 장애 알림을 받을 수 있습니다. 등록한 뒤 Check 상세에서 알림 대상으로 연결해 주세요."
-              action={<Button onClick={openNew}>그룹 추가</Button>}
-            />
-          ) : (
-            <DestinationTable
-              destinations={destinations.data}
-              onEdit={(destination) => {
-                setEditing(destination)
-                setFormOpen(true)
-              }}
-            />
-          )}
-        </Section>
-
-        <BindingOverview />
-      </PageBody>
+            : null,
+        )}
+        skeletonColumns={5}
+        toolbar={<Toolbar count={`${destinations.data?.length ?? 0}개`} />}
+        aside={<BindingOverview />}
+      >
+        <DestinationTable
+          destinations={destinations.data ?? []}
+          onEdit={(destination) => {
+            setEditing(destination)
+            setFormOpen(true)
+          }}
+        />
+      </ListPage>
 
       <TelegramDestinationDialog open={formOpen} onOpenChange={setFormOpen} destination={editing} />
     </>
@@ -82,33 +75,33 @@ export function NotificationsPage() {
 }
 
 /** /register가 동작하지 않는 환경이라면 그 이유를 먼저 보여 줘야 합니다. */
-function TelegramSetupNotice() {
-  const { data: status } = useQuery(telegramStatusQuery)
-
-  if (!status) {
-    return null
-  }
-
+function TelegramSetupNotice({ status }: { status: TelegramStatus }) {
   if (!status.configured) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-[13px]">
-        <p className="font-medium text-destructive">Telegram Bot Token이 설정되지 않았습니다.</p>
-        <p className="mt-0.5 text-muted-foreground">
-          그룹을 등록해도 메시지를 보낼 수 없습니다. 서버의 Docker Secret 또는 TELEGRAM_BOT_TOKEN
-          설정을 확인해 주세요.
-        </p>
-      </div>
+      <Notice
+        tone="critical"
+        title="Telegram Bot Token이 설정되지 않았습니다."
+        hint="Docker Secret이나 환경 변수 TELEGRAM_BOT_TOKEN으로 정합니다."
+      >
+        그룹을 등록해도 메시지를 보낼 수 없습니다. Monitoring Manager의 Bot Token 설정을 확인해 주세요.
+      </Notice>
+    )
+  }
+
+  if (status.webhookConfigured) {
+    return (
+      <Notice title="그룹에서 /register를 보내면 자동으로 등록됩니다.">
+        Telegram 그룹에 Bot을 추가하고 /register를 보내면 아래 목록에 나타납니다. Chat ID를 직접 입력해도 됩니다.
+      </Notice>
     )
   }
 
   return (
-    <p className="text-[13px] text-muted-foreground">
-      {status.webhookConfigured
-        ? 'Telegram 그룹에 Bot을 추가하고 /register를 보내면 아래 목록에 나타납니다. Chat ID를 직접 입력해도 됩니다.'
-        : status.publicUrlConfigured
-          ? 'Telegram Webhook이 아직 등록되지 않아 /register를 쓸 수 없습니다. 서버 로그에서 등록 실패 이유를 확인해 주세요. 그때까지는 Chat ID를 직접 등록합니다.'
-          : 'Telegram Webhook이 설정되지 않아 /register를 쓸 수 없습니다. Chat ID를 직접 등록해 주세요.'}
-    </p>
+    <Notice title="/register를 쓸 수 없어 Chat ID를 직접 등록합니다.">
+      {status.publicUrlConfigured
+        ? 'Telegram Webhook을 아직 등록하지 못했습니다. Monitoring Manager 로그에서 이유를 확인해 주세요.'
+        : 'Telegram Webhook이 설정되지 않았습니다.'}
+    </Notice>
   )
 }
 
@@ -151,7 +144,7 @@ function DestinationTable({
             <tr>
               <TH className="w-80">이름</TH>
               <TH className="w-44">Chat ID</TH>
-              <TH className="w-20">Topic</TH>
+              <TH className="w-20">토픽 ID</TH>
               <TH className="w-24">사용 여부</TH>
               <TH className="text-right">동작</TH>
             </tr>
@@ -165,8 +158,8 @@ function DestinationTable({
                     <p
                       className={
                         testResult.result.success
-                          ? 'mt-0.5 text-xs text-muted-foreground'
-                          : 'mt-0.5 text-xs text-destructive'
+                          ? 'mt-0.5 text-caption text-muted-foreground'
+                          : 'mt-0.5 text-caption text-destructive'
                       }
                     >
                       {testResult.result.message}
@@ -184,7 +177,7 @@ function DestinationTable({
                       disabled={testMutation.isPending}
                       onClick={() => testMutation.mutate(destination.id)}
                     >
-                      테스트 메시지
+                      테스트 메시지 보내기
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => onEdit(destination)}>
                       수정
@@ -208,7 +201,7 @@ function DestinationTable({
         open={Boolean(deleting)}
         onOpenChange={(open) => (open ? undefined : setDeleting(undefined))}
         title="이 Telegram 그룹을 삭제할까요?"
-        description={`${deleting?.name ?? ''} 그룹으로는 더 이상 알림이 가지 않습니다.\n이 그룹에 연결해 둔 Check의 알림 설정도 함께 사라집니다.`}
+        description={`${deleting?.name ?? ''} 그룹으로는 더 이상 알림이 가지 않습니다.\n이 그룹을 받는 그룹으로 고른 감시 항목의 알림 설정도 함께 사라집니다.`}
         pending={deleteMutation.isPending}
         errorMessage={deleteMutation.isError ? '삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.' : undefined}
         onConfirm={() => (deleting ? deleteMutation.mutate(deleting.id) : undefined)}
@@ -219,32 +212,33 @@ function DestinationTable({
 
 /** 수정은 Check 상세에서 합니다. 여기는 알림 대상이 비어 있는 Check를 찾는 용도입니다. */
 function BindingOverview() {
-  const { data: summaries, isPending, isError } = useQuery(notificationBindingsQuery)
-
-  if (isPending || isError || !summaries || summaries.length === 0) {
-    return null
-  }
-
+  const bindings = useQuery(notificationBindingsQuery)
+  const summaries = bindings.data ?? []
   const missing = summaries.filter((summary) => summary.bindings.length === 0).length
 
   return (
-    <Section>
-      <SectionHeader
-        title="Check별 알림 대상"
-        description={
-          missing > 0
-            ? `${missing}개 Check에 알림 대상이 없습니다. 장애가 나도 알림이 가지 않습니다.`
-            : '모든 Check에 알림 대상이 있습니다.'
-        }
-      />
-
+    <PageSection
+      title="감시 항목별 받는 그룹"
+      description={
+        summaries.length === 0
+          ? undefined
+          : missing > 0
+            ? `받는 그룹이 없는 감시 항목 ${missing}개는 장애가 나도 알림이 가지 않습니다.`
+            : '모든 감시 항목에 받는 그룹이 있습니다.'
+      }
+      state={queryState(
+        bindings,
+        '감시 항목별 받는 그룹을 불러오지 못했습니다.',
+        bindings.data?.length === 0 ? { title: '등록된 감시 항목이 없습니다.' } : null,
+      )}
+    >
       <TableFrame>
         <Table>
           <THead>
             <tr>
-              <TH className="w-96">Check</TH>
+              <TH className="w-96">감시 항목</TH>
               <TH className="w-32">환경</TH>
-              <TH>알림 대상</TH>
+              <TH>받는 그룹</TH>
             </tr>
           </THead>
           <TBody>
@@ -261,7 +255,7 @@ function BindingOverview() {
                 <TD className="text-muted-foreground">{summary.environment}</TD>
                 <TD>
                   {summary.bindings.length === 0 ? (
-                    <span className="text-critical">없음</span>
+                    <WarningLabel label="없음" />
                   ) : (
                     <span className="text-muted-foreground">
                       {summary.bindings.map((binding) => binding.telegramDestinationName).join(', ')}
@@ -273,6 +267,6 @@ function BindingOverview() {
           </TBody>
         </Table>
       </TableFrame>
-    </Section>
+    </PageSection>
   )
 }

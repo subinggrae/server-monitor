@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { EmptyState, TableSkeleton } from '@/components/QueryStates'
+import { queryState } from '@/components/layout/state'
+import { Notice } from '@/components/layout/Notice'
+import { PageSection } from '@/components/layout/PageSection'
 import { Button } from '@/components/ui/button'
 import { Checkbox, CheckboxLabel } from '@/components/ui/input'
-import { Section, SectionHeader } from '@/components/ui/section'
 import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import {
   apiPost,
@@ -14,11 +15,14 @@ import {
   type DiscoveredResource,
   type MonitoredResourceInput,
   type ResourceDiscoveryResult,
+  type ResourceType,
   type ResourceUsage,
 } from '@/lib/api'
 import { formatBytes, formatDateTime, formatPercent } from '@/lib/format'
 
 const TYPE_ORDER = { CPU: 0, MEMORY: 1, STORAGE: 2 } as const
+
+const TYPE_LABELS: Record<ResourceType, string> = { CPU: 'CPU', MEMORY: '메모리', STORAGE: '스토리지' }
 
 export function ServerResourceSection({
   serverId,
@@ -36,7 +40,7 @@ export function ServerResourceSection({
     onError: () =>
       setDiscovery({
         success: false,
-        message: 'SNMP 응답을 받지 못했습니다. Host, Port, Community와 네트워크 접근을 확인해 주세요.',
+        message: 'SNMP 응답을 받지 못했습니다. 호스트, 포트, Community와 네트워크 접근을 확인해 주세요.',
         systemName: null,
         systemDescription: null,
         resources: [],
@@ -44,30 +48,29 @@ export function ServerResourceSection({
   })
 
   return (
-    <Section>
-      <SectionHeader
-        title="Resource"
-        description="검색해서 찾은 것 중 모니터링할 항목만 고릅니다."
-        actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!snmpConfigured || discoverMutation.isPending}
-            onClick={() => discoverMutation.mutate()}
-          >
-            {discoverMutation.isPending ? '검색 중…' : '리소스 검색'}
-          </Button>
-        }
-      />
-
+    <PageSection
+      title="리소스"
+      description="검색해서 찾은 리소스 가운데 수집할 것만 고릅니다."
+      actions={
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!snmpConfigured || discoverMutation.isPending}
+          onClick={() => discoverMutation.mutate()}
+        >
+          {discoverMutation.isPending ? '검색 중…' : '리소스 검색'}
+        </Button>
+      }
+      state={queryState(resources, '리소스를 불러오지 못했습니다.')}
+    >
       {!snmpConfigured ? (
-        <p className="text-[13px] text-muted-foreground">
-          SNMP를 먼저 설정해야 Resource를 검색할 수 있습니다.
+        <p className="text-body text-muted-foreground">
+          SNMP를 먼저 설정해야 리소스를 검색할 수 있습니다.
         </p>
       ) : null}
 
       {discoverMutation.isPending ? (
-        <p className="text-[13px] text-muted-foreground">리소스를 검색하고 있습니다.</p>
+        <p className="text-body text-muted-foreground">리소스를 검색하는 중…</p>
       ) : null}
 
       {discovery ? (
@@ -78,19 +81,16 @@ export function ServerResourceSection({
         />
       ) : null}
 
-      {resources.isPending ? (
-        <TableSkeleton rows={3} columns={4} />
-      ) : resources.isError ? (
-        <p className="text-[13px] text-destructive">Resource를 불러오지 못했습니다.</p>
-      ) : resources.data.length === 0 ? (
-        <EmptyState
-          title="모니터링할 Resource가 없습니다."
-          description="SNMP를 설정한 뒤 리소스 검색을 실행하면 CPU, Memory, Storage를 고를 수 있습니다."
-        />
-      ) : (
+      {/* 비어 있어도 위의 검색 결과는 보여야 하므로 빈 상태를 절의 state로 두지 않습니다. */}
+      {resources.data?.length === 0 ? (
+        <p className="text-body text-muted-foreground">
+          수집하는 리소스가 없습니다. SNMP를 설정한 뒤 리소스 검색을 실행하면 CPU, 메모리, 스토리지를 고를 수
+          있습니다.
+        </p>
+      ) : resources.data ? (
         <UsageTable resources={resources.data} />
-      )}
-    </Section>
+      ) : null}
+    </PageSection>
   )
 }
 
@@ -110,13 +110,13 @@ function UsageTable({ resources }: { resources: ResourceUsage[] }) {
             <TH>이름</TH>
             <TH className="w-20 text-right">사용률</TH>
             <TH className="w-44 text-right">사용량</TH>
-            <TH className="w-28">수집 시각</TH>
+            <TH className="w-44">수집 시각</TH>
           </tr>
         </THead>
         <TBody>
           {sorted.map((resource) => (
             <TR key={resource.id}>
-              <TD className="text-muted-foreground">{resource.resourceType}</TD>
+              <TD className="text-muted-foreground">{TYPE_LABELS[resource.resourceType]}</TD>
               <TD className="tabular">{resource.displayName}</TD>
               <TD className="tabular text-right">
                 {resource.usagePercent == null ? (
@@ -167,15 +167,13 @@ function DiscoveryResult({
 
   if (!result.success) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 text-[13px]">
-        <p className="font-medium text-destructive">{result.message}</p>
-      </div>
+      <Notice tone="critical" title={result.message} />
     )
   }
 
   if (result.resources.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-surface px-3 py-2.5 text-[13px]">
+      <div className="rounded-md border border-border bg-surface px-3 py-2.5 text-body">
         <p>{result.message}</p>
         <Button variant="ghost" size="sm" className="-ml-2.5 mt-1" onClick={onDone}>
           닫기
@@ -203,14 +201,14 @@ function DiscoveryResult({
     <div className="rounded-md border border-border bg-surface">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div>
-          <p className="text-[13px] font-medium">발견된 리소스</p>
+          <p className="text-body font-medium">발견된 리소스</p>
           {result.systemName ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{result.systemName}</p>
+            <p className="mt-0.5 text-caption text-muted-foreground">{result.systemName}</p>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onDone} disabled={saveMutation.isPending}>
-            취소
+            닫기
           </Button>
           <Button
             size="sm"
@@ -237,17 +235,17 @@ function DiscoveryResult({
       <div className="max-h-80 overflow-y-auto px-3 py-2.5">
         {grouped.map(([type, items]) => (
           <div key={type} className="mb-3 last:mb-0">
-            <p className="mb-1 text-xs font-medium text-muted-foreground">{type}</p>
+            <p className="mb-1 text-caption font-medium text-muted-foreground">{TYPE_LABELS[type]}</p>
             <div className="space-y-1">
               {items.map((item) => (
-                <CheckboxLabel key={keyOf(item)} className="text-[13px]">
+                <CheckboxLabel key={keyOf(item)} className="text-body">
                   <Checkbox checked={selected.has(keyOf(item))} onChange={() => toggle(item)} />
                   <span className="tabular">{item.displayName}</span>
                   {item.totalBytes ? (
-                    <span className="text-xs text-subtle-foreground">{formatBytes(item.totalBytes)}</span>
+                    <span className="text-caption text-subtle-foreground">{formatBytes(item.totalBytes)}</span>
                   ) : null}
                   {item.resourceType === 'CPU' && item.description ? (
-                    <span className="text-xs text-subtle-foreground">{item.description}</span>
+                    <span className="text-caption text-subtle-foreground">{item.description}</span>
                   ) : null}
                 </CheckboxLabel>
               ))}
@@ -257,7 +255,7 @@ function DiscoveryResult({
       </div>
 
       {saveMutation.isError ? (
-        <p className="border-t border-border px-3 py-2 text-[13px] text-destructive">
+        <p className="border-t border-border px-3 py-2 text-body text-destructive">
           저장하지 못했습니다. 잠시 후 다시 시도해 주세요.
         </p>
       ) : null}
@@ -270,7 +268,7 @@ function keyOf(item: DiscoveredResource) {
 }
 
 function groupByType(resources: DiscoveredResource[]) {
-  const groups = new Map<string, DiscoveredResource[]>()
+  const groups = new Map<ResourceType, DiscoveredResource[]>()
   for (const resource of resources) {
     const existing = groups.get(resource.resourceType)
     if (existing) {
@@ -279,8 +277,5 @@ function groupByType(resources: DiscoveredResource[]) {
       groups.set(resource.resourceType, [resource])
     }
   }
-  return [...groups.entries()].sort(
-    (left, right) =>
-      TYPE_ORDER[left[0] as keyof typeof TYPE_ORDER] - TYPE_ORDER[right[0] as keyof typeof TYPE_ORDER],
-  )
+  return [...groups.entries()].sort((left, right) => TYPE_ORDER[left[0]] - TYPE_ORDER[right[0]])
 }

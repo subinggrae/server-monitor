@@ -50,7 +50,7 @@ public class ResourceDiscoveryService {
 
 		SnmpWalkResult walk = snmpClient.discover(target.get());
 		if (!walk.reachable()) {
-			return ResourceDiscoveryResult.failed("SNMP 응답을 받지 못했습니다. Host, Port, Community와 네트워크 접근을 확인해 주세요.");
+			return ResourceDiscoveryResult.failed("SNMP 응답을 받지 못했습니다. 호스트, 포트, Community와 네트워크 접근을 확인해 주세요.");
 		}
 
 		Set<String> alreadySelected = selectedKeys(serverId);
@@ -58,7 +58,7 @@ public class ResourceDiscoveryService {
 
 		if (walk.processorCount() > 0) {
 			resources.add(new DiscoveredResource(ResourceType.CPU, CPU_RESOURCE_KEY, "CPU",
-					walk.processorCount() + "개 processor", null, null,
+					walk.processorCount() + "개 프로세서", null, null,
 					alreadySelected.contains(key(ResourceType.CPU, CPU_RESOURCE_KEY))));
 		}
 
@@ -77,8 +77,8 @@ public class ResourceDiscoveryService {
 		}
 
 		String message = resources.isEmpty()
-				? "SNMP 응답은 받았지만 CPU, Memory, Storage 정보를 찾지 못했습니다. 장비가 HOST-RESOURCES-MIB를 제공하는지 확인해 주세요."
-				: "Resource를 찾았습니다.";
+				? "SNMP 응답은 받았지만 CPU, 메모리, 스토리지 정보를 찾지 못했습니다. 장비가 HOST-RESOURCES-MIB를 제공하는지 확인해 주세요."
+				: "리소스를 찾았습니다.";
 		return new ResourceDiscoveryResult(true, message, walk.systemInfo().systemName(),
 				walk.systemInfo().systemDescription(), List.copyOf(resources));
 	}
