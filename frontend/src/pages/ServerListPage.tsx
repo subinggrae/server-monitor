@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
-import { SnmpStateDot } from '@/components/StatusDot'
+import { CollectionStateDot } from '@/components/StatusDot'
 import { Toolbar } from '@/components/Toolbar'
 import { queryState } from '@/components/layout/state'
 import { ListPage } from '@/components/layout/ListPage'
@@ -10,7 +10,7 @@ import { Notice } from '@/components/layout/Notice'
 import { ServerFormDialog } from '@/components/servers/ServerFormDialog'
 import { SearchInput, Select } from '@/components/ui/input'
 import { Table, TableFrame, TableNotice, TBody, TD, TH, THead, TR } from '@/components/ui/table'
-import { serversQuery } from '@/lib/api'
+import { SERVER_OS_LABELS, serversQuery } from '@/lib/api'
 
 export function ServerListPage() {
   const { data: servers, isPending, isError, error, refetch } = useQuery(serversQuery)
@@ -39,11 +39,11 @@ export function ServerListPage() {
     <>
       <ListPage
         title="서버"
-        description="서버를 등록하고 SNMP로 CPU, 메모리, 스토리지 사용량을 수집합니다."
+        description="서버를 등록하고 OS exporter로 CPU, Memory, Storage 사용량을 수집합니다."
         primaryAction={{ label: '서버 추가', onClick: () => setFormOpen(true) }}
         notice={
           <Notice title="사용률이 높아도 아직 위험으로 표시하지 않습니다.">
-            임계값을 정하는 기능이 아직 없습니다. 리소스는 서버 상세에서 SNMP를 설정하고 찾아서 고릅니다.
+            임계값을 정하는 기능이 아직 없습니다. 리소스는 서버 상세의 수집 탭에서 수집을 켠 뒤 찾아서 고릅니다.
           </Notice>
         }
         state={queryState(
@@ -53,11 +53,11 @@ export function ServerListPage() {
             ? {
                 title: '등록된 서버가 없습니다.',
                 description:
-                  '서버를 추가한 뒤 서버 상세에서 SNMP를 설정하면 CPU, 메모리, 스토리지 사용량을 수집합니다.',
+                  '서버를 추가한 뒤 서버 상세에서 OS exporter 수집을 켜면 CPU, Memory, Storage 사용량을 수집합니다.',
               }
             : null,
         )}
-        skeletonColumns={4}
+        skeletonColumns={6}
         toolbar={
           <Toolbar count={`${visibleServers.length}개 / 전체 ${servers?.length ?? 0}개`}>
             <SearchInput
@@ -89,8 +89,9 @@ export function ServerListPage() {
               <tr>
                 <TH>이름</TH>
                 <TH className="w-44">호스트</TH>
+                <TH className="w-24">OS</TH>
                 <TH className="w-32">환경</TH>
-                <TH className="w-32">SNMP</TH>
+                <TH className="w-32">수집</TH>
                 <TH className="w-24 text-right">리소스</TH>
               </tr>
             </THead>
@@ -106,9 +107,10 @@ export function ServerListPage() {
                     </Link>
                   </TD>
                   <TD className="tabular text-muted-foreground">{server.host}</TD>
+                  <TD className="text-muted-foreground">{SERVER_OS_LABELS[server.os]}</TD>
                   <TD className="text-muted-foreground">{server.environment}</TD>
                   <TD>
-                    <SnmpStateDot state={server.snmpState} />
+                    <CollectionStateDot state={server.collectionState} />
                   </TD>
                   <TD className="tabular text-right text-muted-foreground">
                     {server.monitoredResourceCount > 0 ? server.monitoredResourceCount : '-'}

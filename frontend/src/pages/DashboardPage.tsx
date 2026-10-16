@@ -11,12 +11,12 @@ import { firingSince } from '@/lib/alerts'
 import {
   alertsQuery,
   checksQuery,
+  COLLECTION_STATE_LABELS,
   serversQuery,
   systemInfoQuery,
+  type CollectionState,
   type MonitoringCheck,
-  SNMP_STATE_LABELS,
   type ServerTarget,
-  type SnmpState,
 } from '@/lib/api'
 import { formatDateTime, formatElapsed, formatTime } from '@/lib/format'
 
@@ -25,7 +25,7 @@ const RECENT_ALERT_LIMIT = 5
 /** 장애 기록 화면과 같은 간격입니다. 열어 둔 채로 상태가 바뀌는 것을 볼 수 있어야 합니다. */
 const REFRESH_INTERVAL = 30_000
 
-const SNMP_STATE_ORDER: SnmpState[] = ['CONNECTED', 'NO_RESPONSE', 'DISABLED', 'NOT_CONFIGURED']
+const COLLECTION_STATE_ORDER: CollectionState[] = ['COLLECTING', 'FAILED', 'UNKNOWN', 'DISABLED', 'NOT_CONFIGURED']
 
 /** Telegram 알림을 받고 연 사람이 "무엇이, 언제부터 문제인가"를 첫 화면에서 읽게 합니다. */
 export function DashboardPage() {
@@ -196,16 +196,17 @@ function CriticalTable({ checks, startedAt }: { checks: MonitoringCheck[]; start
   )
 }
 
+/** 서버가 살아 있는지는 위의 감시 항목이 보입니다. 여기에는 자원 수집 상태만 요약합니다. */
 function ServerSummary({ servers }: { servers: ServerTarget[] }) {
-  const snmpCounts = SNMP_STATE_ORDER.map((state) => ({
+  const collectionCounts = COLLECTION_STATE_ORDER.map((state) => ({
     state,
-    count: servers.filter((server) => server.snmpState === state).length,
+    count: servers.filter((server) => server.collectionState === state).length,
   })).filter(({ count }) => count > 0)
 
   return (
     <p className="text-body text-muted-foreground">
-      서버 <span className="tabular font-medium text-foreground">{servers.length}</span>대를 등록했습니다. SNMP 상태는{' '}
-      {snmpCounts.map(({ state, count }) => `${SNMP_STATE_LABELS[state]} ${count}대`).join(', ')}입니다.
+      서버 <span className="tabular font-medium text-foreground">{servers.length}</span>대를 등록했습니다. 자원 수집은{' '}
+      {collectionCounts.map(({ state, count }) => `${COLLECTION_STATE_LABELS[state]} ${count}대`).join(', ')}입니다.
     </p>
   )
 }

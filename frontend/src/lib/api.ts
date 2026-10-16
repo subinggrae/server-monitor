@@ -76,13 +76,22 @@ export type SystemInfo = {
   telegramConfigured: boolean
 }
 
-export type SnmpState = 'NOT_CONFIGURED' | 'DISABLED' | 'CONNECTED' | 'NO_RESPONSE'
+export type ServerOs = 'LINUX' | 'WINDOWS'
 
-export const SNMP_STATE_LABELS: Record<SnmpState, string> = {
-  CONNECTED: '연결됨',
-  NO_RESPONSE: '응답 없음',
-  DISABLED: '사용 안 함',
+export const SERVER_OS_LABELS: Record<ServerOs, string> = {
+  LINUX: 'Linux',
+  WINDOWS: 'Windows',
+}
+
+/** 서버 자원을 수집하고 있는지입니다. 서버가 살아 있는지는 감시 항목이 보입니다. */
+export type CollectionState = 'NOT_CONFIGURED' | 'DISABLED' | 'COLLECTING' | 'FAILED' | 'UNKNOWN'
+
+export const COLLECTION_STATE_LABELS: Record<CollectionState, string> = {
+  COLLECTING: '수집 중',
+  FAILED: '수집 실패',
+  DISABLED: '수집 꺼짐',
   NOT_CONFIGURED: '설정 안 됨',
+  UNKNOWN: '알 수 없음',
 }
 
 export type ServerTarget = {
@@ -90,11 +99,10 @@ export type ServerTarget = {
   name: string
   host: string
   environment: string
+  os: ServerOs
   description: string | null
   enabled: boolean
-  /** Threshold가 없어 사용률로 CRITICAL을 만들지 않습니다. OK / UNKNOWN / DISABLED만 나옵니다. */
-  status: MonitoringStatus
-  snmpState: SnmpState
+  collectionState: CollectionState
   monitoredResourceCount: number
   createdAt: string
   updatedAt: string
@@ -104,6 +112,7 @@ export type ServerTargetInput = {
   name: string
   host: string
   environment: string
+  os: ServerOs
   description: string | null
   enabled: boolean
 }
@@ -250,39 +259,50 @@ export type CheckNotificationSummary = {
 }
 
 // ---------------------------------------------------------------------------
-// SNMP와 Resource
+// OS exporter와 Resource
 // ---------------------------------------------------------------------------
 
-export type SnmpVersion = 'V2C'
-
-/** community는 응답에 들어오지 않습니다. 설정 여부만 옵니다. (CLAUDE.md 11번) */
-export type ServerSnmp = {
+/** 설정이 없으면 configured가 false이고, 나머지 값은 서버 OS의 기본값입니다. */
+export type ServerExporter = {
   configured: boolean
-  version: SnmpVersion | null
-  port: number | null
-  communityConfigured: boolean
   enabled: boolean
-  /** SNMP 설정이 없으면 null입니다. */
-  scrapeIntervalSeconds: number | null
-  /** false면 저장은 됐지만 snmp_exporter에 반영되지 않은 상태입니다. */
-  exporterSynced: boolean
-  exporterMessage: string | null
+  port: number
+  scrapeIntervalSeconds: number
+  defaultPort: number
 }
 
-/** community는 새로 입력했을 때만 보냅니다. null이면 서버가 기존 값을 그대로 둡니다. */
-export type ServerSnmpInput = {
-  version: SnmpVersion
-  port: number
-  community: string | null
+export type ServerExporterInput = {
   enabled: boolean
+  port: number
   scrapeIntervalSeconds: number
 }
 
-export type SnmpTestResult = {
+export type ExporterType = 'NODE_EXPORTER' | 'WINDOWS_EXPORTER'
+
+export const EXPORTER_TYPE_LABELS: Record<ExporterType, string> = {
+  NODE_EXPORTER: 'node_exporter',
+  WINDOWS_EXPORTER: 'windows_exporter',
+}
+
+export type ExporterOutcome =
+  | 'OK'
+  | 'CONNECTION_REFUSED'
+  | 'TIMEOUT'
+  | 'HTTP_ERROR'
+  | 'UNREADABLE'
+  | 'NOT_OS_EXPORTER'
+  | 'UNKNOWN_HOST'
+
+/** exporter 응답 본문은 들어오지 않습니다. message는 분류마다 서버가 정한 문구입니다. */
+export type ExporterTestResult = {
   success: boolean
+  outcome: ExporterOutcome
+  httpStatus: number | null
+  exporterType: ExporterType | null
+  version: string | null
+  /** 성공했을 때만 값이 있습니다. false여도 저장은 막지 않습니다. */
+  osMatches: boolean | null
   message: string
-  systemName: string | null
-  systemDescription: string | null
   responseTimeMs: number | null
 }
 
@@ -295,7 +315,6 @@ export type DiscoveredResource = {
   resourceKey: string
   displayName: string
   description: string | null
-  snmpIndex: number | null
   totalBytes: number | null
   selected: boolean
 }
@@ -303,8 +322,8 @@ export type DiscoveredResource = {
 export type ResourceDiscoveryResult = {
   success: boolean
   message: string
-  systemName: string | null
-  systemDescription: string | null
+  exporterType: ExporterType | null
+  version: string | null
   resources: DiscoveredResource[]
 }
 
@@ -327,7 +346,6 @@ export type MonitoredResourceInput = {
     resourceKey: string
     displayName: string
     description: string | null
-    snmpIndex: number | null
   }[]
 }
 
@@ -364,7 +382,7 @@ export const queryKeys = {
   checkNotifications: (checkId: number) => ['check-notifications', checkId] as const,
   notificationBindings: ['notification-bindings'] as const,
   alerts: ['alerts'] as const,
-  serverSnmp: (serverId: number) => ['server-snmp', serverId] as const,
+  serverExporter: (serverId: number) => ['server-exporter', serverId] as const,
   serverResources: (serverId: number) => ['server-resources', serverId] as const,
 }
 
@@ -429,9 +447,9 @@ export const alertsQuery = {
   queryFn: () => apiGet<AlertEvent[]>('/api/alerts'),
 }
 
-export const serverSnmpQuery = (serverId: number) => ({
-  queryKey: queryKeys.serverSnmp(serverId),
-  queryFn: () => apiGet<ServerSnmp>(`/api/servers/${serverId}/snmp`),
+export const serverExporterQuery = (serverId: number) => ({
+  queryKey: queryKeys.serverExporter(serverId),
+  queryFn: () => apiGet<ServerExporter>(`/api/servers/${serverId}/exporter`),
 })
 
 export const serverResourcesQuery = (serverId: number) => ({

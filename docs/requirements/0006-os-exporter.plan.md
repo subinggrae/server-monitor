@@ -230,7 +230,7 @@ os-test-node-exporter:
 - [x] `ResourceMetricQueryService`, `ServerResourceService`, 리소스 찾기 교체(실패 문구는 `ExporterOutcome`에 한 곳으로 모음)
 - [x] SNMP·암호화 서비스·`APP_SECRET_KEY`·snmp4j·설정 키·Dockerfile `/runtime` 삭제(이 시점에 Backend 테스트 통과)
 - [x] `prometheus.yml` job 교체(keep 규칙, `sample_limit: 2000`), `compose.yml`·`.env.example`·`infrastructure/snmp/`·`app_secret_key.example` 정리. 개발 PC의 실제 `infrastructure/secrets/app_secret_key` 파일은 Git 밖이라 지우지 않았다
-- [ ] Frontend 테스트 실패 확인 → api, 상태 표시, 서버 폼, 수집 절, 리소스 절, 상세, 목록, 대시보드
+- [x] Frontend 테스트 실패 확인 → api, 상태 표시, 서버 폼, 수집 절, 리소스 절, 상세, 목록, 대시보드. 수집 상태 문구는 TERMS.md에 맞춰 "설정 안 됨"으로 썼다(요구사항의 "설정 안 함" 대신)
 - [ ] 문서와 그림, `node scripts/check-docs.mjs --render`
 - [ ] 수동 확인 C6, C7, 화면 검사, 전체 검증, C8 코드 검색
 - [ ] 구현하지 않은 하위 에이전트의 리뷰(완료 기준, 이 계획, diff, CWE-918·400·20·117·209·79·312)

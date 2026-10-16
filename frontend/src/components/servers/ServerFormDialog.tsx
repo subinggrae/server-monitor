@@ -9,11 +9,15 @@ import {
   apiPost,
   apiPut,
   queryKeys,
+  SERVER_OS_LABELS,
+  type ServerOs,
   type ServerTarget,
   type ServerTargetInput,
 } from '@/lib/api'
 
 const ENVIRONMENTS = ['Production', 'Staging', 'Development', 'Other']
+
+const OS_OPTIONS: ServerOs[] = ['LINUX', 'WINDOWS']
 
 export function ServerFormDialog({
   open,
@@ -43,6 +47,7 @@ function ServerForm({
     name: server?.name ?? '',
     host: server?.host ?? '',
     environment: server?.environment ?? 'Production',
+    os: server?.os ?? 'LINUX',
     description: server?.description ?? null,
     enabled: server?.enabled ?? true,
   }))
@@ -74,7 +79,7 @@ function ServerForm({
       open={open}
       onOpenChange={onOpenChange}
       title={server ? '서버 수정' : '서버 추가'}
-      description="감시할 서버를 등록합니다. 등록한 뒤 서버 상세에서 SNMP를 설정하면 CPU, 메모리, 스토리지 사용량을 수집합니다."
+      description="감시할 서버를 등록합니다. 등록한 뒤 서버 상세의 수집 탭에서 OS exporter 수집을 켜면 CPU, Memory, Storage 사용량을 수집합니다."
       submitLabel={server ? '저장' : '추가'}
       pendingLabel={server ? '저장 중…' : '추가 중…'}
       pending={mutation.isPending}
@@ -111,19 +116,42 @@ function ServerForm({
         />
       </Field>
 
-      <Field label="환경" htmlFor="server-environment" error={fieldErrors.environment}>
-        <Select
-          id="server-environment"
-          value={form.environment}
-          onChange={(event) => setForm({ ...form, environment: event.target.value })}
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="환경" htmlFor="server-environment" error={fieldErrors.environment}>
+          <Select
+            id="server-environment"
+            value={form.environment}
+            onChange={(event) => setForm({ ...form, environment: event.target.value })}
+          >
+            {ENVIRONMENTS.map((environment) => (
+              <option key={environment} value={environment}>
+                {environment}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field
+          label="OS"
+          htmlFor="server-os"
+          hint={server ? 'OS를 바꾸면 포트 기본값과 리소스 찾기 방식이 바뀝니다.' : undefined}
+          error={fieldErrors.os}
         >
-          {ENVIRONMENTS.map((environment) => (
-            <option key={environment} value={environment}>
-              {environment}
-            </option>
-          ))}
-        </Select>
-      </Field>
+          <Select
+            id="server-os"
+            name="os"
+            value={form.os}
+            onChange={(event) => setForm({ ...form, os: event.target.value as ServerOs })}
+            aria-invalid={Boolean(fieldErrors.os)}
+          >
+            {OS_OPTIONS.map((os) => (
+              <option key={os} value={os}>
+                {SERVER_OS_LABELS[os]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
 
       <Field label="설명" htmlFor="server-description" error={fieldErrors.description}>
         <Textarea
@@ -148,7 +176,7 @@ function ServerForm({
           이 서버를 감시합니다
         </CheckboxLabel>
         <p className="pl-5.5 text-caption text-muted-foreground">
-          끄면 이 서버의 SNMP 수집을 멈추고 목록에서 사용 안 함으로 표시합니다. 감시 항목에는 영향을 주지 않습니다.
+          끄면 이 서버의 자원 수집을 멈추고 수집 꺼짐으로 표시합니다. 감시 항목에는 영향을 주지 않습니다.
         </p>
       </div>
     </FormDialog>
