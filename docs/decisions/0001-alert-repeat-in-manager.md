@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-10-14
-- 관련: [요구사항 0003](../requirements/0003-alert-repeat-interval.md)
+- 관련: [요구사항 0003](../requirements/0003-alert-repeat-interval.md), 지운 계획은 [PR #4](https://github.com/subinggrae/server-monitor/pull/4)에서 볼 수 있다
 
 ## 배경과 문제
 
