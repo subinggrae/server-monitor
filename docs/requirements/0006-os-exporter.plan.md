@@ -224,7 +224,7 @@ os-test-node-exporter:
 - [x] ADR 둘 초안: [0004](../decisions/0004-os-exporter-collection.md), [0005](../decisions/0005-common-resource-recording-rules.md)(0003은 미병합 브랜치 `feature/resource-threshold-alert`가 씀)
 - [x] `os-test` 컨테이너 추가, 표본 두 개(`backend/src/test/resources/exporter/`) 만들고 metric 이름 확정
 - [x] 규칙 테스트를 쓰고 실패 확인 → `server-resources.yml`(C5), TESTING.md·DEVELOPMENT.md 규칙 테스트
-- [ ] C3·C4 테스트 실패 확인 → `exporter` 패키지의 클라이언트·파서·필터
+- [x] C3·C4 테스트 실패 확인 → `exporter` 패키지의 클라이언트·파서·필터(`ResourceDiscoveryServiceTest`는 리소스 찾기 교체 단계에서)
 - [ ] C1·C2·C9 테스트 실패 확인 → V9 migration(두 vendor), `ServerOs`, 수집 설정, SD, 수집 상태
 - [ ] `ResourceMetricQueryService`, `ServerResourceService`, 리소스 찾기 교체
 - [ ] SNMP·암호화 서비스·`APP_SECRET_KEY`·snmp4j·설정 키·Dockerfile `/runtime` 삭제(이 시점에 Backend 테스트 통과)
@@ -242,7 +242,9 @@ os-test-node-exporter:
 - node_exporter v1.12.1의 `/metrics` 전체 응답은 CPU 16개 컨테이너에서 약 84 KB였다. 본문 한도 16 MiB는 넉넉하다.
 - 규칙 테스트 파일은 `rules/` 밖(`infrastructure/prometheus/tests/`)에 둔다. Prometheus가 `rules/*.yml`을 모두 규칙 파일로 읽기 때문이다.
 - `promtool check rules`가 같은 이름과 label의 규칙이 둘 있으면 막으므로, Linux와 Windows 식을 `or`로 묶어 이름·종류마다 규칙 하나로 썼다. MemAvailable을 MemFree로 바꾸거나 tmpfs 제외를 지우면 규칙 테스트가 실패하는 것을 확인했다.
-- node_exporter의 filesystem metric에 `device_error` label이 있다. recording rule은 `max by`로 끝내므로 결과에 남지 않는다.
+- node_exporter의 filesystem metric에 `device_error` label이 있다.
+- 파서는 형식에 맞지 않는 줄이 하나라도 있으면 `UNREADABLE`로 끝낸다(Prometheus도 그런 응답은 수집에 실패한다). `ServerOs`는 `ExporterType`이 쓰므로 이 단계에서 먼저 만들었다.
+- `ExporterClient`의 전체 마감은 `sendAsync(...).get(마감)`으로 걸고, 넘으면 요청을 취소한다. 본문 한도는 받는 쪽에서 세다가 넘으면 구독을 끊는다. recording rule은 `max by`로 끝내므로 결과에 남지 않는다.
 
 ## 남길 결정
 
