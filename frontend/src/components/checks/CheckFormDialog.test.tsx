@@ -124,3 +124,34 @@ describe('Check 폼의 수집 주기', () => {
     expect(await screen.findByText('서버가 거부한 주기')).toBeTruthy()
   })
 })
+
+describe('Check 폼의 확인 대상 오류', () => {
+  async function submitWithServerErrors(fieldErrors: Record<string, string>) {
+    fakeApi({
+      'GET /api/check-types': { body: CHECK_TYPES },
+      'POST /api/checks': { status: 400, body: { detail: '입력값을 확인해 주세요.', fieldErrors } },
+    })
+    renderWithQueryClient(<CheckFormDialog open onOpenChange={() => {}} />)
+    await screen.findByRole('option', { name: 'ICMP' })
+    await fillNewCheck('30')
+  }
+
+  it('대상 칸의 오류를 그 대상 줄 아래에 보이고 칸을 오류로 표시한다', async () => {
+    await submitWithServerErrors({ 'targets[0].target': '대상은 500자까지 입력할 수 있습니다.' })
+
+    expect(await screen.findByText('대상은 500자까지 입력할 수 있습니다.')).toBeTruthy()
+    expect(screen.getByLabelText('대상 1').getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('대상 목록 전체의 오류를 대상 칸 아래에 보인다', async () => {
+    await submitWithServerErrors({ targets: '감시 항목 하나에는 대상을 50개까지 넣을 수 있습니다.' })
+
+    expect(await screen.findByText('감시 항목 하나에는 대상을 50개까지 넣을 수 있습니다.')).toBeTruthy()
+  })
+
+  it('그릴 칸이 없는 오류는 폼 오류로 보인다', async () => {
+    await submitWithServerErrors({ unknownField: '그릴 칸이 없는 오류입니다.' })
+
+    expect(await screen.findByText('그릴 칸이 없는 오류입니다.')).toBeTruthy()
+  })
+})
