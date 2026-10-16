@@ -1,0 +1,77 @@
+# OS exporter(node_exporter, windows_exporter)의 값을 OS와 관계없는 공통 이름으로 맞추는 recording rule입니다.
+#
+# 화면과 Alert 규칙은 OS별 원본 metric이 아니라 아래 세 이름만 읽습니다. (docs/decisions/0005)
+#
+#   manager:resource_usage_percent  0~100
+#   manager:resource_used_bytes     byte, CPU는 없음
+#   manager:resource_size_bytes     byte, CPU는 없음
+#
+# 결과 label은 server_id, resource_type(CPU, MEMORY, STORAGE), resource_key뿐입니다.
+# SD label(server_name, os 등)이 바뀌어도 결과 series가 끊기지 않도록 모두 by (server_id ...)로 묶습니다.
+# 규칙마다 앞쪽이 node_exporter, or 뒤쪽이 windows_exporter입니다.
+#
+# Linux에서 빼는 파일 시스템 목록(fstype!~)은 Manager의 FilesystemFilter와 같아야 합니다.
+# FilesystemFilterRuleSyncTest가 이 파일을 읽어 두 목록을 비교합니다.
+
+groups:
+  - name: server-resources
+    rules:
+      # CPU: 직전 두 수집 사이의 idle 비율. 서버마다 수집 주기(10~240초)가 달라 irate를 씁니다.
+      - record: manager:resource_usage_percent
+        expr: |
+          100 * (1 - avg by (server_id) (irate(node_cpu_seconds_total{job="manager-os",mode="idle"}[10m])))
+          or
+          100 * (1 - avg by (server_id) (irate(windows_cpu_time_total{job="manager-os",mode="idle"}[10m])))
+        labels:
+          resource_type: CPU
+          resource_key: cpu
+
+      # Memory: 사용량은 Total - Available입니다. Linux는 cache와 buffer를 사용량에 넣지 않습니다.
+      - record: manager:resource_size_bytes
+        expr: |
+          max by (server_id) (node_memory_MemTotal_bytes{job="manager-os"})
+          or
+          max by (server_id) (windows_memory_physical_total_bytes{job="manager-os"})
+        labels:
+          resource_type: MEMORY
+          resource_key: memory
+      - record: manager:resource_used_bytes
+        expr: |
+          max by (server_id) (node_memory_MemTotal_bytes{job="manager-os"} - node_memory_MemAvailable_bytes{job="manager-os"})
+          or
+          max by (server_id) (windows_memory_physical_total_bytes{job="manager-os"} - windows_memory_available_bytes{job="manager-os"})
+        labels:
+          resource_type: MEMORY
+          resource_key: memory
+      - record: manager:resource_usage_percent
+        expr: |
+          max by (server_id) (100 * (1 - node_memory_MemAvailable_bytes{job="manager-os"} / node_memory_MemTotal_bytes{job="manager-os"}))
+          or
+          max by (server_id) (100 * (1 - windows_memory_available_bytes{job="manager-os"} / windows_memory_physical_total_bytes{job="manager-os"}))
+        labels:
+          resource_type: MEMORY
+          resource_key: memory
+
+      # Storage: resource_key는 Linux mountpoint, Windows 드라이브 이름(C:)입니다.
+      # 사용량은 size - avail이라 ext4 예약 블록만큼 df보다 조금 높습니다. 드라이브 문자가 없는 Windows volume은 뺍니다.
+      - record: manager:resource_size_bytes
+        expr: |
+          max by (server_id, resource_key) (label_replace(node_filesystem_size_bytes{job="manager-os",fstype!~"tmpfs|ramfs|devtmpfs|overlay|squashfs|nsfs|autofs|fuse\\..*"}, "resource_key", "$1", "mountpoint", "(.*)"))
+          or
+          max by (server_id, resource_key) (label_replace(windows_logical_disk_size_bytes{job="manager-os",volume=~"[A-Z]:"}, "resource_key", "$1", "volume", "(.*)"))
+        labels:
+          resource_type: STORAGE
+      - record: manager:resource_used_bytes
+        expr: |
+          max by (server_id, resource_key) (label_replace(node_filesystem_size_bytes{job="manager-os",fstype!~"tmpfs|ramfs|devtmpfs|overlay|squashfs|nsfs|autofs|fuse\\..*"} - node_filesystem_avail_bytes{job="manager-os"}, "resource_key", "$1", "mountpoint", "(.*)"))
+          or
+          max by (server_id, resource_key) (label_replace(windows_logical_disk_size_bytes{job="manager-os",volume=~"[A-Z]:"} - windows_logical_disk_free_bytes{job="manager-os"}, "resource_key", "$1", "volume", "(.*)"))
+        labels:
+          resource_type: STORAGE
+      - record: manager:resource_usage_percent
+        expr: |
+          max by (server_id, resource_key) (label_replace(100 * (1 - node_filesystem_avail_bytes{job="manager-os"} / node_filesystem_size_bytes{job="manager-os",fstype!~"tmpfs|ramfs|devtmpfs|overlay|squashfs|nsfs|autofs|fuse\\..*"}), "resource_key", "$1", "mountpoint", "(.*)"))
+          or
+          max by (server_id, resource_key) (label_replace(100 * (1 - windows_logical_disk_free_bytes{job="manager-os"} / windows_logical_disk_size_bytes{job="manager-os",volume=~"[A-Z]:"}), "resource_key", "$1", "volume", "(.*)"))
+        labels:
+          resource_type: STORAGE

@@ -43,7 +43,7 @@ Manager ── GET http://host:port/metrics (연결 시험, 리소스 찾기만.
 | `backend/.../common/security/`, `config/` | `SecretEncryptionService`, `APP_SECRET_KEY`·secret key 설정, SNMP 설정 키 삭제 |
 | `backend/build.gradle`, `Dockerfile`, `application.yml`, `.env.example` | snmp4j, `/runtime`, SNMP·secret key 설정 삭제 |
 | `infrastructure/prometheus/prometheus.yml` | `manager-snmp` job을 `manager-os` job으로 |
-| `infrastructure/prometheus/rules/server-resources.yml`, `.test.yml` | 새 recording rule과 `promtool` 테스트 |
+| `infrastructure/prometheus/rules/server-resources.yml`, `tests/server-resources.test.yml` | 새 recording rule과 `promtool` 테스트 |
 | `infrastructure/snmp/`, `infrastructure/secrets/app_secret_key*` | 삭제 |
 | `compose.yml` | `snmp-exporter`, `snmp-test-agent`, `snmp-runtime`, `app_secret_key` secret 삭제, `os-test` profile의 node_exporter 추가 |
 | `frontend/src/lib/api.ts`, `components/StatusDot.tsx` | OS·수집 상태 타입, SNMP 타입 삭제 |
@@ -109,13 +109,13 @@ metric 이름 근거(2026-10-15 공식 저장소에서 확인한 것과 추측�
 | node | `node_exporter_build_info{version}` | 같은 표본의 HELP 줄만 확인 |
 | node | `node_memory_MemAvailable_bytes` | v1.12.1 실제 출력 확인(2026-10-16) |
 | node | `node_filesystem_size_bytes`, `node_filesystem_avail_bytes`와 label `device`, `device_error`, `fstype`, `mountpoint` | v1.12.1 실제 출력 확인(2026-10-16) |
-| windows | v0.32.0의 이름 변경 | v0.32.0-beta.1~5 변경 내역에 cpu, memory, logical_disk의 이 이름들 변경 없음(2026-10-16). 최신 정식 버전은 v0.31.9 |
+| windows | v0.32.0의 이름 변경 | beta.1~5 변경 내역에서 위 이름의 변경 없음 확인(2026-10-16, 최신 정식은 v0.31.9) |
 
 - CPU: `100 * (1 - avg by (server_id) (irate(<idle 카운터>[10m])))`. `irate`는 직전 두 수집 사이 평균이라 서버마다 다른 주기(10~240초)와 뜻이 맞는다(사람 확인: 2026-10-16). Windows도 idle 기준이고, 작업 관리자 값과 조금 다를 수 있음을 화면 안내에 쓴다.
 - Memory: 크기 Total, 사용량 Total − Available(Linux는 cache·buffer 제외).
 - Storage: 크기 size, 사용량 size − avail(ext4 예약 블록 때문에 `df`보다 조금 높을 수 있음). Linux 제외 fstype `tmpfs|ramfs|devtmpfs|overlay|squashfs|nsfs|autofs|fuse\..*` 등, Windows는 `^[A-Z]:$`만 받는다. 제외 목록은 규칙 파일과 Java `FilesystemFilter` 두 곳에 있으므로 Java 테스트가 규칙 파일을 읽어 같은지 확인한다.
 - 화면은 `up{job="manager-os"}`과 위 세 규칙만 조회한다(PromQL은 `prometheus` 패키지에만).
-- `promtool` 실행: `MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/infrastructure/prometheus/rules:/rules:ro" --entrypoint promtool <compose.yml의 Prometheus 이미지> test rules /rules/server-resources.test.yml`
+- `promtool` 실행: DEVELOPMENT.md 명령 표의 규칙 테스트
 
 ## 연결 시험과 리소스 찾기
 
@@ -223,7 +223,7 @@ os-test-node-exporter:
 - [x] 계획 승인(2026-10-16). CPU `irate[10m]`, 링크 로컬 주소를 막지 않음, AGENTS.md 문구 변경을 함께 승인
 - [x] ADR 둘 초안: [0004](../decisions/0004-os-exporter-collection.md), [0005](../decisions/0005-common-resource-recording-rules.md)(0003은 미병합 브랜치 `feature/resource-threshold-alert`가 씀)
 - [x] `os-test` 컨테이너 추가, 표본 두 개(`backend/src/test/resources/exporter/`) 만들고 metric 이름 확정
-- [ ] 규칙 테스트를 쓰고 실패 확인 → `server-resources.yml`(C5), TESTING.md·DEVELOPMENT.md 규칙 테스트
+- [x] 규칙 테스트를 쓰고 실패 확인 → `server-resources.yml`(C5), TESTING.md·DEVELOPMENT.md 규칙 테스트
 - [ ] C3·C4 테스트 실패 확인 → `exporter` 패키지의 클라이언트·파서·필터
 - [ ] C1·C2·C9 테스트 실패 확인 → V9 migration(두 vendor), `ServerOs`, 수집 설정, SD, 수집 상태
 - [ ] `ResourceMetricQueryService`, `ServerResourceService`, 리소스 찾기 교체
@@ -240,6 +240,8 @@ os-test-node-exporter:
 - 계획은 2026-10-15에 하위 에이전트가 설계한 초안을 사람의 결정(생존은 Blackbox, 수집 상태 분리, SNMP 안내 문구 없음, 암호화 서비스와 `APP_SECRET_KEY` 삭제, 배포 절차는 PR 설명에만)으로 고쳐 썼다.
 - 공식 e2e 표본에는 `*_build_info` 값 줄, `node_filesystem_*`, windows CPU·Memory·디스크 값이 없어 그대로 테스트 표본으로 쓸 수 없다.
 - node_exporter v1.12.1의 `/metrics` 전체 응답은 CPU 16개 컨테이너에서 약 84 KB였다. 본문 한도 16 MiB는 넉넉하다.
+- 규칙 테스트 파일은 `rules/` 밖(`infrastructure/prometheus/tests/`)에 둔다. Prometheus가 `rules/*.yml`을 모두 규칙 파일로 읽기 때문이다.
+- `promtool check rules`가 같은 이름과 label의 규칙이 둘 있으면 막으므로, Linux와 Windows 식을 `or`로 묶어 이름·종류마다 규칙 하나로 썼다. MemAvailable을 MemFree로 바꾸거나 tmpfs 제외를 지우면 규칙 테스트가 실패하는 것을 확인했다.
 - node_exporter의 filesystem metric에 `device_error` label이 있다. recording rule은 `max by`로 끝내므로 결과에 남지 않는다.
 
 ## 남길 결정
