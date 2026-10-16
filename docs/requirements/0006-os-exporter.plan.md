@@ -221,7 +221,7 @@ os-test-node-exporter:
 
 - 순서: 요구사항 0005가 병합된 뒤 이 브랜치를 `main` 위로 옮겨 시작한다(사람 확인: 2026-10-15).
 - [x] 계획 승인(2026-10-16). CPU `irate[10m]`, 링크 로컬 주소를 막지 않음, AGENTS.md 문구 변경을 함께 승인
-- [ ] ADR 둘 초안(남길 결정). 번호는 0004, 0005(0003은 미병합 브랜치 `feature/resource-threshold-alert`가 씀)
+- [x] ADR 둘 초안: [0004](../decisions/0004-os-exporter-collection.md), [0005](../decisions/0005-common-resource-recording-rules.md)(0003은 미병합 브랜치 `feature/resource-threshold-alert`가 씀)
 - [ ] `os-test` 컨테이너 추가, 표본 두 개 만들고 "추측" metric 이름 확정. 다르면 계획을 고친다
 - [ ] 규칙 테스트를 쓰고 실패 확인 → `server-resources.yml`(C5), TESTING.md·DEVELOPMENT.md 규칙 테스트
 - [ ] C3·C4 테스트 실패 확인 → `exporter` 패키지의 클라이언트·파서·필터
