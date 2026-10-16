@@ -67,7 +67,6 @@ management:
 
 # 아래 환경변수는 Docker Secret이 없을 때 쓰는 개발용 fallback입니다.
 monitoring-manager:
-  secret-key: ${APP_SECRET_KEY:}
   prometheus:
     base-url: ${PROMETHEUS_URL:http://prometheus:9090}
   alertmanager:
@@ -76,7 +75,6 @@ monitoring-manager:
     base-url: ${GRAFANA_URL:http://grafana:3000}
   exporters:
     blackbox-url: ${BLACKBOX_EXPORTER_URL:http://blackbox-exporter:9115}
-    snmp-url: ${SNMP_EXPORTER_URL:http://snmp-exporter:9116}
     mysqld-url: ${MYSQLD_EXPORTER_URL:http://mysqld-exporter:9104}
   telegram:
     bot-token: ${TELEGRAM_BOT_TOKEN:}
@@ -85,13 +83,6 @@ monitoring-manager:
     # 비어 있으면 /register를 쓸 수 없습니다. 그때는 Chat ID를 직접 등록합니다.
     webhook-public-url: ${TELEGRAM_WEBHOOK_PUBLIC_URL:}
     timeout: ${TELEGRAM_TIMEOUT:5s}
-
-  snmp:
-    # Manager가 만드는 auth config입니다. snmp-exporter container와 함께 보는 volume이어야 합니다.
-    # community가 들어 있으므로 Git에 올리지 않고 다른 container에 mount하지 않습니다.
-    auth-config-path: ${SNMP_AUTH_CONFIG_PATH:/runtime/snmp-auth.yml}
-    reload-url: ${SNMP_EXPORTER_RELOAD_URL:http://snmp-exporter:9116/-/reload}
-    reload-timeout: ${SNMP_EXPORTER_RELOAD_TIMEOUT:5s}
 
   notification:
     # 복구 알림을 Alertmanager가 곧바로 다시 보낼 때 한 번만 보내도록 막는 창입니다.

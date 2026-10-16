@@ -22,11 +22,6 @@ WORKDIR /app
 # root로 실행하지 않습니다.
 RUN useradd --system --create-home --uid 10001 manager
 
-# snmp_exporter의 auth config를 쓰는 곳입니다.
-# 빈 named volume을 여기에 mount하면 Docker가 이 디렉터리의 소유자를 그대로 가져갑니다.
-# 미리 만들어 두지 않으면 root 소유가 돼서 manager가 파일을 쓰지 못합니다.
-RUN mkdir -p /runtime && chown manager:manager /runtime && chmod 700 /runtime
-
 USER manager
 
 COPY --from=build /build/build/libs/monitoring-manager.jar /app/monitoring-manager.jar

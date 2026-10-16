@@ -18,16 +18,12 @@ import java.time.ZoneId;
 @Validated
 public record MonitoringManagerProperties(
 
-		@NotBlank(message = "값이 비어 있습니다. Docker Secret(monitoring-manager.secret-key) 또는 APP_SECRET_KEY를 설정해 주세요.")
-		String secretKey,
-
 		@NotNull @Valid Endpoint prometheus,
 		@NotNull @Valid Endpoint alertmanager,
 		@NotNull @Valid Endpoint grafana,
 		@NotNull @Valid Exporters exporters,
 		@NotNull @Valid Telegram telegram,
-		@NotNull @Valid Notification notification,
-		@NotNull @Valid Snmp snmp) {
+		@NotNull @Valid Notification notification) {
 
 	public record Endpoint(
 			@NotBlank(message = "값이 비어 있습니다. PROMETHEUS_URL, ALERTMANAGER_URL, GRAFANA_URL 환경변수를 확인해 주세요.")
@@ -37,9 +33,6 @@ public record MonitoringManagerProperties(
 	public record Exporters(
 			@NotBlank(message = "값이 비어 있습니다. BLACKBOX_EXPORTER_URL 환경변수를 설정해 주세요.")
 			String blackboxUrl,
-
-			@NotBlank(message = "값이 비어 있습니다. SNMP_EXPORTER_URL 환경변수를 설정해 주세요.")
-			String snmpUrl,
 
 			@NotBlank(message = "값이 비어 있습니다. MYSQLD_EXPORTER_URL 환경변수를 설정해 주세요.")
 			String mysqldUrl) {
@@ -94,34 +87,18 @@ public record MonitoringManagerProperties(
 		}
 	}
 
-	/**
-	 * snmp_exporter는 scrape 요청으로 community를 받지 않습니다.
-	 * 그래서 Manager가 auth config 파일을 만들어 주고 exporter에 다시 읽으라고 알립니다.
-	 */
-	public record Snmp(
-			@NotBlank(message = "값이 비어 있습니다. SNMP_AUTH_CONFIG_PATH 환경변수를 확인해 주세요.")
-			String authConfigPath,
-
-			@NotBlank(message = "값이 비어 있습니다. SNMP_EXPORTER_RELOAD_URL 환경변수를 확인해 주세요.")
-			String reloadUrl,
-
-			@NotNull Duration reloadTimeout) {
-	}
-
 	private static String mask(String value) {
 		return (value != null && !value.isBlank()) ? "***" : "<unset>";
 	}
 
 	@Override
 	public String toString() {
-		return "MonitoringManagerProperties[secretKey=***"
-				+ ", prometheus=" + prometheus
+		return "MonitoringManagerProperties[prometheus=" + prometheus
 				+ ", alertmanager=" + alertmanager
 				+ ", grafana=" + grafana
 				+ ", exporters=" + exporters
 				+ ", telegram=" + telegram
-				+ ", notification=" + notification
-				+ ", snmp=" + snmp + "]";
+				+ ", notification=" + notification + "]";
 	}
 
 }

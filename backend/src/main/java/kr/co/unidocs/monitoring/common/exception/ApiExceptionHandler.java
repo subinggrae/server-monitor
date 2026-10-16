@@ -1,10 +1,8 @@
 package kr.co.unidocs.monitoring.common.exception;
 
 import kr.co.unidocs.monitoring.check.InvalidCheckConfigurationException;
-import kr.co.unidocs.monitoring.common.security.SecretEncryptionException;
 import kr.co.unidocs.monitoring.notification.routing.DuplicateNotificationBindingException;
 import kr.co.unidocs.monitoring.notification.telegram.DuplicateTelegramDestinationException;
-import kr.co.unidocs.monitoring.snmp.SnmpConfigurationException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -48,17 +46,6 @@ class ApiExceptionHandler {
 	@ExceptionHandler(DuplicateNotificationBindingException.class)
 	ProblemDetail handleDuplicateNotificationBinding(DuplicateNotificationBindingException ex) {
 		return problem(HttpStatus.BAD_REQUEST, "입력값을 확인해 주세요", ex.getMessage());
-	}
-
-	@ExceptionHandler(SnmpConfigurationException.class)
-	ProblemDetail handleSnmpConfiguration(SnmpConfigurationException ex) {
-		return problem(HttpStatus.BAD_REQUEST, "SNMP 설정을 확인해 주세요", ex.getMessage());
-	}
-
-	/** 메시지에 평문이나 키가 들어 있지 않은지는 예외를 만드는 쪽에서 지킵니다. */
-	@ExceptionHandler(SecretEncryptionException.class)
-	ProblemDetail handleSecretEncryption(SecretEncryptionException ex) {
-		return problem(HttpStatus.INTERNAL_SERVER_ERROR, "인증 정보를 처리하지 못했습니다", ex.getMessage());
 	}
 
 	/** Frontend가 어느 입력 칸에 오류를 표시할지 알 수 있도록 field별 메시지를 함께 돌려줍니다. */
