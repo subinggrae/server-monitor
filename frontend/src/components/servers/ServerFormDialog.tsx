@@ -62,6 +62,8 @@ function ServerForm({
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.servers })
       queryClient.invalidateQueries({ queryKey: queryKeys.serverDetail(saved.id) })
+      // OS가 바뀌면 수집 설정의 기본 포트도 바뀝니다.
+      queryClient.invalidateQueries({ queryKey: queryKeys.serverExporter(saved.id) })
       onOpenChange(false)
     },
     onError: (error) => {

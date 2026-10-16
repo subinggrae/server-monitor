@@ -43,7 +43,7 @@ export function ServerListPage() {
         primaryAction={{ label: '서버 추가', onClick: () => setFormOpen(true) }}
         notice={
           <Notice title="사용률이 높아도 아직 위험으로 표시하지 않습니다.">
-            임계값을 정하는 기능이 아직 없습니다. 리소스는 서버 상세의 수집 탭에서 수집을 켠 뒤 찾아서 고릅니다.
+            임계값을 정하는 기능이 아직 없습니다. 리소스는 서버 상세의 수집 탭에서 수집을 켠 뒤 리소스 탭에서 찾아서 고릅니다.
           </Notice>
         }
         state={queryState(

@@ -1,9 +1,10 @@
-import { screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { ServerCollectionSection } from '@/components/servers/ServerCollectionSection'
-import type { ExporterTestResult, ServerExporter } from '@/lib/api'
+import { queryKeys, type ExporterTestResult, type ServerExporter } from '@/lib/api'
 import { fakeApi, renderWithQueryClient } from '@/test/render'
 
 const NOT_CONFIGURED_WINDOWS: ServerExporter = {
@@ -147,5 +148,29 @@ describe('OS exporter 수집 설정', () => {
     await user.click(await screen.findByRole('button', { name: '연결 시험' }))
 
     expect(await screen.findByText(/exporter에 연결하지 못했습니다/)).toBeTruthy()
+  })
+})
+
+describe('서버 OS가 바뀐 뒤의 수집 설정', () => {
+  it('수집 설정이 없으면 다시 불러온 OS 기본 포트로 폼을 새로 채운다', async () => {
+    fakeApi({ 'GET /api/servers/5/exporter': { body: { ...NOT_CONFIGURED_WINDOWS, port: 9100, defaultPort: 9100 } } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <ServerCollectionSection serverId={5} os="LINUX" />
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByLabelText('포트')).toHaveProperty('value', '9100')
+
+    fakeApi({ 'GET /api/servers/5/exporter': { body: NOT_CONFIGURED_WINDOWS } })
+    await queryClient.invalidateQueries({ queryKey: queryKeys.serverExporter(5) })
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <ServerCollectionSection serverId={5} os="WINDOWS" />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByLabelText('포트')).toHaveProperty('value', '9182'))
+    expect(screen.getByText(/작업 관리자/)).toBeTruthy()
   })
 })

@@ -46,7 +46,14 @@ export function ServerCollectionSection({ serverId, os }: { serverId: number; os
       description="서버에 설치한 exporter에서 CPU, Memory, Storage를 수집합니다. 서버가 살아 있는지는 감시 항목이 확인합니다."
       state={queryState(exporter, '수집 설정을 불러오지 못했습니다.')}
     >
-      <Notice title="exporter 포트는 Prometheus와 Monitoring Manager만 접근하게 해 주세요.">
+      <Notice
+        title="exporter 포트는 Prometheus와 Monitoring Manager만 접근하게 해 주세요."
+        hint={
+          os === 'WINDOWS'
+            ? 'Windows CPU 사용률은 idle 시간으로 계산하므로 작업 관리자의 값과 조금 다를 수 있습니다.'
+            : undefined
+        }
+      >
         exporter는 인증 없이 열립니다. 대상 서버의 방화벽에서 이 포트를 Prometheus와 Monitoring Manager에만
         열어 둡니다.{' '}
         <a href={guide.url} target="_blank" rel="noreferrer" className="text-foreground underline">
@@ -54,8 +61,11 @@ export function ServerCollectionSection({ serverId, os }: { serverId: number; os
         </a>
       </Notice>
 
-      {/* 저장한 뒤 다시 불러와도 폼을 새로 만들지 않습니다. 새로 만들면 저장 결과 문구가 사라집니다. */}
-      {exporter.data ? <CollectionForm serverId={serverId} exporter={exporter.data} /> : null}
+      {/* 저장한 뒤 다시 불러와도 폼을 새로 만들지 않습니다. 새로 만들면 저장 결과 문구가 사라집니다.
+          서버 OS가 바뀌어 기본 포트가 달라졌을 때만 새로 채웁니다. 설정이 없으면 포트도 새 기본값이 됩니다. */}
+      {exporter.data ? (
+        <CollectionForm key={exporter.data.defaultPort} serverId={serverId} exporter={exporter.data} />
+      ) : null}
     </PageSection>
   )
 }

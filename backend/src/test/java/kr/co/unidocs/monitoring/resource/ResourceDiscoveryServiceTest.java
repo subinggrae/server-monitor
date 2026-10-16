@@ -8,7 +8,6 @@ import kr.co.unidocs.monitoring.exporter.ExporterReadResult;
 import kr.co.unidocs.monitoring.exporter.ExporterTarget;
 import kr.co.unidocs.monitoring.exporter.ExporterType;
 import kr.co.unidocs.monitoring.exporter.ServerExporterService;
-import kr.co.unidocs.monitoring.server.ServerOs;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +37,7 @@ class ResourceDiscoveryServiceTest {
 	@Test
 	@DisplayName("Linux는 CPU, Memory와 임시 파일 시스템을 뺀 mountpoint를 보인다")
 	void discoversLinuxResources() {
-		givenTarget(ServerOs.LINUX, 9100);
+		givenTarget(9100);
 		givenRead(9100, new ExporterMetrics(ExporterType.NODE_EXPORTER, "1.12.1", 2, 8_000_000_000L, List.of(
 				new ExporterFilesystem("/data", "ext4", 1000), new ExporterFilesystem("/run", "tmpfs", 10),
 				new ExporterFilesystem("/", "overlay", 1000), new ExporterFilesystem("/" + "a".repeat(255), "ext4", 1))));
@@ -59,7 +58,7 @@ class ResourceDiscoveryServiceTest {
 	@Test
 	@DisplayName("Windows는 드라이브 이름이 있는 volume만 보인다")
 	void discoversWindowsResources() {
-		givenTarget(ServerOs.WINDOWS, 9182);
+		givenTarget(9182);
 		givenRead(9182, new ExporterMetrics(ExporterType.WINDOWS_EXPORTER, "0.31.9", 4, 16L, List.of(
 				new ExporterFilesystem("C:", null, 100), new ExporterFilesystem("HarddiskVolume2", null, 5))));
 
@@ -70,7 +69,7 @@ class ResourceDiscoveryServiceTest {
 	@Test
 	@DisplayName("이미 고른 리소스는 selected로 표시한다")
 	void marksSelected() {
-		givenTarget(ServerOs.LINUX, 9100);
+		givenTarget(9100);
 		givenRead(9100, new ExporterMetrics(ExporterType.NODE_EXPORTER, "1.12.1", 2, 8L,
 				List.of(new ExporterFilesystem("/data", "ext4", 1000))));
 		when(monitoredResourceRepository.findByServerIdOrderByResourceTypeAscResourceKeyAsc(5L))
@@ -98,7 +97,7 @@ class ResourceDiscoveryServiceTest {
 	@Test
 	@DisplayName("exporter를 읽지 못하면 분류의 정한 문구로 실패한다")
 	void reportsReadFailure() {
-		givenTarget(ServerOs.LINUX, 9100);
+		givenTarget(9100);
 		when(exporterClient.read("10.0.0.5", 9100))
 			.thenReturn(new ExporterReadResult(ExporterOutcome.UNREADABLE, 200, null, 5L));
 
@@ -108,8 +107,8 @@ class ResourceDiscoveryServiceTest {
 		assertThat(result.message()).isEqualTo(ExporterOutcome.UNREADABLE.failureMessage());
 	}
 
-	private void givenTarget(ServerOs os, int port) {
-		when(serverExporterService.enabledTarget(5L)).thenReturn(Optional.of(new ExporterTarget("10.0.0.5", port, os)));
+	private void givenTarget(int port) {
+		when(serverExporterService.enabledTarget(5L)).thenReturn(Optional.of(new ExporterTarget("10.0.0.5", port)));
 	}
 
 	private void givenRead(int port, ExporterMetrics metrics) {

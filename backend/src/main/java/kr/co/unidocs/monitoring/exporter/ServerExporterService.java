@@ -61,7 +61,7 @@ public class ServerExporterService {
 		ServerTarget server = requireServer(serverId);
 		return configRepository.findByServerId(serverId)
 			.filter(ServerExporterConfig::isEnabled)
-			.map(config -> new ExporterTarget(server.getHost(), config.getPort(), server.getOs()));
+			.map(config -> new ExporterTarget(server.getHost(), config.getPort()));
 	}
 
 	private static ServerExporterResponse toResponse(ServerExporterConfig config, int defaultPort) {

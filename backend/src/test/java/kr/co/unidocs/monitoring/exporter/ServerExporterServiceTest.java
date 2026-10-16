@@ -154,7 +154,7 @@ class ServerExporterServiceTest {
 		assertThat(service.enabledTarget(5L)).isEmpty();
 
 		when(configRepository.findByServerId(5L)).thenReturn(Optional.of(new ServerExporterConfig(5L, true, 9182, 15)));
-		assertThat(service.enabledTarget(5L)).contains(new ExporterTarget("10.0.0.5", 9182, ServerOs.WINDOWS));
+		assertThat(service.enabledTarget(5L)).contains(new ExporterTarget("10.0.0.5", 9182));
 	}
 
 	private static ExporterReadResult ok(ExporterType type) {
