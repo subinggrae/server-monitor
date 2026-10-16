@@ -48,12 +48,13 @@
 | 종류 | 책임 | 쓰는 경우 | 쓰지 않는 경우 | 명령 |
 |---|---|---|---|---|
 | 정적 검사 | 타입 오류, 문법 오류, 금지 패턴 | 항상, 별도 테스트 없이 | 해당 없음 | `cd frontend && npm run lint`, `cd frontend && npm run build`(타입 검사), `cd backend && ./gradlew build`(컴파일) |
-| 단위 테스트 | Backend의 요청 검증, 응답 변환, Entity 규칙, HTTP SD 목록 | DB 없이 확인할 수 있는 Backend 동작 | DB 쿼리, migration, 실제 HTTP 호출 | `cd backend && ./gradlew test` |
+| 단위 테스트 | Backend의 요청 검증, 응답 변환, Entity 규칙, HTTP SD 목록, exporter 응답 처리 | DB 없이 확인할 수 있는 Backend 동작 | DB 쿼리, migration, 바깥 서버로 가는 HTTP 호출 | `cd backend && ./gradlew test` |
+| 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지 | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령)의 규칙 테스트 |
 | 컴포넌트 테스트 | 화면에 보이는 값, 입력 검증, 화면이 보내는 요청 | 입력과 API 응답에 따라 바뀌는 화면 | 화면 모양, 실제 Backend 연동 | `cd frontend && npm test` |
 | E2E | 핵심 사용자 흐름이 전체 실행 환경에서 끝까지 동작하는지 | Check 등록부터 삭제까지, 수집 결과가 대시보드에 보이기까지 | 하위 테스트로 확인할 수 있는 예외와 경계값 | `cd frontend && npm run test:e2e` |
 | 화면 검사 | 기준 폭과 밝은·다크 모드마다 접근성 위반(WCAG 2.2 AA)과 가로 넘침 | 화면을 바꿨을 때 | 화면 모양과 문구 | `cd frontend && npm run test:screen` |
 
-단위 테스트는 Repository를 Mockito로 바꾸고, 컴포넌트 테스트는 `frontend/src/test/render.tsx`의 `fakeApi`로 fetch를 바꾼다.
+단위 테스트는 Repository를 Mockito로 바꾸고, 컴포넌트 테스트는 `frontend/src/test/render.tsx`의 `fakeApi`로 fetch를 바꾼다. Manager가 바깥 서버로 보내는 HTTP 요청은 같은 테스트 프로세스에 `127.0.0.1`로 띄운 JDK `HttpServer`로 확인한다(예: `ExporterClientTest`). exporter 응답 표본은 `backend/src/test/resources/exporter/`에 있다.
 
 E2E와 화면 검사는 다음처럼 실행한다.
 
@@ -121,7 +122,8 @@ E2E와 화면 검사는 다음처럼 실행한다.
 - **설정**(CWE-942): 운영 설정에 디버그 모드, 기본 계정, 모든 출처를 허용하는 CORS(`*`)가 없다. 응답에 HSTS와 `X-Content-Type-Options: nosniff`를 보내고, Level 2 이상이면 CSP도 둔다.
 - **의존성**(CWE-1395): 새 의존성은 레지스트리에 실제로 있고 관리되는 패키지다. AI는 없는 패키지 이름을 지어내므로 이름을 레지스트리에서 확인한다. 설치 스크립트(`postinstall` 등)와 알려진 취약점을 확인했다. 라이선스는 [LICENSES.md의 분류](LICENSES.md#분류)를 따른다. lockfile을 함께 커밋한다.
 - **CI**: 작업 토큰은 읽기 권한을 기본으로 한다. PR 제목이나 브랜치 이름 같은 외부 입력을 스크립트에 그대로 넣지 않는다. 외부 action은 커밋 SHA로, 이미지는 digest로 고정한다. 외부 PR에 비밀값을 넘기는 트리거(`pull_request_target` 등)를 쓰지 않는다. 배포 자격 증명은 OIDC처럼 짧게 쓰는 것을 쓴다. 내려받아 실행하는 스크립트는 체크섬을 확인한다.
-- **장비 인증 정보**: SNMP community처럼 DB에 저장하는 장비 인증 정보는 `SecretEncryptionService`로 암호화해 저장하고, API 응답에는 설정 여부만 돌려준다. Bot Token은 DB와 API 응답에 두지 않는다.
+- **장비 인증 정보**: DB에 장비 인증 정보를 저장하지 않는다. 저장해야 하는 기능을 더하면 암호화해 저장하고 API 응답에는 설정 여부만 돌려주며, 그 방식을 ADR로 정한다. Bot Token은 DB와 API 응답에 두지 않는다.
+- **exporter 응답**(CWE-918, CWE-400): Manager가 사용자가 입력한 주소로 보내는 요청은 경로를 고정하고, 리다이렉트를 따르지 않으며, 응답 크기와 시간에 한도를 둔다. 응답 본문, 헤더, 예외 메시지는 화면과 로그에 넣지 않는다.
 - **webhook**: Alertmanager와 Telegram webhook은 요청마다 비밀값(Bearer token, secret header)으로 호출하는 쪽을 확인한다.
 - **에이전트 설정**: 에이전트 권한 설정, 지침 파일, MCP와 hook 설정은 사람이 요청했을 때만 바뀌었다. 밖에서 들여온 지침과 규칙 파일에 보이지 않는 문자가 없다.
 

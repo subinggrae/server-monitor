@@ -14,10 +14,9 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * 사용자가 모니터링하기로 고른 Resource입니다. 장비에서 발견한 목록 전체가 아닙니다.
+ * 사용자가 모니터링하기로 고른 Resource입니다. exporter가 내보낸 목록 전체가 아닙니다.
  *
- * snmpIndex는 참고용입니다. 재부팅이나 Agent 설정 변경으로 바뀔 수 있어 식별자로 쓰지 않습니다.
- * 기준은 장비가 준 resourceKey입니다. Storage는 hrStorageDescr입니다.
+ * resourceKey는 recording rule의 resource_key와 같습니다. Storage는 Linux mountpoint, Windows 드라이브 이름입니다.
  */
 @Entity
 @Table(name = "monitored_resources")
@@ -43,9 +42,6 @@ public class MonitoredResource {
 	@Column(name = "description", length = 500)
 	private String description;
 
-	@Column(name = "snmp_index")
-	private Integer snmpIndex;
-
 	@Column(name = "enabled", nullable = false)
 	private boolean enabled = true;
 
@@ -59,20 +55,18 @@ public class MonitoredResource {
 	}
 
 	public MonitoredResource(Long serverId, ResourceType resourceType, String resourceKey, String displayName,
-			String description, Integer snmpIndex) {
+			String description) {
 		this.serverId = serverId;
 		this.resourceType = resourceType;
 		this.resourceKey = resourceKey;
 		this.displayName = displayName;
 		this.description = description;
-		this.snmpIndex = snmpIndex;
 	}
 
-	/** 다시 검색했을 때 장비가 준 최신 정보로 맞춥니다. 선택 자체는 그대로 둡니다. */
-	public void refreshMetadata(String displayName, String description, Integer snmpIndex) {
+	/** 다시 찾았을 때 exporter가 준 최신 정보로 맞춥니다. 선택 자체는 그대로 둡니다. */
+	public void refreshMetadata(String displayName, String description) {
 		this.displayName = displayName;
 		this.description = description;
-		this.snmpIndex = snmpIndex;
 	}
 
 	@PrePersist
@@ -108,10 +102,6 @@ public class MonitoredResource {
 
 	public String getDescription() {
 		return description;
-	}
-
-	public Integer getSnmpIndex() {
-		return snmpIndex;
 	}
 
 	public boolean isEnabled() {

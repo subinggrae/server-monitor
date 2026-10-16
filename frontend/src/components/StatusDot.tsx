@@ -1,6 +1,6 @@
 import { TriangleAlert } from 'lucide-react'
 
-import { SNMP_STATE_LABELS, type AlertStatus, type MonitoringStatus, type SnmpState } from '@/lib/api'
+import { COLLECTION_STATE_LABELS, type AlertStatus, type CollectionState, type MonitoringStatus } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 /**
@@ -63,15 +63,17 @@ export function StatusDot({ status, className }: { status: MonitoringStatus; cla
   return <StatusLabel style={STATUS_STYLES[status]} className={className} />
 }
 
-const SNMP_STATES: Record<SnmpState, StatusStyle> = {
-  CONNECTED: { label: SNMP_STATE_LABELS.CONNECTED, mark: 'ok' },
-  NO_RESPONSE: { label: SNMP_STATE_LABELS.NO_RESPONSE, mark: 'critical' },
-  DISABLED: { label: SNMP_STATE_LABELS.DISABLED, mark: 'off' },
-  NOT_CONFIGURED: { label: SNMP_STATE_LABELS.NOT_CONFIGURED, mark: 'off' },
+/** 수집 실패는 서버 장애가 아니므로 위험 아이콘이 아니라 경고로 그립니다. 서버 생존은 감시 항목이 보입니다. */
+const COLLECTION_STATES: Record<CollectionState, StatusStyle> = {
+  COLLECTING: { label: COLLECTION_STATE_LABELS.COLLECTING, mark: 'ok' },
+  FAILED: { label: COLLECTION_STATE_LABELS.FAILED, mark: 'warning' },
+  UNKNOWN: { label: COLLECTION_STATE_LABELS.UNKNOWN, mark: 'unknown' },
+  DISABLED: { label: COLLECTION_STATE_LABELS.DISABLED, mark: 'off' },
+  NOT_CONFIGURED: { label: COLLECTION_STATE_LABELS.NOT_CONFIGURED, mark: 'off' },
 }
 
-export function SnmpStateDot({ state, className }: { state: SnmpState; className?: string }) {
-  return <StatusLabel style={SNMP_STATES[state]} className={className} />
+export function CollectionStateDot({ state, className }: { state: CollectionState; className?: string }) {
+  return <StatusLabel style={COLLECTION_STATES[state]} className={className} />
 }
 
 const ALERT_STATES: Record<AlertStatus, StatusStyle> = {

@@ -2,6 +2,8 @@ package kr.co.unidocs.monitoring.server;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -29,6 +31,10 @@ public class ServerTarget {
 	@Column(name = "environment", nullable = false, length = 50)
 	private String environment;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "os", nullable = false, length = 10)
+	private ServerOs os = ServerOs.LINUX;
+
 	@Column(name = "description", length = 500)
 	private String description;
 
@@ -44,18 +50,22 @@ public class ServerTarget {
 	protected ServerTarget() {
 	}
 
-	public ServerTarget(String name, String host, String environment, String description, boolean enabled) {
+	public ServerTarget(String name, String host, String environment, ServerOs os, String description,
+			boolean enabled) {
 		this.name = name;
 		this.host = host;
 		this.environment = environment;
+		this.os = os;
 		this.description = description;
 		this.enabled = enabled;
 	}
 
-	public void update(String name, String host, String environment, String description, boolean enabled) {
+	public void update(String name, String host, String environment, ServerOs os, String description,
+			boolean enabled) {
 		this.name = name;
 		this.host = host;
 		this.environment = environment;
+		this.os = os;
 		this.description = description;
 		this.enabled = enabled;
 	}
@@ -85,6 +95,10 @@ public class ServerTarget {
 
 	public String getEnvironment() {
 		return environment;
+	}
+
+	public ServerOs getOs() {
+		return os;
 	}
 
 	public String getDescription() {

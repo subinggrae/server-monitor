@@ -65,38 +65,27 @@ scrape_configs:
       - target_label: __address__
         replacement: blackbox-exporter:9115
 
-  # 사용자가 UI에서 SNMP를 설정한 서버입니다.
-  # community는 여기에도 SD 응답에도 없습니다. exporter가 auth 이름으로 자기 config에서 찾습니다.
+  # 사용자가 UI에서 OS exporter(node_exporter, windows_exporter) 수집을 켠 서버입니다.
+  # Target 목록은 Manager API에서 가져옵니다. 이 파일에 Target을 적지 않습니다.
   # 수집 주기도 서버마다 SD label __scrape_interval__로 받습니다. 위의 전역 scrape_interval은 쓰지 않습니다.
-  - job_name: manager-snmp
-    metrics_path: /snmp
+  # honor_labels는 기본값(false)으로 둡니다. exporter가 server_id 같은 대상 label을 바꾸지 못합니다.
+  - job_name: manager-os
+    metrics_path: /metrics
 
     http_sd_configs:
-      - url: http://manager-api:8080/api/prometheus/sd/snmp
+      - url: http://manager-api:8080/api/prometheus/sd/os-exporter
         refresh_interval: 30s
 
-    relabel_configs:
+    # keep 뒤에 남는 series 수에 걸립니다. CPU 코어와 디스크가 아주 많은 서버만 넘습니다.
+    sample_limit: 2000
+
+    # CPU, Memory, Storage 계산(rules/server-resources.yml)에 쓰는 series만 저장합니다.
+    # 다른 지표는 저장하지 않습니다. 필요해지면 이 목록과 규칙을 함께 고칩니다. (요구사항 0006)
+    # CPU는 idle 카운터만 씁니다. up 같은 scrape 자체 series는 이 규칙과 관계없이 남습니다.
+    metric_relabel_configs:
       - source_labels:
-          - __address__
-        target_label: __param_target
-
-      # 고른 Resource에 따라 필요한 module이 달라서 SD label을 그대로 넘깁니다.
-      - source_labels:
-          - snmp_modules
-        target_label: __param_module
-
-      - source_labels:
-          - snmp_auth
-        target_label: __param_auth
-
-      # instance에는 exporter 주소가 아니라 실제 장비가 남아야 합니다.
-      - source_labels:
-          - __param_target
-        target_label: instance
-
-      # auth 이름은 exporter로만 넘기고 metric label로는 남기지 않습니다.
-      - regex: snmp_auth|snmp_modules
-        action: labeldrop
-
-      - target_label: __address__
-        replacement: snmp-exporter:9116
+          - __name__
+          - mode
+        separator: ;
+        regex: (node_cpu_seconds_total|windows_cpu_time_total);idle|(node_memory_MemTotal_bytes|node_memory_MemAvailable_bytes|node_filesystem_size_bytes|node_filesystem_avail_bytes|windows_memory_physical_total_bytes|windows_memory_available_bytes|windows_logical_disk_size_bytes|windows_logical_disk_free_bytes);.*
+        action: keep

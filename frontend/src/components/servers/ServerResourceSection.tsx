@@ -10,6 +10,7 @@ import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/tab
 import {
   apiPost,
   apiPut,
+  EXPORTER_TYPE_LABELS,
   queryKeys,
   serverResourcesQuery,
   type DiscoveredResource,
@@ -22,14 +23,23 @@ import { formatBytes, formatDateTime, formatPercent } from '@/lib/format'
 
 const TYPE_ORDER = { CPU: 0, MEMORY: 1, STORAGE: 2 } as const
 
-const TYPE_LABELS: Record<ResourceType, string> = { CPU: 'CPU', MEMORY: '메모리', STORAGE: '스토리지' }
+const TYPE_LABELS: Record<ResourceType, string> = { CPU: 'CPU', MEMORY: 'Memory', STORAGE: 'Storage' }
 
+/**
+ * 고른 리소스와 지금 값입니다. 리소스 찾기는 켠 수집 설정의 exporter를 읽으므로 수집이 꺼져 있으면 막습니다.
+ * 탭 이름(리소스)을 절 제목으로 되풀이하지 않습니다.
+ */
 export function ServerResourceSection({
   serverId,
-  snmpConfigured,
+  collectionEnabled,
+  collectionFailed,
+  onOpenCollection,
 }: {
   serverId: number
-  snmpConfigured: boolean
+  collectionEnabled: boolean
+  /** 켜져 있지만 Prometheus가 exporter를 읽지 못하는 상태입니다. */
+  collectionFailed: boolean
+  onOpenCollection: () => void
 }) {
   const resources = useQuery(serverResourcesQuery(serverId))
   const [discovery, setDiscovery] = useState<ResourceDiscoveryResult | null>(null)
@@ -40,37 +50,51 @@ export function ServerResourceSection({
     onError: () =>
       setDiscovery({
         success: false,
-        message: 'SNMP 응답을 받지 못했습니다. 호스트, 포트, Community와 네트워크 접근을 확인해 주세요.',
-        systemName: null,
-        systemDescription: null,
+        message: '리소스를 찾지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        exporterType: null,
+        version: null,
         resources: [],
       }),
   })
 
   return (
     <PageSection
-      title="리소스"
-      description="검색해서 찾은 리소스 가운데 수집할 것만 고릅니다."
+      title="감시하는 리소스"
+      description="exporter에서 찾은 CPU, Memory, Storage 가운데 고른 것만 사용률을 보입니다."
       actions={
         <Button
           variant="secondary"
           size="sm"
-          disabled={!snmpConfigured || discoverMutation.isPending}
+          disabled={!collectionEnabled || discoverMutation.isPending}
           onClick={() => discoverMutation.mutate()}
         >
-          {discoverMutation.isPending ? '검색 중…' : '리소스 검색'}
+          {discoverMutation.isPending ? '찾는 중…' : '리소스 찾기'}
         </Button>
       }
       state={queryState(resources, '리소스를 불러오지 못했습니다.')}
     >
-      {!snmpConfigured ? (
-        <p className="text-body text-muted-foreground">
-          SNMP를 먼저 설정해야 리소스를 검색할 수 있습니다.
-        </p>
+      {!collectionEnabled ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-body text-muted-foreground">OS exporter 수집이 꺼져 있어 리소스를 찾을 수 없습니다.</p>
+          <Button variant="secondary" size="sm" onClick={onOpenCollection}>
+            수집 설정 열기
+          </Button>
+        </div>
+      ) : null}
+
+      {collectionEnabled && collectionFailed ? (
+        <Notice tone="warning" title="exporter를 읽지 못하고 있습니다.">
+          <div className="flex flex-wrap items-center gap-3">
+            <p>수집 탭에서 연결 시험으로 원인을 확인해 주세요. 그동안 사용률 값은 비어 있습니다.</p>
+            <Button variant="secondary" size="sm" onClick={onOpenCollection}>
+              수집 설정 열기
+            </Button>
+          </div>
+        </Notice>
       ) : null}
 
       {discoverMutation.isPending ? (
-        <p className="text-body text-muted-foreground">리소스를 검색하는 중…</p>
+        <p className="text-body text-muted-foreground">리소스를 찾는 중…</p>
       ) : null}
 
       {discovery ? (
@@ -81,12 +105,14 @@ export function ServerResourceSection({
         />
       ) : null}
 
-      {/* 비어 있어도 위의 검색 결과는 보여야 하므로 빈 상태를 절의 state로 두지 않습니다. */}
+      {/* 비어 있어도 위의 찾기 결과는 보여야 하므로 빈 상태를 절의 state로 두지 않습니다.
+          수집이 꺼져 있으면 위 안내가 이미 다음 동작을 알려 주므로 같은 뜻을 되풀이하지 않습니다. */}
       {resources.data?.length === 0 ? (
-        <p className="text-body text-muted-foreground">
-          수집하는 리소스가 없습니다. SNMP를 설정한 뒤 리소스 검색을 실행하면 CPU, 메모리, 스토리지를 고를 수
-          있습니다.
-        </p>
+        collectionEnabled && !collectionFailed && !discovery ? (
+          <p className="text-body text-muted-foreground">
+            감시하는 리소스가 없습니다. [리소스 찾기]로 CPU, Memory, Storage를 고릅니다.
+          </p>
+        ) : null
       ) : resources.data ? (
         <UsageTable resources={resources.data} />
       ) : null}
@@ -166,9 +192,7 @@ function DiscoveryResult({
   })
 
   if (!result.success) {
-    return (
-      <Notice tone="critical" title={result.message} />
-    )
+    return <Notice tone="warning" title={result.message} />
   }
 
   if (result.resources.length === 0) {
@@ -201,9 +225,11 @@ function DiscoveryResult({
     <div className="rounded-md border border-border bg-surface">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div>
-          <p className="text-body font-medium">발견된 리소스</p>
-          {result.systemName ? (
-            <p className="mt-0.5 text-caption text-muted-foreground">{result.systemName}</p>
+          <p className="text-body font-medium">찾은 리소스</p>
+          {result.exporterType ? (
+            <p className="mt-0.5 text-caption text-muted-foreground" translate="no">
+              {EXPORTER_TYPE_LABELS[result.exporterType]} {result.version}
+            </p>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
@@ -222,7 +248,6 @@ function DiscoveryResult({
                     resourceKey: item.resourceKey,
                     displayName: item.displayName,
                     description: item.description,
-                    snmpIndex: item.snmpIndex,
                   })),
               })
             }

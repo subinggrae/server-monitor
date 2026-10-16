@@ -27,9 +27,7 @@ public record MonitoredResourceRequest(
 			String displayName,
 
 			@Size(max = 500, message = "설명은 500자까지 입력할 수 있습니다.")
-			String description,
-
-			Integer snmpIndex) {
+			String description) {
 	}
 
 }

@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 376" width="840" height="376" role="img" aria-labelledby="architecture-overview-title architecture-overview-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 400" width="840" height="400" role="img" aria-labelledby="architecture-overview-title architecture-overview-desc">
   <title id="architecture-overview-title">사용자 설정은 Manager API를 거쳐 Manager DB에 저장되고, Prometheus는 HTTP SD로 그 목록을 가져가 수집한다</title>
-  <desc id="architecture-overview-desc">사용자는 브라우저로 manager-web에 접속하고, manager-web은 /api 요청을 manager-api로 넘긴다. manager-api는 JDBC로 Manager DB에 설정을 저장한다. Prometheus는 HTTP SD로 manager-api에서 대상 목록을 받아 Blackbox와 SNMP exporter로 감시 대상을 수집하고, manager-api는 PromQL로 Prometheus에서 상태를 조회한다. Prometheus가 보낸 Alert는 Alertmanager가 webhook으로 manager-api에 전달하고, manager-api는 Telegram Bot API로 알림을 보낸다. manager-api는 snmp_exporter의 auth 파일을 쓰고 reload를 요청한다. Telegram과 감시 대상은 이 시스템 밖에 있다.</desc>
+  <desc id="architecture-overview-desc">사용자는 브라우저로 manager-web에 접속하고, manager-web은 /api 요청을 manager-api로 넘긴다. manager-api는 JDBC로 Manager DB에 설정을 저장한다. Prometheus는 HTTP SD로 manager-api에서 대상 목록을 받아 Blackbox Exporter로 감시 대상이 살아 있는지 확인하고, 감시 대상 서버에 설치한 OS exporter를 직접 수집하며, manager-api는 PromQL로 Prometheus에서 상태를 조회한다. Prometheus가 보낸 Alert는 Alertmanager가 webhook으로 manager-api에 전달하고, manager-api는 Telegram Bot API로 알림을 보낸다. manager-api는 연결 시험과 리소스 찾기에서 감시 대상의 OS exporter를 한 번 읽는다. Telegram과 감시 대상은 이 시스템 밖에 있다.</desc>
   <style>
     svg { --paper: #FFFFFF; --ink: #2D3142; --muted: #5C667A; --edge: #8A92A3; --hair: #D9DCE1; --band: #F5F6F8; --accent: #C2410C; --accent-fill: #FFF4EE; }
     @media (prefers-color-scheme: dark) {
@@ -29,7 +29,7 @@
     </marker>
   </defs>
 
-  <rect class="paper" width="840" height="376"/>
+  <rect class="paper" width="840" height="400"/>
 
   <!-- 시스템 경계: compose.yml로 함께 배포하는 실행 단위 -->
   <g id="boundary">
@@ -43,13 +43,14 @@
     <path class="edge" d="M288 188 H344" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M416 160 V112" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M488 180 H744" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M488 196 H592 Q600 196 600 204 V280" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge" d="M488 204 H712 Q720 204 720 212 V240 Q720 248 728 248 H776 Q784 248 784 256 V280" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge-key" d="M384 280 V216" marker-end="url(#architecture-overview-arrow-key)"/>
     <path class="edge" d="M448 216 V280" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M256 280 V256 Q256 248 264 248 H352 Q360 248 360 240 V216" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M344 308 H288" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M488 308 H544" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M656 308 H744" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge" d="M432 336 V344 Q432 352 440 352 H776 Q784 352 784 344 V336" marker-end="url(#architecture-overview-arrow)"/>
   </g>
 
   <!-- 사용자 -->
@@ -87,8 +88,8 @@
   </g>
   <g class="node" id="exporter">
     <rect class="box" x="544" y="280" width="112" height="56" rx="4"/>
-    <text class="name" x="600" y="304" text-anchor="middle">exporter</text>
-    <text class="sub" x="600" y="324" text-anchor="middle">Blackbox, SNMP</text>
+    <text class="name" x="600" y="304" text-anchor="middle">Blackbox</text>
+    <text class="sub" x="600" y="324" text-anchor="middle">가용성 확인</text>
   </g>
 
   <!-- 외부 시스템 -->
@@ -99,7 +100,7 @@
   <g class="node" id="targets">
     <rect class="box" x="744" y="280" width="80" height="56" rx="4"/>
     <text class="name dim" x="784" y="304" text-anchor="middle">감시 대상</text>
-    <text class="sub" x="784" y="324" text-anchor="middle">서버·서비스</text>
+    <text class="sub" x="784" y="324" text-anchor="middle">OS exporter</text>
   </g>
 
   <!-- 연결선 이름 -->
@@ -108,12 +109,13 @@
     <text class="sub mono" x="316" y="176" text-anchor="middle">/api</text>
     <text class="sub" x="424" y="140">JDBC</text>
     <text class="sub" x="616" y="168" text-anchor="middle">Bot API</text>
-    <text class="sub" x="608" y="244">auth·reload</text>
+    <text class="sub" x="600" y="224" text-anchor="middle">연결 시험</text>
     <text class="sub key" x="392" y="252">HTTP SD</text>
     <text class="sub" x="456" y="252">PromQL</text>
     <text class="sub" x="308" y="236" text-anchor="middle">webhook</text>
     <text class="sub" x="316" y="296" text-anchor="middle">Alert</text>
     <text class="sub" x="516" y="296" text-anchor="middle">수집</text>
-    <text class="sub" x="700" y="296" text-anchor="middle">probe, SNMP</text>
+    <text class="sub" x="700" y="296" text-anchor="middle">probe</text>
+    <text class="sub" x="600" y="376" text-anchor="middle">자원 수집</text>
   </g>
 </svg>

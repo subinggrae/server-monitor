@@ -1,0 +1,109 @@
+# rules/server-resources.yml의 promtool 테스트입니다.
+# Prometheus가 rules/*.yml을 모두 규칙 파일로 읽으므로 이 파일은 rules/ 밖에 둡니다.
+# 실행 명령은 docs/DEVELOPMENT.md에 있습니다.
+
+rule_files:
+  - ../rules/server-resources.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Linux 서버(server_id 1)와 Windows 서버(server_id 2)에 같은 비율의 값을 넣으면 같은 결과가 나와야 합니다.
+  - interval: 1m
+    input_series:
+      # CPU: 1분마다 cpu 0은 30초, cpu 1은 15초를 idle로 보냅니다. idle 평균 0.375 → 사용률 62.5%
+      - series: 'node_cpu_seconds_total{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",cpu="0",mode="idle"}'
+        values: '0+30x10'
+      - series: 'node_cpu_seconds_total{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",cpu="1",mode="idle"}'
+        values: '0+15x10'
+      - series: 'node_cpu_seconds_total{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",cpu="0",mode="user"}'
+        values: '0+30x10'
+      - series: 'windows_cpu_time_total{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182",core="0,0",mode="idle"}'
+        values: '0+30x10'
+      - series: 'windows_cpu_time_total{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182",core="0,1",mode="idle"}'
+        values: '0+15x10'
+      - series: 'windows_cpu_time_total{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182",core="0,0",mode="user"}'
+        values: '0+30x10'
+
+      # Memory: Linux는 MemFree가 아니라 MemAvailable 기준이어야 합니다. 8 GB 가운데 6 GB 사용 가능 → 25%
+      - series: 'node_memory_MemTotal_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100"}'
+        values: '8000000000x10'
+      - series: 'node_memory_MemAvailable_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100"}'
+        values: '6000000000x10'
+      - series: 'node_memory_MemFree_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100"}'
+        values: '1000000000x10'
+      - series: 'windows_memory_physical_total_bytes{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182"}'
+        values: '8000000000x10'
+      - series: 'windows_memory_available_bytes{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182"}'
+        values: '6000000000x10'
+
+      # Storage: /data와 C:는 1000 가운데 250이 남아 75%. tmpfs, overlay, 드라이브 문자가 없는 volume은 빠져야 합니다.
+      - series: 'node_filesystem_size_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",device="/dev/sde",device_error="",fstype="ext4",mountpoint="/data"}'
+        values: '1000x10'
+      - series: 'node_filesystem_avail_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",device="/dev/sde",device_error="",fstype="ext4",mountpoint="/data"}'
+        values: '250x10'
+      - series: 'node_filesystem_size_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",device="tmpfs",device_error="",fstype="tmpfs",mountpoint="/run"}'
+        values: '1000x10'
+      - series: 'node_filesystem_avail_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",device="tmpfs",device_error="",fstype="tmpfs",mountpoint="/run"}'
+        values: '900x10'
+      - series: 'node_filesystem_size_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",device="overlay",device_error="",fstype="overlay",mountpoint="/"}'
+        values: '1000x10'
+      - series: 'node_filesystem_avail_bytes{job="manager-os",server_id="1",server_name="web01",environment="Production",os="LINUX",instance="web01:9100",device="overlay",device_error="",fstype="overlay",mountpoint="/"}'
+        values: '900x10'
+      - series: 'windows_logical_disk_size_bytes{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182",volume="C:"}'
+        values: '1000x10'
+      - series: 'windows_logical_disk_free_bytes{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182",volume="C:"}'
+        values: '250x10'
+      - series: 'windows_logical_disk_size_bytes{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182",volume="HarddiskVolume2"}'
+        values: '1000x10'
+      - series: 'windows_logical_disk_free_bytes{job="manager-os",server_id="2",server_name="win01",environment="Production",os="WINDOWS",instance="win01:9182",volume="HarddiskVolume2"}'
+        values: '900x10'
+
+      # 다른 job의 같은 이름 metric은 쓰지 않아야 합니다.
+      - series: 'node_memory_MemTotal_bytes{job="other",server_id="9",instance="other:9100"}'
+        values: '8000000000x10'
+      - series: 'node_memory_MemAvailable_bytes{job="other",server_id="9",instance="other:9100"}'
+        values: '6000000000x10'
+
+    promql_expr_test:
+      # 결과 label은 server_id, resource_type, resource_key뿐이어야 합니다.
+      - expr: manager:resource_usage_percent
+        eval_time: 10m
+        exp_samples:
+          - labels: 'manager:resource_usage_percent{server_id="1",resource_type="CPU",resource_key="cpu"}'
+            value: 62.5
+          - labels: 'manager:resource_usage_percent{server_id="2",resource_type="CPU",resource_key="cpu"}'
+            value: 62.5
+          - labels: 'manager:resource_usage_percent{server_id="1",resource_type="MEMORY",resource_key="memory"}'
+            value: 25
+          - labels: 'manager:resource_usage_percent{server_id="2",resource_type="MEMORY",resource_key="memory"}'
+            value: 25
+          - labels: 'manager:resource_usage_percent{server_id="1",resource_type="STORAGE",resource_key="/data"}'
+            value: 75
+          - labels: 'manager:resource_usage_percent{server_id="2",resource_type="STORAGE",resource_key="C:"}'
+            value: 75
+
+      # CPU는 크기와 사용량이 없습니다.
+      - expr: manager:resource_used_bytes
+        eval_time: 10m
+        exp_samples:
+          - labels: 'manager:resource_used_bytes{server_id="1",resource_type="MEMORY",resource_key="memory"}'
+            value: 2000000000
+          - labels: 'manager:resource_used_bytes{server_id="2",resource_type="MEMORY",resource_key="memory"}'
+            value: 2000000000
+          - labels: 'manager:resource_used_bytes{server_id="1",resource_type="STORAGE",resource_key="/data"}'
+            value: 750
+          - labels: 'manager:resource_used_bytes{server_id="2",resource_type="STORAGE",resource_key="C:"}'
+            value: 750
+
+      - expr: manager:resource_size_bytes
+        eval_time: 10m
+        exp_samples:
+          - labels: 'manager:resource_size_bytes{server_id="1",resource_type="MEMORY",resource_key="memory"}'
+            value: 8000000000
+          - labels: 'manager:resource_size_bytes{server_id="2",resource_type="MEMORY",resource_key="memory"}'
+            value: 8000000000
+          - labels: 'manager:resource_size_bytes{server_id="1",resource_type="STORAGE",resource_key="/data"}'
+            value: 1000
+          - labels: 'manager:resource_size_bytes{server_id="2",resource_type="STORAGE",resource_key="C:"}'
+            value: 1000

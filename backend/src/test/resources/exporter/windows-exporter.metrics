@@ -1,0 +1,33 @@
+# windows_exporter 공식 collector 문서(cpu, memory, logical_disk)의 metric 이름과 label 모양으로 만든 최소 표본입니다.
+# HELP 문구와 값은 지어낸 것입니다. 실제 Windows 서버의 출력으로 바꿔야 합니다.
+# HELP windows_cpu_time_total CPU time per mode.
+# TYPE windows_cpu_time_total counter
+windows_cpu_time_total{core="0,0",mode="dpc"} 12.5
+windows_cpu_time_total{core="0,0",mode="idle"} 9000.25
+windows_cpu_time_total{core="0,0",mode="interrupt"} 8.75
+windows_cpu_time_total{core="0,0",mode="privileged"} 400.5
+windows_cpu_time_total{core="0,0",mode="user"} 600
+windows_cpu_time_total{core="0,1",mode="dpc"} 10
+windows_cpu_time_total{core="0,1",mode="idle"} 9100
+windows_cpu_time_total{core="0,1",mode="interrupt"} 7.5
+windows_cpu_time_total{core="0,1",mode="privileged"} 350
+windows_cpu_time_total{core="0,1",mode="user"} 550
+# HELP windows_exporter_build_info Build information.
+# TYPE windows_exporter_build_info gauge
+windows_exporter_build_info{branch="HEAD",goarch="amd64",goos="windows",goversion="go1.26.5",revision="0000000000000000000000000000000000000000",tags="unknown",version="0.31.9"} 1
+# HELP windows_logical_disk_free_bytes Free space.
+# TYPE windows_logical_disk_free_bytes gauge
+windows_logical_disk_free_bytes{volume="C:"} 5.0e+10
+windows_logical_disk_free_bytes{volume="D:"} 2.0e+11
+windows_logical_disk_free_bytes{volume="HarddiskVolume2"} 1.0e+08
+# HELP windows_logical_disk_size_bytes Total space.
+# TYPE windows_logical_disk_size_bytes gauge
+windows_logical_disk_size_bytes{volume="C:"} 2.5e+11
+windows_logical_disk_size_bytes{volume="D:"} 5.0e+11
+windows_logical_disk_size_bytes{volume="HarddiskVolume2"} 5.0e+08
+# HELP windows_memory_available_bytes Available physical memory.
+# TYPE windows_memory_available_bytes gauge
+windows_memory_available_bytes 6.0e+09
+# HELP windows_memory_physical_total_bytes Total physical memory.
+# TYPE windows_memory_physical_total_bytes gauge
+windows_memory_physical_total_bytes 1.6e+10

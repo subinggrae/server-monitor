@@ -13,12 +13,12 @@ class PrometheusServiceDiscoveryController {
 
 	private final BlackboxServiceDiscoveryService blackboxServiceDiscoveryService;
 
-	private final SnmpServiceDiscoveryService snmpServiceDiscoveryService;
+	private final OsExporterServiceDiscoveryService osExporterServiceDiscoveryService;
 
 	PrometheusServiceDiscoveryController(BlackboxServiceDiscoveryService blackboxServiceDiscoveryService,
-			SnmpServiceDiscoveryService snmpServiceDiscoveryService) {
+			OsExporterServiceDiscoveryService osExporterServiceDiscoveryService) {
 		this.blackboxServiceDiscoveryService = blackboxServiceDiscoveryService;
-		this.snmpServiceDiscoveryService = snmpServiceDiscoveryService;
+		this.osExporterServiceDiscoveryService = osExporterServiceDiscoveryService;
 	}
 
 	@GetMapping("/blackbox")
@@ -26,9 +26,9 @@ class PrometheusServiceDiscoveryController {
 		return blackboxServiceDiscoveryService.blackboxTargets();
 	}
 
-	@GetMapping("/snmp")
-	List<ServiceDiscoveryTarget> snmp() {
-		return snmpServiceDiscoveryService.snmpTargets();
+	@GetMapping("/os-exporter")
+	List<ServiceDiscoveryTarget> osExporter() {
+		return osExporterServiceDiscoveryService.osExporterTargets();
 	}
 
 }

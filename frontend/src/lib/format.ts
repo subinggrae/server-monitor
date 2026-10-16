@@ -32,7 +32,7 @@ export function formatElapsed(since: string, now: number = Date.now()) {
 
 const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
 
-/** SNMP가 주는 값은 byte입니다. 화면에서는 운영자가 읽는 단위로 바꿉니다. */
+/** exporter가 주는 값은 byte입니다. 화면에서는 운영자가 읽는 단위로 바꿉니다. */
 export function formatBytes(bytes: number) {
   let value = bytes
   let unit = 0

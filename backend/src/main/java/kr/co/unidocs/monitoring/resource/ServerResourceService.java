@@ -1,8 +1,8 @@
 package kr.co.unidocs.monitoring.resource;
 
-import kr.co.unidocs.monitoring.prometheus.ServerSnmpMetrics;
-import kr.co.unidocs.monitoring.prometheus.SnmpMetricQueryService;
-import kr.co.unidocs.monitoring.prometheus.StorageSample;
+import kr.co.unidocs.monitoring.prometheus.ResourceMetricQueryService;
+import kr.co.unidocs.monitoring.prometheus.ResourceValue;
+import kr.co.unidocs.monitoring.prometheus.ResourceValues;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,21 +10,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 고른 Resource에 지금 값을 붙여 줍니다.
+ * 고른 Resource에 지금 값을 붙여 줍니다. 값은 OS 공통 recording rule에서 읽습니다.
  *
- * Threshold가 아직 없어서 사용률로 OK나 CRITICAL을 계산하지 않습니다.
+ * 사용률로 OK나 CRITICAL을 계산하지 않습니다. 사용률 알림은 Alert 규칙이 맡습니다.
  */
 @Service
 public class ServerResourceService {
 
 	private final MonitoredResourceService monitoredResourceService;
 
-	private final SnmpMetricQueryService snmpMetricQueryService;
+	private final ResourceMetricQueryService metricQueryService;
 
 	ServerResourceService(MonitoredResourceService monitoredResourceService,
-			SnmpMetricQueryService snmpMetricQueryService) {
+			ResourceMetricQueryService metricQueryService) {
 		this.monitoredResourceService = monitoredResourceService;
-		this.snmpMetricQueryService = snmpMetricQueryService;
+		this.metricQueryService = metricQueryService;
 	}
 
 	@Transactional(readOnly = true)
@@ -34,46 +34,26 @@ public class ServerResourceService {
 			return List.of();
 		}
 
-		ServerSnmpMetrics metrics = snmpMetricQueryService.snapshot().of(serverId);
+		ResourceValues values = metricQueryService.resourceValues(serverId);
 
 		List<ResourceUsageResponse> usages = new ArrayList<>(resources.size());
 		for (MonitoredResource resource : resources) {
-			usages.add(toUsage(resource, metrics));
+			usages.add(toUsage(resource, values));
 		}
 		return usages;
 	}
 
-	private ResourceUsageResponse toUsage(MonitoredResource resource, ServerSnmpMetrics metrics) {
+	private ResourceUsageResponse toUsage(MonitoredResource resource, ResourceValues values) {
 		if (!resource.isEnabled()) {
 			return empty(resource, ResourceStatus.DISABLED);
 		}
-		if (metrics == null) {
-			return empty(resource, ResourceStatus.UNAVAILABLE);
-		}
-
-		return switch (resource.getResourceType()) {
-			case CPU -> cpuUsage(resource, metrics);
-			case MEMORY -> storageUsage(resource, metrics.getMemory());
-			case STORAGE -> storageUsage(resource, metrics.disk(resource.getResourceKey()));
-		};
-	}
-
-	private ResourceUsageResponse cpuUsage(MonitoredResource resource, ServerSnmpMetrics metrics) {
-		if (metrics.getCpuPercent() == null) {
+		ResourceValue value = values.of(resource.getResourceType(), resource.getResourceKey());
+		if (value == null) {
 			return empty(resource, ResourceStatus.UNAVAILABLE);
 		}
 		return new ResourceUsageResponse(resource.getId(), resource.getResourceType(), resource.getResourceKey(),
-				resource.getDisplayName(), resource.getDescription(), ResourceStatus.AVAILABLE,
-				metrics.getCpuPercent(), null, null, metrics.getCpuSampledAt());
-	}
-
-	private ResourceUsageResponse storageUsage(MonitoredResource resource, StorageSample sample) {
-		if (sample == null) {
-			return empty(resource, ResourceStatus.UNAVAILABLE);
-		}
-		return new ResourceUsageResponse(resource.getId(), resource.getResourceType(), resource.getResourceKey(),
-				resource.getDisplayName(), resource.getDescription(), ResourceStatus.AVAILABLE, sample.usagePercent(),
-				sample.usedBytes(), sample.totalBytes(), sample.sampledAt());
+				resource.getDisplayName(), resource.getDescription(), ResourceStatus.AVAILABLE, value.usagePercent(),
+				value.usedBytes(), value.sizeBytes(), value.sampledAt());
 	}
 
 	private ResourceUsageResponse empty(MonitoredResource resource, ResourceStatus status) {

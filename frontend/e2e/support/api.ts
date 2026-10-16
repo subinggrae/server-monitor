@@ -41,7 +41,7 @@ export async function createCheck(
 
 export async function createServer(api: APIRequestContext, name: string): Promise<Named> {
   const response = await api.post('/api/servers', {
-    data: { name, host: '127.0.0.1', environment: 'Development', description: null, enabled: true },
+    data: { name, host: '127.0.0.1', environment: 'Development', os: 'LINUX', description: null, enabled: true },
   })
   ensureOk(response, '서버 생성')
   return (await response.json()) as Named
