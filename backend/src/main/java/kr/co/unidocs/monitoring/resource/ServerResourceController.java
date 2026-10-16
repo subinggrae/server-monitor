@@ -28,7 +28,7 @@ class ServerResourceController {
 		this.serverResourceService = serverResourceService;
 	}
 
-	/** 고른 Resource와 지금 값입니다. 장비를 조회하지 않습니다. */
+	/** 고른 Resource와 지금 값입니다. exporter를 읽지 않고 Prometheus만 조회합니다. */
 	@GetMapping
 	List<ResourceUsageResponse> current(@PathVariable Long serverId) {
 		return serverResourceService.currentUsage(serverId);
@@ -41,7 +41,7 @@ class ServerResourceController {
 		return serverResourceService.currentUsage(serverId);
 	}
 
-	/** 사용자가 누를 때만 장비에 SNMP로 묻습니다. 화면을 열 때마다 walk하지 않습니다. */
+	/** 사용자가 누를 때만 exporter를 읽습니다. 화면을 열 때마다 읽지 않습니다. */
 	@PostMapping("/discover")
 	ResourceDiscoveryResult discover(@PathVariable Long serverId) {
 		return resourceDiscoveryService.discover(serverId);

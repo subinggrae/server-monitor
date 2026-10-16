@@ -65,7 +65,7 @@ class SnmpServiceDiscoveryServiceTest {
 		when(snmpConfigRepository.findByEnabledTrue()).thenReturn(List.of(config));
 		when(serverRepository.findById(serverId)).thenReturn(Optional.of(server));
 		when(monitoredResourceRepository.findByServerIdOrderByResourceTypeAscResourceKeyAsc(serverId))
-				.thenReturn(List.of(new MonitoredResource(serverId, ResourceType.CPU, "cpu", "CPU", null, null)));
+				.thenReturn(List.of(new MonitoredResource(serverId, ResourceType.CPU, "cpu", "CPU", null)));
 	}
 
 }

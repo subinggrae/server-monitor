@@ -9,7 +9,7 @@ public enum ResourceStatus {
 	/** Prometheus에 값이 있습니다. */
 	AVAILABLE,
 
-	/** 고르긴 했지만 지금 값이 없습니다. 장비에서 사라졌거나 아직 수집되지 않았습니다. */
+	/** 고르긴 했지만 지금 값이 없습니다. exporter에서 사라졌거나 아직 수집되지 않았습니다. */
 	UNAVAILABLE,
 
 	DISABLED

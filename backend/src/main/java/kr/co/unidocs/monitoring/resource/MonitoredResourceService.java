@@ -14,7 +14,7 @@ import java.util.Map;
  * 사용자가 고른 Resource만 저장합니다. 다시 검색했다고 기존 선택을 지우지 않습니다.
  *
  * 선택에서 빠진 Resource는 모니터링을 그만두는 것이므로 삭제합니다.
- * 장비에서 사라진 Resource는 선택이 남아 있어도 값이 없어 UNAVAILABLE로 보입니다.
+ * exporter에서 사라진 Resource는 선택이 남아 있어도 값이 없어 UNAVAILABLE로 보입니다.
  */
 @Service
 public class MonitoredResourceService {
@@ -54,11 +54,11 @@ public class MonitoredResourceService {
 			MonitoredResource resource = existing.remove(key);
 			if (resource == null) {
 				resource = new MonitoredResource(serverId, item.resourceType(), item.resourceKey(), displayName,
-						item.description(), item.snmpIndex());
+						item.description());
 			}
 			else {
-				// 다시 검색했을 때 index나 이름이 바뀌었을 수 있어 최신 값으로 맞춥니다.
-				resource.refreshMetadata(displayName, item.description(), item.snmpIndex());
+				// 다시 찾았을 때 이름이나 설명이 바뀌었을 수 있어 최신 값으로 맞춥니다.
+				resource.refreshMetadata(displayName, item.description());
 			}
 			saved.add(monitoredResourceRepository.save(resource));
 		}
