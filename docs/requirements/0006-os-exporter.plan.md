@@ -107,9 +107,9 @@ metric 이름 근거(2026-10-15 공식 저장소에서 확인한 것과 추측�
 | windows | `windows_exporter_build_info{version}` | `tools/e2e-output.txt`의 HELP 줄만 확인(값 줄 없음) |
 | node | `node_cpu_seconds_total{cpu, mode}`, `node_memory_MemTotal_bytes` | `collector/fixtures/e2e-output.txt` 확인 |
 | node | `node_exporter_build_info{version}` | 같은 표본의 HELP 줄만 확인 |
-| node | `node_memory_MemAvailable_bytes` | **추측**(meminfo 이름 규칙), 표본으로 확인 |
-| node | `node_filesystem_size_bytes`, `node_filesystem_avail_bytes`와 label `device`, `fstype`, `mountpoint` | **추측**(소스의 필드 이름만 확인), 표본으로 확인 |
-| windows | v0.32.0의 memory metric 이름 변경 | 영향 미확인, 구현 전에 릴리스 변경 내역 확인 |
+| node | `node_memory_MemAvailable_bytes` | v1.12.1 실제 출력 확인(2026-10-16) |
+| node | `node_filesystem_size_bytes`, `node_filesystem_avail_bytes`와 label `device`, `device_error`, `fstype`, `mountpoint` | v1.12.1 실제 출력 확인(2026-10-16) |
+| windows | v0.32.0의 이름 변경 | v0.32.0-beta.1~5 변경 내역에 cpu, memory, logical_disk의 이 이름들 변경 없음(2026-10-16). 최신 정식 버전은 v0.31.9 |
 
 - CPU: `100 * (1 - avg by (server_id) (irate(<idle 카운터>[10m])))`. `irate`는 직전 두 수집 사이 평균이라 서버마다 다른 주기(10~240초)와 뜻이 맞는다(사람 확인: 2026-10-16). Windows도 idle 기준이고, 작업 관리자 값과 조금 다를 수 있음을 화면 안내에 쓴다.
 - Memory: 크기 Total, 사용량 Total − Available(Linux는 cache·buffer 제외).
@@ -222,7 +222,7 @@ os-test-node-exporter:
 - 순서: 요구사항 0005가 병합된 뒤 이 브랜치를 `main` 위로 옮겨 시작한다(사람 확인: 2026-10-15).
 - [x] 계획 승인(2026-10-16). CPU `irate[10m]`, 링크 로컬 주소를 막지 않음, AGENTS.md 문구 변경을 함께 승인
 - [x] ADR 둘 초안: [0004](../decisions/0004-os-exporter-collection.md), [0005](../decisions/0005-common-resource-recording-rules.md)(0003은 미병합 브랜치 `feature/resource-threshold-alert`가 씀)
-- [ ] `os-test` 컨테이너 추가, 표본 두 개 만들고 "추측" metric 이름 확정. 다르면 계획을 고친다
+- [x] `os-test` 컨테이너 추가, 표본 두 개(`backend/src/test/resources/exporter/`) 만들고 metric 이름 확정
 - [ ] 규칙 테스트를 쓰고 실패 확인 → `server-resources.yml`(C5), TESTING.md·DEVELOPMENT.md 규칙 테스트
 - [ ] C3·C4 테스트 실패 확인 → `exporter` 패키지의 클라이언트·파서·필터
 - [ ] C1·C2·C9 테스트 실패 확인 → V9 migration(두 vendor), `ServerOs`, 수집 설정, SD, 수집 상태
@@ -239,6 +239,8 @@ os-test-node-exporter:
 
 - 계획은 2026-10-15에 하위 에이전트가 설계한 초안을 사람의 결정(생존은 Blackbox, 수집 상태 분리, SNMP 안내 문구 없음, 암호화 서비스와 `APP_SECRET_KEY` 삭제, 배포 절차는 PR 설명에만)으로 고쳐 썼다.
 - 공식 e2e 표본에는 `*_build_info` 값 줄, `node_filesystem_*`, windows CPU·Memory·디스크 값이 없어 그대로 테스트 표본으로 쓸 수 없다.
+- node_exporter v1.12.1의 `/metrics` 전체 응답은 CPU 16개 컨테이너에서 약 84 KB였다. 본문 한도 16 MiB는 넉넉하다.
+- node_exporter의 filesystem metric에 `device_error` label이 있다. recording rule은 `max by`로 끝내므로 결과에 남지 않는다.
 
 ## 남길 결정
 

@@ -1,0 +1,42 @@
+# node_exporter v1.12.1(compose.yml의 os-test-node-exporter)의 실제 출력에서 이 저장소가 읽는 family만 남겼습니다.
+# CPU는 두 개만 남겼고, tmpfs와 overlay 줄과 node_load1은 비교용으로 더했습니다.
+# HELP node_cpu_seconds_total Seconds the CPUs spent in each mode.
+# TYPE node_cpu_seconds_total counter
+node_cpu_seconds_total{cpu="0",mode="idle"} 5040.86
+node_cpu_seconds_total{cpu="0",mode="iowait"} 8.86
+node_cpu_seconds_total{cpu="0",mode="irq"} 0
+node_cpu_seconds_total{cpu="0",mode="nice"} 0.03
+node_cpu_seconds_total{cpu="0",mode="softirq"} 40.7
+node_cpu_seconds_total{cpu="0",mode="steal"} 0
+node_cpu_seconds_total{cpu="0",mode="system"} 49.15
+node_cpu_seconds_total{cpu="0",mode="user"} 100.24
+node_cpu_seconds_total{cpu="1",mode="idle"} 5078.8
+node_cpu_seconds_total{cpu="1",mode="iowait"} 9.54
+node_cpu_seconds_total{cpu="1",mode="irq"} 0
+node_cpu_seconds_total{cpu="1",mode="nice"} 0.08
+node_cpu_seconds_total{cpu="1",mode="softirq"} 14.17
+node_cpu_seconds_total{cpu="1",mode="steal"} 0
+node_cpu_seconds_total{cpu="1",mode="system"} 39.82
+node_cpu_seconds_total{cpu="1",mode="user"} 112.28
+# HELP node_exporter_build_info A metric with a constant '1' value labeled by version, revision, branch, goversion from which node_exporter was built, and the goos and goarch for the build.
+# TYPE node_exporter_build_info gauge
+node_exporter_build_info{branch="HEAD",goarch="amd64",goos="linux",goversion="go1.26.5",revision="6044da783597cc3b57aef7580ddcdcff58a4ee99",tags="unknown",version="1.12.1"} 1
+# HELP node_filesystem_avail_bytes Filesystem space available to non-root users in bytes.
+# TYPE node_filesystem_avail_bytes gauge
+node_filesystem_avail_bytes{device="/dev/sde",device_error="",fstype="ext4",mountpoint="/data"} 9.98958235648e+11
+node_filesystem_avail_bytes{device="tmpfs",device_error="",fstype="tmpfs",mountpoint="/run"} 8.12646400e+08
+node_filesystem_avail_bytes{device="overlay",device_error="",fstype="overlay",mountpoint="/"} 9.98958235648e+11
+# HELP node_filesystem_size_bytes Filesystem size in bytes.
+# TYPE node_filesystem_size_bytes gauge
+node_filesystem_size_bytes{device="/dev/sde",device_error="",fstype="ext4",mountpoint="/data"} 1.081101176832e+12
+node_filesystem_size_bytes{device="tmpfs",device_error="",fstype="tmpfs",mountpoint="/run"} 8.12646400e+08
+node_filesystem_size_bytes{device="overlay",device_error="",fstype="overlay",mountpoint="/"} 1.081101176832e+12
+# HELP node_load1 1m load average.
+# TYPE node_load1 gauge
+node_load1 0.42
+# HELP node_memory_MemAvailable_bytes Memory information field MemAvailable_bytes.
+# TYPE node_memory_MemAvailable_bytes gauge
+node_memory_MemAvailable_bytes 6.326284288e+09
+# HELP node_memory_MemTotal_bytes Memory information field MemTotal_bytes.
+# TYPE node_memory_MemTotal_bytes gauge
+node_memory_MemTotal_bytes 7.713521664e+09

@@ -182,6 +182,29 @@ services:
     networks:
       - monitoring
 
+  # OS exporter 수집을 개발 환경에서 확인하려고 두는 node_exporter입니다.
+  #   docker compose --profile os-test up -d os-test-node-exporter
+  # 운영에서는 뜨지 않습니다.
+  os-test-node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.12.1
+
+    container_name: os-test-node-exporter
+
+    profiles:
+      - os-test
+
+    restart: unless-stopped
+
+    # 컨테이너의 / 는 overlay라 기본 설정에서 빠집니다. 디스크 목록을 보려고 volume을 /data에 붙입니다.
+    command:
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run/credentials/.+|sys|etc|var/lib/docker/.+)($$|/)
+
+    volumes:
+      - os-test-data:/data
+
+    networks:
+      - monitoring
+
   prometheus:
     image: quay.io/prometheus/prometheus:v3.14.0
     container_name: prometheus
@@ -270,3 +293,6 @@ volumes:
 
   manager-db-data:
     name: manager-db-data
+
+  os-test-data:
+    name: os-test-data
