@@ -1,6 +1,7 @@
 package kr.co.unidocs.monitoring.server;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -21,8 +22,19 @@ public record ServerTargetRequest(
 		@Size(max = 50, message = "환경은 50자까지 입력할 수 있습니다.")
 		String environment,
 
+		/** enum으로 받으면 모르는 값이 칸별 오류가 아니라 요청 전체 오류가 되므로 문자열로 받습니다. */
+		@NotNull(message = "OS를 선택해 주세요.")
+		@Pattern(regexp = "LINUX|WINDOWS", message = "OS는 Linux나 Windows 가운데 하나를 선택해 주세요.")
+		String os,
+
 		@Size(max = 500, message = "설명은 500자까지 입력할 수 있습니다.")
 		String description,
 
 		boolean enabled) {
+
+	/** 검증을 통과한 요청에서만 부릅니다. */
+	public ServerOs serverOs() {
+		return ServerOs.valueOf(os);
+	}
+
 }

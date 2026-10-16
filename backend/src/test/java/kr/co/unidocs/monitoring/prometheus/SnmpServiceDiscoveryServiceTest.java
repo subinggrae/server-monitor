@@ -59,7 +59,7 @@ class SnmpServiceDiscoveryServiceTest {
 	}
 
 	private void givenServer(Long serverId, String name, String host, ServerSnmpConfig config) {
-		ServerTarget server = new ServerTarget(name, host, "Production", null, true);
+		ServerTarget server = new ServerTarget(name, host, "Production", kr.co.unidocs.monitoring.server.ServerOs.LINUX, null, true);
 		ReflectionTestUtils.setField(server, "id", serverId);
 
 		when(snmpConfigRepository.findByEnabledTrue()).thenReturn(List.of(config));

@@ -226,7 +226,7 @@ os-test-node-exporter:
 - [x] `os-test` 컨테이너 추가, 표본 두 개(`backend/src/test/resources/exporter/`) 만들고 metric 이름 확정
 - [x] 규칙 테스트를 쓰고 실패 확인 → `server-resources.yml`(C5), TESTING.md·DEVELOPMENT.md 규칙 테스트
 - [x] C3·C4 테스트 실패 확인 → `exporter` 패키지의 클라이언트·파서·필터(`ResourceDiscoveryServiceTest`는 리소스 찾기 교체 단계에서)
-- [ ] C1·C2·C9 테스트 실패 확인 → V9 migration(두 vendor), `ServerOs`, 수집 설정, SD, 수집 상태
+- [x] C1·C2·C9 테스트 실패 확인 → V9 migration(두 vendor), `ServerOs`, 수집 설정, SD, 수집 상태. SNMP 코드는 아직 남아 있고 V9가 지운 테이블을 가리키므로, SNMP 삭제 단계 전에는 Manager가 기동하지 않는다(`ddl-auto: validate`)
 - [ ] `ResourceMetricQueryService`, `ServerResourceService`, 리소스 찾기 교체
 - [ ] SNMP·암호화 서비스·`APP_SECRET_KEY`·snmp4j·설정 키·Dockerfile `/runtime` 삭제(이 시점에 Backend 테스트 통과)
 - [ ] `prometheus.yml` job 교체, `compose.yml`·`.env.example`·`infrastructure/snmp/`·`app_secret_key` 파일 정리
