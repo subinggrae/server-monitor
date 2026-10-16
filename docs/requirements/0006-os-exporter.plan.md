@@ -232,7 +232,7 @@ os-test-node-exporter:
 - [x] `prometheus.yml` job 교체(keep 규칙, `sample_limit: 2000`), `compose.yml`·`.env.example`·`infrastructure/snmp/`·`app_secret_key.example` 정리. 개발 PC의 실제 `infrastructure/secrets/app_secret_key` 파일은 Git 밖이라 지우지 않았다
 - [x] Frontend 테스트 실패 확인 → api, 상태 표시, 서버 폼, 수집 절, 리소스 절, 상세, 목록, 대시보드. 수집 상태 문구는 TERMS.md에 맞춰 "설정 안 됨"으로 썼다(요구사항의 "설정 안 함" 대신)
 - [x] 문서와 그림, `node scripts/check-docs.mjs --render`(그림 높이를 400으로 늘려 자원 수집 선을 더함, AGENTS.md 위험 영역 문구 변경)
-- [ ] 수동 확인 C6, C7, 화면 검사, 전체 검증, C8 코드 검색
+- [x] 수동 확인 C6, C7, C9, C10, 화면 검사, E2E, 전체 검증, C8 코드 검색(결과는 진행 중 발견)
 - [ ] 구현하지 않은 하위 에이전트의 리뷰(완료 기준, 이 계획, diff, CWE-918·400·20·117·209·79·312)
 - [ ] PR 설명에 배포 절차를 쓴다. 요구사항 상태를 구현됨으로 바꾸고, ADR을 승인으로, #14에 0004가 고칠 점을 적고, 이 계획을 지움(병합 전 마지막 커밋)
 
@@ -245,6 +245,11 @@ os-test-node-exporter:
 - `promtool check rules`가 같은 이름과 label의 규칙이 둘 있으면 막으므로, Linux와 Windows 식을 `or`로 묶어 이름·종류마다 규칙 하나로 썼다. MemAvailable을 MemFree로 바꾸거나 tmpfs 제외를 지우면 규칙 테스트가 실패하는 것을 확인했다.
 - node_exporter의 filesystem metric에 `device_error` label이 있다.
 - 파서는 형식에 맞지 않는 줄이 하나라도 있으면 `UNREADABLE`로 끝낸다(Prometheus도 그런 응답은 수집에 실패한다). `ServerOs`는 `ExporterType`이 쓰므로 이 단계에서 먼저 만들었다.
+- C6(2026-10-16): 임시 MariaDB 11.4와 PostgreSQL 17에 V8까지 적용하고 서버·SNMP 설정·리소스를 넣은 뒤 V9를 적용했다. 두 DB 모두 SNMP 설정 테이블, 리소스, `snmp_index`가 사라지고 서버는 OS Linux, 수집 설정 없음이었다. V9 SQL을 한 번 더 실행해도 오류 없이 같았다.
+- C7·C10(2026-10-16): 개발 환경과 겹치지 않게 컨테이너와 volume 이름을 바꾼 임시 compose project(`c7`)에서 확인했다. 이 PC는 8080을 다른 프로그램이 써서 `manager-api`만 18080으로 열었다. 연결 시험(node_exporter 1.12.1, OS 불일치, 닫힌 포트), 저장 뒤 재시작 없이 36초 안에 `manager-os` 대상(30s, label 다섯 개), 리소스 찾기(CPU, Memory, `/data`, tmpfs·overlay 없음), 사용률(Memory는 `/proc/meminfo`의 MemAvailable 기준과 일치), 주기 120초 반영, 저장된 series 이름이 keep 목록과 scrape 자체 series뿐인 것을 확인했다.
+- C9(2026-10-16): 컨테이너를 멈추면 호스트도 사라져 Ping 감시 항목도 위험이 된다. 그래서 수집 포트를 아무것도 듣지 않는 9101로 바꿔 exporter만 닿지 않게 했고, 수집 상태만 수집 실패가 되고 감시 항목은 정상으로 남았다.
+- 화면 검사 72개와 E2E 2개가 통과했다. 스크린샷으로 목록, 상세(리소스, 수집 꺼짐, 리소스 찾기), 수집 탭(연결 시험 성공·실패), 수정 대화상자, 대시보드를 기준 폭과 두 모드로 확인했다. 가로 넘침은 없었다.
+- 범위 밖 발견: 작은 기본 버튼(`size="sm"`, primary)은 `text-body`를 tailwind-merge가 글자 색으로 보고 `text-primary-foreground`를 지워 글자가 보이지 않는다. 리소스 찾기 결과의 [선택 저장]이 그렇다. 처리 방법을 사람에게 묻는다.
 - `ExporterClient`의 전체 마감은 `sendAsync(...).get(마감)`으로 걸고, 넘으면 요청을 취소한다. 본문 한도는 받는 쪽에서 세다가 넘으면 구독을 끊는다. recording rule은 `max by`로 끝내므로 결과에 남지 않는다.
 
 ## 남길 결정
