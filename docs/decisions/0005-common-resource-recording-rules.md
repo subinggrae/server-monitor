@@ -1,8 +1,8 @@
 # 0005. 서버 자원 사용률은 OS 공통 recording rule로 만들고 화면과 알림이 함께 읽는다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-10-16
-- 관련: [요구사항 0006](../requirements/0006-os-exporter.md), [ADR 0004](0004-os-exporter-collection.md), [#14](https://github.com/subinggrae/server-monitor/issues/14)
+- 관련: [요구사항 0006](../requirements/0006-os-exporter.md), [ADR 0004](0004-os-exporter-collection.md), [#14](https://github.com/subinggrae/server-monitor/issues/14), 지운 계획은 [PR #17](https://github.com/subinggrae/server-monitor/pull/17)에서 볼 수 있다
 
 ## 배경과 문제
 
