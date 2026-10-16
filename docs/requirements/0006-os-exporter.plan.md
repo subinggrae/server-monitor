@@ -231,7 +231,7 @@ os-test-node-exporter:
 - [x] SNMP·암호화 서비스·`APP_SECRET_KEY`·snmp4j·설정 키·Dockerfile `/runtime` 삭제(이 시점에 Backend 테스트 통과)
 - [x] `prometheus.yml` job 교체(keep 규칙, `sample_limit: 2000`), `compose.yml`·`.env.example`·`infrastructure/snmp/`·`app_secret_key.example` 정리. 개발 PC의 실제 `infrastructure/secrets/app_secret_key` 파일은 Git 밖이라 지우지 않았다
 - [x] Frontend 테스트 실패 확인 → api, 상태 표시, 서버 폼, 수집 절, 리소스 절, 상세, 목록, 대시보드. 수집 상태 문구는 TERMS.md에 맞춰 "설정 안 됨"으로 썼다(요구사항의 "설정 안 함" 대신)
-- [ ] 문서와 그림, `node scripts/check-docs.mjs --render`
+- [x] 문서와 그림, `node scripts/check-docs.mjs --render`(그림 높이를 400으로 늘려 자원 수집 선을 더함, AGENTS.md 위험 영역 문구 변경)
 - [ ] 수동 확인 C6, C7, 화면 검사, 전체 검증, C8 코드 검색
 - [ ] 구현하지 않은 하위 에이전트의 리뷰(완료 기준, 이 계획, diff, CWE-918·400·20·117·209·79·312)
 - [ ] PR 설명에 배포 절차를 쓴다. 요구사항 상태를 구현됨으로 바꾸고, ADR을 승인으로, #14에 0004가 고칠 점을 적고, 이 계획을 지움(병합 전 마지막 커밋)

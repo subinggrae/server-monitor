@@ -9,7 +9,7 @@
 - 필요한 도구: Node.js 22와 npm, JDK 21, Docker Compose
 - 런타임 버전을 정한 파일: Java는 `backend/build.gradle`의 toolchain(21), Node.js는 `.nvmrc`(22)가 기준이다.
 - 환경 변수: `.env.example`을 `.env`로 복사하고 `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`을 채운다. 파일 안의 예시에서 개발용 MariaDB, 외부 MariaDB, 외부 PostgreSQL 가운데 하나를 고른다. `.env`에는 노출돼도 되는 값만 둔다.
-- 비밀값: `infrastructure/secrets/`의 `*.example` 파일마다 확장자를 뺀 이름으로 복사하고 값을 채운다. `app_secret_key`는 32자 이상이어야 기동한다. 이 파일들은 Git에 올리지 않는다. Docker 없이 Backend를 띄울 때는 같은 값을 환경 변수(`APP_SECRET_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ALERTMANAGER_WEBHOOK_TOKEN`)로 넣는다. DB 비밀번호는 Spring Boot의 환경 변수 바인딩으로 `SPRING_DATASOURCE_PASSWORD`에 넣는다.
+- 비밀값: `infrastructure/secrets/`의 `*.example` 파일마다 확장자를 뺀 이름으로 복사하고 값을 채운다. 이 파일들은 Git에 올리지 않는다. Docker 없이 Backend를 띄울 때는 같은 값을 환경 변수(`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ALERTMANAGER_WEBHOOK_TOKEN`)로 넣는다. DB 비밀번호는 Spring Boot의 환경 변수 바인딩으로 `SPRING_DATASOURCE_PASSWORD`에 넣는다.
 
 ```sh
 cd frontend && npm ci
@@ -27,7 +27,6 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build` | 끝내기 전, 푸시와 병합 직전 |
 | 개발 서버 | `cd frontend && npm run dev`, `cd backend && ./gradlew bootRun` | 화면이나 API를 직접 확인할 때 |
 | 전체 실행 | `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
-| SNMP 테스트 장비 | `docker compose --profile snmp-test up -d snmp-test-agent` | SNMP 수집 흐름을 확인할 때 |
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
 | 규칙 테스트 | `MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/infrastructure/prometheus:/prom:ro" -w /prom/tests --entrypoint promtool quay.io/prometheus/prometheus:v3.14.0 test rules server-resources.test.yml`(저장소 최상위에서, 이미지는 `compose.yml`의 Prometheus와 같게) | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 |

@@ -1,6 +1,8 @@
 # Monitoring Manager
 
-Prometheus 기반 감시 설정을 화면에서 관리하는 도구다. 사내 운영 담당자가 서버와 서비스의 가용성 Check, 서버 SNMP 수집, Telegram 알림을 등록하고, 지금 문제인 Check를 확인한다.
+Prometheus 기반 감시 설정을 화면에서 관리하는 도구다. 사내 운영 담당자가 서버와 서비스의 가용성 Check, 서버 자원 수집(OS exporter), Telegram 알림을 등록하고, 지금 문제인 Check를 확인한다.
+
+서버의 CPU, Memory, Storage는 대상 서버에 설치한 OS exporter에서 수집한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(기본 포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(기본 포트 9182, 공식 문서의 metric 이름 기준)를 설치한다. exporter는 인증 없이 열리므로 대상 서버의 방화벽에서 그 포트를 Prometheus와 Monitoring Manager에만 열어 둔다.
 
 ## 시작하기
 
