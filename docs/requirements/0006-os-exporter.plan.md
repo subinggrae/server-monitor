@@ -229,7 +229,7 @@ os-test-node-exporter:
 - [x] C1·C2·C9 테스트 실패 확인 → V9 migration(두 vendor), `ServerOs`, 수집 설정, SD, 수집 상태. SNMP 코드는 아직 남아 있고 V9가 지운 테이블을 가리키므로, SNMP 삭제 단계 전에는 Manager가 기동하지 않는다(`ddl-auto: validate`)
 - [x] `ResourceMetricQueryService`, `ServerResourceService`, 리소스 찾기 교체(실패 문구는 `ExporterOutcome`에 한 곳으로 모음)
 - [x] SNMP·암호화 서비스·`APP_SECRET_KEY`·snmp4j·설정 키·Dockerfile `/runtime` 삭제(이 시점에 Backend 테스트 통과)
-- [ ] `prometheus.yml` job 교체, `compose.yml`·`.env.example`·`infrastructure/snmp/`·`app_secret_key` 파일 정리
+- [x] `prometheus.yml` job 교체(keep 규칙, `sample_limit: 2000`), `compose.yml`·`.env.example`·`infrastructure/snmp/`·`app_secret_key.example` 정리. 개발 PC의 실제 `infrastructure/secrets/app_secret_key` 파일은 Git 밖이라 지우지 않았다
 - [ ] Frontend 테스트 실패 확인 → api, 상태 표시, 서버 폼, 수집 절, 리소스 절, 상세, 목록, 대시보드
 - [ ] 문서와 그림, `node scripts/check-docs.mjs --render`
 - [ ] 수동 확인 C6, C7, 화면 검사, 전체 검증, C8 코드 검색

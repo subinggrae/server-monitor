@@ -23,7 +23,6 @@ services:
       GRAFANA_URL: ${GRAFANA_URL:-http://localhost:3000}
 
       BLACKBOX_EXPORTER_URL: ${BLACKBOX_EXPORTER_URL:-http://blackbox-exporter:9115}
-      SNMP_EXPORTER_URL: ${SNMP_EXPORTER_URL:-http://snmp-exporter:9116}
       MYSQLD_EXPORTER_URL: ${MYSQLD_EXPORTER_URL:-http://mysqld-exporter:9104}
 
       # 비어 있으면 /register를 쓸 수 없습니다. 외부에서 접근 가능한 HTTPS 주소가 필요합니다.
@@ -39,19 +38,12 @@ services:
     secrets:
       - source: manager_db_password
         target: spring.datasource.password
-      - source: app_secret_key
-        target: monitoring-manager.secret-key
       - source: telegram_bot_token
         target: monitoring-manager.telegram.bot-token
       - source: telegram_webhook_secret
         target: monitoring-manager.telegram.webhook-secret
       - source: alertmanager_webhook_token
         target: monitoring-manager.notification.alertmanager-webhook-token
-
-    # snmp_exporter의 auth config를 여기에서 만들어 넣습니다.
-    # community 평문이 들어 있어 host에 bind하지 않고 container 사이에서만 씁니다.
-    volumes:
-      - snmp-runtime:/runtime
 
     # manager-db에 depends_on을 걸지 않습니다. 걸면 외부 DB를 쓸 때도 local-db profile이 함께 켜집니다.
 
@@ -128,56 +120,6 @@ services:
 
     command:
       - --config.file=/config/blackbox.yml
-
-    networks:
-      - monitoring
-
-  snmp-exporter:
-    image: prom/snmp-exporter:v0.30.1
-
-    container_name: snmp-exporter
-
-    restart: unless-stopped
-
-    # host에 port를 열지 않습니다. /config는 auth 이름을 그대로 보여 줍니다.
-    # Prometheus와 Manager만 Docker network 안에서 부릅니다.
-
-    volumes:
-      # Manager가 만드는 auth config입니다. exporter는 읽기만 합니다.
-      - snmp-runtime:/runtime:ro
-
-    # module 정의는 image에 들어 있는 기본 config를 그대로 씁니다.
-    # auth만 담긴 파일을 뒤에 더하면 exporter가 둘을 합쳐서 읽습니다.
-    # community를 scrape 요청으로 받지 못하기 때문에 이렇게 나눕니다.
-    command:
-      - --config.file=/etc/snmp_exporter/snmp.yml
-      - --config.file=/runtime/snmp-auth.yml
-
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9116/-/healthy || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
-    networks:
-      - monitoring
-
-  # SNMP 흐름을 개발 환경에서 확인하려고 두는 테스트 장비입니다.
-  #   docker compose --profile snmp-test up -d snmp-test-agent
-  # 운영에서는 뜨지 않습니다.
-  snmp-test-agent:
-    image: polinux/snmpd
-
-    container_name: snmp-test-agent
-
-    profiles:
-      - snmp-test
-
-    restart: unless-stopped
-
-    volumes:
-      - ./infrastructure/snmp/test-agent/snmpd.conf:/etc/snmp/snmpd.conf:ro
 
     networks:
       - monitoring
@@ -261,9 +203,6 @@ secrets:
   manager_db_root_password:
     file: ./infrastructure/secrets/manager_db_root_password
 
-  app_secret_key:
-    file: ./infrastructure/secrets/app_secret_key
-
   telegram_bot_token:
     file: ./infrastructure/secrets/telegram_bot_token
 
@@ -285,11 +224,6 @@ volumes:
 
   alertmanager-data:
     name: alertmanager-data
-
-  # snmp_exporter의 auth config가 들어 있습니다. community 평문이 있으므로
-  # host에 bind하지 않고 manager-api와 snmp-exporter 사이에서만 씁니다.
-  snmp-runtime:
-    name: snmp-runtime
 
   manager-db-data:
     name: manager-db-data
