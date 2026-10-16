@@ -32,10 +32,13 @@ const TYPE_LABELS: Record<ResourceType, string> = { CPU: 'CPU', MEMORY: 'Memory'
 export function ServerResourceSection({
   serverId,
   collectionEnabled,
+  collectionFailed,
   onOpenCollection,
 }: {
   serverId: number
   collectionEnabled: boolean
+  /** 켜져 있지만 Prometheus가 exporter를 읽지 못하는 상태입니다. */
+  collectionFailed: boolean
   onOpenCollection: () => void
 }) {
   const resources = useQuery(serverResourcesQuery(serverId))
@@ -57,7 +60,7 @@ export function ServerResourceSection({
   return (
     <PageSection
       title="감시하는 리소스"
-      description="exporter에서 찾은 CPU, Memory, 디스크 가운데 고른 것만 사용률을 보입니다."
+      description="exporter에서 찾은 CPU, Memory, Storage 가운데 고른 것만 사용률을 보입니다."
       actions={
         <Button
           variant="secondary"
@@ -79,6 +82,17 @@ export function ServerResourceSection({
         </div>
       ) : null}
 
+      {collectionEnabled && collectionFailed ? (
+        <Notice tone="warning" title="exporter를 읽지 못하고 있습니다.">
+          <div className="flex flex-wrap items-center gap-3">
+            <p>수집 탭에서 연결 시험으로 원인을 확인해 주세요. 그동안 사용률 값은 비어 있습니다.</p>
+            <Button variant="secondary" size="sm" onClick={onOpenCollection}>
+              수집 설정 열기
+            </Button>
+          </div>
+        </Notice>
+      ) : null}
+
       {discoverMutation.isPending ? (
         <p className="text-body text-muted-foreground">리소스를 찾는 중…</p>
       ) : null}
@@ -94,9 +108,9 @@ export function ServerResourceSection({
       {/* 비어 있어도 위의 찾기 결과는 보여야 하므로 빈 상태를 절의 state로 두지 않습니다.
           수집이 꺼져 있으면 위 안내가 이미 다음 동작을 알려 주므로 같은 뜻을 되풀이하지 않습니다. */}
       {resources.data?.length === 0 ? (
-        collectionEnabled && !discovery ? (
+        collectionEnabled && !collectionFailed && !discovery ? (
           <p className="text-body text-muted-foreground">
-            감시하는 리소스가 없습니다. [리소스 찾기]로 CPU, Memory, 디스크를 고릅니다.
+            감시하는 리소스가 없습니다. [리소스 찾기]로 CPU, Memory, Storage를 고릅니다.
           </p>
         ) : null
       ) : resources.data ? (

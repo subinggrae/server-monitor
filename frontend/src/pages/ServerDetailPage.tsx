@@ -95,6 +95,7 @@ export function ServerDetailPage() {
           <ServerResourceSection
             serverId={serverId}
             collectionEnabled={collectionEnabled}
+            collectionFailed={server?.collectionState === 'FAILED'}
             onOpenCollection={() => changeTab('collection')}
           />
         ) : null}

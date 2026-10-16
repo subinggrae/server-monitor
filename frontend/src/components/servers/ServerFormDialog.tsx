@@ -79,7 +79,11 @@ function ServerForm({
       open={open}
       onOpenChange={onOpenChange}
       title={server ? '서버 수정' : '서버 추가'}
-      description="감시할 서버를 등록합니다. 등록한 뒤 서버 상세의 수집 탭에서 OS exporter 수집을 켜면 CPU, Memory, Storage 사용량을 수집합니다."
+      description={
+        server
+          ? '서버 정보를 바꿉니다. 감시 항목과 수집 설정은 그대로 남습니다.'
+          : '감시할 서버를 등록합니다. 등록한 뒤 서버 상세의 수집 탭에서 OS exporter 수집을 켜면 CPU, Memory, Storage 사용량을 수집합니다.'
+      }
       submitLabel={server ? '저장' : '추가'}
       pendingLabel={server ? '저장 중…' : '추가 중…'}
       pending={mutation.isPending}
@@ -116,42 +120,40 @@ function ServerForm({
         />
       </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="환경" htmlFor="server-environment" error={fieldErrors.environment}>
-          <Select
-            id="server-environment"
-            value={form.environment}
-            onChange={(event) => setForm({ ...form, environment: event.target.value })}
-          >
-            {ENVIRONMENTS.map((environment) => (
-              <option key={environment} value={environment}>
-                {environment}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field
-          label="OS"
-          htmlFor="server-os"
-          hint={server ? 'OS를 바꾸면 포트 기본값과 리소스 찾기 방식이 바뀝니다.' : undefined}
-          error={fieldErrors.os}
+      <Field label="환경" htmlFor="server-environment" error={fieldErrors.environment}>
+        <Select
+          id="server-environment"
+          value={form.environment}
+          onChange={(event) => setForm({ ...form, environment: event.target.value })}
         >
-          <Select
-            id="server-os"
-            name="os"
-            value={form.os}
-            onChange={(event) => setForm({ ...form, os: event.target.value as ServerOs })}
-            aria-invalid={Boolean(fieldErrors.os)}
-          >
-            {OS_OPTIONS.map((os) => (
-              <option key={os} value={os}>
-                {SERVER_OS_LABELS[os]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
+          {ENVIRONMENTS.map((environment) => (
+            <option key={environment} value={environment}>
+              {environment}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field
+        label="OS"
+        htmlFor="server-os"
+        hint={server ? 'OS를 바꾸면 포트 기본값과 리소스 찾기 방식이 바뀝니다.' : undefined}
+        error={fieldErrors.os}
+      >
+        <Select
+          id="server-os"
+          name="os"
+          value={form.os}
+          onChange={(event) => setForm({ ...form, os: event.target.value as ServerOs })}
+          aria-invalid={Boolean(fieldErrors.os)}
+        >
+          {OS_OPTIONS.map((os) => (
+            <option key={os} value={os}>
+              {SERVER_OS_LABELS[os]}
+            </option>
+          ))}
+        </Select>
+      </Field>
 
       <Field label="설명" htmlFor="server-description" error={fieldErrors.description}>
         <Textarea
