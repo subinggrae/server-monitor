@@ -254,7 +254,7 @@ function NotificationForm({
         pending={mutation.isPending}
         result={
           mutation.isError && !repeatIntervalError
-            ? { kind: 'error', text: '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.' }
+            ? { kind: 'error', text: saveErrorMessage(mutation.error) }
             : saved
               ? { kind: 'success', text: '알림 설정을 저장했습니다.' }
               : null
@@ -262,4 +262,15 @@ function NotificationForm({
       />
     </form>
   )
+}
+
+/**
+ * 서버가 이유와 함께 거부한 요청(4xx)은 그 이유를 보입니다. 다시 시도해도 같기 때문입니다.
+ * 다시 시도하라는 안내는 통신 실패와 서버 오류에만 씁니다.
+ */
+function saveErrorMessage(error: Error | null) {
+  if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+    return error.message
+  }
+  return '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.'
 }

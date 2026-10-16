@@ -103,3 +103,30 @@ describe('Check 알림 설정의 재발송 주기', () => {
     expect(await screen.findByText('서버가 거부한 주기')).toBeTruthy()
   })
 })
+
+describe('Check 알림 설정의 저장 실패', () => {
+  it('서버가 이유와 함께 거부하면 그 이유를 보인다', async () => {
+    givenApi({
+      'PUT /api/checks/3/notifications': {
+        status: 400,
+        body: { detail: '같은 Telegram 그룹이 두 번 들어 있습니다.' },
+      },
+    })
+    renderWithQueryClient(<CheckNotificationSection checkId={3} />)
+
+    await saveWithInterval('30')
+
+    expect(await screen.findByText('같은 Telegram 그룹이 두 번 들어 있습니다.')).toBeTruthy()
+    expect(screen.queryByText('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')).toBeNull()
+  })
+
+  it('서버 오류면 잠시 후 다시 시도하라고 안내한다', async () => {
+    givenApi({ 'PUT /api/checks/3/notifications': { status: 500, body: { detail: '내부 처리 중 오류' } } })
+    renderWithQueryClient(<CheckNotificationSection checkId={3} />)
+
+    await saveWithInterval('30')
+
+    expect(await screen.findByText('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')).toBeTruthy()
+    expect(screen.queryByText('내부 처리 중 오류')).toBeNull()
+  })
+})
