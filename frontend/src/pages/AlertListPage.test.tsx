@@ -85,6 +85,33 @@ describe('장애 기록', () => {
     expect(location).toContain('status=RESOLVED')
   })
 
+  it('주소에 상태가 있으면 그 상태로 걸러서 연다', async () => {
+    renderAt('?status=FIRING')
+
+    expect(await rowSummaries()).toEqual(['발생 중인 최근 장애', '발생 중인 오래된 장애'])
+    expect(screen.getByLabelText('상태 필터')).toHaveProperty('value', 'FIRING')
+  })
+
+  it('거른 결과가 없으면 그렇다고 알리고 필터를 초기화할 수 있다', async () => {
+    fakeApi({ 'GET /api/alerts': { body: [ALERTS[0]] } })
+    renderWithQueryClient(
+      <MemoryRouter initialEntries={['/alerts?status=FIRING']}>
+        <AlertListPage />
+      </MemoryRouter>,
+    )
+
+    const notice = await screen.findByText(/조건에 맞는 장애 기록이 없습니다/)
+    fireEvent.click(within(notice).getByRole('button', { name: '필터 초기화' }))
+    expect(await rowSummaries()).toEqual(['복구된 최근 장애'])
+  })
+
+  it('줄여 보이는 대상 주소는 가리키면 전체가 보인다', async () => {
+    renderAt('')
+    const table = await screen.findByRole('table')
+
+    expect(within(table).getAllByTitle('10.0.0.1').length).toBeGreaterThan(0)
+  })
+
   it('정하지 않은 상태 값은 무시한다', async () => {
     renderAt('?status=ALL_OF_IT')
 

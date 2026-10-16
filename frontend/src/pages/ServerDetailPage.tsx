@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SnmpStateDot, StatusDot } from '@/components/StatusDot'
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { DetailList } from '@/components/ui/section'
 import { Tabs } from '@/components/ui/tabs'
 import { apiDelete, queryKeys, serverDetailQuery, serverSnmpQuery } from '@/lib/api'
+import { pickParam, useSearchParamState } from '@/lib/searchParams'
 
 type TabValue = 'resources' | 'snmp'
 
@@ -21,22 +22,18 @@ const TABS: { value: TabValue; label: string }[] = [
   { value: 'snmp', label: 'SNMP' },
 ]
 
-/** 주소의 tab 값이 정한 값이 아니면 첫 탭을 엽니다. */
-function tabFrom(value: string | null): TabValue {
-  return TABS.find((item) => item.value === value)?.value ?? TABS[0].value
-}
-
 /** Blackbox Check는 Server 소유가 아니므로 여기에 표시하지 않습니다. (CLAUDE.md 2-1번) */
 export function ServerDetailPage() {
   const { serverId: rawServerId } = useParams()
   const serverId = Number(rawServerId)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const { params, update } = useSearchParamState()
 
   const serverResult = useQuery(serverDetailQuery(serverId))
   const snmp = useQuery(serverSnmpQuery(serverId))
-  const tab = tabFrom(searchParams.get('tab'))
+  // 주소의 tab 값이 정한 값이 아니면 첫 탭을 엽니다.
+  const tab = pickParam(params.get('tab'), TABS.map((item) => item.value)) ?? TABS[0].value
   const [formOpen, setFormOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -48,16 +45,7 @@ export function ServerDetailPage() {
     },
   })
 
-  const changeTab = (value: TabValue) => {
-    setSearchParams(
-      (previous) => {
-        const next = new URLSearchParams(previous)
-        next.set('tab', value)
-        return next
-      },
-      { replace: true },
-    )
-  }
+  const changeTab = (value: TabValue) => update({ tab: value })
 
   const server = serverResult.data
   const snmpConfigured = Boolean(snmp.data?.configured)

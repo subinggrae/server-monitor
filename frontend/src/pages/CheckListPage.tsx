@@ -218,7 +218,9 @@ function TargetSummary({ check }: { check: MonitoringCheck }) {
 
   return (
     <div className="flex items-baseline gap-2">
-      <span className="tabular truncate text-muted-foreground">{first.blackboxTarget}</span>
+      <span className="tabular truncate text-muted-foreground" title={first.blackboxTarget}>
+        {first.blackboxTarget}
+      </span>
       {rest.length > 0 ? (
         <span className="shrink-0 text-caption text-subtle-foreground">외 {rest.length}개</span>
       ) : null}

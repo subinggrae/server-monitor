@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { useState } from 'react'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -159,5 +160,30 @@ describe('대화상자 폼', () => {
     )
 
     expect(document.activeElement).toBe(screen.getByLabelText('호스트'))
+  })
+
+  it('요청을 보내기 전에 막은 오류도 첫 오류 칸으로 포커스를 옮긴다', () => {
+    function ClientValidated() {
+      const [invalid, setInvalid] = useState(false)
+      return (
+        <FormDialog
+          open
+          onOpenChange={() => {}}
+          title="서버 추가"
+          submitLabel="추가"
+          pendingLabel="추가 중…"
+          pending={false}
+          onSubmit={() => setInvalid(true)}
+        >
+          <input aria-label="이름" />
+          <input aria-label="수집 주기" aria-invalid={invalid} />
+        </FormDialog>
+      )
+    }
+    render(<ClientValidated />)
+
+    fireEvent.click(screen.getByRole('button', { name: '추가' }))
+
+    expect(document.activeElement).toBe(screen.getByLabelText('수집 주기'))
   })
 })

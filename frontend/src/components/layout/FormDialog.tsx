@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogBody, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -8,7 +8,7 @@ const WIDTH = { md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-2xl' } as const
 
 /**
  * 추가·수정·확인 대화상자의 틀입니다. 제목과 설명 → 필드 → 폼 오류 → 아래 막대([닫기] [실행]) 순서입니다.
- * 제출이 끝났는데 오류 칸이 있으면 첫 오류 칸으로 포커스를 옮깁니다(RULES.md의 폼).
+ * 제출을 막았거나 제출이 끝났는데 오류 칸이 있으면 첫 오류 칸으로 포커스를 옮깁니다(RULES.md의 폼).
  */
 export function FormDialog({
   open,
@@ -39,17 +39,24 @@ export function FormDialog({
 }) {
   const formRef = useRef<HTMLFormElement>(null)
   const wasPending = useRef(pending)
+  const handledAttempt = useRef(0)
+  // 요청을 보내기 전에 막는 검증은 pending이 바뀌지 않으므로 제출 횟수로도 알아챕니다.
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    if (wasPending.current && !pending) {
+    const finished = wasPending.current && !pending
+    const validated = attempt !== handledAttempt.current && !pending
+    wasPending.current = pending
+    handledAttempt.current = attempt
+    if (finished || validated) {
       formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
     }
-    wasPending.current = pending
-  }, [pending])
+  }, [attempt, pending])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     onSubmit()
+    setAttempt((count) => count + 1)
   }
 
   return (

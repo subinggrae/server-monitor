@@ -85,7 +85,7 @@ public class SnmpAuthConfigSyncService {
 			reloader.reload();
 		}
 		catch (Exception ex) {
-			return record(SnmpSyncStatus.failed("수집 설정을 적용하지 못했습니다. 계속되면 snmp-exporter가 실행 중인지 확인해 주세요."),
+			return record(SnmpSyncStatus.failed("수집 설정을 적용하지 못했습니다. 계속되면 Monitoring Manager 로그에서 이유를 확인해 주세요."),
 					configs.size(), ex);
 		}
 

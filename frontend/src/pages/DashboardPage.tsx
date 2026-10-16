@@ -39,10 +39,16 @@ export function DashboardPage() {
     (checks.data ?? []).filter((check) => check.status === status).length
   const startedAt = firingSince(alerts.data ?? [])
 
+  // 절 하나라도 새로고침에 실패하면 화면 전체가 그 시각 기준 값입니다. 가장 오래된 시각을 보입니다.
+  const refreshed = [checks, alerts, servers]
+  const stale = refreshed.some((query) => query.isError && query.data !== undefined)
+  const loadedAt = refreshed.map((query) => query.dataUpdatedAt).filter((time) => time > 0)
+  const updatedAt = checks.dataUpdatedAt ? Math.min(...loadedAt) : 0
+
   return (
     <OverviewPage
       title="대시보드"
-      freshness={<Freshness updatedAt={checks.dataUpdatedAt} stale={checks.isError && checks.data !== undefined} />}
+      freshness={<Freshness updatedAt={updatedAt} stale={stale} />}
       actions={
         systemInfo.data?.grafanaUrl ? (
           <a

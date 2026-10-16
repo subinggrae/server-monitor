@@ -6,8 +6,9 @@ import { AlertStatusLabel } from '@/components/StatusDot'
 import { Toolbar } from '@/components/Toolbar'
 import { queryState } from '@/components/layout/state'
 import { ListPage } from '@/components/layout/ListPage'
+import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/input'
-import { Table, TableFrame, TBody, TD, TH, THead, TR } from '@/components/ui/table'
+import { Table, TableFrame, TableNotice, TBody, TD, TH, THead, TR } from '@/components/ui/table'
 import { alertsQuery, type AlertStatus } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { pickParam, useSearchParamState } from '@/lib/searchParams'
@@ -50,7 +51,7 @@ export function AlertListPage() {
           ? {
               title: '기록된 장애가 없습니다.',
               description:
-                '장애가 감지되면 여기에 기록됩니다. 감시 항목이 위험 상태인데 기록이 없으면 Alertmanager가 Monitoring Manager로 장애를 보내는지 설치 설정을 확인해 주세요.',
+                '장애가 감지되면 여기에 기록됩니다. 감시 항목이 위험 상태인데 기록이 없으면 장애가 Monitoring Manager까지 전달되지 않는 것입니다. 설치할 때 정한 장애 전달 설정을 확인해 주세요.',
             }
           : null,
       )}
@@ -105,7 +106,9 @@ export function AlertListPage() {
                     <span>{alert.summary ?? alert.alertName}</span>
                   )}
                 </TD>
-                <TD className="address max-w-0 truncate text-muted-foreground">{alert.instance ?? '-'}</TD>
+                <TD className="address max-w-0 truncate text-muted-foreground" title={alert.instance ?? undefined}>
+                  {alert.instance ?? '-'}
+                </TD>
                 <TD className="tabular text-muted-foreground">{formatDateTime(alert.startsAt)}</TD>
                 <TD className="tabular text-muted-foreground">
                   {alert.resolvedAt ? formatDateTime(alert.resolvedAt) : '-'}
@@ -114,6 +117,15 @@ export function AlertListPage() {
             ))}
           </TBody>
         </Table>
+
+        {visibleAlerts.length === 0 ? (
+          <TableNotice>
+            조건에 맞는 장애 기록이 없습니다.{' '}
+            <Button variant="ghost" size="sm" onClick={() => update({ status: null })}>
+              필터 초기화
+            </Button>
+          </TableNotice>
+        ) : null}
       </TableFrame>
     </ListPage>
   )

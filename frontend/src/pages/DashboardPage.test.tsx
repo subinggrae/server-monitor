@@ -134,4 +134,19 @@ describe('대시보드', () => {
     expect(await screen.findByText(/최신 상태를 확인하지 못했습니다/)).toBeTruthy()
     expect(screen.getByRole('link', { name: '전자결재 Health' })).toBeTruthy()
   })
+
+  it('장애 기록만 다시 확인하지 못해도 확인하지 못했다고 알린다', async () => {
+    const ok = replies([check(3, '전자결재 Health', 'CRITICAL')], [firing(3, '2026-10-15T05:29:00Z')])
+    fakeApi(ok)
+
+    renderDashboard()
+    await screen.findByText('12분째')
+
+    fakeApi({ ...ok, 'GET /api/alerts': { status: 500 } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+    })
+
+    expect(await screen.findByText(/최신 상태를 확인하지 못했습니다/)).toBeTruthy()
+  })
 })

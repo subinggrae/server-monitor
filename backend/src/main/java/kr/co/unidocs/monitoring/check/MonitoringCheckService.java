@@ -108,7 +108,7 @@ public class MonitoringCheckService {
 			case DISABLED -> "사용하지 않는 감시 항목입니다.";
 			case UNKNOWN -> prometheusAvailable
 					? "아직 수집한 결과가 없습니다. 잠시 후 다시 확인해 주세요."
-					: "수집 결과를 읽지 못해 상태를 확인하지 못했습니다. 계속되면 Prometheus가 실행 중인지 확인해 주세요.";
+					: "수집 결과를 읽지 못해 상태를 확인하지 못했습니다. 계속되면 Monitoring Manager 로그에서 이유를 확인해 주세요.";
 		};
 	}
 

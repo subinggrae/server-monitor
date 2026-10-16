@@ -33,7 +33,9 @@ export function RecentAlertTable({ alerts }: { alerts: AlertEvent[] }) {
                   (alert.summary ?? alert.alertName)
                 )}
               </TD>
-              <TD className="address max-w-0 truncate text-muted-foreground">{alert.instance ?? '-'}</TD>
+              <TD className="address max-w-0 truncate text-muted-foreground" title={alert.instance ?? undefined}>
+                {alert.instance ?? '-'}
+              </TD>
               <TD className="tabular text-muted-foreground">{formatDateTime(alert.startsAt)}</TD>
             </TR>
           ))}

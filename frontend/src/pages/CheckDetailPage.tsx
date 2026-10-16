@@ -19,6 +19,8 @@ import { formatDateTime, formatElapsed, formatTime } from '@/lib/format'
 
 const RECENT_ALERT_LIMIT = 5
 
+const REFRESH_INTERVAL = 30_000
+
 /** 대상마다 따로 확인하므로 가장 늦게 확인한 대상의 시각을 씁니다. */
 function latestCheckedAt(check: MonitoringCheck | undefined) {
   const times = (check?.targets ?? []).flatMap((target) => (target.checkedAt ? [target.checkedAt] : []))
@@ -31,7 +33,8 @@ export function CheckDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const checkResult = useQuery(checkDetailQuery(checkId))
+  // 머리의 지속 시간과 마지막 확인 시각이 열어 둔 채로도 바뀌어야 합니다. 대시보드와 같은 간격입니다.
+  const checkResult = useQuery({ ...checkDetailQuery(checkId), refetchInterval: REFRESH_INTERVAL })
   const [formOpen, setFormOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -46,7 +49,7 @@ export function CheckDetailPage() {
   const check = checkResult.data
 
   // 장애 API는 최근 기록만 돌려줍니다. 그 안에서 이 감시 항목의 것만 고릅니다.
-  const alerts = useQuery(alertsQuery)
+  const alerts = useQuery({ ...alertsQuery, refetchInterval: REFRESH_INTERVAL })
   const recentAlerts = (alerts.data ?? []).filter((alert) => alert.checkId === checkId).slice(0, RECENT_ALERT_LIMIT)
   const since = firingSince(alerts.data ?? []).get(checkId)
   const lastCheckedAt = latestCheckedAt(check)
@@ -73,7 +76,6 @@ export function CheckDetailPage() {
                   <span>시작 시각 모름</span>
                 )
               ) : null}
-              {check.enabled ? null : <span>사용 안 함</span>}
               {lastCheckedAt ? <span className="tabular">마지막 확인 {formatTime(lastCheckedAt)}</span> : null}
             </>
           ) : undefined
