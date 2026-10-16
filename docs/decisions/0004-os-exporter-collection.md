@@ -1,8 +1,8 @@
 # 0004. 서버 자원은 OS exporter로 수집하고, 서버 생존은 감시 항목이 맡는다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-10-16
-- 관련: [요구사항 0006](../requirements/0006-os-exporter.md), [#12](https://github.com/subinggrae/server-monitor/issues/12), [#15](https://github.com/subinggrae/server-monitor/issues/15), [ADR 0002](0002-scrape-interval-via-http-sd.md)
+- 관련: [요구사항 0006](../requirements/0006-os-exporter.md), [#12](https://github.com/subinggrae/server-monitor/issues/12), [#15](https://github.com/subinggrae/server-monitor/issues/15), [ADR 0002](0002-scrape-interval-via-http-sd.md), 지운 계획은 [PR #17](https://github.com/subinggrae/server-monitor/pull/17)에서 볼 수 있다
 
 ## 배경과 문제
 

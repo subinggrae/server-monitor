@@ -1,6 +1,6 @@
 # 0006. SNMP를 걷어내고 OS exporter로 서버 자원 수집
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-10-15
 - 관련: [#12](https://github.com/subinggrae/server-monitor/issues/12), [0001](0001-per-target-scrape-interval.md), [#6](https://github.com/subinggrae/server-monitor/issues/6), [#14](https://github.com/subinggrae/server-monitor/issues/14), [#13](https://github.com/subinggrae/server-monitor/issues/13), [#15](https://github.com/subinggrae/server-monitor/issues/15)
 
