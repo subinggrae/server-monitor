@@ -1,6 +1,6 @@
 # 0005. 시각 체계와 화면 전면 재정비
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-10-15
 - 관련: [0002](0002-e2e-and-screen-check.md), 0004(브랜치 `feature/resource-threshold-alert`), [DESIGN.md](../design/DESIGN.md), [#7](https://github.com/subinggrae/server-monitor/issues/7), [#8](https://github.com/subinggrae/server-monitor/issues/8), [#9](https://github.com/subinggrae/server-monitor/issues/9)
 
