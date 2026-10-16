@@ -249,7 +249,7 @@ os-test-node-exporter:
 - C7·C10(2026-10-16): 개발 환경과 겹치지 않게 컨테이너와 volume 이름을 바꾼 임시 compose project(`c7`)에서 확인했다. 이 PC는 8080을 다른 프로그램이 써서 `manager-api`만 18080으로 열었다. 연결 시험(node_exporter 1.12.1, OS 불일치, 닫힌 포트), 저장 뒤 재시작 없이 36초 안에 `manager-os` 대상(30s, label 다섯 개), 리소스 찾기(CPU, Memory, `/data`, tmpfs·overlay 없음), 사용률(Memory는 `/proc/meminfo`의 MemAvailable 기준과 일치), 주기 120초 반영, 저장된 series 이름이 keep 목록과 scrape 자체 series뿐인 것을 확인했다.
 - C9(2026-10-16): 컨테이너를 멈추면 호스트도 사라져 Ping 감시 항목도 위험이 된다. 그래서 수집 포트를 아무것도 듣지 않는 9101로 바꿔 exporter만 닿지 않게 했고, 수집 상태만 수집 실패가 되고 감시 항목은 정상으로 남았다.
 - 화면 검사 72개와 E2E 2개가 통과했다. 스크린샷으로 목록, 상세(리소스, 수집 꺼짐, 리소스 찾기), 수집 탭(연결 시험 성공·실패), 수정 대화상자, 대시보드를 기준 폭과 두 모드로 확인했다. 가로 넘침은 없었다.
-- 범위 밖 발견: 작은 기본 버튼(`size="sm"`, primary)은 `text-body`를 tailwind-merge가 글자 색으로 보고 `text-primary-foreground`를 지워 글자가 보이지 않는다. 리소스 찾기 결과의 [선택 저장]이 그렇다. 처리 방법을 사람에게 묻는다.
+- 범위 밖 발견: 작은 기본 버튼(`size="sm"`, primary)은 `text-body`를 tailwind-merge가 글자 색으로 보고 `text-primary-foreground`를 지워 글자가 보이지 않는다. 리소스 찾기 결과의 [선택 저장]이 그렇다. 사람이 이 브랜치에서 함께 고치기로 해(2026-10-16) `cn`의 tailwind-merge에 글자 크기 토큰을 알렸다. 화면 검사 72개를 다시 통과했다.
 - `ExporterClient`의 전체 마감은 `sendAsync(...).get(마감)`으로 걸고, 넘으면 요청을 취소한다. 본문 한도는 받는 쪽에서 세다가 넘으면 구독을 끊는다. recording rule은 `max by`로 끝내므로 결과에 남지 않는다.
 
 ## 남길 결정
