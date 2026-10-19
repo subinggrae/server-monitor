@@ -4,7 +4,10 @@
 #   → Manager Database에서 알림 대상 조회 → Telegram Bot API
 #
 # 그래서 이 파일에는 Bot Token, chat id, 그룹별 routing이 없습니다.
-# 사용자가 알림 그룹을 추가하거나 바꿔도 이 파일은 그대로입니다. (CLAUDE.md 3번, 4번)
+# 사용자가 알림 그룹을 추가하거나 바꿔도 이 파일은 그대로입니다.
+#
+# 이 파일은 템플릿입니다. @MONITORING_APP_ADDRESS@는 컨테이너가 시작할 때 코어 설정(infrastructure/.env)의
+# 앱 주소로 바뀝니다. 펼치는 방법은 infrastructure/render-config.sh에 있습니다.
 
 route:
   receiver: manager-webhook
@@ -27,7 +30,7 @@ route:
 receivers:
   - name: manager-webhook
     webhook_configs:
-      - url: 'http://manager-api:8080/api/integrations/alertmanager/webhook'
+      - url: 'http://@MONITORING_APP_ADDRESS@/api/integrations/alertmanager/webhook'
 
         # 복구 알림도 Manager로 보냅니다. 실제로 Telegram에 보낼지는 Check별 설정이 정합니다.
         send_resolved: true

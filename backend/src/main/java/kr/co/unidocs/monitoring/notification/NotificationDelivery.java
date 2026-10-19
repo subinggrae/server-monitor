@@ -16,7 +16,7 @@ import java.time.Instant;
 /**
  * Telegram 전송 시도 한 번의 기록입니다.
  *
- * Bot Token과 Telegram 응답 전체는 저장하지 않습니다. (CLAUDE.md 11번)
+ * Bot Token과 Telegram 응답 전체는 저장하지 않습니다.
  * telegramDestinationId에 FK를 걸지 않습니다. 그룹을 지워도 전송 기록은 남아야 합니다.
  */
 @Entity

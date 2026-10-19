@@ -16,7 +16,7 @@ export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
   return <textarea className={cn(FIELD_CLASS, 'min-h-18 resize-y py-1.5', className)} {...props} />
 }
 
-/** 운영 도구에는 기본 select로 충분합니다. Radix 의존성을 늘리지 않습니다. (CLAUDE.md 13번) */
+/** 운영 도구에는 기본 select로 충분합니다. Radix 의존성을 늘리지 않습니다. */
 export function Select({ className, ...props }: ComponentProps<'select'>) {
   return <select className={cn(FIELD_CLASS, 'h-8', className)} {...props} />
 }

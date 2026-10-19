@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Telegram Bot Token, DB 계정 정보는 어떤 형태로도 넣지 않습니다. (CLAUDE.md 11번) */
+/** Telegram Bot Token, DB 계정 정보는 어떤 형태로도 넣지 않습니다. */
 @RestController
 @RequestMapping("/api/system")
 class SystemInfoController {

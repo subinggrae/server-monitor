@@ -24,6 +24,4 @@ public interface CheckNotificationBindingRepository extends JpaRepository<CheckN
 			""")
 	List<CheckNotificationBinding> findAllWithDestination();
 
-	void deleteAllByCheckId(Long checkId);
-
 }

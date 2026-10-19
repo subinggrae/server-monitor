@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Bot Token이 URL 경로에 들어갑니다.
- * 밖으로 나가는 문자열에는 요청 URL이 섞일 수 있으므로 {@link #withoutToken}을 거칩니다. (CLAUDE.md 11번)
+ * 밖으로 나가는 문자열에는 요청 URL이 섞일 수 있으므로 {@link #withoutToken}을 거칩니다.
  */
 @Component
 public class TelegramClient {

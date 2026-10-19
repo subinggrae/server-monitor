@@ -24,7 +24,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.IntStream;
 
 /**
- * 알림 대상은 Manager Database가 정합니다. Prometheus label로 정하지 않습니다. (CLAUDE.md 4번)
+ * 알림 대상은 Manager Database가 정합니다. Prometheus label로 정하지 않습니다.
  *
  * 연결이 없는 Check는 그냥 넘어갑니다.
  * 기본 그룹을 몰래 정해 두면 운영자가 모르는 곳으로 장애 알림이 갑니다.

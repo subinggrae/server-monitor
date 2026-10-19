@@ -34,20 +34,42 @@ dependencies {
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
 	runtimeOnly 'org.postgresql:postgresql'
 
-	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
-
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	// 통합 테스트(integrationTest)가 빈 MariaDB와 PostgreSQL을 Docker로 띄울 때 씁니다.
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-mariadb'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-tasks.named('test') {
-	useJUnitPlatform()
+tasks.withType(Test).configureEach {
 	// 시간대와 로케일은 개발 PC마다 다르므로 여기에서 고정합니다.
 	systemProperty 'user.timezone', 'Asia/Seoul'
 	systemProperty 'user.language', 'ko'
 	systemProperty 'user.country', 'KR'
+}
+
+tasks.named('test') {
+	// Docker가 필요한 통합 테스트는 build에서 빼고 integrationTest로 따로 실행합니다.
+	useJUnitPlatform {
+		excludeTags 'integration'
+	}
+	// DatabaseNameLocationTest가 소스 파일을 직접 읽습니다. 주석만 바뀌어도 다시 실행하게 입력으로 등록합니다.
+	inputs.dir('src/main').withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
+tasks.register('integrationTest', Test) {
+	description = 'Docker로 띄운 MariaDB와 PostgreSQL에서 통합 테스트를 실행합니다.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'integration'
+	}
+	shouldRunAfter tasks.named('test')
 }
 
 tasks.named('bootJar') {

@@ -44,9 +44,6 @@ public class ServerResourceService {
 	}
 
 	private ResourceUsageResponse toUsage(MonitoredResource resource, ResourceValues values) {
-		if (!resource.isEnabled()) {
-			return empty(resource, ResourceStatus.DISABLED);
-		}
 		ResourceValue value = values.of(resource.getResourceType(), resource.getResourceKey());
 		if (value == null) {
 			return empty(resource, ResourceStatus.UNAVAILABLE);

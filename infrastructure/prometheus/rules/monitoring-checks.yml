@@ -9,7 +9,7 @@
 #   check_id  check_target_id  check_name  check_type  environment
 #
 # 알림 대상은 Manager Database가 정합니다.
-# Telegram chat id 같은 라우팅 정보를 이 파일이나 label에 넣지 않습니다. (CLAUDE.md 4번)
+# Telegram chat id 같은 라우팅 정보를 이 파일이나 label에 넣지 않습니다.
 
 groups:
   - name: monitoring-check-alerts

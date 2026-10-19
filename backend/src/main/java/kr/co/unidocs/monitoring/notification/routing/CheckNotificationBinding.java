@@ -18,7 +18,7 @@ import java.time.Instant;
 /**
  * Monitoring Check와 Telegram 그룹의 연결입니다.
  *
- * checkId를 JPA 관계로 묶지 않습니다. Monitoring Check는 알림을 몰라도 동작해야 합니다. (CLAUDE.md 2-1번)
+ * checkId를 JPA 관계로 묶지 않습니다. Monitoring Check는 알림을 몰라도 동작해야 합니다.
  * 고아 데이터는 DB의 ON DELETE CASCADE로 막습니다.
  */
 @Entity

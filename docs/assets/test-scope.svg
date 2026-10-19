@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752 256" width="752" height="256" role="img" aria-labelledby="test-scope-title test-scope-desc">
-  <title id="test-scope-title">DB와 외부 시스템까지 함께 검사하는 것은 E2E 테스트뿐이다</title>
-  <desc id="test-scope-desc">열은 화면, API, 도메인 로직, DB와 외부 시스템 순서의 계층이다. 정적 검사는 코드를 실행하지 않고 모든 계층을 검사한다. 단위 테스트는 JUnit으로 API와 도메인 로직을 검사한다. 컴포넌트 테스트는 Vitest로 화면을 검사한다. E2E 테스트는 Playwright로 화면부터 DB와 외부 시스템까지 모든 계층을 함께 검사한다.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 752 304" width="752" height="304" role="img" aria-labelledby="test-scope-title test-scope-desc">
+  <title id="test-scope-title">DB까지 검사하는 것은 통합 테스트와 E2E 테스트이고, 외부 시스템까지 함께 검사하는 것은 E2E 테스트뿐이다</title>
+  <desc id="test-scope-desc">열은 화면, API, 도메인 로직, DB와 외부 시스템 순서의 계층이다. 정적 검사는 코드를 실행하지 않고 모든 계층을 검사한다. 단위 테스트는 JUnit으로 API와 도메인 로직을 검사한다. 통합 테스트는 JUnit과 Testcontainers로 API부터 DB까지 검사하고, 외부 시스템은 넣지 않는다. 컴포넌트 테스트는 Vitest로 화면을 검사한다. E2E 테스트는 Playwright로 화면부터 DB와 외부 시스템까지 모든 계층을 함께 검사한다.</desc>
   <style>
     svg { --paper: #FFFFFF; --ink: #2D3142; --muted: #5C667A; --edge: #8A92A3; --hair: #D9DCE1; --band: #F5F6F8; --accent: #C2410C; --accent-fill: #FFF4EE; }
     @media (prefers-color-scheme: dark) {
@@ -16,12 +16,12 @@
     .range-dash { stroke: var(--edge); stroke-width: 2; stroke-dasharray: 2 6; stroke-linecap: round; }
   </style>
 
-  <rect class="paper" width="752" height="256"/>
+  <rect class="paper" width="752" height="304"/>
 
   <!-- 열 바탕: 둘째와 넷째 열. 열은 x = 160 + 144 × 순서, 폭 144 -->
   <g id="bands">
-    <rect class="band" x="304" y="16" width="144" height="224"/>
-    <rect class="band" x="592" y="16" width="144" height="224"/>
+    <rect class="band" x="304" y="16" width="144" height="272"/>
+    <rect class="band" x="592" y="16" width="144" height="272"/>
   </g>
 
   <!-- 열 이름: 계층 -->
@@ -49,18 +49,27 @@
     <circle class="dot" cx="568" cy="120" r="4"/>
   </g>
 
+  <!-- 통합 테스트는 DB까지만 닿으므로 넷째 열의 앞쪽에서 끝난다 -->
+  <g id="row-integration">
+    <text class="name" x="24" y="164">통합 테스트</text>
+    <text class="sub" x="24" y="184">Testcontainers</text>
+    <line class="range" x1="328" y1="168" x2="640" y2="168"/>
+    <circle class="dot" cx="328" cy="168" r="4"/>
+    <circle class="dot" cx="640" cy="168" r="4"/>
+  </g>
+
   <g id="row-component">
-    <text class="name" x="24" y="164">컴포넌트 테스트</text>
-    <text class="sub" x="24" y="184">Vitest</text>
-    <line class="range" x1="184" y1="168" x2="280" y2="168"/>
-    <circle class="dot" cx="184" cy="168" r="4"/>
-    <circle class="dot" cx="280" cy="168" r="4"/>
+    <text class="name" x="24" y="212">컴포넌트 테스트</text>
+    <text class="sub" x="24" y="232">Vitest</text>
+    <line class="range" x1="184" y1="216" x2="280" y2="216"/>
+    <circle class="dot" cx="184" cy="216" r="4"/>
+    <circle class="dot" cx="280" cy="216" r="4"/>
   </g>
   <g id="row-e2e">
-    <text class="name" x="24" y="212">E2E 테스트</text>
-    <text class="sub" x="24" y="232">Playwright</text>
-    <line class="range" x1="184" y1="216" x2="712" y2="216"/>
-    <circle class="dot" cx="184" cy="216" r="4"/>
-    <circle class="dot" cx="712" cy="216" r="4"/>
+    <text class="name" x="24" y="260">E2E 테스트</text>
+    <text class="sub" x="24" y="280">Playwright</text>
+    <line class="range" x1="184" y1="264" x2="712" y2="264"/>
+    <circle class="dot" cx="184" cy="264" r="4"/>
+    <circle class="dot" cx="712" cy="264" r="4"/>
   </g>
 </svg>

@@ -167,6 +167,6 @@ node scripts/check-docs.mjs
 
 - 다음도 위험 영역으로 보고 큰 변경으로 다룬다. Flyway migration(`backend/src/main/resources/db/migration/`), Prometheus HTTP SD와 Alertmanager·Telegram webhook 계약, `compose.yml`과 `infrastructure/`의 Prometheus 설정과 규칙, Alertmanager·Blackbox 설정, `infrastructure/secrets/`의 비밀값과 exporter 접근 방식이다.
 - 사용자가 화면에서 바꾼 설정 때문에 `infrastructure/`의 설정 파일과 Alert 규칙을 만들거나 고치지 않는다. 사용자 설정의 기준은 Manager Database다. 자세한 경계는 [ARCHITECTURE.md의 지켜야 할 경계](docs/ARCHITECTURE.md#지켜야-할-경계)에 있다.
-- Flyway migration은 `mariadb`와 `postgresql` 디렉터리에 같은 version으로 함께 추가한다. 이미 있는 migration 파일은 고치지 않는다.
+- Flyway migration은 `mariadb`와 `postgresql` 디렉터리에 같은 version으로 함께 추가한다. 이미 있는 migration 파일은 고치지 않는다. 다만 사람이 승인한 요구사항이 데이터를 이어 받지 않고 기준을 새로 잡기로 했으면 기존 migration을 지우고 기준 migration을 쓴다. 이유는 [ADR 0006](docs/decisions/0006-baseline-migration.md)에 있다.
 - HTTP SD 응답의 label을 더하거나 지우거나 이름을 바꾸면, 또는 Check 대상의 id가 바뀌면 Prometheus time series가 끊긴다. 바꾸기 전에 [사람에게 묻기](#사람에게-묻기)대로 묻는다.
 - 코드·설정 주석의 `(CLAUDE.md N번)`은 옛 지침의 규칙 번호이고, 그 원문은 저장소에 없다. 새 주석에 이 표기를 쓰지 않는다. 규칙은 ARCHITECTURE.md의 지켜야 할 경계로 확인한다.

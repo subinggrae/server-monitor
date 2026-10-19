@@ -23,7 +23,7 @@ const TABS: { value: TabValue; label: string }[] = [
 ]
 
 /**
- * Blackbox Check는 Server 소유가 아니므로 여기에 표시하지 않습니다. (CLAUDE.md 2-1번)
+ * Blackbox Check는 Server 소유가 아니므로 여기에 표시하지 않습니다.
  * 서버가 살아 있는지도 감시 항목이 보입니다. 여기의 상태는 자원 수집 상태뿐입니다.
  */
 export function ServerDetailPage() {

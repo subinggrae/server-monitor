@@ -1,6 +1,9 @@
-# Prometheus 배포용 설정입니다.
+# Prometheus 배포용 설정 템플릿입니다.
 #
-# 사용자가 UI에서 Check를 등록해도 이 파일은 수정하지 않습니다. (CLAUDE.md 1번)
+# @MONITORING_APP_ADDRESS@는 컨테이너가 시작할 때 코어 설정(infrastructure/.env)의 앱 주소로 바뀝니다.
+# 앱 주소를 이 파일에 직접 적지 않습니다. 펼치는 방법은 infrastructure/render-config.sh에 있습니다.
+#
+# 사용자가 UI에서 Check를 등록해도 이 파일은 수정하지 않습니다.
 # 모니터링 대상은 Manager의 HTTP Service Discovery로 관리합니다.
 #
 # Target 목록을 파일로 관리하지 않습니다. file_sd_configs를 쓰지 마세요.
@@ -28,14 +31,6 @@ scrape_configs:
       - targets:
           - blackbox-exporter:9115
 
-  # Manager의 metric은 application="monitoring-manager" label로 구분합니다.
-  # 알림 대상은 Manager Database가 정하므로 여기에 routing용 label을 붙이지 않습니다.
-  - job_name: manager-api
-    metrics_path: /actuator/prometheus
-    static_configs:
-      - targets:
-          - manager-api:8080
-
   # 사용자가 UI에서 등록한 Check입니다.
   # Target 목록은 Manager API에서 가져옵니다. 이 파일에 Target을 적지 않습니다.
   # 수집 주기도 Check마다 SD label __scrape_interval__로 받습니다. 위의 전역 scrape_interval은 쓰지 않습니다.
@@ -43,7 +38,7 @@ scrape_configs:
     metrics_path: /probe
 
     http_sd_configs:
-      - url: http://manager-api:8080/api/prometheus/sd/blackbox
+      - url: http://@MONITORING_APP_ADDRESS@/api/prometheus/sd/blackbox
         refresh_interval: 15s
 
     relabel_configs:
@@ -73,7 +68,7 @@ scrape_configs:
     metrics_path: /metrics
 
     http_sd_configs:
-      - url: http://manager-api:8080/api/prometheus/sd/os-exporter
+      - url: http://@MONITORING_APP_ADDRESS@/api/prometheus/sd/os-exporter
         refresh_interval: 30s
 
     # keep 뒤에 남는 series 수에 걸립니다. CPU 코어와 디스크가 아주 많은 서버만 넘습니다.

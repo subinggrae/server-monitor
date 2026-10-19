@@ -72,13 +72,13 @@ public class AlertEventService {
 				.orElse(null);
 
 		if (event != null) {
-			event.receiveAgain(status, summary, truncate(alert.annotation("description"), 1000), alert.resolvedAt());
+			event.receiveAgain(status, summary, alert.resolvedAt());
 		}
 		else {
 			event = alertEventRepository.save(new AlertEvent(fingerprintOf(alert),
 					truncate(alertNameOf(alert), 200), checkId, checkTargetId,
-					truncate(alert.label(SEVERITY_LABEL), 20), status, truncate(instance, 500), summary,
-					truncate(alert.annotation("description"), 1000), startsAt, alert.resolvedAt()));
+					truncate(alert.label(SEVERITY_LABEL), 20), status, truncate(instance, 500), summary, startsAt,
+					alert.resolvedAt()));
 		}
 		alertEventRepository.flush();
 

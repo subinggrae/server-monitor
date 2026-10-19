@@ -37,9 +37,9 @@
 
 ## 테스트 범위
 
-테스트 종류마다 검사하는 계층이 다르다. 범위가 넓은 테스트일수록 느리므로 적게 쓴다. 지금은 컴포넌트 테스트가 화면을, 단위 테스트가 API와 도메인 로직을 검사한다. DB와 외부 시스템까지 함께 검사하는 것은 핵심 흐름 두 개를 확인하는 E2E 테스트뿐이다.
+테스트 종류마다 검사하는 계층이 다르다. 범위가 넓은 테스트일수록 느리므로 적게 쓴다. 지금은 컴포넌트 테스트가 화면을, 단위 테스트가 API와 도메인 로직을 검사한다. 통합 테스트는 빈 MariaDB와 PostgreSQL을 띄워 migration과 DB를 거치는 흐름을 검사한다. DB와 외부 시스템까지 함께 검사하는 것은 핵심 흐름 두 개를 확인하는 E2E 테스트뿐이다.
 
-![DB와 외부 시스템까지 함께 검사하는 것은 E2E 테스트뿐이다](assets/test-scope.svg)
+![DB까지 검사하는 것은 통합 테스트와 E2E 테스트이고, 외부 시스템까지 함께 검사하는 것은 E2E 테스트뿐이다](assets/test-scope.svg)
 
 ## 종류별 기준
 
@@ -49,16 +49,17 @@
 |---|---|---|---|---|
 | 정적 검사 | 타입 오류, 문법 오류, 금지 패턴 | 항상, 별도 테스트 없이 | 해당 없음 | `cd frontend && npm run lint`, `cd frontend && npm run build`(타입 검사), `cd backend && ./gradlew build`(컴파일) |
 | 단위 테스트 | Backend의 요청 검증, 응답 변환, Entity 규칙, HTTP SD 목록, exporter 응답 처리 | DB 없이 확인할 수 있는 Backend 동작 | DB 쿼리, migration, 바깥 서버로 가는 HTTP 호출 | `cd backend && ./gradlew test` |
+| 통합 테스트 | migration과 Entity가 두 DB에서 맞는지, DB를 거치는 webhook 처리 | migration, Entity, DB에 남는 결과가 걸린 변경 | DB 없이 확인할 수 있는 동작, 외부 시스템 연동 | `cd backend && ./gradlew integrationTest` |
 | 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지 | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령)의 규칙 테스트 |
 | 컴포넌트 테스트 | 화면에 보이는 값, 입력 검증, 화면이 보내는 요청 | 입력과 API 응답에 따라 바뀌는 화면 | 화면 모양, 실제 Backend 연동 | `cd frontend && npm test` |
 | E2E | 핵심 사용자 흐름이 전체 실행 환경에서 끝까지 동작하는지 | Check 등록부터 삭제까지, 수집 결과가 대시보드에 보이기까지 | 하위 테스트로 확인할 수 있는 예외와 경계값 | `cd frontend && npm run test:e2e` |
 | 화면 검사 | 기준 폭과 밝은·다크 모드마다 접근성 위반(WCAG 2.2 AA)과 가로 넘침 | 화면을 바꿨을 때 | 화면 모양과 문구 | `cd frontend && npm run test:screen` |
 
-단위 테스트는 Repository를 Mockito로 바꾸고, 컴포넌트 테스트는 `frontend/src/test/render.tsx`의 `fakeApi`로 fetch를 바꾼다. Manager가 바깥 서버로 보내는 HTTP 요청은 같은 테스트 프로세스에 `127.0.0.1`로 띄운 JDK `HttpServer`로 확인한다(예: `ExporterClientTest`). exporter 응답 표본은 `backend/src/test/resources/exporter/`에 있다.
+단위 테스트는 Repository를 Mockito로 바꾸고, 컴포넌트 테스트는 `frontend/src/test/render.tsx`의 `fakeApi`로 fetch를 바꾼다. Manager가 바깥 서버로 보내는 HTTP 요청은 같은 테스트 프로세스에 `127.0.0.1`로 띄운 JDK `HttpServer`로 확인한다(예: `ExporterClientTest`). exporter 응답 표본은 `backend/src/test/resources/exporter/`에 있다. 통합 테스트는 `@Tag("integration")`을 붙이고 Testcontainers로 DB를 띄운다. Docker가 필요해서 `./gradlew build`에서는 빠지고 `integrationTest` 작업으로만 실행된다.
 
 E2E와 화면 검사는 다음처럼 실행한다.
 
-- 전체 실행 환경(`docker compose --profile local-db up -d --build`)을 같은 브랜치에서 띄운 뒤 실행한다. 화면 주소는 환경 변수 `E2E_BASE_URL`(기본 `http://localhost:8081`)로 바꾼다. 이 PC의 주소가 아니면 `E2E_ALLOW_REMOTE=1`을 함께 줄 때만 실행한다. 테스트 데이터를 만들고 지우기 때문이다.
+- 전체 실행 환경(코어 실행 뒤 `docker compose --profile local-db up -d --build`, [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령))을 같은 브랜치에서 띄운 뒤 실행한다. 화면 주소는 환경 변수 `E2E_BASE_URL`(기본 `http://localhost:8081`)로 바꾼다. 이 PC의 주소가 아니면 `E2E_ALLOW_REMOTE=1`을 함께 줄 때만 실행한다. 테스트 데이터를 만들고 지우기 때문이다.
 - 환경에 접속하지 못하면 10초 안에 실패한다. 테스트 데이터는 이름이 `e2e-`로 시작하고, 실행이 끝나거나 다음 실행(성능 검사 포함)이 시작될 때 지운다.
 - 실행이 중간에 멈춰 닿지 않는 대상의 `e2e-` Check가 1분 넘게 남으면 Alert가 생겨 Alert 목록에 남는다. 알림 그룹을 연결하지 않으므로 Telegram으로는 나가지 않는다.
 - 화면 검사는 모든 라우트, 감시 항목·서버·Telegram 그룹 추가 대화상자, API가 실패한 오류 상태를 기준 폭 둘과 밝은·다크 모드에서 검사한다. 빈 상태는 사람이 만든 데이터가 없을 때만 검사된다.

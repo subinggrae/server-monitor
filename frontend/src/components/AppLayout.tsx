@@ -17,7 +17,7 @@ type NavSection = {
   items: NavItem[]
 }
 
-/** Monitoring과 Infrastructure는 독립된 도메인이라 메뉴도 따로 둡니다. (CLAUDE.md 2-1번) */
+/** Monitoring과 Infrastructure는 독립된 도메인이라 메뉴도 따로 둡니다. */
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [{ to: '/', label: '대시보드', icon: LayoutDashboard, end: true }],

@@ -9,6 +9,7 @@
 - 필요한 도구: Node.js 22와 npm, JDK 21, Docker Compose
 - 런타임 버전을 정한 파일: Java는 `backend/build.gradle`의 toolchain(21), Node.js는 `.nvmrc`(22)가 기준이다.
 - 환경 변수: `.env.example`을 `.env`로 복사하고 `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`을 채운다. 파일 안의 예시에서 개발용 MariaDB, 외부 MariaDB, 외부 PostgreSQL 가운데 하나를 고른다. `.env`에는 노출돼도 되는 값만 둔다.
+- 코어 설정: `infrastructure/.env.example`을 `infrastructure/.env`로 복사한다. 기본값 `MONITORING_APP_ADDRESS=manager-api:8080`이 이 저장소의 앱 주소다.
 - 비밀값: `infrastructure/secrets/`의 `*.example` 파일마다 확장자를 뺀 이름으로 복사하고 값을 채운다. 이 파일들은 Git에 올리지 않는다. Docker 없이 Backend를 띄울 때는 같은 값을 환경 변수(`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ALERTMANAGER_WEBHOOK_TOKEN`)로 넣는다. DB 비밀번호는 Spring Boot의 환경 변수 바인딩으로 `SPRING_DATASOURCE_PASSWORD`에 넣는다.
 
 ```sh
@@ -26,10 +27,13 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 |---|---|---|
 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 개발 서버 | `cd frontend && npm run dev`, `cd backend && ./gradlew bootRun` | 화면이나 API를 직접 확인할 때 |
-| 전체 실행 | `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
+| 코어 실행 | `docker compose -f infrastructure/compose.yml up -d` | 앱보다 먼저, 코어 설정을 바꿨을 때 |
+| 전체 실행 | 코어 실행 뒤 `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
-| 규칙 테스트 | `MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/infrastructure/prometheus:/prom:ro" -w /prom/tests --entrypoint promtool quay.io/prometheus/prometheus:v3.14.0 test rules server-resources.test.yml`(저장소 최상위에서, 이미지는 `compose.yml`의 Prometheus와 같게) | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 |
+| 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, webhook을 바꿨을 때, 전체 검증을 실행할 때 함께(Docker가 필요해 전체 검증 명령에는 넣지 않음) |
+| 규칙 테스트 | `MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/infrastructure/prometheus:/prom:ro" -w /prom/tests --entrypoint promtool quay.io/prometheus/prometheus:v3.14.0 test rules server-resources.test.yml`(저장소 최상위에서, 이미지는 `infrastructure/compose.yml`의 Prometheus와 같게) | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 |
+| 코어 설정 검사 | 아래 [코어 설정 검사](#코어-설정-검사) | `infrastructure/`의 Prometheus, Alertmanager 설정을 바꿨을 때 |
 | E2E | `cd frontend && npm run test:e2e` | 전체 실행 환경을 띄운 뒤, 핵심 흐름이 걸린 변경을 마쳤을 때 |
 | 화면 검사 | `cd frontend && npm run test:screen` | 전체 실행 환경을 띄운 뒤, 화면을 바꿨을 때 |
 | 성능 검사 | `cd frontend && npm run test:perf` | 전체 실행 환경을 띄운 뒤, 화면의 성능을 확인할 때 |
@@ -39,6 +43,25 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 | 문서 검사 | `node scripts/check-docs.mjs` | 문서를 바꿨을 때(그림을 바꿨다면 `--render`를 붙여서) |
 
 개발 서버의 화면은 http://localhost:5173 이고 `/api` 요청을 `http://localhost:8080`의 Backend로 넘긴다. 전체 실행의 화면은 http://localhost:8081 이다.
+
+앱은 코어가 만든 `monitoring` 네트워크에 붙으므로, 코어를 띄우지 않고 앱을 띄우면 `network monitoring ... not found`로 실패한다. 코어와 앱을 한 `compose.yml`로 띄우던 개발 환경이면, 먼저 그 구성의 컨테이너(`prometheus`, `alertmanager`, `blackbox-exporter` 등)와 `monitoring` 네트워크를 지운다. 남아 있으면 같은 컨테이너 이름 때문에 코어가 뜨지 않는다. 기준 migration을 적용하기 전에 만든 개발 DB(`manager-db-data` 볼륨)로는 앱이 뜨지 않는다. 그때는 데이터를 이어 받지 않으므로 볼륨을 지우고 다시 띄운다([ADR 0006](decisions/0006-baseline-migration.md)).
+
+### 코어 설정 검사
+
+Prometheus와 Alertmanager 설정은 앱 주소를 펼친 뒤에 검사한다. 저장소 최상위에서 실행하고, 이미지는 `infrastructure/compose.yml`과 같게 둔다.
+
+```sh
+export MSYS_NO_PATHCONV=1
+docker run --rm -e MONITORING_APP_ADDRESS=manager-api:8080 -v "$PWD/infrastructure:/core:ro" \
+  -v "$PWD/infrastructure/prometheus/rules:/etc/prometheus/rules:ro" --entrypoint /bin/sh \
+  quay.io/prometheus/prometheus:v3.14.0 /core/render-config.sh /core/prometheus/prometheus.yml \
+  /tmp/prometheus.yml promtool check config /tmp/prometheus.yml
+docker run --rm -e MONITORING_APP_ADDRESS=manager-api:8080 -v "$PWD/infrastructure:/core:ro" --entrypoint /bin/sh \
+  quay.io/prometheus/alertmanager:v0.34.1 /core/render-config.sh /core/alertmanager/alertmanager.yml \
+  /tmp/alertmanager.yml amtool check-config /tmp/alertmanager.yml
+```
+
+두 명령이 모두 `SUCCESS`를 보이면 통과다.
 
 ### 명령 이름
 

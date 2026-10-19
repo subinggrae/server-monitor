@@ -42,9 +42,6 @@ public class MonitoredResource {
 	@Column(name = "description", length = 500)
 	private String description;
 
-	@Column(name = "enabled", nullable = false)
-	private boolean enabled = true;
-
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
@@ -102,10 +99,6 @@ public class MonitoredResource {
 
 	public String getDescription() {
 		return description;
-	}
-
-	public boolean isEnabled() {
-		return enabled;
 	}
 
 	public Instant getCreatedAt() {

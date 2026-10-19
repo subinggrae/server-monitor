@@ -2,7 +2,7 @@ package kr.co.unidocs.monitoring.notification.telegram;
 
 import java.time.Instant;
 
-/** Bot Token은 담지 않습니다. 일부만 가린 값도 담지 않습니다. (CLAUDE.md 11번) */
+/** Bot Token은 담지 않습니다. 일부만 가린 값도 담지 않습니다. */
 public record TelegramDestinationResponse(
 		Long id,
 		String name,

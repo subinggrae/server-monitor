@@ -63,7 +63,7 @@ class AlertNotificationDispatcherTest {
 
 	@BeforeEach
 	void setUp() {
-		MonitoringManagerProperties properties = new MonitoringManagerProperties(null, null, null, null, null,
+		MonitoringManagerProperties properties = new MonitoringManagerProperties(null, null, null,
 				new Notification(Duration.ofMinutes(2), ZoneId.of("Asia/Seoul"), null));
 		dispatcher = new AlertNotificationDispatcher(bindingRepository, settingRepository, deliveryRepository,
 				telegramClient, new AlertMessageFormatter(properties), properties, Clock.fixed(NOW, ZoneOffset.UTC));

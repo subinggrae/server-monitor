@@ -12,30 +12,20 @@ import java.time.ZoneId;
 /**
  * 검증 메시지에는 property 이름이 아니라 운영자가 설정할 환경변수나 Docker Secret 이름을 적습니다.
  *
- * secret 값은 toString()에서 가립니다. 설정 내용을 로그로 남기더라도 보이면 안 됩니다. (CLAUDE.md 11번)
+ * secret 값은 toString()에서 가립니다. 설정 내용을 로그로 남기더라도 보이면 안 됩니다.
  */
 @ConfigurationProperties(prefix = "monitoring-manager")
 @Validated
 public record MonitoringManagerProperties(
 
 		@NotNull @Valid Endpoint prometheus,
-		@NotNull @Valid Endpoint alertmanager,
 		@NotNull @Valid Endpoint grafana,
-		@NotNull @Valid Exporters exporters,
 		@NotNull @Valid Telegram telegram,
 		@NotNull @Valid Notification notification) {
 
 	public record Endpoint(
-			@NotBlank(message = "값이 비어 있습니다. PROMETHEUS_URL, ALERTMANAGER_URL, GRAFANA_URL 환경변수를 확인해 주세요.")
+			@NotBlank(message = "값이 비어 있습니다. PROMETHEUS_URL, GRAFANA_URL 환경변수를 확인해 주세요.")
 			String baseUrl) {
-	}
-
-	public record Exporters(
-			@NotBlank(message = "값이 비어 있습니다. BLACKBOX_EXPORTER_URL 환경변수를 설정해 주세요.")
-			String blackboxUrl,
-
-			@NotBlank(message = "값이 비어 있습니다. MYSQLD_EXPORTER_URL 환경변수를 설정해 주세요.")
-			String mysqldUrl) {
 	}
 
 	/** secret 값은 {@link ManagerSecrets}를 통해 씁니다. 여기에서 바로 꺼내 쓰지 않습니다. */
@@ -94,9 +84,7 @@ public record MonitoringManagerProperties(
 	@Override
 	public String toString() {
 		return "MonitoringManagerProperties[prometheus=" + prometheus
-				+ ", alertmanager=" + alertmanager
 				+ ", grafana=" + grafana
-				+ ", exporters=" + exporters
 				+ ", telegram=" + telegram
 				+ ", notification=" + notification + "]";
 	}
