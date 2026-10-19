@@ -84,7 +84,6 @@ compose.yml (하나)                        infrastructure/compose.yml  ← 코�
 - `docs/ARCHITECTURE.md`와 `architecture-overview.svg`: 실행 단위를 코어와 앱으로 나눈다. 코드 지도에서 빈 패키지 행을 지우고, 지켜야 할 경계에 통합 계약과 이름 위치를 더한다.
 - `docs/DEVELOPMENT.md`: 준비에 `infrastructure/.env`를, 명령 표에 코어 실행, 전체 실행 순서, 코어 설정 검사, 통합 테스트를 더한다.
 - `docs/TESTING.md`와 `test-scope.svg`: 종류별 기준에 통합 테스트 행을 더한다. "DB까지 검사하는 것은 E2E뿐"이라는 문장과 그림을 고친다.
-- `docs/LICENSES.md`: Testcontainers를 기록한다.
 - `docs/decisions/0006-baseline-migration.md`, `0007-core-app-contract.md`(새 ADR): [남길 결정](#남길-결정).
 - `AGENTS.md`: 요구사항에서 승인한 대로 "이미 있는 migration은 고치지 않는다"에 기준을 새로 잡을 때의 예외를 더한다. 문서 표에는 `docs/INTEGRATION.md` 행을 더하지 않고, ARCHITECTURE.md에서 링크한다(사람 확인: 2026-10-19).
 
@@ -129,7 +128,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
   - 위조한 webhook 요청(CWE-345) → Bearer 검사는 그대로 둔다. token이 다른 요청을 거부하고 기록하지 않는 통합 테스트를 더한다.
   - 배포 묶음이 서버를 과하게 노출(CWE-250, CWE-306) → `privileged`를 쓰지 않고 루트 파일 시스템을 읽기 전용으로 붙인다. node_exporter가 인증 없이 열리는 것은 [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다루는 이미 받아들인 위험이다. 설치 안내에 방화벽 규칙을 쓴다.
   - 바이너리 설치 때 바꿔치기한 파일(CWE-494) → 설치 안내에 공식 릴리스 주소와 `sha256sums.txt` 확인 절차를 쓴다.
-  - 새 테스트 의존성(CWE-1395) → Maven Central에 있는지, 이름이 맞는지, 라이선스를 확인하고 LICENSES.md에 기록한다. 테스트 범위에만 둔다.
+  - 새 테스트 의존성(CWE-1395) → Maven Central에 있는지, 이름이 맞는지, 라이선스를 확인한다. 테스트 범위에만 둔다.
 - 받아들이는 위험: 새로 받아들이는 위험은 없다.
 
 ## 테스트 계획
@@ -154,8 +153,8 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 
 ## 작업 순서
 
-- [ ] 1. ADR 0006(기준 migration)과 0007(코어와 앱의 통합 계약) 초안, AGENTS.md의 migration 예외 문장
-- [ ] 2. 통합 테스트 설정(`integrationTest` 작업, Testcontainers 의존성 확인과 LICENSES.md 기록), `SchemaMigrationIntegrationTest`, `AlertmanagerWebhookIntegrationTest`를 지금 migration에서 통과시킴
+- [x] 1. ADR 0006(기준 migration)과 0007(코어와 앱의 통합 계약) 초안, AGENTS.md의 migration 예외 문장
+- [x] 2. 통합 테스트 설정(`integrationTest` 작업, Testcontainers 의존성 확인), `SchemaMigrationIntegrationTest`, `AlertmanagerWebhookIntegrationTest`를 지금 migration에서 통과시킴
 - [ ] 3. `MonitoringManagerPropertiesTest`와 `DatabaseNameLocationTest`를 먼저 쓰고 실패 확인
 - [ ] 4. 기준 migration `V1__baseline.sql` 두 개, Entity와 서비스에서 `enabled`, `description` 제거. 통합 테스트 통과
 - [ ] 5. 설정 키 세 개, repository 메서드 둘, Telegram `baseUrl`, 빈 패키지 넷, 열 이름 주석 제거. 단위 테스트 통과
@@ -173,6 +172,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 
 - 백엔드에 DB를 띄우는 테스트와 Alertmanager webhook 테스트가 없다(2026-10-19, `backend/src/test` 확인). C5, C6, C7의 "기존 테스트"는 이번에 새로 쓴다.
 - `FilesystemFilterRuleSyncTest`가 `../infrastructure/prometheus/rules/server-resources.yml`을 읽는다. 코어 파일을 옮기지 않으므로 그대로 동작한다.
+- Testcontainers 2.0.5 artifact 네 개는 Maven Central에 있고 Spring Boot 4.1.1이 버전을 관리한다. 라이선스는 MIT다(2026-10-19 확인). LICENSES.md는 패키지 의존성을 기록하지 않으므로(들여온 것 절의 안내) 고치지 않는다.
 - `infrastructure/alertmanager/` 안에 Git이 추적하지 않는 빈 디렉터리 `alertmanager.yml;C`가 있다. 이번 범위 밖이라 두고 보고한다.
 
 ## 남길 결정
