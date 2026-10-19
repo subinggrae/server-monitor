@@ -24,7 +24,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 
 | 목적 | 명령 | 언제 쓰는가 |
 |---|---|---|
-| 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build` | 끝내기 전, 푸시와 병합 직전 |
+| 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 개발 서버 | `cd frontend && npm run dev`, `cd backend && ./gradlew bootRun` | 화면이나 API를 직접 확인할 때 |
 | 전체 실행 | `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
@@ -230,7 +230,7 @@ Refs: #123
 - 본문은 평서형으로 쓰고, diff에 없는 변경은 쓰지 않는다.
 - 꼬리말 키는 영어로 쓴다. 예: `Refs: #123`, `Fixes #123`, `Co-authored-by: 이름 <메일>`
 - 하나의 커밋에는 하나의 의도만 담는다. 그래서 리팩터링과 동작 변경은 나눈다.
-- 커밋하기 전에 [명령](#명령) 표의 전체 검증이 통과해야 한다. 전체 검증 명령이 아직 없으면 전체 검증 행에 대신 적은 명령을 차례로 실행한다.
+- 커밋하기 전에는 바꾼 부분의 테스트와 검사가 통과해야 한다. 전체 검증은 커밋마다 실행하지 않고 [명령](#명령) 표의 전체 검증 행에 적은 때에 실행한다. 전체 검증 명령이 아직 없으면 그 행에 대신 적은 명령을 차례로 실행한다.
 - 변경이 수백 줄을 넘으면 나눌 수 있는지 먼저 검토한다. 생성된 코드와 기계적인 이름 변경은 예외다.
 - AI 사용 표시: AI 도구가 붙이는 `Co-Authored-By` 꼬리말을 그대로 둔다.
 
