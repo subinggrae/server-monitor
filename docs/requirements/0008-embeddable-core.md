@@ -24,7 +24,7 @@
 ## 목표
 
 - 코어(Prometheus, Blackbox Exporter, Alertmanager)를 앱 없이 따로 빌드하고 띄울 수 있다.
-- 감시 대상 서버에 node_exporter를 설치하는 배포 묶음이 코어와 따로 있다.
+- 감시 대상 서버에 node_exporter를 설치하는 배포 묶음(compose 파일과 설치 안내)이 코어와 따로 있다. Docker가 없는 서버는 안내대로 바이너리를 설치한다. windows_exporter는 지금처럼 설치 안내만 둔다(사람 확인: 2026-10-19).
 - 코어와 앱 사이의 약속(통합 계약)이 문서 하나에 있다. 앱은 그 문서만 보고 코어에 붙을 수 있다.
 - 코어가 부를 앱 주소와 webhook token은 코어 설정 한곳에서 바꾼다.
 - 이 저장소의 백엔드, 화면, DB는 통합 계약으로 코어에 붙는 앱 하나다. 지금 기능은 그대로 동작한다.
@@ -39,6 +39,8 @@
 - 일반 webhook 알림을 더하고 Telegram을 선택 기능으로 바꾸는 것([#24](https://github.com/subinggrae/server-monitor/issues/24)). Telegram은 남긴다(사람 확인: 2026-10-19).
 - 쓰지 않는 열, 설정 키, 코드를 지우는 것([#18](https://github.com/subinggrae/server-monitor/issues/18), 요구사항 0007).
 - exporter 접근에 TLS와 인증을 거는 것([#15](https://github.com/subinggrae/server-monitor/issues/15)).
+- 코어와 앱을 다른 호스트에 두는 것. 이번에는 같은 호스트의 Docker 네트워크로 붙인다. 다른 호스트에 두려면 SD 응답과 webhook이 네트워크를 건너므로 TLS와 함께 [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다룬다(사람 확인: 2026-10-19).
+- 지금 설치의 데이터(Check, 서버, 알림 연결, 장애 기록)를 이어 받는 것. 이 변경을 배포할 때는 DB를 새로 만들고 다시 등록한다(사람 확인: 2026-10-19).
 - Grafana를 코어에 넣는 것.
 
 ## 사용자 경험
@@ -74,10 +76,10 @@
   - 상황: 도입하는 앱의 용어사전이 이 저장소와 다르다.
   - 행동: 개발자가 문서의 절차대로 정해진 곳에서 테이블과 열 이름을 고치고 빌드한 뒤, 빈 DB에 설치한다.
   - 결과: 고친 이름으로 테이블이 만들어지고 모든 기능이 동작한다. 정해진 곳 밖의 소스, 코어 설정, 통합 계약은 고치지 않는다. 고친 이름은 HTTP SD 응답, webhook 처리, Prometheus series에 영향이 없다.
-- **S6. 기존 설치 이어 받기**
-  - 상황: V1~V9 migration이 적용된 DB에 운영 데이터가 있다.
-  - 행동: 이 변경을 배포한다.
-  - 결과: 데이터와 이름이 그대로 남고 Manager가 기동한다. MariaDB와 PostgreSQL에서 같다.
+- **S6. 새 DB에 설치**
+  - 상황: 빈 MariaDB나 PostgreSQL이 있다.
+  - 행동: 이 변경의 앱을 띄운다.
+  - 결과: 테이블이 만들어지고 Manager가 기동한다. 한 테이블의 지금 이름과 열 목록을 migration 하나에서 볼 수 있다. MariaDB와 PostgreSQL에서 같은 논리 schema다.
 
 ### 예외 동작
 
@@ -93,7 +95,7 @@
 ### 보안
 
 - 접근 권한: 바뀌지 않는다. 화면용 API에는 지금처럼 인증이 없다.
-- 외부 입력: HTTP SD 응답(코어가 앱에서 받음), webhook 요청(앱이 코어에서 받음). 코어와 앱이 따로 배포되므로 둘 사이 통신이 Docker 네트워크 밖으로 나갈 수 있다. [확인 필요]
+- 외부 입력: HTTP SD 응답(코어가 앱에서 받음), webhook 요청(앱이 코어에서 받음). 코어와 앱은 같은 호스트의 Docker 네트워크로만 통신하고, 호스트에 여는 포트는 지금처럼 `127.0.0.1`에만 묶는다.
 - 민감한 정보: webhook token. 코어와 앱이 같은 값을 비밀값 파일로 받는다. 설정 파일, 통합 계약 문서, 로그에 값을 넣지 않는다.
 - 남길 보안 이벤트: 지금과 같다. token이 다른 webhook 요청은 거부한다.
 
@@ -103,7 +105,7 @@
 - Alertmanager webhook의 경로, Bearer 검사, payload.
 - Alert 규칙, 공통 recording rule의 series 이름과 label, `manager-os` job의 keep 목록.
 - 화면에서 쓰는 기능과 API.
-- 기존 설치의 데이터와 테이블·열 이름.
+- 이름을 바꾸지 않으면 테이블과 열 이름은 지금과 같다.
 - MariaDB와 PostgreSQL 모두 지원.
 
 ## 완료 기준
@@ -113,12 +115,10 @@
 - [ ] C3. 앱 주소와 token을 코어 설정 한곳에서 바꾸면 SD 호출, 수집, webhook이 모두 새 주소로 간다. (S3) — 확인: 다른 주소로 바꿔 띄운 뒤 Prometheus target 화면과 Alertmanager 전송 확인
 - [ ] C4. 배포 묶음으로 띄운 node_exporter를 등록하면 연결 시험이 통과하고 CPU, Memory, Storage가 보인다. (S4) — 확인: 개발 환경에서 수동 확인
 - [ ] C5. 테이블과 열 이름이 정해진 곳 밖의 소스에 없다. 한 테이블과 한 열의 이름을 절차대로 바꾸면 백엔드 테스트가 MariaDB와 PostgreSQL에서 모두 통과한다. (S5) — 확인: 이름 위치 검사, 이름을 바꾼 상태의 통합 테스트
-- [ ] C6. V1~V9가 적용된 MariaDB와 PostgreSQL에 배포하면 데이터와 이름이 남고 기동한다. (S6) — 확인: 두 DB의 migration 통합 테스트
+- [ ] C6. 빈 MariaDB와 PostgreSQL에 설치하면 기동하고, 두 DB의 schema가 Entity와 맞는다. 테이블마다 지금 모양을 migration 하나에서 볼 수 있다. (S6) — 확인: 두 DB의 migration 통합 테스트
 - [ ] C7. token이 다른 webhook 요청을 거부하고 기록하지 않는다. (S7) — 확인: 기존 webhook 테스트 통과
 - [ ] C8. 통합 계약 문서가 앱이 제공할 것(HTTP SD 두 곳, webhook)과 코어가 제공할 것(Prometheus 조회 API, series 이름과 label)을 설명하고, 이름 바꾸기 절차 문서가 있다. 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
 
 ## 확인 필요
 
-- node_exporter 배포 묶음의 형태. (가정: 감시 대상 서버에서 띄우는 compose 파일과 설치 안내. windows_exporter는 지금처럼 설치 안내만 둔다)
-- 코어와 앱이 다른 호스트에 있을 수 있는지. 다르면 SD 응답과 webhook이 네트워크를 건너므로 TLS가 필요하다. (가정: 같은 호스트에 두고, 다른 호스트는 #15와 함께 다룬다)
-- 지금 운영 중인 설치를 이어 받아야 하는지(S6). (가정: 이어 받는다. 운영 데이터와 Telegram 알림 연결이 있다)
+없음.
