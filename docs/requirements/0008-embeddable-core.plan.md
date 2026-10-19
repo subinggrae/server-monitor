@@ -163,9 +163,9 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 - [x] 7. 코어 분리: `infrastructure/compose.yml`, `render-config.sh`, 설정 템플릿, `infrastructure/.env.example`, 루트 `compose.yml`과 `.env.example`. C1 확인
 - [x] 8. node_exporter 배포 묶음과 README 설치 안내. C4 확인
 - [x] 9. `docs/INTEGRATION.md`(통합 계약, 이름 바꾸기 절차), ARCHITECTURE.md와 그림, DEVELOPMENT.md, TESTING.md와 그림
-- [ ] 10. 이름 바꾸기 확인(C5 수동), C3 확인, 전체 실행 뒤 E2E(C2)
-  - C2(E2E와 실패 Alert의 webhook 기록), C3, C4는 확인했다. 다음 할 일은 C5 수동 확인이다.
-- [ ] 11. 전체 검증(`npm run check`, `./gradlew build`, `./gradlew integrationTest`, 규칙 테스트, 문서 검사)과 C9 코드 검색
+- [x] 10. 이름 바꾸기 확인(C5 수동), C3 확인, 전체 실행 뒤 E2E(C2)
+  - 임시 worktree에서 `server_targets`를 `servers`로, `monitoring_checks.check_type`을 `kind`로 바꿔 `./gradlew test integrationTest`가 통과했다.
+- [x] 11. 전체 검증(`npm run check`, `./gradlew build`, `./gradlew integrationTest`, 규칙 테스트, 문서 검사)과 C9 코드 검색
 - [ ] 12. 새 하위 에이전트에 리뷰를 맡김(완료 기준, 이 계획, diff, 보안 위협의 CWE)
 - [ ] 13. 남길 결정을 ADR로 확정하고, 바뀐 동작을 문서로 옮긴 뒤 이 계획을 지움(병합 전 마지막 커밋)
 
