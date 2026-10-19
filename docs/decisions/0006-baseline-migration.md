@@ -1,0 +1,31 @@
+# 0006. Flyway migration V1~V9를 기준 migration 하나로 바꾼다
+
+- 상태: 제안
+- 날짜: 2026-10-19
+- 관련: [요구사항 0008](../requirements/0008-embeddable-core.md), [ADR 0007](0007-core-app-contract.md), [#18](https://github.com/subinggrae/server-monitor/issues/18)
+
+## 배경과 문제
+
+이 저장소의 앱을 다른 앱이 도입하면서 자기 용어사전에 맞게 테이블과 열 이름을 바꿔야 한다. 지금 이름은 Flyway migration V1~V9에 흩어져 있다. 이미 적용한 migration은 고칠 수 없으므로, 한 테이블의 지금 이름과 열 목록을 보려면 여러 파일을 따라가야 한다. V6에서 만들고 V9에서 지운 테이블처럼 지금은 없는 이름도 섞여 있다. 지금 설치의 데이터는 이어 받지 않는다(요구사항 0008의 하지 않는 것).
+
+## 검토한 선택지
+
+- **V1~V9를 두고 V10에서 이름을 바꿈**: 기존 설치를 그대로 올릴 수 있다 / 이름이 열 개 파일에 흩어지고, 도입하는 쪽은 바뀌기 전 이름까지 읽어야 한다.
+- **V1~V9를 지우고 지금 모양의 기준 migration `V1__baseline.sql` 하나를 둠**: 테이블마다 지금 모양을 한 파일에서 보고 고칠 수 있다 / 이미 V1~V9를 적용한 DB는 Flyway 검증에 실패하므로 DB를 새로 만들어야 한다.
+
+## 결정
+
+MariaDB와 PostgreSQL의 V1~V9를 지우고, vendor마다 `V1__baseline.sql` 하나를 둔다. 기준 migration은 V9 뒤의 모양에서 쓰지 않는 열과 인덱스(`monitored_resources.enabled`, `alert_events.description`, `ix_monitored_resources_server`, `ix_alert_events_check_id`)를 뺀다.
+
+"이미 있는 migration은 고치지 않는다"는 규칙은 그대로 둔다. 다만 데이터를 이어 받지 않기로 하고 기준을 새로 잡을 때는 기존 migration을 지우고 기준 migration을 쓸 수 있다. 이 예외는 사람이 승인한 요구사항에서만 쓴다.
+
+## 결과
+
+- 좋아지는 점: 테이블과 열 이름이 Entity와 기준 migration 두 파일에만 있다. 도입하는 쪽이 고칠 곳이 정해진다.
+- 감수할 점: 이 결정 전의 설치는 DB를 새로 만들고 Check, 서버, 알림 연결을 다시 등록해야 한다.
+- 다시 볼 신호: 이어 받아야 하는 운영 설치가 생기면 기준을 다시 잡지 않고 V2부터 쌓는다.
+
+## 확인 방법
+
+- `SchemaMigrationIntegrationTest`: 빈 MariaDB와 PostgreSQL에서 기준 migration을 적용하고 Entity와 맞는지(`ddl-auto: validate`) 확인한다.
+- 리뷰에서 확인: 기준을 새로 잡는 변경이 아니면 이미 있는 migration을 고치지 않는다.
