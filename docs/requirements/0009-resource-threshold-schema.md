@@ -1,8 +1,8 @@
 # 0009. 서버 리소스 임계값 알림의 DDL과 판단 계약
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-10-19
-- 관련: [#23](https://github.com/subinggrae/server-monitor/issues/23), [#24](https://github.com/subinggrae/server-monitor/issues/24), [#5](https://github.com/subinggrae/server-monitor/issues/5), [0003](0003-alert-repeat-interval.md), [0008](0008-embeddable-core.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0005](../decisions/0005-common-resource-recording-rules.md)
+- 관련: [#23](https://github.com/subinggrae/server-monitor/issues/23), [#24](https://github.com/subinggrae/server-monitor/issues/24), [#5](https://github.com/subinggrae/server-monitor/issues/5), [0003](0003-alert-repeat-interval.md), [0008](0008-embeddable-core.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0005](../decisions/0005-common-resource-recording-rules.md), [ADR 0008](../decisions/0008-resource-threshold-in-app.md)
 
 ## 배경
 
