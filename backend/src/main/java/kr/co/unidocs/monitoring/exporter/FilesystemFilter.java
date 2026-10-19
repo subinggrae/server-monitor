@@ -16,7 +16,7 @@ public final class FilesystemFilter {
 	/** 드라이브 문자가 없는 volume(복구 파티션 등)은 뺍니다. */
 	static final String WINDOWS_VOLUME_PATTERN = "[A-Z]:";
 
-	/** monitored_resources.resource_key 열의 길이입니다. */
+	/** {@code MonitoredResource.resourceKey}에 저장할 수 있는 길이입니다. */
 	private static final int MAX_KEY_LENGTH = 255;
 
 	private static final Pattern LINUX_EXCLUDED = Pattern.compile(LINUX_EXCLUDED_FSTYPES);

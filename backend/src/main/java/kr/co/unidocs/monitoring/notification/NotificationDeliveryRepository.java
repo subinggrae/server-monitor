@@ -4,7 +4,6 @@ import kr.co.unidocs.monitoring.alert.AlertStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 public interface NotificationDeliveryRepository extends JpaRepository<NotificationDelivery, Long> {
@@ -15,7 +14,5 @@ public interface NotificationDeliveryRepository extends JpaRepository<Notificati
 
 	Optional<NotificationDelivery> findFirstByAlertEventIdAndTelegramDestinationIdAndAlertStatusAndDeliveryStatusOrderByAttemptedAtDesc(
 			Long alertEventId, Long telegramDestinationId, AlertStatus alertStatus, DeliveryStatus deliveryStatus);
-
-	List<NotificationDelivery> findAllByAlertEventIdOrderByIdAsc(Long alertEventId);
 
 }

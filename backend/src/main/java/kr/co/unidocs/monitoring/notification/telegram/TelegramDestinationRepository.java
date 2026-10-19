@@ -10,7 +10,7 @@ public interface TelegramDestinationRepository extends JpaRepository<TelegramDes
 
 	/**
 	 * topic 비교를 query에 넣지 않습니다.
-	 * message_thread_id가 null일 때 {@code = null} 비교는 어떤 행에도 맞지 않습니다.
+	 * messageThreadId가 null일 때 {@code = null} 비교는 어떤 행에도 맞지 않습니다.
 	 */
 	List<TelegramDestination> findAllByChatId(Long chatId);
 
