@@ -62,6 +62,15 @@ class AlertmanagerWebhookIntegrationTest {
 	}
 
 	@Test
+	@DisplayName("Authorization 헤더가 없으면 401을 돌려주고 Alert를 기록하지 않는다")
+	void rejectsMissingAuthorization() throws Exception {
+		HttpResponse<Void> response = post(null);
+
+		assertThat(response.statusCode()).isEqualTo(401);
+		assertThat(alertEventRepository.count()).isZero();
+	}
+
+	@Test
 	@DisplayName("token이 맞으면 Alert를 기록한다")
 	void recordsAlertWithMatchingToken() throws Exception {
 		HttpResponse<Void> response = post("Bearer " + TOKEN);
@@ -71,14 +80,15 @@ class AlertmanagerWebhookIntegrationTest {
 	}
 
 	private HttpResponse<Void> post(String authorization) throws IOException, InterruptedException {
-		HttpRequest request = HttpRequest
+		HttpRequest.Builder request = HttpRequest
 				.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/integrations/alertmanager/webhook"))
 				.header("Content-Type", "application/json")
-				.header("Authorization", authorization)
-				.POST(HttpRequest.BodyPublishers.ofString(PAYLOAD))
-				.build();
+				.POST(HttpRequest.BodyPublishers.ofString(PAYLOAD));
+		if (authorization != null) {
+			request.header("Authorization", authorization);
+		}
 		try (HttpClient client = HttpClient.newHttpClient()) {
-			return client.send(request, HttpResponse.BodyHandlers.discarding());
+			return client.send(request.build(), HttpResponse.BodyHandlers.discarding());
 		}
 	}
 

@@ -55,9 +55,12 @@ class DatabaseNameLocationTest {
 	}
 
 	@Test
-	@DisplayName("Entity가 테이블 이름을 정한다")
+	@DisplayName("Entity마다 이 테스트가 읽는 형식으로 테이블 이름을 정한다")
 	void entitiesDeclareTableNames() {
-		assertThat(tableNamesByEntity()).isNotEmpty();
+		long entityCount = mainJavaSources.values().stream().filter(text -> text.contains("\n@Entity")).count();
+
+		// 다른 형식으로 쓴 @Table이 있으면 그 테이블은 아래 검사에서 조용히 빠지므로 여기서 막습니다.
+		assertThat(tableNamesByEntity()).isNotEmpty().hasSize((int) entityCount);
 	}
 
 	@Test

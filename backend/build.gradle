@@ -57,6 +57,8 @@ tasks.named('test') {
 	useJUnitPlatform {
 		excludeTags 'integration'
 	}
+	// DatabaseNameLocationTest가 소스 파일을 직접 읽습니다. 주석만 바뀌어도 다시 실행하게 입력으로 등록합니다.
+	inputs.dir('src/main').withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 tasks.register('integrationTest', Test) {

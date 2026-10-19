@@ -48,12 +48,12 @@ class SchemaMigrationIntegrationTest {
 	@MethodSource("databases")
 	@DisplayName("빈 DB에 migration을 적용하면 Entity와 맞아 기동한다")
 	void startsOnEmptyDatabase(JdbcDatabaseContainer<?> database) {
+		// 명령행 인자로 넘깁니다. 기본 속성으로 넘기면 개발용 SPRING_DATASOURCE_* 환경 변수가 이겨 다른 DB를 검사합니다.
 		try (ConfigurableApplicationContext context = new SpringApplicationBuilder(MonitoringManagerApplication.class)
 				.web(WebApplicationType.NONE)
-				.properties("spring.datasource.url=" + database.getJdbcUrl(),
-						"spring.datasource.username=" + database.getUsername(),
-						"spring.datasource.password=" + database.getPassword())
-				.run()) {
+				.run("--spring.datasource.url=" + database.getJdbcUrl(),
+						"--spring.datasource.username=" + database.getUsername(),
+						"--spring.datasource.password=" + database.getPassword())) {
 			assertThat(context.isActive()).isTrue();
 		}
 	}
