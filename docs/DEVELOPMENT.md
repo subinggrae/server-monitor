@@ -63,6 +63,8 @@ docker run --rm -e MONITORING_APP_ADDRESS=manager-api:8080 -v "$PWD/infrastructu
 
 두 명령이 모두 `SUCCESS`를 보이면 통과다.
 
+감시 대상 서버용 node_exporter 배포 묶음(`infrastructure/node-exporter/compose.yml`)은 Docker Desktop에서 그대로 뜨지 않는다. Docker Desktop의 VM은 `/`가 shared mount가 아니라서 `/:/host:ro,rslave`를 붙일 수 없고, host 네트워크 기능이 꺼져 있으면 다른 컨테이너가 9100에 닿지 않는다. 개발 환경에서 OS exporter 수집을 확인할 때는 `os-test-node-exporter`를 쓴다.
+
 ### 명령 이름
 
 새 명령을 더할 때는 다음 이름을 쓴다. 하지만 이미 있는 이름은 바꾸지 않는다. CI 설정과 사람의 습관이 그 이름에 기대고 있기 때문이다.

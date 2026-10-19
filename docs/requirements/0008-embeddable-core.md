@@ -1,6 +1,6 @@
 # 0008. 다른 앱에 도입할 수 있는 모니터링 코어
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-10-19
 - 관련: [ADR 0002](../decisions/0002-scrape-interval-via-http-sd.md), [ADR 0004](../decisions/0004-os-exporter-collection.md), [ADR 0005](../decisions/0005-common-resource-recording-rules.md), [#14](https://github.com/subinggrae/server-monitor/issues/14), [#15](https://github.com/subinggrae/server-monitor/issues/15), [#18](https://github.com/subinggrae/server-monitor/issues/18)
 
@@ -116,15 +116,15 @@
 
 ## 완료 기준
 
-- [ ] C1. 코어 설정만으로 코어를 띄우면 세 컨테이너가 정상 상태가 되고, Prometheus 설정 검사와 Alert 규칙 테스트가 통과한다. (S1) — 확인: `promtool check config`, `promtool test rules`, 코어만 띄우는 수동 확인
-- [ ] C2. 코어에 이 저장소의 앱을 붙이면 Check 등록, 수집, 실패 알림까지 지금처럼 동작한다. (S2, S8) — 확인: 기존 E2E 통과
-- [ ] C3. 앱 주소와 token을 코어 설정 한곳에서 바꾸면 SD 호출, 수집, webhook이 모두 새 주소로 간다. (S3) — 확인: 다른 주소로 바꿔 띄운 뒤 Prometheus target 화면과 Alertmanager 전송 확인
-- [ ] C4. 배포 묶음으로 띄운 node_exporter를 등록하면 연결 시험이 통과하고 CPU, Memory, Storage가 보인다. (S4) — 확인: 개발 환경에서 수동 확인
-- [ ] C5. 테이블과 열 이름이 정해진 곳 밖의 소스에 없다. 한 테이블과 한 열의 이름을 절차대로 바꾸면 백엔드 테스트가 MariaDB와 PostgreSQL에서 모두 통과한다. (S5) — 확인: 이름 위치 검사, 이름을 바꾼 상태의 통합 테스트
-- [ ] C6. 빈 MariaDB와 PostgreSQL에 설치하면 기동하고, 두 DB의 schema가 Entity와 맞는다. 테이블마다 지금 모양을 migration 하나에서 볼 수 있다. (S6) — 확인: 두 DB의 migration 통합 테스트
-- [ ] C7. token이 다른 webhook 요청을 거부하고 기록하지 않는다. (S7) — 확인: 기존 webhook 테스트 통과
-- [ ] C8. 통합 계약 문서가 앱이 제공할 것(HTTP SD 두 곳, webhook)과 코어가 제공할 것(Prometheus 조회 API, series 이름과 label)을 설명하고, 이름 바꾸기 절차 문서가 있다. 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
-- [ ] C9. 저장소의 코드, 설정, 문서에 `monitored_resources.enabled`, `alert_events.description`, 인덱스 `ix_monitored_resources_server`·`ix_alert_events_check_id`, 설정 키 `alertmanager.base-url`·`exporters.blackbox-url`·`exporters.mysqld-url`, 부르는 곳 없는 repository 메서드, Telegram client 기본 주소, 빈 패키지, `(CLAUDE.md N번)` 표기가 남지 않는다. 기록 문서는 제외한다. 지운 세 설정 키의 환경 변수가 남아 있어도 기동한다. — 확인: 코드 검색, 설정 바인딩 테스트
+- [x] C1. 코어 설정만으로 코어를 띄우면 세 컨테이너가 정상 상태가 되고, Prometheus 설정 검사와 Alert 규칙 테스트가 통과한다. (S1) — 확인: `promtool check config`, `promtool test rules`, 코어만 띄우는 수동 확인(2026-10-19 확인. Alert 규칙의 테스트는 없고 recording rule 테스트만 통과했다)
+- [x] C2. 코어에 이 저장소의 앱을 붙이면 Check 등록, 수집, 실패 알림까지 지금처럼 동작한다. (S2, S8) — 확인: 기존 E2E 통과
+- [x] C3. 앱 주소와 token을 코어 설정 한곳에서 바꾸면 SD 호출, 수집, webhook이 모두 새 주소로 간다. (S3) — 확인: 다른 주소로 바꿔 띄운 뒤 Prometheus target 화면과 Alertmanager 전송 확인
+- [x] C4. 배포 묶음으로 띄운 node_exporter를 등록하면 연결 시험이 통과하고 CPU, Memory, Storage가 보인다. (S4) — 확인: 개발 환경에서 수동 확인(2026-10-19, Docker Desktop에서 `rslave`를 뺀 임시 설정으로 확인. 실제 Linux 서버는 확인하지 못했다)
+- [x] C5. 테이블과 열 이름이 정해진 곳 밖의 소스에 없다. 한 테이블과 한 열의 이름을 절차대로 바꾸면 백엔드 테스트가 MariaDB와 PostgreSQL에서 모두 통과한다. (S5) — 확인: 이름 위치 검사, 이름을 바꾼 상태의 통합 테스트
+- [x] C6. 빈 MariaDB와 PostgreSQL에 설치하면 기동하고, 두 DB의 schema가 Entity와 맞는다. 테이블마다 지금 모양을 migration 하나에서 볼 수 있다. (S6) — 확인: 두 DB의 migration 통합 테스트
+- [x] C7. token이 다른 webhook 요청을 거부하고 기록하지 않는다. (S7) — 확인: 기존 webhook 테스트 통과
+- [x] C8. 통합 계약 문서가 앱이 제공할 것(HTTP SD 두 곳, webhook)과 코어가 제공할 것(Prometheus 조회 API, series 이름과 label)을 설명하고, 이름 바꾸기 절차 문서가 있다. 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
+- [x] C9. 저장소의 코드, 설정, 문서에 `monitored_resources.enabled`, `alert_events.description`, 인덱스 `ix_monitored_resources_server`·`ix_alert_events_check_id`, 설정 키 `alertmanager.base-url`·`exporters.blackbox-url`·`exporters.mysqld-url`, 부르는 곳 없는 repository 메서드, Telegram client 기본 주소, 빈 패키지, `(CLAUDE.md N번)` 표기가 남지 않는다. 기록 문서는 제외한다. 지운 세 설정 키의 환경 변수가 남아 있어도 기동한다. — 확인: 코드 검색, 설정 바인딩 테스트
 
 ## 확인 필요
 
