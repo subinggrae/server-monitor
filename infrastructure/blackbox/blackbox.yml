@@ -1,7 +1,7 @@
 # Blackbox Exporter module 정의입니다.
 #
 # module은 배포용 설정입니다.
-# 사용자가 UI에서 Check를 추가해도 이 파일은 수정하지 않습니다. (CLAUDE.md 1번)
+# 사용자가 UI에서 Check를 추가해도 이 파일은 수정하지 않습니다.
 #
 # 이름은 CheckType이 고르는 값과 같아야 합니다. 없는 이름을 넘기면 Blackbox가 400으로 거부합니다.
 #

@@ -12,7 +12,7 @@ import java.time.ZoneId;
 /**
  * 검증 메시지에는 property 이름이 아니라 운영자가 설정할 환경변수나 Docker Secret 이름을 적습니다.
  *
- * secret 값은 toString()에서 가립니다. 설정 내용을 로그로 남기더라도 보이면 안 됩니다. (CLAUDE.md 11번)
+ * secret 값은 toString()에서 가립니다. 설정 내용을 로그로 남기더라도 보이면 안 됩니다.
  */
 @ConfigurationProperties(prefix = "monitoring-manager")
 @Validated

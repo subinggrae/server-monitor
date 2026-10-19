@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * PromQL은 이 package 안에서만 만듭니다. (CLAUDE.md 12번)
+ * PromQL은 이 package 안에서만 만듭니다.
  *
  * 연결에 실패해도 예외를 밖으로 던지지 않습니다.
  * Prometheus가 잠시 내려가도 Server와 Check 설정 조회는 계속 동작해야 합니다.

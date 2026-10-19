@@ -30,7 +30,7 @@ type BindingRow = {
 
 /**
  * 고른 그룹으로만 알림이 갑니다. 아무 것도 고르지 않으면 알림을 보내지 않습니다.
- * 저장하면 Manager Database가 바뀝니다. alertmanager.yml은 건드리지 않습니다. (CLAUDE.md 3번)
+ * 저장하면 Manager Database가 바뀝니다. alertmanager.yml은 건드리지 않습니다.
  */
 export function CheckNotificationSection({ checkId }: { checkId: number }) {
   const destinations = useQuery(telegramDestinationsQuery)

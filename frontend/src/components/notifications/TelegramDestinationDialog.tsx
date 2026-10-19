@@ -13,7 +13,7 @@ import {
   type TelegramDestinationInput,
 } from '@/lib/api'
 
-/** Bot Token은 입력하지도 보여 주지도 않습니다. 서버가 secret으로만 받습니다. (CLAUDE.md 11번) */
+/** Bot Token은 입력하지도 보여 주지도 않습니다. 서버가 secret으로만 받습니다. */
 export function TelegramDestinationDialog({
   open,
   onOpenChange,

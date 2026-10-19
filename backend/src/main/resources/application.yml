@@ -9,7 +9,7 @@ spring:
     import: optional:configtree:/run/secrets/
 
   # Manager Database 연결 정보는 여기에 적지 않습니다.
-  # 제품과 위치는 운영에서 결정합니다. (CLAUDE.md 7번)
+  # 제품과 위치는 운영에서 결정합니다.
 
   jpa:
     open-in-view: false

@@ -2,7 +2,7 @@
  * Backend와 같은 origin으로 서비스하므로 여기에 Backend 주소를 넣지 않습니다.
  * 개발 서버는 Vite proxy가, Docker에서는 Nginx가 /api를 Backend로 넘깁니다.
  *
- * Prometheus를 직접 호출하거나 PromQL을 만들지 않습니다. (CLAUDE.md 12번)
+ * Prometheus를 직접 호출하거나 PromQL을 만들지 않습니다.
  */
 
 type ProblemDetail = {
@@ -187,7 +187,7 @@ export type CheckStatus = {
 // 알림
 // ---------------------------------------------------------------------------
 
-/** Bot Token은 응답에 들어오지 않고 화면에서 입력하지도 않습니다. (CLAUDE.md 11번) */
+/** Bot Token은 응답에 들어오지 않고 화면에서 입력하지도 않습니다. */
 export type TelegramDestination = {
   id: number
   name: string

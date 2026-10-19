@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * 설정하지 않은 secret은 application.yml의 fallback 때문에 빈 문자열로 들어옵니다.
  * 쓰는 쪽마다 isBlank()를 확인하게 두면 빠뜨리기 쉬워서 여기에서 null로 맞춥니다.
  *
- * secret 값 자체는 로그에 남기지 않습니다. 설정 여부만 남깁니다. (CLAUDE.md 11번)
+ * secret 값 자체는 로그에 남기지 않습니다. 설정 여부만 남깁니다.
  */
 @Component
 public class ManagerSecrets {

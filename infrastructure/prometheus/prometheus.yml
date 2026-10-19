@@ -1,6 +1,6 @@
 # Prometheus 배포용 설정입니다.
 #
-# 사용자가 UI에서 Check를 등록해도 이 파일은 수정하지 않습니다. (CLAUDE.md 1번)
+# 사용자가 UI에서 Check를 등록해도 이 파일은 수정하지 않습니다.
 # 모니터링 대상은 Manager의 HTTP Service Discovery로 관리합니다.
 #
 # Target 목록을 파일로 관리하지 않습니다. file_sd_configs를 쓰지 마세요.

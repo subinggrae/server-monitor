@@ -15,7 +15,7 @@ import java.util.Objects;
 /**
  * 알림을 받을 Telegram 그룹입니다.
  *
- * Bot Token은 여기에 두지 않습니다. 그룹마다 다른 값이 아니라 시스템 전체의 secret입니다. (CLAUDE.md 11번)
+ * Bot Token은 여기에 두지 않습니다. 그룹마다 다른 값이 아니라 시스템 전체의 secret입니다.
  */
 @Entity
 @Table(name = "telegram_destinations")
