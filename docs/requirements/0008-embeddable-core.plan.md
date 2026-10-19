@@ -53,7 +53,7 @@ compose.yml (하나)                        infrastructure/compose.yml  ← 코�
 - `infrastructure/compose.yml`(새 파일): `prometheus`, `alertmanager`, `blackbox-exporter`를 옮겨 온다. 네트워크 `monitoring`을 만들고, 세 컨테이너에 healthcheck를 더한다. 비밀값은 `alertmanager_webhook_token`만 받는다.
 - `infrastructure/.env.example`(새 파일): `MONITORING_APP_ADDRESS=manager-api:8080`. `infrastructure/.env`는 기존 `.gitignore`의 `.env` 규칙으로 Git에 올라가지 않는다.
 - `infrastructure/render-config.sh`(새 파일): 주소 형식(`^[A-Za-z0-9.-]+:[0-9]{1,5}$`)을 검사하고, 어긋나면 이유를 알리고 종료 코드 1로 끝낸다. 맞으면 템플릿을 펼치고 `exec`로 원래 명령을 실행한다.
-- `infrastructure/prometheus/prometheus.yml`: `manager-api:8080` 세 곳을 자리표시자 `@MONITORING_APP_ADDRESS@`로 바꾼다. 컨테이너는 펼친 결과를 읽는다.
+- `infrastructure/prometheus/prometheus.yml`: `manager-api` job을 지우고, 남은 `manager-api:8080` 두 곳(HTTP SD)을 자리표시자 `@MONITORING_APP_ADDRESS@`로 바꾼다. 컨테이너는 펼친 결과를 읽는다.
 - `infrastructure/alertmanager/alertmanager.yml`: webhook 주소의 `manager-api:8080`을 같은 자리표시자로 바꾼다.
 - `infrastructure/node-exporter/compose.yml`(새 파일): 감시 대상 Linux 서버용 배포 묶음. `network_mode: host`, `pid: host`, `/`를 읽기 전용으로 `/host`에 붙이고 `--path.rootfs=/host`를 준다. 이미지는 `os-test-node-exporter`와 같은 버전으로 고정한다.
 
@@ -65,6 +65,7 @@ compose.yml (하나)                        infrastructure/compose.yml  ← 코�
 - `MonitoredResource`, `ServerResourceService`: `enabled` 필드와 `isEnabled()` 분기를 지운다.
 - `AlertEvent`, `AlertEventService`: `description` 필드와 저장 코드를 지운다.
 - `MonitoringManagerProperties`, `application.yml`: `alertmanager`, `exporters` 항목과 검증을 지운다.
+- `application.yml`, `backend/build.gradle`: 수집하는 곳이 없어지므로 actuator의 `prometheus` 노출, `management.prometheus`와 metric tag 설정, 런타임 의존성 `micrometer-registry-prometheus`를 지운다. 런타임 의존성 변경이므로 위험 영역이다. `health`, `info`는 healthcheck가 쓰므로 남긴다.
 - `NotificationDeliveryRepository.findAllByAlertEventIdOrderByIdAsc`, `CheckNotificationBindingRepository.deleteAllByCheckId`를 지운다.
 - `TelegramClientConfiguration`: 쓰이지 않는 `baseUrl(...)`을 지운다. `telegram.api-base-url` 키는 `TelegramClient`가 쓰므로 남긴다.
 - `threshold`, `grafana`, `database`, `database/provider` 패키지를 지운다.
@@ -104,7 +105,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
   - `GET /api/prometheus/sd/blackbox`: 지금 응답 형식과 label(`check_id`, `check_target_id`, `check_type`, `module`, `environment`, `check_name`, `__scrape_interval__`)
   - `GET /api/prometheus/sd/os-exporter`: label(`server_id`, `server_name`, `environment`, `os`, `__scrape_interval__`)
   - `POST /api/integrations/alertmanager/webhook`: Alertmanager webhook payload, `Authorization: Bearer <token>`. token이 다르면 거부한다
-  - `GET /actuator/prometheus`(선택): 코어의 `manager-api` job이 수집한다. Alert 규칙과 recording rule은 이 metric을 읽지 않으므로, 없으면 그 target만 down으로 보인다. job 이름을 바꾸면 series가 끊기므로 그대로 둔다
+- **지우는 것**: 코어가 앱의 `/actuator/prometheus`를 수집하던 `manager-api` job. Alert 규칙과 recording rule, 화면이 이 metric을 읽지 않는다. 그동안 쌓인 `job="manager-api"` series는 더 이어지지 않는다(사람 확인: 2026-10-19)
 - **코어가 제공할 것**
   - Prometheus HTTP API(`http://prometheus:9090/api/v1/query`), Docker 네트워크 `monitoring`
   - series: `probe_success{job="manager-blackbox"}`, `up{job="manager-os"}`, recording rule `manager:resource_usage_percent`, `manager:resource_used_bytes`, `manager:resource_size_bytes`(label `server_id`, `resource_type`, `resource_key`)
@@ -140,7 +141,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 | C1 | 코어만 띄우기(수동) | `docker compose -f infrastructure/compose.yml up -d` 뒤 세 컨테이너가 `healthy` |
 | C1 | 주소 형식 거부(수동) | 틀린 `MONITORING_APP_ADDRESS`로 띄우면 Prometheus와 Alertmanager가 오류를 남기고 멈춤 |
 | C2 | E2E | 코어 뒤에 앱을 띄우고 `cd frontend && npm run test:e2e` 통과 |
-| C3 | 주소 바꾸기(수동) | 앱에 네트워크 별칭을 더하고 주소를 별칭으로 바꿔 코어만 다시 띄우면 SD, scrape, webhook이 새 주소로 감 |
+| C3 | 주소 바꾸기(수동) | 앱에 네트워크 별칭을 더하고 주소를 별칭으로 바꿔 코어만 다시 띄우면 SD 두 곳과 webhook이 새 주소로 감 |
 | C4 | node_exporter 등록(수동) | 배포 묶음의 node_exporter를 등록하면 연결 시험 통과, CPU, Memory, Storage 표시 |
 | C5 | `DatabaseNameLocationTest`(단위) | `src/main`에 네이티브 SQL 사용과 Entity 밖의 테이블 이름이 없음(`./gradlew test` 통과) |
 | C5 | 이름 바꾸기(수동) | 임시 worktree에서 테이블 하나와 열 하나를 절차대로 바꾸고 `./gradlew integrationTest` 통과 |
@@ -149,6 +150,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 | C8 | 문서 검사 | `node scripts/check-docs.mjs --render` 통과와 그림 확인 |
 | C9 | `MonitoringManagerPropertiesTest`(단위) | 세 키가 없어도, 남아 있어도 바인딩 성공(지우기 전에는 첫 테스트가 실패) |
 | C9 | 코드 검색 | `git grep` 결과가 `docs/requirements/`, `docs/decisions/`, AGENTS.md의 금지 규칙 밖에 없음 |
+| 앱 metric 제거 | 기동 확인(수동) | 전체 실행에서 `/actuator/health`는 200, `/actuator/prometheus`는 404. Prometheus `/targets`에 `manager-api` job이 없음 |
 
 ## 작업 순서
 
@@ -157,6 +159,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 - [ ] 3. `MonitoringManagerPropertiesTest`와 `DatabaseNameLocationTest`를 먼저 쓰고 실패 확인
 - [ ] 4. 기준 migration `V1__baseline.sql` 두 개, Entity와 서비스에서 `enabled`, `description` 제거. 통합 테스트 통과
 - [ ] 5. 설정 키 세 개, repository 메서드 둘, Telegram `baseUrl`, 빈 패키지 넷, 열 이름 주석 제거. 단위 테스트 통과
+- [ ] 5-1. 앱 metric 노출 설정과 `micrometer-registry-prometheus` 제거(위험 영역: 런타임 의존성)
 - [ ] 6. `(CLAUDE.md N번)` 표기 제거(백엔드, 화면, `infrastructure/`)
 - [ ] 7. 코어 분리: `infrastructure/compose.yml`, `render-config.sh`, 설정 템플릿, `infrastructure/.env.example`, 루트 `compose.yml`과 `.env.example`. C1 확인
 - [ ] 8. node_exporter 배포 묶음과 README 설치 안내. C4 확인
@@ -175,4 +178,4 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 ## 남길 결정
 
 - ADR 0006: V1~V9를 기준 migration 하나로 바꾸고, 기준을 새로 잡을 때는 이미 있는 migration을 지울 수 있다. 데이터를 이어 받지 않는다.
-- ADR 0007: 코어(Prometheus, Blackbox Exporter, Alertmanager)와 앱을 통합 계약으로 나눈다. 앱 주소는 코어 설정 `MONITORING_APP_ADDRESS` 하나로 정하고 시작할 때 설정에 펼친다. 테이블·열 이름은 Entity와 기준 migration에만 둔다.
+- ADR 0007: 코어(Prometheus, Blackbox Exporter, Alertmanager)와 앱을 통합 계약으로 나눈다. 앱 주소는 코어 설정 `MONITORING_APP_ADDRESS` 하나로 정하고 시작할 때 설정에 펼친다. 코어는 앱의 metric을 수집하지 않는다. 테이블·열 이름은 Entity와 기준 migration에만 둔다.
