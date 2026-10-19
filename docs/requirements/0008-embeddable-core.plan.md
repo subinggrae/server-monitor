@@ -155,15 +155,16 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 
 - [x] 1. ADR 0006(기준 migration)과 0007(코어와 앱의 통합 계약) 초안, AGENTS.md의 migration 예외 문장
 - [x] 2. 통합 테스트 설정(`integrationTest` 작업, Testcontainers 의존성 확인), `SchemaMigrationIntegrationTest`, `AlertmanagerWebhookIntegrationTest`를 지금 migration에서 통과시킴
-- [ ] 3. `MonitoringManagerPropertiesTest`와 `DatabaseNameLocationTest`를 먼저 쓰고 실패 확인
-- [ ] 4. 기준 migration `V1__baseline.sql` 두 개, Entity와 서비스에서 `enabled`, `description` 제거. 통합 테스트 통과
-- [ ] 5. 설정 키 세 개, repository 메서드 둘, Telegram `baseUrl`, 빈 패키지 넷, 열 이름 주석 제거. 단위 테스트 통과
-- [ ] 5-1. 앱 metric 노출 설정과 `micrometer-registry-prometheus` 제거(위험 영역: 런타임 의존성)
-- [ ] 6. `(CLAUDE.md N번)` 표기 제거(백엔드, 화면, `infrastructure/`)
-- [ ] 7. 코어 분리: `infrastructure/compose.yml`, `render-config.sh`, 설정 템플릿, `infrastructure/.env.example`, 루트 `compose.yml`과 `.env.example`. C1 확인
-- [ ] 8. node_exporter 배포 묶음과 README 설치 안내. C4 확인
-- [ ] 9. `docs/INTEGRATION.md`(통합 계약, 이름 바꾸기 절차), ARCHITECTURE.md와 그림, DEVELOPMENT.md, TESTING.md와 그림
+- [x] 3. `MonitoringManagerPropertiesTest`와 `DatabaseNameLocationTest`를 먼저 쓰고 실패 확인
+- [x] 4. 기준 migration `V1__baseline.sql` 두 개, Entity와 서비스에서 `enabled`, `description` 제거. 통합 테스트 통과
+- [x] 5. 설정 키 세 개, repository 메서드 둘, Telegram `baseUrl`, 빈 패키지 넷, 열 이름 주석 제거. 단위 테스트 통과
+- [x] 5-1. 앱 metric 노출 설정과 `micrometer-registry-prometheus` 제거(위험 영역: 런타임 의존성)
+- [x] 6. `(CLAUDE.md N번)` 표기 제거(백엔드, 화면, `infrastructure/`)
+- [x] 7. 코어 분리: `infrastructure/compose.yml`, `render-config.sh`, 설정 템플릿, `infrastructure/.env.example`, 루트 `compose.yml`과 `.env.example`. C1 확인
+- [x] 8. node_exporter 배포 묶음과 README 설치 안내. C4 확인
+- [x] 9. `docs/INTEGRATION.md`(통합 계약, 이름 바꾸기 절차), ARCHITECTURE.md와 그림, DEVELOPMENT.md, TESTING.md와 그림
 - [ ] 10. 이름 바꾸기 확인(C5 수동), C3 확인, 전체 실행 뒤 E2E(C2)
+  - C2(E2E와 실패 Alert의 webhook 기록), C3, C4는 확인했다. 다음 할 일은 C5 수동 확인이다.
 - [ ] 11. 전체 검증(`npm run check`, `./gradlew build`, `./gradlew integrationTest`, 규칙 테스트, 문서 검사)과 C9 코드 검색
 - [ ] 12. 새 하위 에이전트에 리뷰를 맡김(완료 기준, 이 계획, diff, 보안 위협의 CWE)
 - [ ] 13. 남길 결정을 ADR로 확정하고, 바뀐 동작을 문서로 옮긴 뒤 이 계획을 지움(병합 전 마지막 커밋)
@@ -174,6 +175,13 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 - `FilesystemFilterRuleSyncTest`가 `../infrastructure/prometheus/rules/server-resources.yml`을 읽는다. 코어 파일을 옮기지 않으므로 그대로 동작한다.
 - Testcontainers 2.0.5 artifact 네 개는 Maven Central에 있고 Spring Boot 4.1.1이 버전을 관리한다. 라이선스는 MIT다(2026-10-19 확인). LICENSES.md는 패키지 의존성을 기록하지 않으므로(들여온 것 절의 안내) 고치지 않는다.
 - `infrastructure/alertmanager/` 안에 Git이 추적하지 않는 빈 디렉터리 `alertmanager.yml;C`가 있다. 이번 범위 밖이라 두고 보고한다.
+- `ResourceStatus.DISABLED`는 늘 켜져 있던 `monitored_resources.enabled`에서만 만들어졌다. 화면도 이 값을 따로 다루지 않아 enum과 화면 타입에서 함께 지웠다(`ServerResourceService`, `frontend/src/lib/api.ts`).
+- 저장소는 `core.autocrlf`로 체크아웃해서 Windows에서 받은 셸 스크립트가 CRLF가 되면 컨테이너의 `sh`가 실행하지 못한다. `.gitattributes`에 `*.sh text eol=lf`를 더했다.
+- Prometheus와 Alertmanager 이미지는 `nobody`로 실행되지만 `/tmp`에 쓸 수 있고 `wget`, `grep`이 있다(2026-10-19 확인). 펼친 설정은 `/tmp`에 쓰고, healthcheck는 `wget`으로 한다.
+- Alertmanager의 상태 API(`/api/v2/status`)는 webhook 주소를 가린다. C3은 컨테이너 안의 `/tmp/alertmanager.yml`과 앱에 기록된 Alert로 확인했다.
+- Docker Desktop(이 PC)의 VM은 `/`가 shared mount가 아니라서 배포 묶음의 `/:/host:ro,rslave`로 뜨지 않는다. `rslave`는 node_exporter 공식 README의 설정이고, systemd를 쓰는 Linux 서버에서는 동작하므로 배포 묶음은 그대로 두었다. C4는 `rslave`만 뺀 임시 override로 띄우고, host 네트워크 기능이 꺼져 있어 `monitoring` 네트워크의 gateway 주소(172.19.0.1)로 등록해 확인했다. 실제 Linux 서버에서는 확인하지 못했다.
+- `MonitoringManagerPropertiesTest`는 "지운 키가 남아 있어도 기동한다"를 확인하므로 지운 설정 키 이름을 담는다. C9 코드 검색의 예외로 둔다.
+- 기존 개발 환경의 멈춘 컨테이너 7개, `monitoring` 네트워크, `manager-db-data` 볼륨은 사람의 확인(2026-10-19)을 받고 지운 뒤 새로 만들었다.
 
 ## 남길 결정
 
