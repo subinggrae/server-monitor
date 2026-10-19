@@ -21,7 +21,7 @@ docker compose --profile local-db up -d --build
 
 감시 대상 서버마다 OS exporter를 설치한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(기본 포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(기본 포트 9182, 공식 문서의 metric 이름 기준)다. 설치한 뒤 화면의 서버 상세에서 수집을 켜고 연결 시험을 누른다.
 
-exporter는 인증 없이 열린다. 그래서 대상 서버의 방화벽에서 그 포트를 코어(Prometheus)와 앱이 있는 호스트에만 연다. 예를 들어 `ufw`를 쓰는 Linux 서버에서 코어 호스트가 `10.0.0.5`면 다음과 같다.
+exporter는 인증 없이 열린다. 그래서 대상 서버의 방화벽에서 그 포트를 코어(Prometheus)와 앱이 있는 호스트에만 연다. 예를 들어 `ufw`를 쓰는 Linux 서버에서 코어 호스트가 `10.0.0.5`면 다음과 같다. 이 규칙은 `ufw`가 켜져 있고 들어오는 연결의 기본 정책이 `deny`일 때만 다른 호스트를 막는다(`sudo ufw status verbose`로 확인).
 
 ```sh
 sudo ufw allow from 10.0.0.5 to any port 9100 proto tcp

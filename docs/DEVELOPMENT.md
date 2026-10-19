@@ -31,7 +31,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 | 전체 실행 | 코어 실행 뒤 `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
-| 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, webhook을 바꿨을 때, 끝내기 전 |
+| 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, webhook을 바꿨을 때, 전체 검증을 실행할 때 함께(Docker가 필요해 전체 검증 명령에는 넣지 않음) |
 | 규칙 테스트 | `MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/infrastructure/prometheus:/prom:ro" -w /prom/tests --entrypoint promtool quay.io/prometheus/prometheus:v3.14.0 test rules server-resources.test.yml`(저장소 최상위에서, 이미지는 `infrastructure/compose.yml`의 Prometheus와 같게) | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 |
 | 코어 설정 검사 | 아래 [코어 설정 검사](#코어-설정-검사) | `infrastructure/`의 Prometheus, Alertmanager 설정을 바꿨을 때 |
 | E2E | `cd frontend && npm run test:e2e` | 전체 실행 환경을 띄운 뒤, 핵심 흐름이 걸린 변경을 마쳤을 때 |
@@ -44,7 +44,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 
 개발 서버의 화면은 http://localhost:5173 이고 `/api` 요청을 `http://localhost:8080`의 Backend로 넘긴다. 전체 실행의 화면은 http://localhost:8081 이다.
 
-앱은 코어가 만든 `monitoring` 네트워크에 붙으므로, 코어를 띄우지 않고 앱을 띄우면 `network monitoring ... not found`로 실패한다. 기준 migration을 적용하기 전에 만든 개발 DB(`manager-db-data` 볼륨)로는 앱이 뜨지 않는다. 그때는 데이터를 이어 받지 않으므로 볼륨을 지우고 다시 띄운다([ADR 0006](decisions/0006-baseline-migration.md)).
+앱은 코어가 만든 `monitoring` 네트워크에 붙으므로, 코어를 띄우지 않고 앱을 띄우면 `network monitoring ... not found`로 실패한다. 코어와 앱을 한 `compose.yml`로 띄우던 개발 환경이면, 먼저 그 구성의 컨테이너(`prometheus`, `alertmanager`, `blackbox-exporter` 등)와 `monitoring` 네트워크를 지운다. 남아 있으면 같은 컨테이너 이름 때문에 코어가 뜨지 않는다. 기준 migration을 적용하기 전에 만든 개발 DB(`manager-db-data` 볼륨)로는 앱이 뜨지 않는다. 그때는 데이터를 이어 받지 않으므로 볼륨을 지우고 다시 띄운다([ADR 0006](decisions/0006-baseline-migration.md)).
 
 ### 코어 설정 검사
 

@@ -181,6 +181,12 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 - Alertmanager의 상태 API(`/api/v2/status`)는 webhook 주소를 가린다. C3은 컨테이너 안의 `/tmp/alertmanager.yml`과 앱에 기록된 Alert로 확인했다.
 - Docker Desktop(이 PC)의 VM은 `/`가 shared mount가 아니라서 배포 묶음의 `/:/host:ro,rslave`로 뜨지 않는다. `rslave`는 node_exporter 공식 README의 설정이고, systemd를 쓰는 Linux 서버에서는 동작하므로 배포 묶음은 그대로 두었다. C4는 `rslave`만 뺀 임시 override로 띄우고, host 네트워크 기능이 꺼져 있어 `monitoring` 네트워크의 gateway 주소(172.19.0.1)로 등록해 확인했다. 실제 Linux 서버에서는 확인하지 못했다.
 - `MonitoringManagerPropertiesTest`는 "지운 키가 남아 있어도 기동한다"를 확인하므로 지운 설정 키 이름을 담는다. C9 코드 검색의 예외로 둔다.
+- 하위 에이전트 리뷰(작업 12)에서 다음을 고쳤다.
+  - `SchemaMigrationIntegrationTest`가 접속 정보를 기본 속성으로 넘겨 `SPRING_DATASOURCE_*` 환경 변수가 있으면 Testcontainers 대신 그 DB를 검사했다. 명령행 인자로 넘긴다. 환경 변수를 준 채로 통과하는 것을 확인했다.
+  - webhook에 Authorization 헤더가 없는 경우의 거부 테스트를 더했다.
+  - `DatabaseNameLocationTest`가 다른 형식의 `@Table`을 조용히 건너뛰지 않게 Entity 수와 비교한다. 이 테스트는 소스 파일을 직접 읽는데 Gradle이 그 파일을 입력으로 몰라, 주석만 바뀌면 다시 실행하지 않았다. `test` 작업에 `src/main`을 입력으로 등록했다.
+  - DEVELOPMENT.md에 옛 구성의 컨테이너를 먼저 지우는 안내를, README에 `ufw` 규칙이 효과를 내는 조건을, ADR 0006에 기준 migration의 의도한 차이(PostgreSQL id 형식 통일, MariaDB 열 순서)를 적었다.
+  - 이번 범위 밖의 규칙 변경 커밋(`11e9ab5` 보안 점검 범위, `b7ec89f` 전체 검증 시점과 리뷰어 검증)이 이 브랜치에 있다. 둘 다 이 대화에서 사람이 요청했다. PR을 나눌지는 사람에게 묻는다.
 - 기존 개발 환경의 멈춘 컨테이너 7개, `monitoring` 네트워크, `manager-db-data` 볼륨은 사람의 확인(2026-10-19)을 받고 지운 뒤 새로 만들었다.
 
 ## 남길 결정
