@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-10-19
-- 관련: [요구사항 0008](../requirements/0008-embeddable-core.md), [ADR 0002](0002-scrape-interval-via-http-sd.md), [ADR 0006](0006-baseline-migration.md), [#15](https://github.com/subinggrae/server-monitor/issues/15)
+- 관련: [요구사항 0008](../requirements/0008-embeddable-core.md), [ADR 0002](0002-scrape-interval-via-http-sd.md), [ADR 0006](0006-baseline-migration.md), [#15](https://github.com/subinggrae/server-monitor/issues/15), 지운 계획은 [PR #26](https://github.com/subinggrae/server-monitor/pull/26)에서 볼 수 있다
 
 ## 배경과 문제
 
