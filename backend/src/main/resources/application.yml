@@ -50,20 +50,12 @@ management:
     web:
       exposure:
         # 플랫폼에 필요한 endpoint만 엽니다.
-        include: health,info,prometheus
+        include: health,info
   endpoint:
     health:
       show-details: when-authorized
       probes:
         enabled: true
-  prometheus:
-    metrics:
-      export:
-        # Spring Boot 4부터 기본으로 꺼져 있습니다. 켜야 /actuator/prometheus가 열립니다.
-        enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name}
 
 # 아래 환경변수는 Docker Secret이 없을 때 쓰는 개발용 fallback입니다.
 monitoring-manager:
