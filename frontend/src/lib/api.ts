@@ -308,7 +308,7 @@ export type ExporterTestResult = {
 
 export type ResourceType = 'CPU' | 'MEMORY' | 'STORAGE'
 
-export type ResourceStatus = 'AVAILABLE' | 'UNAVAILABLE' | 'DISABLED'
+export type ResourceStatus = 'AVAILABLE' | 'UNAVAILABLE'
 
 export type DiscoveredResource = {
   resourceType: ResourceType

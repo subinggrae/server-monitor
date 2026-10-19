@@ -3,6 +3,7 @@ package kr.co.unidocs.monitoring;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -39,8 +40,8 @@ class SchemaMigrationIntegrationTest {
 		Stream.of(MARIADB, POSTGRESQL).forEach(JdbcDatabaseContainer::stop);
 	}
 
-	static Stream<JdbcDatabaseContainer<?>> databases() {
-		return Stream.of(MARIADB, POSTGRESQL);
+	static Stream<Named<JdbcDatabaseContainer<?>>> databases() {
+		return Stream.of(Named.of("MariaDB", MARIADB), Named.of("PostgreSQL", POSTGRESQL));
 	}
 
 	@ParameterizedTest(name = "{0}")

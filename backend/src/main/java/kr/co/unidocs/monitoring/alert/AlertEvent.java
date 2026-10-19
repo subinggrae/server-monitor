@@ -55,9 +55,6 @@ public class AlertEvent {
 	@Column(name = "summary", length = 500)
 	private String summary;
 
-	@Column(name = "description", length = 1000)
-	private String description;
-
 	@Column(name = "starts_at", nullable = false)
 	private Instant startsAt;
 
@@ -74,8 +71,7 @@ public class AlertEvent {
 	}
 
 	public AlertEvent(String fingerprint, String alertName, Long checkId, Long checkTargetId, String severity,
-			AlertStatus status, String instance, String summary, String description, Instant startsAt,
-			Instant resolvedAt) {
+			AlertStatus status, String instance, String summary, Instant startsAt, Instant resolvedAt) {
 		this.fingerprint = fingerprint;
 		this.alertName = alertName;
 		this.checkId = checkId;
@@ -84,16 +80,14 @@ public class AlertEvent {
 		this.status = status;
 		this.instance = instance;
 		this.summary = summary;
-		this.description = description;
 		this.startsAt = startsAt;
 		this.resolvedAt = resolvedAt;
 		this.lastReceivedAt = Instant.now();
 	}
 
-	public void receiveAgain(AlertStatus status, String summary, String description, Instant resolvedAt) {
+	public void receiveAgain(AlertStatus status, String summary, Instant resolvedAt) {
 		this.status = status;
 		this.summary = summary;
-		this.description = description;
 		if (resolvedAt != null) {
 			this.resolvedAt = resolvedAt;
 		}
@@ -142,10 +136,6 @@ public class AlertEvent {
 
 	public String getSummary() {
 		return summary;
-	}
-
-	public String getDescription() {
-		return description;
 	}
 
 	public Instant getStartsAt() {

@@ -1,17 +1,210 @@
--- Manager Database baseline (MariaDB / MySQL)
+-- Manager Database 기준 schema (MariaDB)
 --
--- 이 파일은 Schema를 만들지 않습니다.
--- Flyway 설정이 정상으로 동작하는지 확인하는 기준점입니다.
--- 도메인 table은 다음 단계에서 V2부터 추가합니다.
+-- 테이블마다 지금 모양이 이 파일 하나에 있습니다. 결정과 이유는 docs/decisions/0006-baseline-migration.md에 있습니다.
+-- postgresql/V1__baseline.sql과 논리 schema가 같아야 합니다.
+-- 테이블과 열 이름을 바꾸는 절차는 docs/INTEGRATION.md에 있습니다.
 --
 -- 작성 규칙
---   * table, column 이름은 snake_case를 사용합니다.
---   * 기본키는 `id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY`를 사용합니다.
---   * 시간 값은 `DATETIME(6)`을 쓰고 UTC로 저장합니다.
---   * Boolean은 `TINYINT(1)`을 사용합니다.
---   * 비밀번호나 SNMP community 같은 인증 정보는 암호화한 값만 저장합니다.
---
--- postgresql/ 아래에도 같은 번호의 Migration을 함께 추가해야 합니다.
--- 두 제품의 논리 Schema는 항상 같아야 합니다.
+--   * 시간 값은 DATETIME(6)에 UTC로 저장합니다.
+--   * Boolean은 TINYINT(1)을 씁니다.
+--   * 인증 정보는 저장하지 않습니다. Bot Token은 비밀값 파일이나 환경 변수로 받습니다.
 
-SELECT 1;
+-- ---------------------------------------------------------------------------
+-- 사용자가 등록한 서버
+-- ---------------------------------------------------------------------------
+CREATE TABLE server_targets (
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(100) NOT NULL,
+    host        VARCHAR(255) NOT NULL,
+    environment VARCHAR(50)  NOT NULL,
+    description VARCHAR(500) NULL,
+    enabled     TINYINT(1)   NOT NULL DEFAULT 1,
+    os          VARCHAR(10)  NOT NULL DEFAULT 'LINUX',
+    created_at  DATETIME(6)  NOT NULL,
+    updated_at  DATETIME(6)  NOT NULL,
+    PRIMARY KEY (id),
+    -- 목록에서 서버를 구분할 수 있도록 이름은 중복을 막습니다.
+    CONSTRAINT uk_server_targets_name UNIQUE (name)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 서버당 0~1행입니다. 행이 없으면 "설정 안 함"입니다.
+-- 허용 범위(포트 1~65535, 수집 주기 10~240초)는 요청 DTO에서 검증합니다.
+CREATE TABLE server_exporter_configs (
+    id                      BIGINT      NOT NULL AUTO_INCREMENT,
+    server_id               BIGINT      NOT NULL,
+    enabled                 TINYINT(1)  NOT NULL DEFAULT 0,
+    port                    INT         NOT NULL,
+    scrape_interval_seconds INT         NOT NULL DEFAULT 15,
+    created_at              DATETIME(6) NOT NULL,
+    updated_at              DATETIME(6) NOT NULL,
+    CONSTRAINT pk_server_exporter_configs PRIMARY KEY (id),
+    CONSTRAINT uk_server_exporter_configs_server UNIQUE (server_id),
+    CONSTRAINT fk_server_exporter_configs_server FOREIGN KEY (server_id)
+        REFERENCES server_targets (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 사용자가 감시하기로 고른 Resource입니다. exporter에서 찾은 목록 전체는 저장하지 않습니다.
+-- 서버별 조회는 uk_monitored_resources_key의 앞 열(server_id)로 찾습니다.
+CREATE TABLE monitored_resources (
+    id            BIGINT       NOT NULL AUTO_INCREMENT,
+    server_id     BIGINT       NOT NULL,
+    resource_type VARCHAR(20)  NOT NULL,
+    resource_key  VARCHAR(255) NOT NULL,
+    display_name  VARCHAR(255) NOT NULL,
+    description   VARCHAR(500) NULL,
+    created_at    DATETIME(6)  NOT NULL,
+    updated_at    DATETIME(6)  NOT NULL,
+    CONSTRAINT pk_monitored_resources PRIMARY KEY (id),
+    CONSTRAINT uk_monitored_resources_key UNIQUE (server_id, resource_type, resource_key),
+    CONSTRAINT fk_monitored_resources_server FOREIGN KEY (server_id)
+        REFERENCES server_targets (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- ---------------------------------------------------------------------------
+-- Blackbox 기반 가용성 Check와 확인 대상
+--
+-- Check 하나가 여러 서버의 주소를 확인할 수 있어서 서버와 연결하지 않습니다.
+-- ---------------------------------------------------------------------------
+CREATE TABLE monitoring_checks (
+    id                      BIGINT       NOT NULL AUTO_INCREMENT,
+    name                    VARCHAR(100) NOT NULL,
+    check_type              VARCHAR(20)  NOT NULL,
+    environment             VARCHAR(50)  NOT NULL,
+    description             VARCHAR(500) NULL,
+    enabled                 TINYINT(1)   NOT NULL DEFAULT 1,
+    -- Prometheus가 HTTP SD의 __scrape_interval__로 받습니다. 허용 범위(10~240초)는 요청 DTO에서 검증합니다.
+    scrape_interval_seconds INT          NOT NULL DEFAULT 15,
+    created_at              DATETIME(6)  NOT NULL,
+    updated_at              DATETIME(6)  NOT NULL,
+    PRIMARY KEY (id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- HTTP SD는 활성 Check만 조회합니다.
+CREATE INDEX ix_monitoring_checks_enabled ON monitoring_checks (enabled);
+
+CREATE TABLE monitoring_check_targets (
+    id         BIGINT       NOT NULL AUTO_INCREMENT,
+    check_id   BIGINT       NOT NULL,
+    -- ICMP와 TCP는 host 또는 IP, HTTP와 HTTPS는 전체 URL이 들어갑니다.
+    target     VARCHAR(500) NOT NULL,
+    -- TCP 대상에만 씁니다. 나머지 Type은 NULL입니다.
+    port       INT          NULL,
+    enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+    created_at DATETIME(6)  NOT NULL,
+    updated_at DATETIME(6)  NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_monitoring_check_targets_check FOREIGN KEY (check_id)
+        REFERENCES monitoring_checks (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- HTTP SD와 Check 상세에서 Check별 대상을 조회합니다.
+CREATE INDEX ix_monitoring_check_targets_check_id ON monitoring_check_targets (check_id);
+
+-- ---------------------------------------------------------------------------
+-- 알림을 받을 Telegram 그룹과 Check별 알림 설정
+--
+-- 누구에게 보낼지는 이 테이블들이 정합니다. Alertmanager는 Manager webhook 하나만 압니다.
+-- ---------------------------------------------------------------------------
+CREATE TABLE telegram_destinations (
+    id                BIGINT       NOT NULL AUTO_INCREMENT,
+    name              VARCHAR(100) NOT NULL,
+    -- 그룹은 음수, supergroup은 -100으로 시작하는 큰 값이 들어옵니다. 그래서 BIGINT입니다.
+    chat_id           BIGINT       NOT NULL,
+    -- Forum topic에만 씁니다. 일반 그룹은 NULL입니다.
+    message_thread_id INT          NULL,
+    enabled           TINYINT(1)   NOT NULL DEFAULT 1,
+    created_at        DATETIME(6)  NOT NULL,
+    updated_at        DATETIME(6)  NOT NULL,
+    PRIMARY KEY (id),
+    -- 같은 그룹의 같은 topic을 두 번 등록하면 알림이 두 번 갑니다.
+    -- UNIQUE는 NULL을 서로 다른 값으로 보므로, topic이 없는 그룹의 중복은 애플리케이션에서 막습니다.
+    CONSTRAINT uk_telegram_destinations_chat UNIQUE (chat_id, message_thread_id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 연결이 없으면 알림을 보내지 않습니다. 기본 그룹을 몰래 쓰지 않습니다.
+CREATE TABLE monitoring_check_notification_bindings (
+    id                      BIGINT      NOT NULL AUTO_INCREMENT,
+    check_id                BIGINT      NOT NULL,
+    telegram_destination_id BIGINT      NOT NULL,
+    warning_enabled         TINYINT(1)  NOT NULL DEFAULT 0,
+    critical_enabled        TINYINT(1)  NOT NULL DEFAULT 1,
+    -- 복구 알림을 보낼지 정합니다.
+    send_resolved           TINYINT(1)  NOT NULL DEFAULT 1,
+    enabled                 TINYINT(1)  NOT NULL DEFAULT 1,
+    created_at              DATETIME(6) NOT NULL,
+    updated_at              DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    -- 같은 Check와 같은 그룹을 두 번 연결하면 알림이 두 번 갑니다.
+    CONSTRAINT uk_check_notification_bindings UNIQUE (check_id, telegram_destination_id),
+    CONSTRAINT fk_check_notification_bindings_check FOREIGN KEY (check_id)
+        REFERENCES monitoring_checks (id) ON DELETE CASCADE,
+    CONSTRAINT fk_check_notification_bindings_destination FOREIGN KEY (telegram_destination_id)
+        REFERENCES telegram_destinations (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- Check마다 알림 재발송 주기입니다. 행이 없는 Check는 60분입니다.
+-- 허용 범위(5~1440분)는 요청 DTO에서 검증합니다.
+CREATE TABLE check_notification_settings (
+    check_id                BIGINT      NOT NULL,
+    repeat_interval_minutes INT         NOT NULL,
+    created_at              DATETIME(6) NOT NULL,
+    updated_at              DATETIME(6) NOT NULL,
+    PRIMARY KEY (check_id),
+    CONSTRAINT fk_check_notification_settings_check FOREIGN KEY (check_id)
+        REFERENCES monitoring_checks (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- ---------------------------------------------------------------------------
+-- Alertmanager에서 받은 Alert와 Telegram 전송 결과
+--
+-- check_id와 check_target_id에는 FK를 걸지 않습니다. Check를 지워도 장애 기록은 남아야 합니다.
+-- ---------------------------------------------------------------------------
+CREATE TABLE alert_events (
+    id               BIGINT       NOT NULL AUTO_INCREMENT,
+    -- Alertmanager가 label 조합으로 만드는 식별자입니다.
+    fingerprint      VARCHAR(100) NOT NULL,
+    alert_name       VARCHAR(200) NOT NULL,
+    check_id         BIGINT       NULL,
+    check_target_id  BIGINT       NULL,
+    severity         VARCHAR(20)  NULL,
+    -- FIRING 또는 RESOLVED입니다.
+    status           VARCHAR(20)  NOT NULL,
+    -- 실제로 확인하던 주소입니다. 대상을 지운 뒤에도 무엇이 문제였는지 알 수 있게 남깁니다.
+    instance         VARCHAR(500) NULL,
+    summary          VARCHAR(500) NULL,
+    starts_at        DATETIME(6)  NOT NULL,
+    resolved_at      DATETIME(6)  NULL,
+    -- Alertmanager는 같은 Alert를 반복해서 보냅니다. 마지막으로 받은 시각입니다.
+    last_received_at DATETIME(6)  NOT NULL,
+    created_at       DATETIME(6)  NOT NULL,
+    PRIMARY KEY (id),
+    -- 장애 한 번을 한 줄로 둡니다. Alertmanager는 해소된 뒤 다시 발생하면 starts_at을 새로 줍니다.
+    -- fingerprint만으로 묶으면 같은 대상의 다음 장애가 이전 기록을 덮습니다.
+    CONSTRAINT uk_alert_events_fingerprint_starts_at UNIQUE (fingerprint, starts_at)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 최근 Alert 목록 화면에서 씁니다.
+CREATE INDEX ix_alert_events_last_received_at ON alert_events (last_received_at);
+
+-- 알림이 오지 않았다는 문의가 들어왔을 때 어디까지 진행됐는지 확인합니다.
+-- Bot Token과 Telegram 응답 전체는 저장하지 않습니다.
+CREATE TABLE notification_deliveries (
+    id                      BIGINT       NOT NULL AUTO_INCREMENT,
+    alert_event_id          BIGINT       NOT NULL,
+    -- 그룹을 지운 뒤에도 전송 기록은 남아야 하므로 FK를 걸지 않습니다.
+    telegram_destination_id BIGINT       NOT NULL,
+    -- 보낸 Alert의 상태입니다. FIRING 또는 RESOLVED입니다.
+    alert_status            VARCHAR(20)  NOT NULL,
+    -- SENT, FAILED, SKIPPED입니다.
+    delivery_status         VARCHAR(20)  NOT NULL,
+    attempted_at            DATETIME(6)  NOT NULL,
+    -- 실패 이유입니다. Token이 섞이지 않도록 애플리케이션에서 걸러서 넣습니다.
+    error_message           VARCHAR(500) NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_notification_deliveries_alert_event FOREIGN KEY (alert_event_id)
+        REFERENCES alert_events (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 같은 Alert를 짧은 시간에 다시 받았을 때 이미 보냈는지 확인합니다.
+CREATE INDEX ix_notification_deliveries_lookup
+    ON notification_deliveries (alert_event_id, telegram_destination_id, alert_status, attempted_at);
