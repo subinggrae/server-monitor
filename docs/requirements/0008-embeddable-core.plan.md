@@ -166,7 +166,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 - [x] 10. 이름 바꾸기 확인(C5 수동), C3 확인, 전체 실행 뒤 E2E(C2)
   - 임시 worktree에서 `server_targets`를 `servers`로, `monitoring_checks.check_type`을 `kind`로 바꿔 `./gradlew test integrationTest`가 통과했다.
 - [x] 11. 전체 검증(`npm run check`, `./gradlew build`, `./gradlew integrationTest`, 규칙 테스트, 문서 검사)과 C9 코드 검색
-- [ ] 12. 새 하위 에이전트에 리뷰를 맡김(완료 기준, 이 계획, diff, 보안 위협의 CWE)
+- [x] 12. 새 하위 에이전트에 리뷰를 맡김(완료 기준, 이 계획, diff, 보안 위협의 CWE)
 - [ ] 13. 남길 결정을 ADR로 확정하고, 바뀐 동작을 문서로 옮긴 뒤 이 계획을 지움(병합 전 마지막 커밋)
 
 ## 진행 중 발견
