@@ -1,7 +1,7 @@
 # 0008. 다른 앱에 도입할 수 있는 모니터링 코어 구현 계획
 
 - 요구사항: [0008. 다른 앱에 도입할 수 있는 모니터링 코어](0008-embeddable-core.md)
-- 상태: 검토 중
+- 상태: 승인
 
 ## 접근 방법
 
@@ -85,7 +85,7 @@ compose.yml (하나)                        infrastructure/compose.yml  ← 코�
 - `docs/TESTING.md`와 `test-scope.svg`: 종류별 기준에 통합 테스트 행을 더한다. "DB까지 검사하는 것은 E2E뿐"이라는 문장과 그림을 고친다.
 - `docs/LICENSES.md`: Testcontainers를 기록한다.
 - `docs/decisions/0006-baseline-migration.md`, `0007-core-app-contract.md`(새 ADR): [남길 결정](#남길-결정).
-- `AGENTS.md`: 요구사항에서 승인한 대로 "이미 있는 migration은 고치지 않는다"에 기준을 새로 잡을 때의 예외를 더한다. 문서 표에 `docs/INTEGRATION.md` 행을 더하는 것은 따로 승인을 받는다.
+- `AGENTS.md`: 요구사항에서 승인한 대로 "이미 있는 migration은 고치지 않는다"에 기준을 새로 잡을 때의 예외를 더한다. 문서 표에는 `docs/INTEGRATION.md` 행을 더하지 않고, ARCHITECTURE.md에서 링크한다(사람 확인: 2026-10-19).
 
 ### 데이터 모델 변경
 
