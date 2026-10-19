@@ -126,7 +126,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
   - 같은 Docker 네트워크의 다른 컨테이너가 가짜 Alert를 보냄(CWE-345) → Bearer 검사는 그대로 둔다. token이 다른 요청을 거부하고 기록하지 않는 통합 테스트를 더한다.
   - 감시 대상 서버의 node_exporter가 인증 없이 열림(CWE-306) → [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다루는 이미 받아들인 위험이다. 설치 안내에 방화벽 규칙을 쓴다.
   - 배포 묶음의 node_exporter가 뚫렸을 때 서버 전체로 번짐(CWE-250) → `privileged`를 쓰지 않고 루트 파일 시스템을 읽기 전용으로 붙인다. 설정만 고르고 코드는 더하지 않는다.
-- 범위에서 뺀 것(TESTING.md의 점검 항목 기준, 사람 확인: 2026-10-19):
+- 범위에서 뺀 것(보안 점검 범위는 별도 브랜치 `docs/verification-and-security-scope`의 TESTING.md 점검 항목 기준, 사람 확인: 2026-10-19):
   - `MONITORING_APP_ADDRESS`의 주입(CWE-74): 공격자가 이 값을 넣을 경로가 없다. 코어의 `.env`를 고칠 수 있으면 Prometheus 설정도 직접 고칠 수 있다. 형식 검사 코드를 두지 않는다.
   - node_exporter 바이너리 바꿔치기(CWE-494): 이 제품이 구현한 기능이 아니라 공식 릴리스를 받는 설치 방식이고, 같은 릴리스의 체크섬으로는 막지 못한다.
   - 새 테스트 의존성(CWE-1395): 테스트에서만 쓰고 제품에 들어가지 않는다. 의존성 확인은 AGENTS.md의 보안 규칙대로 했다(진행 중 발견).
@@ -186,7 +186,7 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
   - webhook에 Authorization 헤더가 없는 경우의 거부 테스트를 더했다.
   - `DatabaseNameLocationTest`가 다른 형식의 `@Table`을 조용히 건너뛰지 않게 Entity 수와 비교한다. 이 테스트는 소스 파일을 직접 읽는데 Gradle이 그 파일을 입력으로 몰라, 주석만 바뀌면 다시 실행하지 않았다. `test` 작업에 `src/main`을 입력으로 등록했다.
   - DEVELOPMENT.md에 옛 구성의 컨테이너를 먼저 지우는 안내를, README에 `ufw` 규칙이 효과를 내는 조건을, ADR 0006에 기준 migration의 의도한 차이(PostgreSQL id 형식 통일, MariaDB 열 순서)를 적었다.
-  - 이번 범위 밖의 규칙 변경 커밋(`11e9ab5` 보안 점검 범위, `b7ec89f` 전체 검증 시점과 리뷰어 검증)이 이 브랜치에 있다. 둘 다 이 대화에서 사람이 요청했다. PR을 나눌지는 사람에게 묻는다.
+  - 이번 범위 밖의 규칙 변경(보안 점검 범위, 전체 검증 시점과 리뷰어 검증)은 사람이 정한 대로 별도 브랜치 `docs/verification-and-security-scope`로 옮겼다.
 - 기존 개발 환경의 멈춘 컨테이너 7개, `monitoring` 네트워크, `manager-db-data` 볼륨은 사람의 확인(2026-10-19)을 받고 지운 뒤 새로 만들었다.
 
 ## 남길 결정

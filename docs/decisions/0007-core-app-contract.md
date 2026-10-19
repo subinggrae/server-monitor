@@ -1,6 +1,6 @@
 # 0007. 모니터링 코어와 앱을 통합 계약으로 나눈다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-10-19
 - 관련: [요구사항 0008](../requirements/0008-embeddable-core.md), [ADR 0002](0002-scrape-interval-via-http-sd.md), [ADR 0006](0006-baseline-migration.md), [#15](https://github.com/subinggrae/server-monitor/issues/15)
 

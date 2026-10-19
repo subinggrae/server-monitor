@@ -1,6 +1,6 @@
 # 0006. Flyway migration V1~V9를 기준 migration 하나로 바꾼다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-10-19
 - 관련: [요구사항 0008](../requirements/0008-embeddable-core.md), [ADR 0007](0007-core-app-contract.md), [#18](https://github.com/subinggrae/server-monitor/issues/18)
 
