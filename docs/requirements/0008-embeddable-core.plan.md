@@ -9,7 +9,7 @@
 
 **코어 분리**: Prometheus, Blackbox Exporter, Alertmanager를 `infrastructure/compose.yml`로 옮긴다. 코어는 공식 이미지에 설정 파일을 붙여 띄우므로 따로 이미지를 빌드하지 않는다. 코어가 `monitoring` 네트워크를 만들고, 앱의 `compose.yml`은 그 네트워크를 `external`로 받아 붙는다. 그래서 코어를 먼저 띄운다.
 
-앱 주소는 코어 설정의 환경 변수 `MONITORING_APP_ADDRESS`(`host:port`, 예: `manager-api:8080`) 하나에 둔다. Prometheus와 Alertmanager는 설정 파일 안에서 환경 변수를 펼치지 못한다. 그래서 두 컨테이너가 시작할 때 공용 스크립트 `infrastructure/render-config.sh`를 먼저 실행한다. 이 스크립트는 주소 형식을 검사하고, 설정 템플릿의 자리표시자를 주소로 바꿔 컨테이너 안의 쓸 수 있는 경로에 쓴 뒤 원래 프로세스를 실행한다. 두 이미지에 `/bin/sh`와 `sed`가 있는 것은 확인했다(2026-10-19, Prometheus v3.14.0, Alertmanager v0.34.1). webhook token은 지금처럼 `infrastructure/secrets/alertmanager_webhook_token` 파일을 코어와 앱이 함께 읽는다.
+앱 주소는 코어 설정의 환경 변수 `MONITORING_APP_ADDRESS`(`host:port`, 예: `manager-api:8080`) 하나에 둔다. Prometheus와 Alertmanager는 설정 파일 안에서 환경 변수를 펼치지 못한다. 그래서 두 컨테이너가 시작할 때 공용 스크립트 `infrastructure/render-config.sh`를 먼저 실행한다. 이 스크립트는 설정 템플릿의 자리표시자를 주소로 바꿔 컨테이너 안의 쓸 수 있는 경로에 쓴 뒤 원래 프로세스를 실행한다. 두 이미지에 `/bin/sh`와 `sed`가 있는 것은 확인했다(2026-10-19, Prometheus v3.14.0, Alertmanager v0.34.1). webhook token은 지금처럼 `infrastructure/secrets/alertmanager_webhook_token` 파일을 코어와 앱이 함께 읽는다.
 
 검토했지만 고르지 않은 방법은 다음과 같다.
 
@@ -52,7 +52,7 @@ compose.yml (하나)                        infrastructure/compose.yml  ← 코�
 
 - `infrastructure/compose.yml`(새 파일): `prometheus`, `alertmanager`, `blackbox-exporter`를 옮겨 온다. 네트워크 `monitoring`을 만들고, 세 컨테이너에 healthcheck를 더한다. 비밀값은 `alertmanager_webhook_token`만 받는다.
 - `infrastructure/.env.example`(새 파일): `MONITORING_APP_ADDRESS=manager-api:8080`. `infrastructure/.env`는 기존 `.gitignore`의 `.env` 규칙으로 Git에 올라가지 않는다.
-- `infrastructure/render-config.sh`(새 파일): 주소 형식(`^[A-Za-z0-9.-]+:[0-9]{1,5}$`)을 검사하고, 어긋나면 이유를 알리고 종료 코드 1로 끝낸다. 맞으면 템플릿을 펼치고 `exec`로 원래 명령을 실행한다.
+- `infrastructure/render-config.sh`(새 파일): 템플릿을 펼치고 `exec`로 원래 명령을 실행한다.
 - `infrastructure/prometheus/prometheus.yml`: `manager-api` job을 지우고, 남은 `manager-api:8080` 두 곳(HTTP SD)을 자리표시자 `@MONITORING_APP_ADDRESS@`로 바꾼다. 컨테이너는 펼친 결과를 읽는다.
 - `infrastructure/alertmanager/alertmanager.yml`: webhook 주소의 `manager-api:8080`을 같은 자리표시자로 바꾼다.
 - `infrastructure/node-exporter/compose.yml`(새 파일): 감시 대상 Linux 서버용 배포 묶음. `network_mode: host`, `pid: host`, `/`를 읽기 전용으로 `/host`에 붙이고 `--path.rootfs=/host`를 준다. 이미지는 `os-test-node-exporter`와 같은 버전으로 고정한다.
@@ -80,7 +80,7 @@ compose.yml (하나)                        infrastructure/compose.yml  ← 코�
 **문서**
 
 - `docs/INTEGRATION.md`(새 문서): 통합 계약과 테이블·열 이름 바꾸기 절차. 다른 앱의 개발자가 이 문서 하나만 읽고 붙어야 하므로 ARCHITECTURE.md에 넣지 않고 따로 둔다.
-- `README.md`: 코어와 앱을 띄우는 순서, node_exporter 설치(배포 묶음, Docker가 없을 때 바이너리와 SHA-256 확인, 방화벽), windows_exporter 설치 안내.
+- `README.md`: 코어와 앱을 띄우는 순서, node_exporter 설치(배포 묶음, Docker가 없을 때 바이너리, 방화벽), windows_exporter 설치 안내.
 - `docs/ARCHITECTURE.md`와 `architecture-overview.svg`: 실행 단위를 코어와 앱으로 나눈다. 코드 지도에서 빈 패키지 행을 지우고, 지켜야 할 경계에 통합 계약과 이름 위치를 더한다.
 - `docs/DEVELOPMENT.md`: 준비에 `infrastructure/.env`를, 명령 표에 코어 실행, 전체 실행 순서, 코어 설정 검사, 통합 테스트를 더한다.
 - `docs/TESTING.md`와 `test-scope.svg`: 종류별 기준에 통합 테스트 행을 더한다. "DB까지 검사하는 것은 E2E뿐"이라는 문장과 그림을 고친다.
@@ -121,14 +121,15 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 
 ### 보안 위협
 
-- 바뀌는 신뢰 경계와 데이터 흐름: 코어 설정에 들어온 주소가 Prometheus와 Alertmanager의 설정 파일로 들어간다. 코어와 앱이 다른 compose 프로젝트가 되지만 같은 Docker 네트워크를 쓰므로, 네트워크 경계는 바뀌지 않는다. 감시 대상 서버에 node_exporter 배포 묶음이 생긴다.
+- 바뀌는 신뢰 경계와 데이터 흐름: 코어와 앱이 다른 compose 프로젝트가 되지만 같은 Docker 네트워크를 쓰므로, 네트워크 경계는 바뀌지 않는다. 감시 대상 서버에 node_exporter 배포 묶음이 생긴다.
 - 잘못될 수 있는 것과 막는 방법:
-  - 주소 값에 줄바꿈이나 YAML 문법을 넣어 설정을 바꿈(CWE-74, CWE-20) → `render-config.sh`가 `host:port` 형식만 받고, 어긋나면 기동하지 않는다. 거부 사례를 수동 확인에 넣는다.
-  - token이 설정이나 로그에 나옴(CWE-532, CWE-798) → token은 펼치지 않고 지금처럼 `credentials_file`로 읽는다. 스크립트는 주소만 출력한다.
-  - 위조한 webhook 요청(CWE-345) → Bearer 검사는 그대로 둔다. token이 다른 요청을 거부하고 기록하지 않는 통합 테스트를 더한다.
-  - 배포 묶음이 서버를 과하게 노출(CWE-250, CWE-306) → `privileged`를 쓰지 않고 루트 파일 시스템을 읽기 전용으로 붙인다. node_exporter가 인증 없이 열리는 것은 [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다루는 이미 받아들인 위험이다. 설치 안내에 방화벽 규칙을 쓴다.
-  - 바이너리 설치 때 바꿔치기한 파일(CWE-494) → 설치 안내에 공식 릴리스 주소와 `sha256sums.txt` 확인 절차를 쓴다.
-  - 새 테스트 의존성(CWE-1395) → Maven Central에 있는지, 이름이 맞는지, 라이선스를 확인한다. 테스트 범위에만 둔다.
+  - 같은 Docker 네트워크의 다른 컨테이너가 가짜 Alert를 보냄(CWE-345) → Bearer 검사는 그대로 둔다. token이 다른 요청을 거부하고 기록하지 않는 통합 테스트를 더한다.
+  - 감시 대상 서버의 node_exporter가 인증 없이 열림(CWE-306) → [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다루는 이미 받아들인 위험이다. 설치 안내에 방화벽 규칙을 쓴다.
+  - 배포 묶음의 node_exporter가 뚫렸을 때 서버 전체로 번짐(CWE-250) → `privileged`를 쓰지 않고 루트 파일 시스템을 읽기 전용으로 붙인다. 설정만 고르고 코드는 더하지 않는다.
+- 범위에서 뺀 것(TESTING.md의 점검 항목 기준, 사람 확인: 2026-10-19):
+  - `MONITORING_APP_ADDRESS`의 주입(CWE-74): 공격자가 이 값을 넣을 경로가 없다. 코어의 `.env`를 고칠 수 있으면 Prometheus 설정도 직접 고칠 수 있다. 형식 검사 코드를 두지 않는다.
+  - node_exporter 바이너리 바꿔치기(CWE-494): 이 제품이 구현한 기능이 아니라 공식 릴리스를 받는 설치 방식이고, 같은 릴리스의 체크섬으로는 막지 못한다.
+  - 새 테스트 의존성(CWE-1395): 테스트에서만 쓰고 제품에 들어가지 않는다. 의존성 확인은 AGENTS.md의 보안 규칙대로 했다(진행 중 발견).
 - 받아들이는 위험: 새로 받아들이는 위험은 없다.
 
 ## 테스트 계획
@@ -138,7 +139,6 @@ HTTP SD, webhook, Alert 규칙의 label은 바뀌지 않는다. 바뀌는 것은
 | C1 | 코어 설정 검사 | 펼친 설정에 `promtool check config`, `amtool check-config` 통과(명령은 DEVELOPMENT.md에 씀) |
 | C1 | 규칙 테스트 | DEVELOPMENT.md의 규칙 테스트 명령 통과 |
 | C1 | 코어만 띄우기(수동) | `docker compose -f infrastructure/compose.yml up -d` 뒤 세 컨테이너가 `healthy` |
-| C1 | 주소 형식 거부(수동) | 틀린 `MONITORING_APP_ADDRESS`로 띄우면 Prometheus와 Alertmanager가 오류를 남기고 멈춤 |
 | C2 | E2E | 코어 뒤에 앱을 띄우고 `cd frontend && npm run test:e2e` 통과 |
 | C3 | 주소 바꾸기(수동) | 앱에 네트워크 별칭을 더하고 주소를 별칭으로 바꿔 코어만 다시 띄우면 SD 두 곳과 webhook이 새 주소로 감 |
 | C4 | node_exporter 등록(수동) | 배포 묶음의 node_exporter를 등록하면 연결 시험 통과, CPU, Memory, Storage 표시 |

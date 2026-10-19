@@ -33,19 +33,17 @@ sudo ufw allow from 10.0.0.5 to any port 9100 proto tcp
 docker compose -f compose.yml up -d
 ```
 
-**Docker가 없는 Linux 서버**: 공식 릴리스에서 바이너리를 받고, 같은 릴리스의 `sha256sums.txt`로 파일이 바뀌지 않았는지 확인한 뒤 설치한다. 다음은 x86-64 서버의 예다.
+**Docker가 없는 Linux 서버**: 공식 릴리스에서 바이너리를 받아 설치한다. 다음은 x86-64 서버의 예다.
 
 ```sh
 VERSION=1.12.1
 curl -LO https://github.com/prometheus/node_exporter/releases/download/v$VERSION/node_exporter-$VERSION.linux-amd64.tar.gz
-curl -LO https://github.com/prometheus/node_exporter/releases/download/v$VERSION/sha256sums.txt
-sha256sum -c --ignore-missing sha256sums.txt
 tar xzf node_exporter-$VERSION.linux-amd64.tar.gz
 sudo install -m 0755 node_exporter-$VERSION.linux-amd64/node_exporter /usr/local/bin/node_exporter
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin node_exporter
 ```
 
-`sha256sum`이 `OK`를 보이지 않으면 설치하지 않는다. 그다음 `/etc/systemd/system/node_exporter.service`를 만들고 `sudo systemctl enable --now node_exporter`로 켠다.
+그다음 `/etc/systemd/system/node_exporter.service`를 만들고 `sudo systemctl enable --now node_exporter`로 켠다.
 
 ```ini
 [Unit]

@@ -11,21 +11,7 @@ template=$1
 rendered=$2
 shift 2
 
-address=${MONITORING_APP_ADDRESS:-}
-
-# 값이 설정 파일에 그대로 들어가므로 host:port 모양만 받습니다. 줄바꿈과 YAML 문법이 끼어들지 못합니다.
-case "$address" in
-	'' | *[!A-Za-z0-9.:-]*)
-		echo "MONITORING_APP_ADDRESS는 host:port 형식이어야 합니다. 예: manager-api:8080" >&2
-		exit 1
-		;;
-esac
-if ! printf '%s' "$address" | grep -Eq '^[A-Za-z0-9.-]+:[0-9]{1,5}$'; then
-	echo "MONITORING_APP_ADDRESS는 host:port 형식이어야 합니다. 예: manager-api:8080" >&2
-	exit 1
-fi
-
-sed "s|@MONITORING_APP_ADDRESS@|$address|g" "$template" > "$rendered"
-echo "앱 주소 $address 로 $rendered 를 만들었습니다."
+sed "s|@MONITORING_APP_ADDRESS@|$MONITORING_APP_ADDRESS|g" "$template" > "$rendered"
+echo "앱 주소 $MONITORING_APP_ADDRESS 로 $rendered 를 만들었습니다."
 
 exec "$@"

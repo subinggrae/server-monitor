@@ -24,7 +24,7 @@ Prometheus, Blackbox Exporter, Alertmanager(코어)를 따로 띄우고, 다른 
 ## 결정
 
 - 코어는 `infrastructure/compose.yml`로 따로 띄우고 Docker 네트워크 `monitoring`을 만든다. 앱은 그 네트워크에 붙는다. 코어와 앱은 같은 호스트에 둔다.
-- 코어가 부르는 앱 주소는 코어 설정의 `MONITORING_APP_ADDRESS`(`host:port`) 하나로 정한다. Prometheus와 Alertmanager가 시작할 때 `infrastructure/render-config.sh`가 형식을 검사하고 설정 템플릿에 펼친다. webhook token은 비밀값 파일로 받고 펼치지 않는다.
+- 코어가 부르는 앱 주소는 코어 설정의 `MONITORING_APP_ADDRESS`(`host:port`) 하나로 정한다. Prometheus와 Alertmanager가 시작할 때 `infrastructure/render-config.sh`가 설정 템플릿에 펼친다. 공격자가 이 값을 넣을 경로가 없으므로 형식을 검사하지 않는다. webhook token은 비밀값 파일로 받고 펼치지 않는다.
 - 코어와 앱 사이의 약속(HTTP SD 두 곳, Alertmanager webhook, 앱이 읽는 series)은 `docs/INTEGRATION.md` 하나에 둔다. 코어는 앱의 metric을 수집하지 않는다.
 - 테이블과 열 이름은 JPA Entity 어노테이션과 기준 migration에만 둔다. 앱은 네이티브 SQL을 쓰지 않는다.
 

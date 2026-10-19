@@ -20,10 +20,10 @@
 
 코어 설정은 두 가지다. 바꾸면 `docker compose -f infrastructure/compose.yml up -d`로 코어를 다시 띄운다.
 
-- `infrastructure/.env`의 `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다. 형식이 맞지 않으면 Prometheus와 Alertmanager가 뜨지 않는다.
+- `infrastructure/.env`의 `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
 - `infrastructure/secrets/alertmanager_webhook_token`: webhook에 붙는 Bearer token이다. 앱도 같은 값을 받는다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
 
-Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이다. 컨테이너가 시작할 때 `infrastructure/render-config.sh`가 형식을 검사하고 주소를 넣는다.
+Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이다. 컨테이너가 시작할 때 `infrastructure/render-config.sh`가 주소를 넣는다.
 
 ## 앱이 제공할 것
 
