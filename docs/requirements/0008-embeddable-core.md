@@ -1,6 +1,6 @@
 # 0008. 다른 앱에 도입할 수 있는 모니터링 코어
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-10-19
 - 관련: [ADR 0002](../decisions/0002-scrape-interval-via-http-sd.md), [ADR 0004](../decisions/0004-os-exporter-collection.md), [ADR 0005](../decisions/0005-common-resource-recording-rules.md), [#14](https://github.com/subinggrae/server-monitor/issues/14), [#15](https://github.com/subinggrae/server-monitor/issues/15), [#18](https://github.com/subinggrae/server-monitor/issues/18)
 
@@ -17,7 +17,8 @@
 
 - **코어가 앱 없이 서지 못한다**: Prometheus, Blackbox Exporter, Alertmanager가 앱과 같은 `compose.yml`에 있다. `prometheus.yml`은 감시 대상을 `manager-api`의 HTTP SD 두 곳에서만 받고, `alertmanager.yml`은 Alert를 `manager-api` webhook 한 곳으로만 보낸다. 앱 주소 `manager-api:8080`이 두 파일의 다섯 곳에 박혀 있다. node_exporter는 이 시스템이 띄우지 않고 사람이 서버마다 설치하며, 배포 묶음이 없다(개발용 테스트 컨테이너만 있다).
 - **코어와 앱 사이의 약속이 문서로 없다**: 앱이 HTTP SD에 어떤 label을 실어야 하는지, webhook으로 무엇이 오는지, 앱이 Prometheus에서 어떤 series를 읽는지가 코드와 ARCHITECTURE.md의 경계 문장에 흩어져 있다. 다른 앱이 이 약속만 보고 붙을 수 없다.
-- **테이블과 열 이름이 여러 곳에 흩어져 있다**: 이름은 JPA Entity 어노테이션 83곳과 Flyway migration V1~V9에 있다. 이미 적용한 migration은 고칠 수 없어서, 한 테이블의 지금 이름과 열 목록을 보려면 여러 migration을 따라가야 한다. 네이티브 SQL은 없다.
+- **테이블과 열 이름이 여러 곳에 흩어져 있다**: 이름은 JPA Entity 어노테이션 83곳과 Flyway migration V1~V9에 있다. 이미 적용한 migration은 고칠 수 없어서, 한 테이블의 지금 이름과 열 목록을 보려면 여러 migration을 따라가야 한다. 네이티브 SQL은 없다. 지금 설치를 이어 받지 않으므로 V1~V9를 기준 migration 하나로 바꾼다. 이 결정은 ADR로 남기고, AGENTS.md의 "이미 있는 migration은 고치지 않는다" 규칙에 기준을 새로 잡을 때의 예외를 더한다(사람 확인: 2026-10-19).
+- **쓰지 않는 구조가 남아 있다**: 2026-10-19에 Manager Database의 모든 열과 인덱스가 어디에서 읽히는지 확인했다([#18](https://github.com/subinggrae/server-monitor/issues/18)). 리소스 선택의 `enabled`는 바꾸는 코드가 없어 늘 켜져 있다. 장애 기록의 `description`은 저장만 하고 어디에서도 읽지 않는다. 인덱스 `ix_monitored_resources_server`와 `ix_alert_events_check_id`는 쓰는 조회가 없다. 설정 키 `alertmanager.base-url`, `exporters.blackbox-url`, `exporters.mysqld-url`은 읽는 코드가 없는데 비어 있으면 Manager가 기동하지 않는다. 부르는 곳이 없는 repository 메서드 둘, 쓰이지 않는 Telegram client 기본 주소, `package-info.java`만 있는 빈 패키지 넷(`threshold`, `grafana`, `database`, `database/provider`), 원문이 저장소에 없는 `(CLAUDE.md N번)` 주석도 있다. 도입하는 쪽이 읽고 이름을 바꿀 대상이 늘어나므로, 기준 migration을 새로 쓸 때 함께 걷어낸다.
 
 나머지 두 목표 가운데 임계치·조건 알림은 [#23](https://github.com/subinggrae/server-monitor/issues/23), 알림 방법은 [#24](https://github.com/subinggrae/server-monitor/issues/24)에서 따로 요구사항을 쓴다. 코어와 앱의 약속이 먼저 정해져야 알림을 어디에서 판단할지 정할 수 있기 때문이다.
 
@@ -29,6 +30,7 @@
 - 코어가 부를 앱 주소와 webhook token은 코어 설정 한곳에서 바꾼다.
 - 이 저장소의 백엔드, 화면, DB는 통합 계약으로 코어에 붙는 앱 하나다. 지금 기능은 그대로 동작한다.
 - DB 테이블과 열 이름은 소스의 정해진 곳에만 있다. 도입하는 쪽은 그곳만 고쳐 빌드하면 이름을 바꿀 수 있고, 그 절차가 문서에 있다.
+- 동작에 영향이 없는 열, 인덱스, 설정 키, 코드가 남지 않는다. 하지 않는 것에 적은 구조는 예외다.
 
 ## 하지 않는 것
 
@@ -37,7 +39,11 @@
 - Prometheus TSDB의 metric 이름과 label 이름을 바꿀 수 있게 하는 것.
 - 사용자가 정하는 임계치와 상태 조건으로 알림을 보내는 것([#23](https://github.com/subinggrae/server-monitor/issues/23)).
 - 일반 webhook 알림을 더하고 Telegram을 선택 기능으로 바꾸는 것([#24](https://github.com/subinggrae/server-monitor/issues/24)). Telegram은 남긴다(사람 확인: 2026-10-19).
-- 쓰지 않는 열, 설정 키, 코드를 지우는 것([#18](https://github.com/subinggrae/server-monitor/issues/18), 요구사항 0007).
+- 알림 연결의 `warning_enabled`, `critical_enabled`, `enabled` 열과 화면의 "경고"·"심각" 선택, severity에 따른 발송 분기를 지우는 것. 임계치 알림([#23](https://github.com/subinggrae/server-monitor/issues/23))이 Warning·Critical을 쓰므로 그때까지 남긴다(사람 확인: 2026-10-19).
+- 읽는 곳이 없는 기록용 열을 지우는 것: getter가 없는 `created_at`·`updated_at`, 장애 기록의 `created_at`·`check_target_id`, 발송 기록의 `error_message`. 장애나 발송 실패를 조사할 때 DB를 직접 보는 용도다(사람 확인: 2026-10-19).
+- 화면에 보이는 설명과 표시 열(`*.description`, `server_targets.environment`, 장애 기록의 `severity`·`summary`·`instance`·`alert_name`·`status`·`check_id`), Grafana 링크 주소(`GRAFANA_URL`), `notification.dedupe-window` 설정 키와 `AlertIngestService`를 정리하는 것.
+- OS exporter SD의 `server_name`, `environment`, `os` label을 지우는 것. 읽는 규칙은 없지만 지우면 series가 끊긴다(사람 확인: 2026-10-19).
+- 서버를 꺼도 리소스 찾기가 되는 문제([#21](https://github.com/subinggrae/server-monitor/issues/21))와 Check 이름·환경 label이 바뀔 때의 영향([#22](https://github.com/subinggrae/server-monitor/issues/22))을 고치는 것.
 - exporter 접근에 TLS와 인증을 거는 것([#15](https://github.com/subinggrae/server-monitor/issues/15)).
 - 코어와 앱을 다른 호스트에 두는 것. 이번에는 같은 호스트의 Docker 네트워크로 붙인다. 다른 호스트에 두려면 SD 응답과 webhook이 네트워크를 건너므로 TLS와 함께 [#15](https://github.com/subinggrae/server-monitor/issues/15)에서 다룬다(사람 확인: 2026-10-19).
 - 지금 설치의 데이터(Check, 서버, 알림 연결, 장애 기록)를 이어 받는 것. 이 변경을 배포할 때는 DB를 새로 만들고 다시 등록한다(사람 확인: 2026-10-19).
@@ -118,6 +124,7 @@
 - [ ] C6. 빈 MariaDB와 PostgreSQL에 설치하면 기동하고, 두 DB의 schema가 Entity와 맞는다. 테이블마다 지금 모양을 migration 하나에서 볼 수 있다. (S6) — 확인: 두 DB의 migration 통합 테스트
 - [ ] C7. token이 다른 webhook 요청을 거부하고 기록하지 않는다. (S7) — 확인: 기존 webhook 테스트 통과
 - [ ] C8. 통합 계약 문서가 앱이 제공할 것(HTTP SD 두 곳, webhook)과 코어가 제공할 것(Prometheus 조회 API, series 이름과 label)을 설명하고, 이름 바꾸기 절차 문서가 있다. 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
+- [ ] C9. 저장소의 코드, 설정, 문서에 `monitored_resources.enabled`, `alert_events.description`, 인덱스 `ix_monitored_resources_server`·`ix_alert_events_check_id`, 설정 키 `alertmanager.base-url`·`exporters.blackbox-url`·`exporters.mysqld-url`, 부르는 곳 없는 repository 메서드, Telegram client 기본 주소, 빈 패키지, `(CLAUDE.md N번)` 표기가 남지 않는다. 기록 문서는 제외한다. 지운 세 설정 키의 환경 변수가 남아 있어도 기동한다. — 확인: 코드 검색, 설정 바인딩 테스트
 
 ## 확인 필요
 
