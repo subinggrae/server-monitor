@@ -1,6 +1,6 @@
 # 0008. 리소스 임계값은 앱이 Prometheus의 사용률을 읽어 판단한다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-10-19
 - 관련: [요구사항 0009](../requirements/0009-resource-threshold-schema.md), [#23](https://github.com/subinggrae/server-monitor/issues/23), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0005](0005-common-resource-recording-rules.md), [ADR 0007](0007-core-app-contract.md)
 
