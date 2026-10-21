@@ -95,7 +95,7 @@
 - [x] ADR 0008과 이 계획을 승인받는다(사람 확인: 2026-10-20).
 - [x] `ReferenceSchemaIntegrationTest`를 쓰고, 참고용 SQL이 없어 실패하는 것을 본다(C1, C2).
 - [x] 참고용 SQL 두 파일을 써서 테스트를 통과시킨다.
-- [ ] INTEGRATION.md에 판단 규칙 절을, ARCHITECTURE.md에 경계를 더한다(C4).
+- [x] INTEGRATION.md에 판단 규칙 절을, ARCHITECTURE.md에 경계를 더한다(C4).
 - [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다(C3~C5).
 - [ ] 요구사항을 구현됨으로, ADR 관련 줄에 PR 링크를 쓰고 이 계획을 지운다.
 

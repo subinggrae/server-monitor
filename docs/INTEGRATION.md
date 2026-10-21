@@ -115,9 +115,47 @@ Alertmanager는 `alertname`, `check_id`, `environment`로 Alert를 묶고, 이�
 
 코어는 앱의 metric(`/actuator/prometheus` 등)을 수집하지 않는다.
 
+## 리소스 임계값 판단
+
+코어에는 CPU, Memory, Storage의 임계값 Alert 규칙이 없다. 임계값은 사용자가 화면에서 바꾸는 설정이라서, 앱이 `manager:resource_usage_percent`를 읽어 임계값과 비교하고 직접 알린다. 그래서 리소스 알림은 Alertmanager webhook으로 오지 않는다. 이 결정과 이유는 [ADR 0008](decisions/0008-resource-threshold-in-app.md)에, 동작의 기준은 [요구사항 0009](requirements/0009-resource-threshold-schema.md)에 있다. 이 저장소의 앱은 아직 리소스 임계값을 판단하지 않는다.
+
+### 참고용 DDL
+
+판단에 필요한 설정과 상태를 담는 테이블의 참고용 DDL은 [MariaDB용](reference-schema/mariadb/resource-thresholds.sql)과 [PostgreSQL용](reference-schema/postgresql/resource-thresholds.sql)이 있다. 이 저장소의 migration에는 들어 있지 않고, 기준 migration(`V1__baseline.sql`) 다음에 적용하면 만들어진다. 두 파일은 `server_targets`와 `monitored_resources`를 외래 키로 가리키므로 그 이름을 바꿨으면 함께 고친다. 테이블마다 담는 것은 다음과 같다.
+
+| 테이블 | 담는 것 | Resource나 서버를 지우면 |
+|---|---|---|
+| `resource_thresholds` | Resource마다 Warning·Critical 임계값과 지속 시간 | 함께 지워짐 |
+| `server_resource_alert_settings` | 서버마다 리소스 알림 재발송 주기 | 서버를 지우면 함께 지워짐 |
+| `resource_alert_states` | 단계마다 넘기 시작한 시각, 발생 기록, 마지막 발송 시각 | 함께 지워짐 |
+| `resource_alert_events` | 발생 한 번과 그때의 임계값, 사용률, 복구 시각 | 남음 |
+
+### 판단 규칙
+
+앱은 감시 Resource의 단계(Warning, Critical)마다 다음 규칙으로 판단한다. 판단 상태는 `resource_alert_states`에 두고, 단계가 넘기 시작했거나 발생 중일 때만 행이 있다.
+
+- **대상**: `resource_thresholds`에 행이 있는 Resource의 단계 가운데 임계값이 NULL이 아닌 단계만 판단한다.
+- **주기**: 서버의 수집 주기(`server_exporter_configs.scrape_interval_seconds`)마다 그 서버의 `manager:resource_usage_percent{server_id="…"}`를 읽고, `resource_type`과 `resource_key`로 Resource를 찾는다.
+- **대기**: 사용률이 임계값보다 크면 상태 행을 만들고 넘기 시작한 시각(`exceeded_since`)을 남긴다.
+- **발생**: 넘은 상태가 지속 시간 이상 이어지면 발생 기록을 만들고 알림을 보낸 뒤 마지막 발송 시각을 남긴다. Critical이 발생 중인 동안 같은 Resource의 Warning 알림은 보내지 않는다.
+- **정상으로 돌아옴**: 사용률이 임계값 이하가 되면, 대기 중인 단계는 상태 행을 지운다. 발생 중인 단계는 기록에 복구 시각을 쓰고 복구 알림을 보낸 뒤 상태 행을 지운다.
+- **값이 없음**: series가 없거나 Prometheus 조회가 실패하면, 대기 중인 단계는 상태 행을 지운다. 발생 중인 단계는 유지하고 복구 알림을 보내지 않는다. 값이 없는데 복구를 알리면 사람이 잘못 안심하기 때문이다.
+- **재발송**: 발생 중인 단계는 마지막 발송 뒤 서버의 재발송 주기(행이 없으면 60분)가 지나면 다시 보내고 마지막 발송 시각을 고친다.
+- **설정을 바꿈**: 다음 판단부터 새 임계값으로 비교한다. 단계의 임계값을 비우면, 발생 중이던 그 단계는 복구 알림으로 끝낸다.
+- **다시 띄움**: 상태 행에서 이어 간다. 넘기 시작한 시각을 다시 재지 않고, 발생 중인 단계를 새로 알리지 않는다.
+- **지움**: Resource나 서버를 지우기 전에, 발생 중인 단계를 복구 알림으로 끝낸다. 발생 기록은 남는다.
+
+설정 값의 허용 범위는 다음과 같다. 앱의 요청 검증에서 확인한다.
+
+| 값 | 범위 | 정하지 않으면 |
+|---|---|---|
+| 임계값 | 1~100 정수 %, Warning < Critical | 그 단계를 판단하지 않음 |
+| 지속 시간 | 1~60분 정수 | 화면의 처음 값 5분 |
+| 재발송 주기 | 5~1440분 정수 | 60분 |
+
 ## 테이블과 열 이름 바꾸기
 
-이 저장소의 앱을 도입하면서 Manager Database의 테이블과 열 이름을 자기 용어사전에 맞게 바꾸는 절차다. 이름은 다음 세 곳에만 있다. 다른 소스, 코어 설정, 이 계약은 고치지 않는다.
+이 저장소의 앱을 도입하면서 Manager Database의 테이블과 열 이름을 자기 용어사전에 맞게 바꾸는 절차다. 이름은 다음 세 곳에만 있다. 다른 소스, 코어 설정, 이 계약은 고치지 않는다. [참고용 DDL](#참고용-ddl)을 쓰면 그 외래 키도 함께 고친다.
 
 - JPA Entity의 `@Table`, `@Column`, `@JoinColumn`(`backend/src/main/java/` 아래 Entity 10개)
 - `backend/src/main/resources/db/migration/mariadb/V1__baseline.sql`

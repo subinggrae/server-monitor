@@ -31,7 +31,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 | 전체 실행 | 코어 실행 뒤 `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
-| 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, webhook을 바꿨을 때, 전체 검증을 실행할 때 함께(Docker가 필요해 전체 검증 명령에는 넣지 않음) |
+| 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, 참고용 DDL, webhook을 바꿨을 때, 전체 검증을 실행할 때 함께(Docker가 필요해 전체 검증 명령에는 넣지 않음) |
 | 규칙 테스트 | `MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/infrastructure/prometheus:/prom:ro" -w /prom/tests --entrypoint promtool quay.io/prometheus/prometheus:v3.14.0 test rules server-resources.test.yml`(저장소 최상위에서, 이미지는 `infrastructure/compose.yml`의 Prometheus와 같게) | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 |
 | 코어 설정 검사 | 아래 [코어 설정 검사](#코어-설정-검사) | `infrastructure/`의 Prometheus, Alertmanager 설정을 바꿨을 때 |
 | E2E | `cd frontend && npm run test:e2e` | 전체 실행 환경을 띄운 뒤, 핵심 흐름이 걸린 변경을 마쳤을 때 |
