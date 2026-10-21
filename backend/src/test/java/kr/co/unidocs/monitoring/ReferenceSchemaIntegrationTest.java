@@ -104,7 +104,7 @@ class ReferenceSchemaIntegrationTest {
 
 	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
 	@MethodSource("databases")
-	@DisplayName("서버를 지우면 재발송 주기와 Resource의 설정이 지워지고 발생 기록은 남는다")
+	@DisplayName("서버를 지우면 재발송 주기와 Resource의 설정이 지워지고 발생 기록은 서버 이름과 함께 남는다")
 	void deletingServerKeepsEvents(JdbcDatabaseContainer<?> database) {
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource(database));
 		long serverId = insertServer(jdbc, "server-delete");
@@ -115,7 +115,8 @@ class ReferenceSchemaIntegrationTest {
 		assertThat(count(jdbc, "server_resource_alert_settings", "server_id", serverId)).isZero();
 		assertThat(count(jdbc, "resource_thresholds", "monitored_resource_id", resourceId)).isZero();
 		assertThat(count(jdbc, "resource_alert_states", "monitored_resource_id", resourceId)).isZero();
-		assertThat(count(jdbc, "resource_alert_events", "server_id", serverId)).isOne();
+		assertThat(jdbc.queryForList("SELECT server_name FROM resource_alert_events WHERE server_id = ?", String.class,
+				serverId)).containsExactly("server-delete");
 	}
 
 	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
@@ -188,10 +189,11 @@ class ReferenceSchemaIntegrationTest {
 				""", resourceId);
 		jdbc.update("""
 				INSERT INTO resource_alert_events
-				    (server_id, monitored_resource_id, resource_type, resource_key, display_name, severity,
+				    (server_id, server_name, monitored_resource_id, resource_type, resource_key, display_name, severity,
 				     threshold_percent, usage_percent, fired_at, created_at)
-				VALUES (?, ?, 'STORAGE', '/', '/', 'CRITICAL', 90, 95.5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-				""", serverId, resourceId);
+				SELECT id, name, ?, 'STORAGE', '/', '/', 'CRITICAL', 90, 95.5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+				FROM server_targets WHERE id = ?
+				""", resourceId, serverId);
 		long eventId = jdbc.queryForObject("SELECT id FROM resource_alert_events WHERE monitored_resource_id = ?",
 				Long.class, resourceId);
 		jdbc.update("""

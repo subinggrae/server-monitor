@@ -49,7 +49,7 @@
   - `last_notified_at`: 마지막으로 알림을 보낸 시각, 대기 중이면 NULL
   - `updated_at`
 - `resource_alert_events`: 발생 한 번이 한 행이다. Resource나 서버를 지워도 남도록 외래 키를 걸지 않는다(`alert_events`와 같은 이유).
-  - `server_id`, `monitored_resource_id`, `resource_type`, `resource_key`, `display_name`: 지운 뒤에도 무엇이 문제였는지 알 수 있게 발생 때의 값을 남긴다
+  - `server_id`, `server_name`, `monitored_resource_id`, `resource_type`, `resource_key`, `display_name`: 지운 뒤에도 무엇이 문제였는지 알 수 있게 발생 때의 값을 남긴다
   - `severity`, `threshold_percent`, `usage_percent`: 발생 때의 단계, 임계값, 사용률
   - `fired_at`(NOT NULL), `resolved_at`(복구 전에는 NULL)
   - `created_at`
@@ -58,15 +58,16 @@
 
 ```text
 (행 없음) --넘음--> 대기(exceeded_since) --지속 시간 경과(S3)--> 발생(event id, last_notified_at)
-대기 --내려감(S4) 또는 값 없음(S12)--> (행 지움)
-발생 --내려감, 값 올림, 단계 끔(S5, S7, S8)--> (행 지움, 기록의 resolved_at)
-발생 --값 없음(S12)--> 발생 유지
-발생 --재발송 주기 경과(S6)--> 발생(last_notified_at 갱신)
+대기 --내려감(S4), 값 없음(S12), 앱 재시작(S9), 감시 끔(S14)--> (행 지움)
+대기(Warning) --Critical 발생 중--> 대기 유지(S3)
+발생 --내려감, 값 올림, 단계 끔, 감시 끔(S5, S7, S8, S14)--> (행 지움, 기록의 resolved_at)
+발생 --값 없음(S12), 앱 재시작(S9)--> 발생 유지
+발생 --재발송 주기 경과(S6, S12)--> 발생(last_notified_at 갱신)
 ```
 
 ### 계약 변경
 
-[INTEGRATION.md](../INTEGRATION.md)에 앱이 리소스 임계값을 판단하는 절을 더한다. 코어와 앱 사이에 오가는 것(HTTP SD, webhook, Prometheus 조회 API, series)은 바뀌지 않는다. 더하는 내용은 요구사항의 S2~S9, S12, S13을 판단 규칙으로 옮긴 것과 참고용 DDL의 링크다.
+[INTEGRATION.md](../INTEGRATION.md)에 앱이 리소스 임계값을 판단하는 절을 더한다. 코어와 앱 사이에 오가는 것(HTTP SD, webhook, Prometheus 조회 API, series)은 바뀌지 않는다. 더하는 내용은 요구사항의 S2~S9, S12~S14를 판단 규칙으로 옮긴 것과 참고용 DDL의 링크다.
 
 ## 위험과 되돌리기
 
