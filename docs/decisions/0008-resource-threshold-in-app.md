@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-10-19
-- 관련: [요구사항 0009](../requirements/0009-resource-threshold-schema.md), [#23](https://github.com/subinggrae/server-monitor/issues/23), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0005](0005-common-resource-recording-rules.md), [ADR 0007](0007-core-app-contract.md)
+- 관련: [요구사항 0009](../requirements/0009-resource-threshold-schema.md), [PR #28](https://github.com/subinggrae/server-monitor/pull/28)(구현 계획 포함), [#23](https://github.com/subinggrae/server-monitor/issues/23), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0005](0005-common-resource-recording-rules.md), [ADR 0007](0007-core-app-contract.md)
 
 ## 배경과 문제
 

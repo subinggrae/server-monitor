@@ -30,6 +30,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 다른 앱이 참고하는 리소스 임계값 DDL(docs/reference-schema/)이 기준 migration 위에 적용되는지 확인합니다.
  * 이 앱은 그 테이블을 쓰지 않으므로 앱을 띄우지 않고 Flyway와 SQL 실행만 합니다.
+ *
+ * 컨테이너를 매개변수로 받는 테스트는 autoCloseArguments를 끕니다. 켜 두면 JUnit이 테스트마다 컨테이너를 닫습니다.
  */
 @Tag("integration")
 @DisplayName("참고용 리소스 임계값 DDL")

@@ -1,6 +1,6 @@
 # 0009. 서버 리소스 임계값 알림의 DDL과 판단 계약
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-10-19
 - 관련: [#23](https://github.com/subinggrae/server-monitor/issues/23), [#24](https://github.com/subinggrae/server-monitor/issues/24), [#5](https://github.com/subinggrae/server-monitor/issues/5), [0003](0003-alert-repeat-interval.md), [0008](0008-embeddable-core.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0005](../decisions/0005-common-resource-recording-rules.md), [ADR 0008](../decisions/0008-resource-threshold-in-app.md)
 
@@ -132,11 +132,11 @@
 
 ## 완료 기준
 
-- [ ] C1. 기준 migration을 적용한 빈 MariaDB와 PostgreSQL에 참고용 DDL을 적용하면 S1, S6, S9의 값과 상태를 담는 테이블이 생기고, 두 DB의 논리 schema가 같다. (S1, S6, S9) — 확인: 두 DB에 참고용 DDL을 적용하는 통합 테스트
-- [ ] C2. 참고용 DDL로 만든 DB에서 Resource나 서버를 지우면 임계값, 판단 상태, 재발송 주기가 함께 지워지고 발생·복구 기록은 남는다. (S13) — 확인: 같은 통합 테스트
-- [ ] C3. 이 앱의 migration과 Entity가 바뀌지 않는다. (S10) — 확인: `git diff main -- backend/src/main/`
-- [ ] C4. 통합 계약이 판단 규칙(S2~S9, S12~S14), 읽을 series, 참고용 DDL의 위치를 설명하고, 이 변경에 `infrastructure/`의 diff가 없다. 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, `git diff main -- infrastructure/`, 문서 리뷰
-- [ ] C5. 기존 백엔드와 화면의 테스트가 통과한다. (바뀌지 않는 것) — 확인: 전체 검증
+- [x] C1. 기준 migration을 적용한 빈 MariaDB와 PostgreSQL에 참고용 DDL을 적용하면 S1, S6, S9의 값과 상태를 담는 테이블이 생기고, 두 DB의 논리 schema가 같다. (S1, S6, S9) — 확인: 두 DB에 참고용 DDL을 적용하는 통합 테스트
+- [x] C2. 참고용 DDL로 만든 DB에서 Resource나 서버를 지우면 임계값, 판단 상태, 재발송 주기가 함께 지워지고 발생·복구 기록은 남는다. (S13) — 확인: 같은 통합 테스트
+- [x] C3. 이 앱의 migration과 Entity가 바뀌지 않는다. (S10) — 확인: `git diff main -- backend/src/main/`
+- [x] C4. 통합 계약이 판단 규칙(S2~S9, S12~S14), 읽을 series, 참고용 DDL의 위치를 설명하고, 이 변경에 `infrastructure/`의 diff가 없다. 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, `git diff main -- infrastructure/`, 문서 리뷰
+- [x] C5. 기존 백엔드와 화면의 테스트가 통과한다. (바뀌지 않는 것) — 확인: 전체 검증
 
 ## 확인 필요
 
