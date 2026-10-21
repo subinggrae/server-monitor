@@ -65,6 +65,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 | `frontend/src/components/ui` | 버튼, 다이얼로그, 입력, 표 같은 기본 UI |
 | `frontend/src/lib` | API 호출과 query 정의(`api.ts`), 표시 형식(`format.ts`) |
 | `frontend/e2e` | 전체 실행 환경에 실행하는 E2E, 화면 검사, 성능 검사(Playwright) |
+| `docs/reference-schema/` | 다른 앱이 참고하는 리소스 임계값 DDL(이 앱의 migration이 아님, `ReferenceSchemaIntegrationTest`가 적용 확인) |
 | `infrastructure/` | 모니터링 코어(`compose.yml`, 설정을 펼치는 `render-config.sh`), Prometheus 설정 템플릿과 규칙(규칙 테스트는 `prometheus/tests/`), Alertmanager, Blackbox 설정, node_exporter 배포 묶음(`node-exporter/`), 비밀값 예시 파일 |
 
 `notification` 안에서 `routing`은 알림을 받을 그룹을 찾고, `telegram`은 그룹 관리와 Bot API 호출을 맡는다.
@@ -79,6 +80,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 - PromQL은 `prometheus` 패키지 안에서만 만든다.
 - 서버가 살아 있는지는 감시 항목(Blackbox)이 판단하고 알린다. 서버 화면은 OS exporter 수집 상태(`up{job="manager-os"}`)만 보인다. 수집 실패를 서버 장애로 보이지 않는다.
 - 서버 자원 값은 `infrastructure/prometheus/rules/server-resources.yml`의 공통 recording rule(`manager:resource_usage_percent`, `manager:resource_used_bytes`, `manager:resource_size_bytes`, label `server_id`, `resource_type`, `resource_key`)만 읽는다. OS별 계산은 그 파일에만 둔다. 결정과 이유는 [ADR 0005](decisions/0005-common-resource-recording-rules.md)에 있다.
+- 서버 리소스 임계값은 앱이 `manager:resource_usage_percent`를 읽어 판단하고 직접 알린다. 임계값은 사용자 설정이므로 `infrastructure/`의 Alert 규칙에 리소스 임계값 규칙을 두지 않는다. 이 저장소의 앱은 판단하지 않는다. 판단 규칙과 참고용 DDL은 [INTEGRATION.md의 리소스 임계값 판단](INTEGRATION.md#리소스-임계값-판단)에, 결정과 이유는 [ADR 0008](decisions/0008-resource-threshold-in-app.md)에 있다.
 - `manager-os` job은 keep 규칙으로 위 recording rule이 읽는 series만 저장한다. 다른 지표가 필요해지면 keep 목록과 규칙을 함께 고친다. 결정과 이유는 [ADR 0004](decisions/0004-os-exporter-collection.md)에 있다.
 - Check 대상 하나가 HTTP SD entry 하나다. 대상의 id와 SD label은 Prometheus time series의 이름표이므로, 바꾸면 쌓아 온 time series가 끊긴다.
 - Check와 OS exporter 수집 서버의 수집 주기(10~240초)는 Manager Database에 두고, SD entry의 `__scrape_interval__` label로 Prometheus에 전한다. `__`로 시작하는 label은 relabel 뒤에 지워져 time series 이름표가 되지 않는다. 그래서 `manager-blackbox`, `manager-os` job은 `prometheus.yml`의 `scrape_interval`을 쓰지 않는다. `prometheus.yml`의 `scrape_timeout`은 수집 주기 하한(10초)보다 길게 두지 않는다. timeout이 주기보다 긴 대상을 Prometheus가 수집하지 않기 때문이다. 결정과 이유는 [ADR 0002](decisions/0002-scrape-interval-via-http-sd.md)에 있다.
