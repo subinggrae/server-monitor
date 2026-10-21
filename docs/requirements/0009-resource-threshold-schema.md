@@ -38,6 +38,7 @@
 - Resource 종류별 기본 임계값. 사용자가 임계값을 정한 Resource만 판단한다(요구사항 0004에서 사람 확인: 2026-10-15).
 - 사용률이 아닌 값(남은 용량, Load average 등)에 임계값을 두는 것과 복구 기준을 임계값과 다르게 두는 것
 - Check 알림의 지속 시간([#5](https://github.com/subinggrae/server-monitor/issues/5)), 재발송 주기, 알림 흐름을 바꾸는 것
+- 이 저장소 Manager의 화면이 조회 시각을 수집 시각으로 보이는 문제를 고치는 것([#29](https://github.com/subinggrae/server-monitor/issues/29)).
 - OS exporter 수집 실패 자체를 알리는 것. 서버가 살아 있는지는 Check가 판단한다([ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계)).
 
 ## 사용자 경험
