@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 다른 앱이 참고하는 리소스 임계값 DDL(docs/reference-schema/)이 기준 migration 위에 적용되는지 확인합니다.
@@ -116,6 +118,46 @@ class ReferenceSchemaIntegrationTest {
 		assertThat(count(jdbc, "resource_alert_events", "server_id", serverId)).isOne();
 	}
 
+	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
+	@MethodSource("databases")
+	@DisplayName("한 단계를 비운 임계값과 아직 발생하지 않은 대기 상태를 저장한다")
+	void storesBlankStageAndPendingState(JdbcDatabaseContainer<?> database) {
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource(database));
+		long resourceId = insertResource(jdbc, insertServer(jdbc, "pending-state"));
+
+		jdbc.update("""
+				INSERT INTO resource_thresholds
+				    (monitored_resource_id, warning_percent, critical_percent, duration_minutes, created_at, updated_at)
+				VALUES (?, NULL, 90, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				""", resourceId);
+		jdbc.update("""
+				INSERT INTO resource_alert_states
+				    (monitored_resource_id, severity, exceeded_since, resource_alert_event_id, last_notified_at, updated_at)
+				VALUES (?, 'CRITICAL', CURRENT_TIMESTAMP, NULL, NULL, CURRENT_TIMESTAMP)
+				""", resourceId);
+
+		assertThat(count(jdbc, "resource_thresholds", "monitored_resource_id", resourceId)).isOne();
+		assertThat(count(jdbc, "resource_alert_states", "monitored_resource_id", resourceId)).isOne();
+	}
+
+	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
+	@MethodSource("databases")
+	@DisplayName("한 Resource에 임계값 행이나 같은 단계의 판단 상태를 두 번 넣지 못한다")
+	void rejectsDuplicateThresholdAndStage(JdbcDatabaseContainer<?> database) {
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource(database));
+		long resourceId = insertResourceWithAlert(jdbc, insertServer(jdbc, "duplicate"));
+
+		assertThatThrownBy(() -> jdbc.update("""
+				INSERT INTO resource_thresholds
+				    (monitored_resource_id, warning_percent, critical_percent, duration_minutes, created_at, updated_at)
+				VALUES (?, 70, 95, 10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				""", resourceId)).isInstanceOf(DataIntegrityViolationException.class);
+		assertThatThrownBy(() -> jdbc.update("""
+				INSERT INTO resource_alert_states (monitored_resource_id, severity, exceeded_since, updated_at)
+				VALUES (?, 'CRITICAL', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				""", resourceId)).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
 	private static long insertServer(JdbcTemplate jdbc, String name) {
 		jdbc.update("""
 				INSERT INTO server_targets (name, host, environment, created_at, updated_at)
@@ -128,14 +170,17 @@ class ReferenceSchemaIntegrationTest {
 		return jdbc.queryForObject("SELECT id FROM server_targets WHERE name = ?", Long.class, name);
 	}
 
-	/** 임계값, 발생 중인 판단 상태, 그 발생 기록을 함께 만듭니다. */
-	private static long insertResourceWithAlert(JdbcTemplate jdbc, long serverId) {
+	private static long insertResource(JdbcTemplate jdbc, long serverId) {
 		jdbc.update("""
 				INSERT INTO monitored_resources (server_id, resource_type, resource_key, display_name, created_at, updated_at)
 				VALUES (?, 'STORAGE', '/', '/', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 				""", serverId);
-		long resourceId = jdbc.queryForObject("SELECT id FROM monitored_resources WHERE server_id = ?", Long.class,
-				serverId);
+		return jdbc.queryForObject("SELECT id FROM monitored_resources WHERE server_id = ?", Long.class, serverId);
+	}
+
+	/** 임계값, 발생 중인 판단 상태, 그 발생 기록을 함께 만듭니다. */
+	private static long insertResourceWithAlert(JdbcTemplate jdbc, long serverId) {
+		long resourceId = insertResource(jdbc, serverId);
 		jdbc.update("""
 				INSERT INTO resource_thresholds
 				    (monitored_resource_id, warning_percent, critical_percent, duration_minutes, created_at, updated_at)
