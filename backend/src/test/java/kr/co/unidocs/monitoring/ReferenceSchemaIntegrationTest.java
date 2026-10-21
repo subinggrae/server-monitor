@@ -19,7 +19,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,14 +42,11 @@ class ReferenceSchemaIntegrationTest {
 
 	private static final PostgreSQLContainer POSTGRESQL = new PostgreSQLContainer("postgres:17");
 
-	private static final Map<JdbcDatabaseContainer<?>, String> VENDORS = Map.of(MARIADB, "mariadb", POSTGRESQL,
-			"postgresql");
-
 	@BeforeAll
 	static void applySchemas() {
-		VENDORS.keySet().parallelStream().forEach(database -> {
-			database.start();
-			String vendor = VENDORS.get(database);
+		Stream.of(MARIADB, POSTGRESQL).parallel().forEach(JdbcDatabaseContainer::start);
+		Stream.of(MARIADB, POSTGRESQL).forEach(database -> {
+			String vendor = (database == MARIADB) ? "mariadb" : "postgresql";
 			Flyway.configure()
 				.dataSource(database.getJdbcUrl(), database.getUsername(), database.getPassword())
 				.locations("classpath:db/migration/" + vendor)
@@ -64,14 +60,14 @@ class ReferenceSchemaIntegrationTest {
 
 	@AfterAll
 	static void stopDatabases() {
-		VENDORS.keySet().forEach(JdbcDatabaseContainer::stop);
+		Stream.of(MARIADB, POSTGRESQL).forEach(JdbcDatabaseContainer::stop);
 	}
 
 	static Stream<Named<JdbcDatabaseContainer<?>>> databases() {
 		return Stream.of(Named.of("MariaDB", MARIADB), Named.of("PostgreSQL", POSTGRESQL));
 	}
 
-	@ParameterizedTest(name = "{0}")
+	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
 	@MethodSource("databases")
 	@DisplayName("기준 migration 위에 적용하면 네 테이블이 생긴다")
 	void createsTables(JdbcDatabaseContainer<?> database) {
@@ -88,7 +84,7 @@ class ReferenceSchemaIntegrationTest {
 		assertThat(columns(MARIADB)).isNotEmpty().isEqualTo(columns(POSTGRESQL));
 	}
 
-	@ParameterizedTest(name = "{0}")
+	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
 	@MethodSource("databases")
 	@DisplayName("Resource를 지우면 임계값과 판단 상태가 지워지고 발생 기록은 남는다")
 	void deletingResourceKeepsEvents(JdbcDatabaseContainer<?> database) {
@@ -104,7 +100,7 @@ class ReferenceSchemaIntegrationTest {
 		assertThat(count(jdbc, "server_resource_alert_settings", "server_id", serverId)).isOne();
 	}
 
-	@ParameterizedTest(name = "{0}")
+	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
 	@MethodSource("databases")
 	@DisplayName("서버를 지우면 재발송 주기와 Resource의 설정이 지워지고 발생 기록은 남는다")
 	void deletingServerKeepsEvents(JdbcDatabaseContainer<?> database) {

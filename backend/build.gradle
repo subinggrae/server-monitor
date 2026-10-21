@@ -69,6 +69,8 @@ tasks.register('integrationTest', Test) {
 	useJUnitPlatform {
 		includeTags 'integration'
 	}
+	// ReferenceSchemaIntegrationTest가 저장소의 참고용 DDL을 직접 읽습니다. SQL만 바뀌어도 다시 실행하게 입력으로 등록합니다.
+	inputs.dir('../docs/reference-schema').withPathSensitivity(PathSensitivity.RELATIVE)
 	shouldRunAfter tasks.named('test')
 }
 

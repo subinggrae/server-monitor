@@ -93,15 +93,16 @@
 ## 작업 순서
 
 - [x] ADR 0008과 이 계획을 승인받는다(사람 확인: 2026-10-20).
-- [ ] `ReferenceSchemaIntegrationTest`를 쓰고, 참고용 SQL이 없어 실패하는 것을 본다(C1, C2).
-- [ ] 참고용 SQL 두 파일을 써서 테스트를 통과시킨다.
+- [x] `ReferenceSchemaIntegrationTest`를 쓰고, 참고용 SQL이 없어 실패하는 것을 본다(C1, C2).
+- [x] 참고용 SQL 두 파일을 써서 테스트를 통과시킨다.
 - [ ] INTEGRATION.md에 판단 규칙 절을, ARCHITECTURE.md에 경계를 더한다(C4).
 - [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다(C3~C5).
 - [ ] 요구사항을 구현됨으로, ADR 관련 줄에 PR 링크를 쓰고 이 계획을 지운다.
 
 ## 진행 중 발견
 
-없음
+- 컨테이너를 매개변수로 받는 `@ParameterizedTest`가 여럿이면 첫 테스트 뒤에 컨테이너가 멈춘다. JUnit이 `AutoCloseable` 인자를 테스트마다 닫기 때문이다(`autoCloseArguments` 기본값 `true`). 그래서 `autoCloseArguments = false`를 둔다. 근거: 첫 실행에서 두 번째 테스트부터 `Mapped port can only be obtained after the container is started`로 실패했다.
+- 테스트가 읽는 `docs/reference-schema/`가 Gradle 입력이 아니어서 SQL만 바꾸면 `integrationTest`가 `UP-TO-DATE`로 건너뛰었다. 그래서 `backend/build.gradle`의 `integrationTest`에 이 디렉터리를 입력으로 등록했다. 등록한 뒤 SQL의 NULL 허용 하나와 CASCADE 하나를 망가뜨리면 테스트 3개가 실패하는 것을 확인했다.
 
 ## 남길 결정
 
