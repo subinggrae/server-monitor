@@ -10,6 +10,7 @@
 |---|---|
 | 프로젝트 목적과 시작 방법 | [README.md](README.md) |
 | 시스템 구조, 코드 위치, 지켜야 할 경계 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| 서버 설치, 포트·방화벽·비밀값 설정(설치 방법이나 포트를 바꿀 때 읽음) | [docs/OPERATIONS.md](docs/OPERATIONS.md) |
 | 개발 환경, 명령, 코드 작성 기준, 코드 안의 글, 커밋·리뷰와 반영 절차 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
 | 테스트 종류와 작성 기준, 보안 검사와 점검 항목 | [docs/TESTING.md](docs/TESTING.md) |
 | 문서 작성 규칙과 모든 글의 한국어 규칙 | [docs/WRITING.md](docs/WRITING.md) |
