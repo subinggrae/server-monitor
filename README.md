@@ -2,7 +2,7 @@
 
 Prometheus 기반 감시 설정을 화면에서 관리하는 도구다. 사내 운영 담당자가 서버와 서비스의 가용성 Check, 서버 자원 수집(OS exporter), Telegram 알림을 등록하고, 지금 문제인 Check를 확인한다.
 
-서버의 CPU, Memory, Storage는 대상 서버에 설치한 OS exporter에서 수집한다. 설치 방법은 [OS exporter 설치](#os-exporter-설치)에 있다.
+서버의 CPU, Memory, Storage는 대상 서버에 설치한 OS exporter에서 수집한다. 설치 방법은 [운영 가이드의 OS exporter 설치](docs/OPERATIONS.md#os-exporter-설치)에 있다.
 
 시스템은 모니터링 코어(Prometheus, Blackbox Exporter, Alertmanager)와 앱(이 저장소의 Manager API, 화면, DB)으로 나뉜다. 다른 앱도 [통합 계약](docs/INTEGRATION.md)대로 코어에 붙을 수 있다.
 
@@ -17,49 +17,9 @@ docker compose --profile local-db up -d --build
 
 준비 과정과 전체 명령은 [개발 가이드](docs/DEVELOPMENT.md)에 있다.
 
-## OS exporter 설치
+## 운영
 
-감시 대상 서버마다 OS exporter를 설치한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(기본 포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(기본 포트 9182, 공식 문서의 metric 이름 기준)다. 설치한 뒤 화면의 서버 상세에서 수집을 켜고 연결 시험을 누른다.
-
-exporter는 인증 없이 열린다. 그래서 대상 서버의 방화벽에서 그 포트를 코어(Prometheus)와 앱이 있는 호스트에만 연다. 예를 들어 `ufw`를 쓰는 Linux 서버에서 코어 호스트가 `10.0.0.5`면 다음과 같다. 이 규칙은 `ufw`가 켜져 있고 들어오는 연결의 기본 정책이 `deny`일 때만 다른 호스트를 막는다(`sudo ufw status verbose`로 확인).
-
-```sh
-sudo ufw allow from 10.0.0.5 to any port 9100 proto tcp
-```
-
-**Docker가 있는 Linux 서버**: 저장소의 [`infrastructure/node-exporter/compose.yml`](infrastructure/node-exporter/compose.yml)을 서버에 복사하고 그 폴더에서 띄운다. 서버의 네트워크와 프로세스를 그대로 보고, 루트 파일 시스템은 읽기 전용으로 붙인다.
-
-```sh
-docker compose -f compose.yml up -d
-```
-
-**Docker가 없는 Linux 서버**: 공식 릴리스에서 바이너리를 받아 설치한다. 다음은 x86-64 서버의 예다.
-
-```sh
-VERSION=1.12.1
-curl -LO https://github.com/prometheus/node_exporter/releases/download/v$VERSION/node_exporter-$VERSION.linux-amd64.tar.gz
-tar xzf node_exporter-$VERSION.linux-amd64.tar.gz
-sudo install -m 0755 node_exporter-$VERSION.linux-amd64/node_exporter /usr/local/bin/node_exporter
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin node_exporter
-```
-
-그다음 `/etc/systemd/system/node_exporter.service`를 만들고 `sudo systemctl enable --now node_exporter`로 켠다.
-
-```ini
-[Unit]
-Description=node_exporter
-After=network-online.target
-
-[Service]
-User=node_exporter
-ExecStart=/usr/local/bin/node_exporter
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**Windows 서버**: [windows_exporter 릴리스](https://github.com/prometheus-community/windows_exporter/releases)의 MSI로 설치한다. 설치 방법과 옵션은 그 저장소의 README를 따른다.
+코어, 앱, OS exporter를 서버에 설치하는 방법과 포트·방화벽·비밀값 같은 보안 설정은 [운영 가이드](docs/OPERATIONS.md)에 있다.
 
 ## 문서
 
@@ -68,6 +28,7 @@ WantedBy=multi-user.target
 | 알고 싶은 것 | 문서 |
 |---|---|
 | 시스템 구조와 코드 위치 | [아키텍처](docs/ARCHITECTURE.md) |
+| 서버 설치, 포트·방화벽·비밀값 설정 | [운영 가이드](docs/OPERATIONS.md) |
 | 개발 환경, 명령, 코드 작성 기준, 코드 안의 글, 커밋·리뷰와 반영 절차 | [개발 가이드](docs/DEVELOPMENT.md) |
 | 테스트 종류와 작성 기준 | [테스트](docs/TESTING.md) |
 | 제품의 대상, 사용 환경, 말투 | [제품](docs/PRODUCT.md) |
