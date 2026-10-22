@@ -44,7 +44,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 
 개발 서버의 화면은 http://localhost:5173 이고 `/api` 요청을 `http://localhost:8080`의 Backend로 넘긴다. 전체 실행의 화면은 http://localhost:8081 이다.
 
-앱은 코어가 만든 `monitoring` 네트워크에 붙으므로, 코어를 띄우지 않고 앱을 띄우면 `network monitoring ... not found`로 실패한다. 코어와 앱을 한 `compose.yml`로 띄우던 개발 환경이면, 먼저 그 구성의 컨테이너(`prometheus`, `alertmanager`, `blackbox-exporter` 등)와 `monitoring` 네트워크를 지운다. 남아 있으면 같은 컨테이너 이름 때문에 코어가 뜨지 않는다. 기준 migration을 적용하기 전에 만든 개발 DB(`manager-db-data` 볼륨)로는 앱이 뜨지 않는다. 그때는 데이터를 이어 받지 않으므로 볼륨을 지우고 다시 띄운다([ADR 0006](decisions/0006-baseline-migration.md)).
+앱은 코어가 만든 `monitoring` 네트워크에 붙으므로, 코어를 띄우지 않고 앱을 띄우면 `network monitoring ... not found`로 실패한다. 코어와 앱을 한 `compose.yml`로 띄우던 개발 환경이면, 먼저 그 구성의 컨테이너(`prometheus`, `alertmanager`, `blackbox-exporter` 등)와 `monitoring` 네트워크를 지운다. 남아 있으면 같은 컨테이너 이름 때문에 코어가 뜨지 않는다. 그 구성에서 만든 `prometheus-data`, `alertmanager-data` volume은 옛 프로젝트 이름으로 만들어져 Compose가 `already exists but was created for project` 경고를 내지만, 이름이 같아 기록은 이어진다. 기준 migration을 적용하기 전에 만든 개발 DB(`manager-db-data` 볼륨)로는 앱이 뜨지 않는다. 그때는 데이터를 이어 받지 않으므로 볼륨을 지우고 다시 띄운다([ADR 0006](decisions/0006-baseline-migration.md)).
 
 ### 코어 검사와 묶음
 
@@ -133,6 +133,7 @@ AI 에이전트에게 비밀값 파일을 읽지 말라고 지시하는 것만�
 - 이번 변경으로 틀리거나 부족해진 주석은 바꾼 줄 밖에 있어도 같은 변경에서 고친다. 예: 함수를 더해 파일 첫 줄의 설명이 파일 전체를 설명하지 못하게 됐을 때. 주석과 어긋난 코드는 다음 사람을 잘못 이끈다.
 - 할 일은 `TODO: 이슈 - 설명` 형식으로 쓰고, 사람 이름 대신 이슈를 가리킨다. 이슈 트래커가 없으면 요구사항 번호(예: `요구사항 0003`)를 쓴다. 예: `TODO: #123 - 결제 대행사 v2 API로 바꾼다`
 - 주석 처리한 코드를 남기지 않는다. 지운 코드는 VCS 이력에 있다.
+- 문체는 [WRITING.md의 문서 밖의 글](WRITING.md#문서-밖의-글)대로 평서형으로 쓴다. 다만 기존 주석이 합니다체인 파일(`infrastructure/`의 설정 파일, Dockerfile, `render-config.sh` 등)에 주석을 더할 때는 그 파일의 문체를 따른다. 한 파일 안에서 문체가 섞이면 읽기 어렵기 때문이다(사람 확인: 2026-10-22).
 
 ### 문서 주석
 

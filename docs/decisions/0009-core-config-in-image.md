@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-10-22
-- 관련: [요구사항 0010](../requirements/0010-core-image-bundle.md), [ADR 0007](0007-core-app-contract.md)
+- 관련: [요구사항 0010](../requirements/0010-core-image-bundle.md), [PR #31](https://github.com/subinggrae/server-monitor/pull/31)(구현 계획 포함), [ADR 0007](0007-core-app-contract.md)
 
 ## 배경과 문제
 
