@@ -113,7 +113,8 @@ function imageName(name, core) {
 function checkCoreImages(core) {
   const prometheus = imageName('prometheus', core);
   const alertmanager = imageName('alertmanager', core);
-  const env = ['-e', `MONITORING_APP_ADDRESS=${CHECK_APP_ADDRESS}`];
+  // 설정 검사에는 token이 필요 없으므로 시작할 때의 비밀값 파일 확인(CORE_REQUIRED_FILES)을 끈다.
+  const env = ['-e', `MONITORING_APP_ADDRESS=${CHECK_APP_ADDRESS}`, '-e', 'CORE_REQUIRED_FILES='];
   console.log('빌드한 이미지로 Prometheus 설정을 검사한다.');
   run('docker', ['run', '--rm', ...env, '--entrypoint', '/bin/sh', prometheus,
     '/etc/core/render-config.sh', '/etc/prometheus/prometheus.yml.template', '/tmp/prometheus.yml',
