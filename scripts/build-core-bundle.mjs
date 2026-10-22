@@ -2,7 +2,8 @@
 // 인터넷이 없는 내부망 서버로 옮길 코어 묶음과 node_exporter 묶음을 만든다. 의존성 없이 Node 18 이상에서 동작한다.
 // 결정과 이유는 docs/decisions/0009-core-config-in-image.md, 옮겨 설치하는 방법은 docs/OPERATIONS.md에 있다.
 //
-//   node scripts/build-core-bundle.mjs
+//   node scripts/build-core-bundle.mjs           이미지를 빌드해 검사하고 묶음을 만든다
+//   node scripts/build-core-bundle.mjs --check   이미지를 빌드해 설정 검사와 규칙 테스트만 한다(묶음을 만들지 않음)
 //
 // 저장소 최상위에서 실행하고, Docker와 인터넷이 필요하다. 결과는 dist/monitoring-core-<버전>/, dist/node-exporter-<버전>/에 생긴다.
 // 종료 코드: 빌드, 검사, 비밀값 확인 가운데 하나라도 실패하면 1.
@@ -273,6 +274,13 @@ async function buildNodeExporterBundle(core) {
 }
 
 const core = version();
+if (process.argv.includes('--check')) {
+  console.log(`코어 이미지를 빌드한다(버전 ${core.describe}, ${PLATFORM}).`);
+  run('docker', ['compose', '-f', CORE_COMPOSE, 'build'], { env: composeEnv(core) });
+  checkCoreImages(core);
+  console.log('\n설정 검사와 규칙 테스트를 통과했다.');
+  process.exit(0);
+}
 const coreOut = buildCoreBundle(core);
 const nodeOut = await buildNodeExporterBundle(core);
 console.log('\n묶음을 만들었다. 두 폴더를 내부망 서버로 옮긴다.');
