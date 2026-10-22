@@ -38,6 +38,14 @@ const NODE_EXPORTER = {
   archiveSha256: 'b51d8a76aa2a9156a55d501aca6276fae09e262259a5e4e831d2c2222f084e63',
 };
 
+// 이미지 바탕에 든 BusyBox(GPL-2.0)의 소스다. 묶음을 회사 밖에 줄 때도 GPL-2.0 제3조를 지키도록 같은 버전의 소스를 함께 싣는다.
+// 바탕 이미지를 올려 BusyBox 버전이 바뀌면 빌드가 멈추므로, 그때 https://busybox.net/downloads/ 의 .sha256 값을 여기에 더한다.
+const BUSYBOX_SOURCES = {
+  '1.38.0': '34f9ea6ff8636f2c9241153b9114eefa9e65674a45318ae1ef95bb5f31c53bb2',
+  '1.37.0': '3311dff32e746499f4df0d5df04d7eb396382d7e108bb9250e7b519b837043a4',
+};
+const CACHE = path.join(DIST, '.cache');
+
 function fail(message) {
   console.error(`실패: ${message}`);
   process.exit(1);
@@ -234,7 +242,7 @@ function assertNoSecrets(dir, secrets) {
     if (relative === '.env' || (relative.startsWith('secrets/') && !relative.endsWith('.example'))) {
       fail(`묶음에 비밀값 파일이 있다: ${relative}`);
     }
-    if (!relative.endsWith('.tar') && !relative.endsWith('.tar.gz')) {
+    if (!/\.tar(\.gz|\.bz2)?$/.test(relative)) {
       assertNoSecretValue(fs.readFileSync(file), relative, secrets);
     }
   }
@@ -261,7 +269,7 @@ function assertImagesHaveNoSecrets(images, secrets) {
   }
 }
 
-function buildCoreBundle(core) {
+async function buildCoreBundle(core) {
   const out = path.join(DIST, `monitoring-core-${core.describe}`);
   freshDir(out);
 
@@ -280,9 +288,7 @@ function buildCoreBundle(core) {
   writeText(path.join(out, '.env.example'), forBundle(fs.readFileSync(path.join(CORE_DIR, '.env.example'), 'utf8')));
   copy(path.join(CORE_DIR, 'secrets', 'alertmanager_webhook_token.example'),
     path.join(out, 'secrets', 'alertmanager_webhook_token.example'));
-  for (const name of fs.readdirSync(path.join(CORE_DIR, 'licenses'))) {
-    copy(path.join(CORE_DIR, 'licenses', name), path.join(out, 'licenses', name));
-  }
+  await addLicensesAndSources(out, images);
 
   assertNoSecrets(out, secrets);
   writeChecksums(out);
@@ -290,11 +296,59 @@ function buildCoreBundle(core) {
 }
 
 async function download(url, file) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    fail(`${url}을 받지 못했다: HTTP ${response.status}`);
+  // busybox.net은 응답이 늦을 때가 있어 세 번까지 다시 시도한다.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(300_000) });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      fs.writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+      return;
+    }
+    catch (error) {
+      if (attempt >= 3) {
+        fail(`${url}을 받지 못했다: ${error.message}`);
+      }
+      console.warn(`경고: ${url}을 받지 못해 다시 시도한다(${attempt}/3): ${error.message}`);
+    }
   }
-  fs.writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+}
+
+function busyboxVersion(image) {
+  const result = spawnSync('docker', ['run', '--rm', '--entrypoint', '/bin/busybox', image],
+    { cwd: ROOT, encoding: 'utf8' });
+  const match = /BusyBox v(\d+\.\d+\.\d+)/.exec(`${result.stdout}${result.stderr}`);
+  if (!match) {
+    fail(`${image}에서 BusyBox 버전을 읽지 못했다.`);
+  }
+  return match[1];
+}
+
+// 라이선스 전문과 안내 파일을 싣고, 이미지에 든 BusyBox 버전의 소스를 받아 공식 체크섬과 대조해 싣는다.
+async function addLicensesAndSources(out, images) {
+  for (const name of fs.readdirSync(path.join(CORE_DIR, 'licenses'))) {
+    copy(path.join(CORE_DIR, 'licenses', name), path.join(out, 'licenses', name));
+  }
+  const versions = [...new Set(images.map(busyboxVersion))].sort();
+  for (const version of versions) {
+    const expected = BUSYBOX_SOURCES[version];
+    if (!expected) {
+      fail(`이미지에 든 BusyBox ${version}의 소스 체크섬이 없다. BUSYBOX_SOURCES에 더한다.`);
+    }
+    const name = `busybox-${version}.tar.bz2`;
+    const cached = path.join(CACHE, name);
+    if (!fs.existsSync(cached) || sha256(cached) !== expected) {
+      console.log(`BusyBox ${version} 소스를 받는다.`);
+      fs.mkdirSync(CACHE, { recursive: true });
+      await download(`https://busybox.net/downloads/${name}`, cached);
+      if (sha256(cached) !== expected) {
+        fs.rmSync(cached);
+        fail(`${name}의 체크섬이 공식 값과 다르다. 받은 파일을 지웠다.`);
+      }
+    }
+    copy(cached, path.join(out, 'sources', name));
+  }
 }
 
 async function buildNodeExporterBundle(core) {
@@ -322,6 +376,7 @@ async function buildNodeExporterBundle(core) {
   for (const name of ['compose.yml', 'node_exporter.service']) {
     writeText(path.join(out, name), fs.readFileSync(path.join(CORE_DIR, 'node-exporter', name), 'utf8'));
   }
+  await addLicensesAndSources(out, [NODE_EXPORTER.image]);
 
   assertNoSecrets(out, localSecretValues());
   writeChecksums(out);
@@ -337,7 +392,7 @@ if (CHECK_ONLY) {
   console.log('\n설정 검사와 규칙 테스트를 통과했다.');
   process.exit(0);
 }
-const coreOut = buildCoreBundle(core);
+const coreOut = await buildCoreBundle(core);
 const nodeOut = await buildNodeExporterBundle(core);
 console.log('\n묶음을 만들었다. 두 폴더를 내부망 서버로 옮긴다.');
 console.log(`  ${path.relative(ROOT, coreOut)}`);
