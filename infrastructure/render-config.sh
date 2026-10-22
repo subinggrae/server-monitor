@@ -11,6 +11,15 @@ template=$1
 rendered=$2
 shift 2
 
+# 비밀값 파일이 필요한 구성 요소는 이미지의 CORE_REQUIRED_FILES에 경로를 둡니다.
+# Compose는 secret 파일이 없어도 컨테이너를 띄우므로, 여기서 없거나 비어 있으면 시작하지 않습니다.
+for file in ${CORE_REQUIRED_FILES:-}; do
+  if [ ! -s "$file" ]; then
+    echo "필요한 파일 $file 이(가) 없거나 비어 있습니다. 코어 폴더의 secrets/에 파일을 만든 뒤 다시 띄워 주세요. (docs/OPERATIONS.md)" >&2
+    exit 1
+  fi
+done
+
 sed "s|@MONITORING_APP_ADDRESS@|$MONITORING_APP_ADDRESS|g" "$template" > "$rendered"
 echo "앱 주소 $MONITORING_APP_ADDRESS 로 $rendered 를 만들었습니다."
 
