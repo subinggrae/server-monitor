@@ -28,7 +28,7 @@ Prometheus, Blackbox Exporter, Alertmanager는 모니터링 코어로 묶어 앱
 
 - 개발용 Manager Database는 `local-db` profile의 `manager-db`(MariaDB)다. 운영에서는 외부 MariaDB나 PostgreSQL을 쓴다.
 - 코어가 부르는 앱 주소는 `infrastructure/.env`의 `MONITORING_APP_ADDRESS` 하나다. Prometheus와 Alertmanager가 시작할 때 `infrastructure/render-config.sh`가 설정 템플릿에 펼친다.
-- OS exporter는 이 시스템이 띄우지 않는다. 감시 대상 서버에 사람이 설치하고, Prometheus가 HTTP SD로 받은 주소를 직접 수집한다. Linux 서버용 배포 묶음은 `infrastructure/node-exporter/compose.yml`이고, 설치 안내는 [README](../README.md#os-exporter-설치)에 있다.
+- OS exporter는 이 시스템이 띄우지 않는다. 감시 대상 서버에 사람이 설치하고, Prometheus가 HTTP SD로 받은 주소를 직접 수집한다. Linux 서버용 배포 묶음은 `infrastructure/node-exporter/compose.yml`이고, 설치 안내는 [운영 가이드의 OS exporter 설치](OPERATIONS.md#os-exporter-설치)에 있다.
 
 외부 시스템은 다음과 같다.
 

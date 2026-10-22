@@ -3,7 +3,7 @@
 #   docker compose -f compose.yml up -d
 #
 # node_exporter는 인증 없이 9100 포트를 엽니다. 서버 방화벽에서 Prometheus와 앱이 있는 호스트만 접근하게 합니다.
-# Docker가 없는 서버의 바이너리 설치와 방화벽 예시는 README.md의 OS exporter 설치에 있습니다.
+# Docker가 없는 서버의 바이너리 설치와 방화벽 예시는 docs/OPERATIONS.md에 있습니다.
 
 name: node-exporter
 
