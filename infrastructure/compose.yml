@@ -1,7 +1,10 @@
 # 모니터링 코어(Prometheus, Blackbox Exporter, Alertmanager)입니다. 앱보다 먼저 띄웁니다.
 #
 #   cp infrastructure/.env.example infrastructure/.env
-#   docker compose -f infrastructure/compose.yml up -d
+#   docker compose -f infrastructure/compose.yml up -d --build
+#
+# 설정과 규칙은 이미지에 들어 있습니다. 바꾸면 --build로 다시 띄웁니다. (docs/decisions/0009)
+# 내부망 서버용 실행 파일은 scripts/build-core-bundle.mjs가 이 파일에서 build 항목만 바꿔 만듭니다.
 #
 # 앱 없이 띄우면 감시 대상 없이 떠 있다가, 앱이 뜨면 다음 HTTP SD 갱신 때 대상을 받습니다.
 # 앱은 이 파일이 만드는 monitoring 네트워크에 붙습니다. 코어와 앱의 약속은 docs/INTEGRATION.md에 있습니다.
@@ -9,25 +12,27 @@
 name: monitoring-core
 
 x-render-config: &render-config
-  # 앱 주소를 설정 템플릿에 펼친 뒤 원래 프로세스를 실행합니다.
+  # 이미지의 render-config.sh가 이 주소를 설정 템플릿에 펼친 뒤 원래 프로세스를 실행합니다.
   environment:
     MONITORING_APP_ADDRESS: ${MONITORING_APP_ADDRESS:?MONITORING_APP_ADDRESS가 필요합니다. infrastructure/.env.example을 참고해 주세요.}
+
+x-core-build-args: &core-build-args
+  CORE_VERSION: ${CORE_VERSION:-dev}
+  CORE_REVISION: ${CORE_REVISION:-unknown}
 
 services:
 
   blackbox-exporter:
-    image: quay.io/prometheus/blackbox-exporter:v0.28.0
+    build:
+      context: .
+      dockerfile: blackbox/Dockerfile
+      args: *core-build-args
+    image: monitoring-core-blackbox-exporter:${CORE_VERSION:-dev}
     container_name: blackbox-exporter
     restart: unless-stopped
 
     ports:
       - "127.0.0.1:9115:9115"
-
-    volumes:
-      - ./blackbox/blackbox.yml:/config/blackbox.yml:ro
-
-    command:
-      - --config.file=/config/blackbox.yml
 
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9115/-/healthy"]
@@ -40,7 +45,11 @@ services:
 
   prometheus:
     <<: *render-config
-    image: quay.io/prometheus/prometheus:v3.14.0
+    build:
+      context: .
+      dockerfile: prometheus/Dockerfile
+      args: *core-build-args
+    image: monitoring-core-prometheus:${CORE_VERSION:-dev}
     container_name: prometheus
     restart: unless-stopped
 
@@ -48,22 +57,7 @@ services:
       - "127.0.0.1:9090:9090"
 
     volumes:
-      - ./render-config.sh:/etc/core/render-config.sh:ro
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.template:ro
-      - ./prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
-
-    entrypoint:
-      - /bin/sh
-      - /etc/core/render-config.sh
-      - /etc/prometheus/prometheus.yml.template
-      - /tmp/prometheus.yml
-      - /bin/prometheus
-
-    command:
-      - --config.file=/tmp/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=15d
 
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/ready"]
@@ -76,7 +70,11 @@ services:
 
   alertmanager:
     <<: *render-config
-    image: quay.io/prometheus/alertmanager:v0.34.1
+    build:
+      context: .
+      dockerfile: alertmanager/Dockerfile
+      args: *core-build-args
+    image: monitoring-core-alertmanager:${CORE_VERSION:-dev}
     container_name: alertmanager
     restart: unless-stopped
 
@@ -84,25 +82,11 @@ services:
       - "127.0.0.1:9093:9093"
 
     volumes:
-      - ./render-config.sh:/etc/core/render-config.sh:ro
-      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml.template:ro
       - alertmanager-data:/alertmanager
 
     # Telegram 전송은 앱이 맡으므로 Alertmanager는 Bot Token을 받지 않습니다.
     secrets:
       - alertmanager_webhook_token
-
-    entrypoint:
-      - /bin/sh
-      - /etc/core/render-config.sh
-      - /etc/alertmanager/alertmanager.yml.template
-      - /tmp/alertmanager.yml
-      - /bin/alertmanager
-
-    command:
-      - --config.file=/tmp/alertmanager.yml
-      - --storage.path=/alertmanager
-      - --enable-feature=utf8-strict-mode
 
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9093/-/ready"]
@@ -114,10 +98,11 @@ services:
       - monitoring
 
 # 앱도 같은 파일을 읽으므로 두 쪽 token이 어긋나지 않습니다. 이 파일은 Git에 올리지 않습니다.
+# CORE_SECRETS_DIR로 폴더를 바꿀 수 있습니다. 내부망 서버에서는 버전 폴더와 상관없는 고정 경로를 둡니다.
 secrets:
 
   alertmanager_webhook_token:
-    file: ./secrets/alertmanager_webhook_token
+    file: ${CORE_SECRETS_DIR:-./secrets}/alertmanager_webhook_token
 
 networks:
 

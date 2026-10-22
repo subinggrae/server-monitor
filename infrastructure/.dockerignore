@@ -1,0 +1,11 @@
+# 코어 이미지의 빌드 context(infrastructure/)에서 빼는 파일입니다.
+# 비밀값과 서버마다 다른 설정이 이미지와 이미지 묶음에 들어가지 않게 합니다.
+**/secrets/
+.env
+.env.*
+!.env.example
+
+# 코어 이미지에 쓰지 않는 파일입니다.
+grafana/
+node-exporter/
+prometheus/tests/

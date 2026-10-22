@@ -27,13 +27,13 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 |---|---|---|
 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 개발 서버 | `cd frontend && npm run dev`, `cd backend && ./gradlew bootRun` | 화면이나 API를 직접 확인할 때 |
-| 코어 실행 | `docker compose -f infrastructure/compose.yml up -d` | 앱보다 먼저, 코어 설정을 바꿨을 때 |
+| 코어 실행 | `docker compose -f infrastructure/compose.yml up -d --build` | 앱보다 먼저, 코어 설정을 바꿨을 때 |
 | 전체 실행 | 코어 실행 뒤 `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
 | 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, 참고용 DDL, webhook을 바꿨을 때, 전체 검증을 실행할 때 함께(Docker가 필요해 전체 검증 명령에는 넣지 않음) |
-| 규칙 테스트 | `MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD/infrastructure/prometheus:/prom:ro" -w /prom/tests --entrypoint promtool quay.io/prometheus/prometheus:v3.14.0 test rules server-resources.test.yml`(저장소 최상위에서, 이미지는 `infrastructure/compose.yml`의 Prometheus와 같게) | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 |
-| 코어 설정 검사 | 아래 [코어 설정 검사](#코어-설정-검사) | `infrastructure/`의 Prometheus, Alertmanager 설정을 바꿨을 때 |
+| 규칙 테스트와 코어 설정 검사 | `node scripts/build-core-bundle.mjs --check`(아래 [코어 검사와 묶음](#코어-검사와-묶음)) | `infrastructure/`의 규칙이나 Prometheus, Alertmanager, Blackbox 설정을 바꿨을 때 |
+| 코어 묶음 | `node scripts/build-core-bundle.mjs` | 내부망 서버에 옮길 코어와 node_exporter를 만들 때 |
 | E2E | `cd frontend && npm run test:e2e` | 전체 실행 환경을 띄운 뒤, 핵심 흐름이 걸린 변경을 마쳤을 때 |
 | 화면 검사 | `cd frontend && npm run test:screen` | 전체 실행 환경을 띄운 뒤, 화면을 바꿨을 때 |
 | 성능 검사 | `cd frontend && npm run test:perf` | 전체 실행 환경을 띄운 뒤, 화면의 성능을 확인할 때 |
@@ -46,22 +46,15 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 
 앱은 코어가 만든 `monitoring` 네트워크에 붙으므로, 코어를 띄우지 않고 앱을 띄우면 `network monitoring ... not found`로 실패한다. 코어와 앱을 한 `compose.yml`로 띄우던 개발 환경이면, 먼저 그 구성의 컨테이너(`prometheus`, `alertmanager`, `blackbox-exporter` 등)와 `monitoring` 네트워크를 지운다. 남아 있으면 같은 컨테이너 이름 때문에 코어가 뜨지 않는다. 기준 migration을 적용하기 전에 만든 개발 DB(`manager-db-data` 볼륨)로는 앱이 뜨지 않는다. 그때는 데이터를 이어 받지 않으므로 볼륨을 지우고 다시 띄운다([ADR 0006](decisions/0006-baseline-migration.md)).
 
-### 코어 설정 검사
+### 코어 검사와 묶음
 
-Prometheus와 Alertmanager 설정은 앱 주소를 펼친 뒤에 검사한다. 저장소 최상위에서 실행하고, 이미지는 `infrastructure/compose.yml`과 같게 둔다.
+코어의 설정과 규칙은 코어 이미지 안에 들어 있다([ADR 0009](decisions/0009-core-config-in-image.md)). 그래서 검사도 빌드한 이미지로 한다. `node scripts/build-core-bundle.mjs --check`는 코어 이미지를 빌드한 뒤 다음 세 가지를 실행하고, 하나라도 실패하면 종료 코드 1로 멈춘다.
 
-```sh
-export MSYS_NO_PATHCONV=1
-docker run --rm -e MONITORING_APP_ADDRESS=manager-api:8080 -v "$PWD/infrastructure:/core:ro" \
-  -v "$PWD/infrastructure/prometheus/rules:/etc/prometheus/rules:ro" --entrypoint /bin/sh \
-  quay.io/prometheus/prometheus:v3.14.0 /core/render-config.sh /core/prometheus/prometheus.yml \
-  /tmp/prometheus.yml promtool check config /tmp/prometheus.yml
-docker run --rm -e MONITORING_APP_ADDRESS=manager-api:8080 -v "$PWD/infrastructure:/core:ro" --entrypoint /bin/sh \
-  quay.io/prometheus/alertmanager:v0.34.1 /core/render-config.sh /core/alertmanager/alertmanager.yml \
-  /tmp/alertmanager.yml amtool check-config /tmp/alertmanager.yml
-```
+- 앱 주소를 펼친 Prometheus 설정 검사(`promtool check config`)
+- 이미지에 든 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
+- 앱 주소를 펼친 Alertmanager 설정 검사(`amtool check-config`)
 
-두 명령이 모두 `SUCCESS`를 보이면 통과다.
+`--check` 없이 실행하면 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 옮기고 설치하는 방법은 [운영 가이드의 내부망 서버에 옮겨 실행](OPERATIONS.md#내부망-서버에-옮겨-실행)에 있다. 바탕 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/compose.yml`과 `scripts/build-core-bundle.mjs`의 버전·digest·체크섬을 함께 바꾼다.
 
 감시 대상 서버용 node_exporter 배포 묶음(`infrastructure/node-exporter/compose.yml`)은 Docker Desktop에서 그대로 뜨지 않는다. Docker Desktop의 VM은 `/`가 shared mount가 아니라서 `/:/host:ro,rslave`를 붙일 수 없고, host 네트워크 기능이 꺼져 있으면 다른 컨테이너가 9100에 닿지 않는다. 개발 환경에서 OS exporter 수집을 확인할 때는 `os-test-node-exporter`를 쓴다.
 

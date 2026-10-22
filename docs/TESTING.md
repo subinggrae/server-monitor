@@ -50,7 +50,7 @@
 | 정적 검사 | 타입 오류, 문법 오류, 금지 패턴 | 항상, 별도 테스트 없이 | 해당 없음 | `cd frontend && npm run lint`, `cd frontend && npm run build`(타입 검사), `cd backend && ./gradlew build`(컴파일) |
 | 단위 테스트 | Backend의 요청 검증, 응답 변환, Entity 규칙, HTTP SD 목록, exporter 응답 처리 | DB 없이 확인할 수 있는 Backend 동작 | DB 쿼리, migration, 바깥 서버로 가는 HTTP 호출 | `cd backend && ./gradlew test` |
 | 통합 테스트 | migration과 Entity가 두 DB에서 맞는지, DB를 거치는 webhook 처리 | migration, Entity, DB에 남는 결과가 걸린 변경 | DB 없이 확인할 수 있는 동작, 외부 시스템 연동 | `cd backend && ./gradlew integrationTest` |
-| 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지 | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령)의 규칙 테스트 |
+| 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지 | `infrastructure/prometheus/rules/`의 recording rule을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령)의 규칙 테스트와 코어 설정 검사 |
 | 컴포넌트 테스트 | 화면에 보이는 값, 입력 검증, 화면이 보내는 요청 | 입력과 API 응답에 따라 바뀌는 화면 | 화면 모양, 실제 Backend 연동 | `cd frontend && npm test` |
 | E2E | 핵심 사용자 흐름이 전체 실행 환경에서 끝까지 동작하는지 | Check 등록부터 삭제까지, 수집 결과가 대시보드에 보이기까지 | 하위 테스트로 확인할 수 있는 예외와 경계값 | `cd frontend && npm run test:e2e` |
 | 화면 검사 | 기준 폭과 밝은·다크 모드마다 접근성 위반(WCAG 2.2 AA)과 가로 넘침 | 화면을 바꿨을 때 | 화면 모양과 문구 | `cd frontend && npm run test:screen` |

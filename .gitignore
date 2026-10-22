@@ -11,6 +11,9 @@ infrastructure/secrets/*
 # 예전 Alertmanager secret 위치입니다. 남아 있는 파일도 올리지 않습니다.
 infrastructure/alertmanager/secrets/
 
+# 내부망 서버로 옮길 코어 묶음(scripts/build-core-bundle.mjs)
+dist/
+
 # Backend
 backend/build/
 backend/.gradle/
