@@ -95,10 +95,10 @@ dist/node-exporter-<버전>/
 ## 작업 순서
 
 - [x] ADR 0009와 이 계획, 받아들이는 위험을 승인받는다(사람 확인: 2026-10-22).
-- [ ] 빌드 정의 없는 폴더에서 `build`가 든 compose 파일이 `pull_policy: never`로 뜨는지 확인한다.
-- [ ] Dockerfile 세 개와 `.dockerignore`를 쓰고 `infrastructure/compose.yml`을 바꾼다. 개발 환경에서 세 컨테이너가 `healthy`인지와 기존 E2E를 확인한다(C2 일부, C6).
-- [ ] 빌드 스크립트의 코어 묶음 부분을 쓴다(C1, C5의 체크섬).
-- [ ] node_exporter 묶음 부분을 쓴다(C8).
+- [x] 빌드 정의 없는 폴더에서 `build`가 든 compose 파일이 `pull_policy: never`로 뜨는지 확인한다.
+- [x] Dockerfile 세 개와 `.dockerignore`를 쓰고 `infrastructure/compose.yml`을 바꾼다. 개발 환경에서 세 컨테이너가 `healthy`인지와 기존 E2E를 확인한다(C2 일부, C6).
+- [x] 빌드 스크립트의 코어 묶음 부분을 쓴다(C1, C5의 체크섬).
+- [x] node_exporter 묶음 부분을 쓴다(C8).
 - [ ] 깨끗한 Docker에서 C2~C5를 수동 확인한다.
 - [ ] 운영 가이드, 개발 가이드, 아키텍처, 라이선스 문서를 고친다(C7).
 - [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다.
@@ -106,7 +106,9 @@ dist/node-exporter-<버전>/
 
 ## 진행 중 발견
 
-없음
+- `build`와 `image`가 함께 있는 compose 파일은 이미지를 불러온 뒤에는 `pull_policy: never`로 빌드 정의 없이 뜬다. 하지만 이미지가 없으면 받지 않는 대신 빌드를 시도해 `unable to prepare context ... not found`로 멈춘다. 요구사항 S9의 오류와 다르고 원인을 알기 어렵다. 그래서 빌드 스크립트가 `build` 항목을 `pull_policy: never`로 바꾼 실행용 compose 파일을 만든다. 근거: 2026-10-22 Docker Compose v5.1.0에서 시험했다.
+- 공개 이미지 가운데 Prometheus에만 `/LICENSE`와 `/NOTICE`가 있고 Alertmanager와 Blackbox Exporter에는 없다. 그래서 세 구성 요소의 같은 버전 태그에서 받은 파일을 `infrastructure/licenses/`에 두고 묶음에 싣는다.
+- 개발 환경의 `prometheus-data`, `alertmanager-data` volume은 옛 프로젝트 이름(`monitoring`)으로 만들어져 Compose가 경고를 낸다. 이번 변경 전부터 있던 경고이고, 이름이 같아 기록은 이어진다.
 
 ## 남길 결정
 
