@@ -258,13 +258,17 @@ function assertImagesHaveNoSecrets(images, secrets) {
   for (const image of images) {
     const container = run('docker', ['create', image], { capture: true });
     const exported = path.join(DIST, `.export-${process.pid}.tar`);
-    try {
-      run('docker', ['export', '-o', exported, container]);
-      assertNoSecretValue(fs.readFileSync(exported), image, secrets);
+    // fail()은 프로세스를 바로 끝내므로, 검사 결과만 받아 두고 컨테이너와 임시 파일을 지운 뒤에 멈춘다.
+    const exportResult = spawnSync('docker', ['export', '-o', exported, container], { stdio: 'inherit' });
+    const leaked = exportResult.status === 0
+      && secrets.some((value) => fs.readFileSync(exported).includes(value));
+    fs.rmSync(exported, { force: true });
+    spawnSync('docker', ['rm', container], { stdio: 'ignore' });
+    if (exportResult.status !== 0) {
+      fail(`${image}의 파일 시스템을 내보내지 못했다.`);
     }
-    finally {
-      fs.rmSync(exported, { force: true });
-      spawnSync('docker', ['rm', container], { stdio: 'ignore' });
+    if (leaked) {
+      fail(`${image}에 infrastructure/secrets/의 비밀값이 들어 있다.`);
     }
   }
 }
