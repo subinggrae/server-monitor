@@ -1,6 +1,6 @@
 # 0010. 내부망에 옮겨 실행하는 코어 이미지 묶음
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-10-22
 - 관련: [0008](0008-embeddable-core.md), [ADR 0007](../decisions/0007-core-app-contract.md), [#15](https://github.com/subinggrae/server-monitor/issues/15)
 
@@ -118,7 +118,7 @@
 - [ ] C4. 새 버전으로 갱신해도 기록과 Alert 상태가 이어지고, 이전 버전으로 되돌릴 수 있다. (S4, S5) — 확인: 수동 확인
 - [ ] C5. 앱 주소나 token이 없으면 무엇이 없는지 알리며 뜨지 않고, 이미지가 없으면 인터넷에서 받지 않고 멈추며, 망가진 묶음은 체크섬에서 걸린다. (S7~S9) — 확인: 수동 확인
 - [ ] C6. Prometheus 설정 검사와 규칙 테스트가 빌드한 이미지 기준으로 통과한다. (바뀌지 않는 것) — 확인: `promtool check config`, `promtool test rules`
-- [ ] C7. 코어 실행 방법(서버 조건, 띄우기, 확인, 설정 바꾸기, 갱신, 멈추기)이 문서 한곳에 있고 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
+- [ ] C7. 운영 가이드(`docs/OPERATIONS.md`)에 내부망 방식의 코어와 node_exporter 실행 방법(서버 조건, 띄우기, 확인, 설정 바꾸기, 갱신, 멈추기)이 있고 문서 검사가 통과한다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
 - [ ] C8. node_exporter 묶음으로 인터넷 없이 Docker 방식과 실행 파일 방식 모두 설치되고, 앱의 연결 시험이 통과한다. (S10) — 확인: 수동 확인(Docker 방식은 개발 환경, 실행 파일 방식은 Linux 가상 머신이나 컨테이너)
 
 ## 확인 필요
