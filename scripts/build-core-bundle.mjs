@@ -5,6 +5,8 @@
 //   node scripts/build-core-bundle.mjs           이미지를 빌드해 검사하고 묶음을 만든다
 //   node scripts/build-core-bundle.mjs --check   이미지를 빌드해 설정 검사와 규칙 테스트만 한다(묶음을 만들지 않음)
 //
+// 옵션: --allow-dirty  커밋하지 않은 변경이 있어도 시험용 묶음을 만든다(버전 끝에 -dirty가 붙음)
+//
 // 저장소 최상위에서 실행하고, Docker와 인터넷이 필요하다. 결과는 dist/monitoring-core-<버전>/, dist/node-exporter-<버전>/에 생긴다.
 // 종료 코드: 빌드, 검사, 비밀값 확인 가운데 하나라도 실패하면 1.
 
@@ -88,10 +90,21 @@ function copy(from, to) {
   fs.copyFileSync(from, to);
 }
 
-function version() {
+// 묶음의 텍스트 파일은 Windows에서 빌드해도 LF로 쓴다. 내부망 Linux 서버의 도구가 CR을 값으로 읽지 않게 하기 위해서다.
+function writeText(file, text) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text.replace(/\r\n/g, '\n'));
+}
+
+// 같은 -dirty 태그가 내용이 다른 이미지에 붙으면 태그로 커밋을 알 수 없고 되돌리기도 깨진다.
+// 그래서 묶음은 커밋한 상태에서만 만들고, 검사(--check)와 --allow-dirty만 커밋하지 않은 변경을 허용한다.
+function version({ allowDirty }) {
   const describe = run('git', ['describe', '--tags', '--always', '--dirty'], { capture: true });
   const revision = run('git', ['rev-parse', 'HEAD'], { capture: true });
   if (describe.endsWith('-dirty')) {
+    if (!allowDirty) {
+      fail('커밋하지 않은 변경이 있다. 커밋한 뒤 묶음을 만든다. 시험용으로만 만들려면 --allow-dirty를 붙인다.');
+    }
     console.warn('경고: 커밋하지 않은 변경이 있다. 버전 끝에 -dirty가 붙고, 그 커밋만으로는 같은 이미지를 다시 만들 수 없다.');
   }
   return { describe, revision };
@@ -136,6 +149,7 @@ function checkCoreImages(core) {
 // 묶음 폴더에서는 저장소의 infrastructure/ 아래 파일이 같은 폴더에 있으므로 안내 문구의 경로를 바꾼다.
 function forBundle(text) {
   return text
+    .replaceAll('infrastructure/secrets/', 'secrets/')
     .replaceAll('infrastructure/.env.example', '.env.example')
     .replaceAll('infrastructure/.env', '.env')
     .replaceAll('infrastructure/compose.yml', 'compose.yml');
@@ -179,34 +193,70 @@ function runtimeCompose(core) {
     out.push(line.replaceAll('${CORE_VERSION:-dev}', core.describe));
   }
   const text = `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
-  if (/^\s+build:/m.test(text) || text.includes('CORE_VERSION') || text.includes('x-core-build-args')) {
+  if (/^\s+build:/m.test(text) || /CORE_VERSION|x-core-build-args|core-build-args/.test(text)) {
     fail('실행용 compose 파일에 빌드 항목이 남았다. infrastructure/compose.yml의 형식이 바뀌었는지 확인한다.');
+  }
+  if ((text.match(/^\s+pull_policy:/gm) ?? []).length !== CORE_IMAGES.length) {
+    fail('실행용 compose 파일의 pull_policy가 서비스 수와 다르다. infrastructure/compose.yml에 pull_policy를 직접 두지 않는다.');
   }
   return text;
 }
 
-// 비밀값 파일이 묶음에 섞이지 않았는지, 로컬 비밀값이 이미지 묶음 안에 들어가지 않았는지 확인한다.
-function assertNoSecrets(dir) {
+// 만든 실행용 compose 파일을 Compose가 실제로 읽을 수 있는지 확인한다. 깨진 파일이 내부망 서버에서야 드러나지 않게 한다.
+function validateRuntimeCompose(dir) {
+  run('docker', ['compose', '--project-directory', dir, '-f', path.join(dir, 'compose.yml'), 'config', '--quiet'],
+    { env: { MONITORING_APP_ADDRESS: CHECK_APP_ADDRESS } });
+}
+
+// infrastructure/secrets/의 실제 비밀값이다. Docker가 없는 secret 자리에 만든 폴더는 건너뛴다. 값은 출력하지 않는다.
+function localSecretValues() {
+  const secretsDir = path.join(CORE_DIR, 'secrets');
+  if (!fs.existsSync(secretsDir)) {
+    return [];
+  }
+  return fs.readdirSync(secretsDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && !entry.name.endsWith('.example'))
+    .map((entry) => fs.readFileSync(path.join(secretsDir, entry.name), 'utf8').trim())
+    .filter((value) => value.length >= 8);
+}
+
+function assertNoSecretValue(bytes, where, secrets) {
+  if (secrets.some((value) => bytes.includes(value))) {
+    fail(`${where}에 infrastructure/secrets/의 비밀값이 들어 있다.`);
+  }
+}
+
+// 묶음 폴더에 비밀값 파일이 없고, 이미지 tar가 아닌 파일에 비밀값이 없는지 확인한다.
+// 이미지 tar의 layer는 압축되어 있어 여기서 찾지 못하므로 assertImagesHaveNoSecrets가 따로 본다.
+function assertNoSecrets(dir, secrets) {
   for (const file of filesUnder(dir)) {
     const relative = path.relative(dir, file).split(path.sep).join('/');
     if (relative === '.env' || (relative.startsWith('secrets/') && !relative.endsWith('.example'))) {
       fail(`묶음에 비밀값 파일이 있다: ${relative}`);
     }
+    if (!relative.endsWith('.tar') && !relative.endsWith('.tar.gz')) {
+      assertNoSecretValue(fs.readFileSync(file), relative, secrets);
+    }
   }
-  const secretsDir = path.join(CORE_DIR, 'secrets');
-  const secrets = fs.existsSync(secretsDir)
-    ? fs.readdirSync(secretsDir)
-      .filter((name) => !name.endsWith('.example'))
-      .map((name) => fs.readFileSync(path.join(secretsDir, name), 'utf8').trim())
-      .filter((value) => value.length >= 8)
-    : [];
-  for (const file of filesUnder(dir)) {
-    const bytes = fs.readFileSync(file);
-    for (const value of secrets) {
-      if (bytes.includes(value)) {
-        // 값은 출력하지 않는다.
-        fail(`${path.relative(dir, file)}에 infrastructure/secrets/의 비밀값이 들어 있다.`);
-      }
+}
+
+// 이미지마다 파일 시스템을 압축 없는 tar로 내보내 비밀값이 들어 있지 않은지 확인한다.
+function assertImagesHaveNoSecrets(images, secrets) {
+  if (secrets.length === 0) {
+    console.warn('경고: infrastructure/secrets/에 비밀값 파일이 없어 이미지 안의 비밀값 검사를 건너뛴다.');
+    return;
+  }
+  console.log('이미지 안에 로컬 비밀값이 들어가지 않았는지 확인한다.');
+  for (const image of images) {
+    const container = run('docker', ['create', image], { capture: true });
+    const exported = path.join(DIST, `.export-${process.pid}.tar`);
+    try {
+      run('docker', ['export', '-o', exported, container]);
+      assertNoSecretValue(fs.readFileSync(exported), image, secrets);
+    }
+    finally {
+      fs.rmSync(exported, { force: true });
+      spawnSync('docker', ['rm', container], { stdio: 'ignore' });
     }
   }
 }
@@ -218,19 +268,23 @@ function buildCoreBundle(core) {
   console.log(`코어 이미지를 빌드한다(버전 ${core.describe}, ${PLATFORM}).`);
   run('docker', ['compose', '-f', CORE_COMPOSE, 'build', '--pull'], { env: composeEnv(core) });
   checkCoreImages(core);
+  const images = CORE_IMAGES.map((name) => imageName(name, core));
+  const secrets = localSecretValues();
+  assertImagesHaveNoSecrets(images, secrets);
 
   console.log('이미지를 묶음 파일로 내보낸다.');
-  run('docker', ['save', '-o', path.join(out, 'core-images.tar'), ...CORE_IMAGES.map((name) => imageName(name, core))]);
+  run('docker', ['save', '-o', path.join(out, 'core-images.tar'), ...images]);
 
-  fs.writeFileSync(path.join(out, 'compose.yml'), runtimeCompose(core));
-  fs.writeFileSync(path.join(out, '.env.example'), forBundle(fs.readFileSync(path.join(CORE_DIR, '.env.example'), 'utf8')));
+  writeText(path.join(out, 'compose.yml'), runtimeCompose(core));
+  validateRuntimeCompose(out);
+  writeText(path.join(out, '.env.example'), forBundle(fs.readFileSync(path.join(CORE_DIR, '.env.example'), 'utf8')));
   copy(path.join(CORE_DIR, 'secrets', 'alertmanager_webhook_token.example'),
     path.join(out, 'secrets', 'alertmanager_webhook_token.example'));
   for (const name of fs.readdirSync(path.join(CORE_DIR, 'licenses'))) {
     copy(path.join(CORE_DIR, 'licenses', name), path.join(out, 'licenses', name));
   }
 
-  assertNoSecrets(out);
+  assertNoSecrets(out, secrets);
   writeChecksums(out);
   return out;
 }
@@ -265,16 +319,18 @@ async function buildNodeExporterBundle(core) {
     fail(`${NODE_EXPORTER.archive}의 체크섬이 공식 값과 다르다. 받은 파일을 지웠다.`);
   }
 
-  copy(path.join(CORE_DIR, 'node-exporter', 'compose.yml'), path.join(out, 'compose.yml'));
-  copy(path.join(CORE_DIR, 'node-exporter', 'node_exporter.service'), path.join(out, 'node_exporter.service'));
+  for (const name of ['compose.yml', 'node_exporter.service']) {
+    writeText(path.join(out, name), fs.readFileSync(path.join(CORE_DIR, 'node-exporter', name), 'utf8'));
+  }
 
-  assertNoSecrets(out);
+  assertNoSecrets(out, localSecretValues());
   writeChecksums(out);
   return out;
 }
 
-const core = version();
-if (process.argv.includes('--check')) {
+const CHECK_ONLY = process.argv.includes('--check');
+const core = version({ allowDirty: CHECK_ONLY || process.argv.includes('--allow-dirty') });
+if (CHECK_ONLY) {
   console.log(`코어 이미지를 빌드한다(버전 ${core.describe}, ${PLATFORM}).`);
   run('docker', ['compose', '-f', CORE_COMPOSE, 'build'], { env: composeEnv(core) });
   checkCoreImages(core);

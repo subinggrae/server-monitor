@@ -2,6 +2,7 @@
 # 설치 방법은 docs/OPERATIONS.md의 OS exporter 설치에 있다.
 [Unit]
 Description=node_exporter
+Wants=network-online.target
 After=network-online.target
 
 [Service]

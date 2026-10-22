@@ -9,7 +9,8 @@ ARG CORE_VERSION=dev
 ARG CORE_REVISION=unknown
 LABEL org.opencontainers.image.title="monitoring-core-prometheus" \
       org.opencontainers.image.version="${CORE_VERSION}" \
-      org.opencontainers.image.revision="${CORE_REVISION}"
+      org.opencontainers.image.revision="${CORE_REVISION}" \
+      org.opencontainers.image.source="https://github.com/subinggrae/server-monitor"
 
 COPY render-config.sh /etc/core/render-config.sh
 COPY prometheus/prometheus.yml /etc/prometheus/prometheus.yml.template

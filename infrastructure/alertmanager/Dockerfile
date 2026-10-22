@@ -8,7 +8,8 @@ ARG CORE_VERSION=dev
 ARG CORE_REVISION=unknown
 LABEL org.opencontainers.image.title="monitoring-core-alertmanager" \
       org.opencontainers.image.version="${CORE_VERSION}" \
-      org.opencontainers.image.revision="${CORE_REVISION}"
+      org.opencontainers.image.revision="${CORE_REVISION}" \
+      org.opencontainers.image.source="https://github.com/subinggrae/server-monitor"
 
 # token 파일이 없으면 webhook이 401로 거부되어 알림이 조용히 끊기므로, 시작할 때 확인합니다.
 ENV CORE_REQUIRED_FILES=/run/secrets/alertmanager_webhook_token

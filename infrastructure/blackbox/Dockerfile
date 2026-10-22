@@ -7,6 +7,7 @@ ARG CORE_VERSION=dev
 ARG CORE_REVISION=unknown
 LABEL org.opencontainers.image.title="monitoring-core-blackbox-exporter" \
       org.opencontainers.image.version="${CORE_VERSION}" \
-      org.opencontainers.image.revision="${CORE_REVISION}"
+      org.opencontainers.image.revision="${CORE_REVISION}" \
+      org.opencontainers.image.source="https://github.com/subinggrae/server-monitor"
 
 COPY blackbox/blackbox.yml /etc/blackbox_exporter/config.yml

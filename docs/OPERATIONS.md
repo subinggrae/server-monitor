@@ -6,8 +6,8 @@
 
 이 시스템은 세 부분으로 나뉜다. 이 저장소가 만들어 주는 것은 코어와 node_exporter 묶음이고, 관리자 서버는 코어를 쓰는 쪽이 만든다.
 
-- **코어**: 감시 대상을 주기적으로 확인하고 서버 사용량을 모아 보관하며, 문제가 이어지면 경보를 만든다. 프로그램 세 개(Prometheus, Alertmanager, Blackbox Exporter)로 되어 있고, 코어 서버에 둔다.
-- **관리자 서버**: 무엇을 감시할지 저장해 코어에 알려 주고, 코어의 경보를 받아 담당자에게 알린다. 화면, API, DB를 갖춘 웹 서비스이고, 코어와 같은 서버에 둔다.
+- **코어**: 감시 대상을 주기적으로 확인하고 서버 사용량을 모아 보관하며, 문제가 이어지면 장애로 판단한다. 프로그램 세 개(Prometheus, Alertmanager, Blackbox Exporter)로 되어 있고, 코어 서버에 둔다.
+- **관리자 서버**: 무엇을 감시할지 저장해 코어에 알려 주고, 코어가 보낸 장애를 받아 담당자에게 알린다. 화면, API, DB를 갖춘 웹 서비스이고, 코어와 같은 서버에 둔다.
 - **OS exporter**: 서버의 CPU, Memory, 디스크 사용량을 코어가 읽을 수 있게 내보내는 작은 프로그램이다. Linux는 node_exporter, Windows는 windows_exporter이고, 감시 대상 서버마다 설치한다.
 
 코어와 관리자 서버는 같은 서버에 둔다. 둘은 그 서버의 Docker 네트워크 `monitoring`으로만 통신하고, 다른 서버에 나눠 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 코어 하나에는 관리자 서버 하나만 붙는다. 웹 주소, TCP 포트, ping으로 살아 있는지만 확인하는 대상에는 아무것도 설치하지 않는다.
@@ -19,8 +19,8 @@
 1. 관리자 서버가 사용자가 등록한 감시 대상을 목록으로 내준다. 확인할 웹 주소·TCP 포트·ping 대상 목록과, 사용량을 모을 서버 목록 두 가지다.
 2. 코어가 15~30초마다 그 목록을 받아 간다.
 3. 코어가 대상마다 정한 주기(10~240초)로 주소가 살아 있는지 확인하고, 서버의 OS exporter에서 사용량을 모은다. 모은 값은 15일 보관한다.
-4. 주소 확인 실패가 1분 넘게 이어지면 코어가 경보를 만들어 관리자 서버에 보낸다. 경보가 이어지면 5분마다, 풀리면 복구 경보를 다시 보낸다.
-5. 관리자 서버가 경보를 받아 기록하고, 담당자에게 알림(문자, 메신저 등)을 보낸다. 같은 경보를 다시 받으면 정해 둔 재알림 주기가 지났을 때만 다시 알린다.
+4. 주소 확인 실패가 1분 넘게 이어지면 코어가 장애로 판단해 관리자 서버에 보낸다. 장애가 이어지면 5분마다 다시 보내고, 풀리면 복구를 보낸다.
+5. 관리자 서버가 장애를 받아 기록하고, 담당자에게 알림(문자, 메신저 등)을 보낸다. 같은 장애를 다시 받으면 정해 둔 재알림 주기가 지났을 때만 다시 알린다.
 6. 관리자 서버가 코어에 확인 결과와 사용량을 물어 화면에 보인다.
 7. 관리자 서버가 주기적으로 사용량을 물어 사용자가 정한 임계값과 비교하고, 넘으면 알린다. 임계값 판단은 코어가 하지 않는다.
 
@@ -35,7 +35,7 @@
 
 ## 코어 실행
 
-코어는 관리자 서버보다 먼저 띄운다. 코어가 `monitoring` 네트워크를 만들고 관리자 서버가 그 네트워크에 붙기 때문이다. 코어의 설정과 경보 규칙은 코어 이미지 안에 들어 있다([ADR 0009](decisions/0009-core-config-in-image.md)). 서버마다 다른 관리자 서버 주소와 webhook token만 서버에서 넣는다.
+코어는 관리자 서버보다 먼저 띄운다. 코어가 `monitoring` 네트워크를 만들고 관리자 서버가 그 네트워크에 붙기 때문이다. 코어의 설정과 장애 규칙은 코어 이미지 안에 들어 있다([ADR 0009](decisions/0009-core-config-in-image.md)). 서버마다 다른 관리자 서버 주소와 webhook token만 서버에서 넣는다.
 
 코어를 띄우는 방법은 두 가지다.
 
@@ -55,10 +55,11 @@
    ```
 
 2. `infrastructure/.env`의 `MONITORING_APP_ADDRESS`를 관리자 서버 주소로 고친다. `monitoring` 네트워크 안에서 닿는 `컨테이너 이름:포트`이고, 이 저장소의 관리자 서버이면 기본값 `manager-api:8080` 그대로 둔다. `http://`는 붙이지 않는다.
-3. webhook token 파일을 만든다. 코어가 관리자 서버에 경보를 보낼 때 붙이는 값이고, 같은 파일을 관리자 서버도 읽는다.
+3. webhook token 파일을 만든다. 코어가 관리자 서버에 장애를 보낼 때 붙이는 값이고, 같은 파일을 관리자 서버도 읽는다.
 
    ```sh
    openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
+   chmod 0644 infrastructure/secrets/alertmanager_webhook_token
    ```
 
 4. 코어 이미지를 빌드해 띄운다.
@@ -77,13 +78,21 @@
 
 인터넷이 되는 PC에서 코어 묶음을 만들고, 그 폴더를 내부망 서버로 옮겨 띄운다. 빌드하는 PC에는 저장소, Docker, Node 18 이상이 있어야 한다. 묶음은 x86-64 서버용이다.
 
-1. 빌드하는 PC의 저장소 폴더에서 묶음을 만든다. 이미지를 빌드하고 설정 검사와 규칙 테스트를 통과하면 `dist/monitoring-core-<버전>/`과 `dist/node-exporter-<버전>/`이 생긴다. `<버전>`은 커밋에서 나온 값이고, 커밋하지 않은 변경이 있으면 끝에 `-dirty`가 붙는다.
+내부망 서버에서는 다음처럼 폴더를 나눈다. 묶음 폴더는 버전마다 새로 생기지만, token은 고정 폴더에 하나만 두어 코어의 모든 버전과 관리자 서버가 같은 파일을 읽게 한다.
+
+```text
+/opt/monitoring/
+  secrets/alertmanager_webhook_token   장애 수신 token(버전과 상관없이 하나)
+  monitoring-core-<버전>/              옮긴 코어 묶음(버전마다 하나)
+```
+
+1. 빌드하는 PC의 저장소 폴더에서 묶음을 만든다. 이미지를 빌드하고 설정 검사와 규칙 테스트를 통과하면 `dist/monitoring-core-<버전>/`과 `dist/node-exporter-<버전>/`이 생긴다. `<버전>`은 커밋에서 나온 값이다. 커밋하지 않은 변경이 있으면 같은 버전 이름이 다른 내용에 붙을 수 있어서 만들지 않고 멈춘다.
 
    ```sh
    node scripts/build-core-bundle.mjs
    ```
 
-2. `dist/monitoring-core-<버전>/` 폴더를 내부망 서버로 옮긴다.
+2. `dist/monitoring-core-<버전>/` 폴더를 내부망 서버의 `/opt/monitoring/` 아래로 옮긴다.
 3. 서버에서 그 폴더로 이동해 옮기는 중에 파일이 망가지지 않았는지 확인한다. 모든 줄이 `OK`여야 한다.
 
    ```sh
@@ -96,14 +105,26 @@
    docker load -i core-images.tar
    ```
 
-5. 관리자 서버 주소 설정 파일과 webhook token 파일을 만든다. `.env`의 `MONITORING_APP_ADDRESS`는 [저장소에서 실행](#저장소에서-실행)의 2단계와 같이 고친다. 관리자 서버가 같은 token을 읽어야 하므로, 이미 관리자 서버가 쓰는 token이 있으면 그 값을 넣는다.
+5. 처음 설치할 때만 token 파일을 만든다. 폴더는 운영자만 열 수 있게(0700), 파일은 컨테이너 안의 사용자(`nobody`)가 읽을 수 있게(0644) 둔다. Docker는 이 파일 자체를 컨테이너에 붙이므로 폴더를 닫아 두어도 컨테이너는 읽는다. 파일을 읽지 못하면 코어가 장애를 관리자 서버에 보내지 못한다.
+
+   ```sh
+   sudo install -d -m 0700 /opt/monitoring/secrets
+   openssl rand -hex 32 | sudo tee /opt/monitoring/secrets/alertmanager_webhook_token > /dev/null
+   sudo chmod 0644 /opt/monitoring/secrets/alertmanager_webhook_token
+   ```
+
+6. 묶음 폴더에 설정 파일을 만든다. `MONITORING_APP_ADDRESS`는 [저장소에서 실행](#저장소에서-실행)의 2단계와 같이 고치고, `CORE_SECRETS_DIR`은 앞의 고정 폴더로 둔다.
 
    ```sh
    cp .env.example .env
-   openssl rand -hex 32 > secrets/alertmanager_webhook_token
    ```
 
-6. 코어를 띄우고 세 컨테이너가 `healthy`인지 확인한다. 이 폴더의 `compose.yml`은 인터넷에서 이미지를 받지 않는다.
+   ```ini
+   MONITORING_APP_ADDRESS=admin-api:8080
+   CORE_SECRETS_DIR=/opt/monitoring/secrets
+   ```
+
+7. 코어를 띄우고 세 컨테이너가 `healthy`인지 확인한다. 이 폴더의 `compose.yml`은 인터넷에서 이미지를 받지 않는다.
 
    ```sh
    docker compose up -d
@@ -119,23 +140,25 @@
 | 보이는 것 | 원인 | 해결 |
 |---|---|---|
 | `MONITORING_APP_ADDRESS가 필요합니다` | `.env`가 없거나 관리자 서버 주소가 비어 있음 | `.env`를 만들고 관리자 서버 주소를 넣는다 |
-| `alertmanager`가 계속 다시 시작함 | webhook token 파일이 없거나 비어 있음 | `docker compose logs alertmanager`의 안내대로 `secrets/`에 파일을 만든다 |
-| `secrets/alertmanager_webhook_token`이 폴더임 | token 파일 없이 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
-| `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar` |
+| `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 없음` | webhook token 파일이 없거나 비어 있음 | 로그의 경로에 token 파일을 만든다 |
+| `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 읽기 불가` | token 파일 권한이 0600 등이라 컨테이너 사용자가 읽지 못함 | 파일 권한을 0644로 바꾼다 |
+| `alertmanager_webhook_token`이 폴더임 | token 파일 없이 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
+| `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar`로 불러온다 |
 | `sha256sum`이 `FAILED` | 옮기는 중에 파일이 망가짐 | 묶음을 다시 옮긴다 |
 
 ### 운영 작업
 
 코어를 운영하면서 하는 일은 다음과 같다. 명령은 코어 폴더에서 실행한다. 저장소에서 실행했으면 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
 
-- **관리자 서버 주소나 token 바꾸기**: 파일을 고친 뒤 `docker compose up -d`로 다시 띄운다. 이미지는 다시 빌드하지 않는다. token을 바꿨으면 관리자 서버도 다시 띄운다.
-- **경보 규칙이나 코어 설정 바꾸기**: 저장소에서 고친다. 저장소에서 실행하면 `docker compose -f infrastructure/compose.yml up -d --build`로 다시 띄운다. 내부망 서버면 새 묶음을 만들어 옮긴 뒤 아래 갱신 절차를 따른다.
-- **새 버전으로 갱신**: 새 묶음 폴더에서 `sha256sum -c SHA256SUMS`와 `docker load -i core-images.tar`를 실행하고, 이전 폴더의 `.env`와 `secrets/`를 새 폴더로 복사한 뒤 `docker compose up -d`. 쌓은 기록과 경보 상태는 이어진다.
-- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `docker compose up -d`. 이전 버전의 이미지를 지우지 않았으면 다시 불러올 필요가 없다.
+- **관리자 서버 주소 바꾸기**: `.env`를 고친 뒤 `docker compose up -d`로 다시 띄운다. 이미지는 다시 빌드하지 않는다.
+- **token 바꾸기**: token 파일을 새 값으로 바꾼 뒤 `docker compose up -d --force-recreate alertmanager`로 Alertmanager를 다시 만든다. `up -d`만으로는 파일만 바뀐 것을 알아채지 못해 옛 값을 계속 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 같은 방식으로 다시 띄운다.
+- **장애 규칙이나 코어 설정 바꾸기**: 저장소에서 고친다. 저장소에서 실행하면 `docker compose -f infrastructure/compose.yml up -d --build`로 다시 띄운다. 내부망 서버면 새 묶음을 만들어 옮긴 뒤 아래 갱신 절차를 따른다.
+- **새 버전으로 갱신**: 새 묶음 폴더에서 `sha256sum -c SHA256SUMS`와 `docker load -i core-images.tar`를 실행하고, 이전 폴더의 `.env`를 새 폴더로 복사한 뒤 `docker compose up -d`를 실행한다. token은 고정 폴더에 두므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
+- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `docker compose up -d`를 실행한다. 이전 버전의 이미지를 지우지 않았으면 다시 불러올 필요가 없다.
 - **띄운 버전 확인**: `docker compose ps`의 이미지 태그가 버전이다. 그 버전을 빌드한 커밋은 `docker image inspect monitoring-core-prometheus:<버전> | grep image.revision`으로 본다.
-- **멈추기**: `docker compose down`. 쌓은 기록은 volume에 남는다.
-- **기록까지 지우기**: `docker compose down -v`. 되돌릴 수 없다.
-- **로그 보기**: `docker compose logs -f prometheus`
+- **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남는다.
+- **기록까지 지우기**: `docker compose down -v`를 실행한다. 되돌릴 수 없다.
+- **로그 보기**: `docker compose logs -f prometheus`를 실행한다.
 
 ## 서버마다 바꾸는 설정
 
@@ -144,7 +167,8 @@
 | 값 | 넣는 곳 | 예 | 바꾼 뒤 할 일 |
 |---|---|---|---|
 | 관리자 서버 주소 | 코어 폴더 `.env`의 `MONITORING_APP_ADDRESS` | `admin-api:8080` | 코어를 `docker compose up -d`로 다시 띄움 |
-| 경보 수신 token | 코어 폴더 `secrets/alertmanager_webhook_token`과 관리자 서버의 설정 | 64자 무작위 값 | 코어와 관리자 서버를 함께 다시 띄움 |
+| token 폴더 | 코어 폴더 `.env`의 `CORE_SECRETS_DIR`(비우면 코어 폴더의 `secrets/`) | `/opt/monitoring/secrets` | 코어를 `docker compose up -d --force-recreate alertmanager`로 다시 띄움 |
+| 장애 수신 token | token 폴더의 `alertmanager_webhook_token`(코어와 관리자 서버가 같은 파일을 읽음) | 64자 무작위 값 | [token 바꾸기](#운영-작업)대로 코어와 관리자 서버를 다시 만듦 |
 | 코어 조회 주소 | 관리자 서버의 설정 | `http://prometheus:9090` | 관리자 서버를 다시 띄움 |
 | exporter 접근 허용 주소 | 감시 대상 서버의 방화벽 | 코어 서버의 IP | [감시 대상 서버의 방화벽](#감시-대상-서버의-방화벽) |
 
@@ -156,10 +180,10 @@
 - **사용량을 모을 서버**: 서버 주소, exporter 포트(기본 9100, Windows 9182), 수집 주기(10~240초). 목록 API를 거쳐 30초 안에 반영된다.
 - **알림 설정**: 임계값, 지속 시간, 재알림 주기, 알림 받을 곳. 관리자 서버가 다음 판단부터 쓴다.
 
-다음 값은 코어 이미지에 들어 있어 서버에서 바꾸지 않는다. 바꾸려면 저장소에서 고쳐 코어를 다시 빌드하고 모든 코어 서버를 갱신한다.
+다음 값은 코어 이미지와 묶음의 `compose.yml`에 들어 있어 서버에서 바꾸지 않는다. 바꾸려면 저장소에서 고쳐 코어를 다시 빌드하고 모든 코어 서버를 갱신한다.
 
 - 코어가 부르는 관리자 서버 API 경로 세 개
-- 경보 규칙: 주소 확인 실패가 1분 이어지면 경보, 이어지면 5분마다 다시 보냄
+- 장애 규칙: 주소 확인 실패가 1분 이어지면 장애, 이어지면 5분마다 다시 보냄
 - 코어의 포트(9090, 9093, 9115), 네트워크 이름 `monitoring`, 기록 보관 15일
 - 주소 확인 방식의 세부(제한 시간 5초, IPv4만, HTTP는 2xx만 성공)
 
@@ -171,23 +195,50 @@
 |---|---|---|---|
 | 주소 감시 대상 목록 | 코어가 15초마다 `GET /api/prometheus/sd/blackbox` | 확인할 주소와 확인 주기를 JSON 목록으로 내줌 | [통합 계약](INTEGRATION.md#가용성-check-대상-get-apiprometheussdblackbox) |
 | 서버 감시 대상 목록 | 코어가 30초마다 `GET /api/prometheus/sd/os-exporter` | 사용량을 모을 서버의 `주소:포트`와 수집 주기를 JSON 목록으로 내줌 | [통합 계약](INTEGRATION.md#os-exporter-수집-대상-get-apiprometheussdos-exporter) |
-| 경보 수신 | 코어가 `POST /api/integrations/alertmanager/webhook` | token을 확인하고 경보를 기록한 뒤 알림을 보냄 | [통합 계약](INTEGRATION.md#alert-post-apiintegrationsalertmanagerwebhook) |
+| 장애 수신 | 코어가 `POST /api/integrations/alertmanager/webhook` | token을 확인하고 장애를 기록한 뒤 알림을 보냄 | [통합 계약](INTEGRATION.md#alert-post-apiintegrationsalertmanagerwebhook) |
 | 결과 조회 | 관리자 서버가 코어의 `GET /api/v1/query` | 주소 확인 결과와 사용률을 읽어 화면에 보임 | [통합 계약](INTEGRATION.md#코어가-제공할-것) |
 | 임계값 판단 | 관리자 서버 안의 주기 작업 | 사용률을 읽어 임계값과 비교하고 넘으면 알림 | [통합 계약](INTEGRATION.md#리소스-임계값-판단) |
 | 알림 발송과 재알림 | 관리자 서버 안 | 문자, 메신저 등으로 보내고 재알림 주기를 지킴 | 관리자 서버가 정함 |
 
 관리자 서버는 다음 조건으로 띄운다.
 
-- `monitoring` 네트워크에 붙는다. compose 파일이면 `networks`에 `monitoring`을 `external: true`로 둔다.
+- `monitoring` 네트워크에 붙는다. 코어를 먼저 띄워야 이 네트워크가 있다.
 - 컨테이너 이름과 포트가 코어 설정의 관리자 서버 주소와 같다.
-- 코어와 같은 경보 수신 token을 읽는다. 코드나 설정 파일에 값을 직접 쓰지 않는다.
+- 코어와 같은 token 파일을 Docker secret으로 읽는다. 코드나 설정 파일에 값을 직접 쓰지 않는다.
 - 목록 API 두 개는 코어가 인증 없이 부르므로 관리자 서버 포트를 밖에 열지 않는다([보안 설정](#보안-설정)).
+
+다음은 관리자 서버를 띄우는 compose 파일의 예다. 코어 설정의 관리자 서버 주소가 `admin-api:8080`이고 token이 `/opt/monitoring/secrets/`에 있을 때다. 컨테이너 안에서 token은 `/run/secrets/alertmanager_webhook_token`에 보인다.
+
+```yaml
+services:
+  admin-api:
+    image: my-admin-api:1.0.0
+    container_name: admin-api
+    # 화면을 직접 열어야 하면 127.0.0.1에만 묶는다. 코어는 monitoring 네트워크로 부르므로 열지 않아도 된다.
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      PROMETHEUS_URL: http://prometheus:9090
+    secrets:
+      - alertmanager_webhook_token
+    networks:
+      - monitoring
+
+secrets:
+  alertmanager_webhook_token:
+    file: /opt/monitoring/secrets/alertmanager_webhook_token
+
+networks:
+  monitoring:
+    name: monitoring
+    external: true
+```
 
 DB 테이블은 이 저장소의 기준 migration(`backend/src/main/resources/db/migration/`의 `V1__baseline.sql`)과 [임계값 판단용 참고 DDL](INTEGRATION.md#참고용-ddl)을 참고한다.
 
 ### 가장 작은 구현 예
 
-다음은 코어가 부르는 API 세 개만 만든 Node.js 예다. 고정된 대상 목록을 내주고, 받은 경보를 콘솔에 찍는다. 이 문서의 [설치 확인](#설치-확인)을 이 예로 시험했다. 실제 관리자 서버는 목록을 DB에서 만들고, 경보를 기록하고 알림을 보낸다.
+다음은 코어가 부르는 API 세 개만 만든 Node.js 예다. 고정된 대상 목록을 내주고, 받은 장애를 콘솔에 찍는다. 이 문서의 [설치 확인](#설치-확인)을 이 예로 시험했다. 실제 관리자 서버는 목록을 DB에서 만들고, 장애를 기록하고 알림을 보낸다.
 
 ```js
 import http from 'node:http';
@@ -231,7 +282,7 @@ http.createServer((req, res) => {
         // status는 firing(장애) 또는 resolved(복구)다. 여기서 기록하고 알림을 보낸다.
         console.log(alert.status, alert.labels.check_id, alert.labels.instance, alert.annotations.summary);
       }
-      // 알림 전송에 실패해도 2xx를 돌려준다. 실패를 돌려주면 코어가 같은 경보를 계속 다시 보낸다.
+      // 알림 전송에 실패해도 2xx를 돌려준다. 실패를 돌려주면 코어가 같은 장애를 계속 다시 보낸다.
       res.writeHead(200);
       res.end();
     });
@@ -248,7 +299,7 @@ http.createServer((req, res) => {
 
 코어와 node_exporter, 관리자 서버를 띄운 뒤 다음 순서로 감시부터 알림까지 동작하는지 확인한다. 명령은 코어 서버에서 실행한다.
 
-1. 코어가 관리자 서버의 목록을 받았는지 본다. 브라우저로 `http://127.0.0.1:9090/targets`(다른 PC에서는 [SSH 터널](#포트))를 열면 `manager-blackbox`에 주소가, `manager-os`에 서버가 보이고 상태가 `UP`이다. 목록이 비어 있으면 코어의 로그에서 관리자 서버 주소로 요청이 실패했는지 본다.
+1. 코어가 관리자 서버의 목록을 받았는지 본다. 브라우저로 `http://127.0.0.1:9090/targets`(다른 PC에서는 [SSH 터널](#포트))를 열면 `manager-blackbox`에 주소가, `manager-os`에 서버가 보이고 상태가 `UP`이다. `manager-blackbox`의 `UP`은 코어가 확인을 실행했다는 뜻일 뿐이라, 확인에 실패한 주소도 `UP`으로 보인다. 주소가 살아 있는지는 2단계에서 본다. 목록이 비어 있으면 코어의 로그에서 관리자 서버 주소로 요청이 실패했는지 본다.
 
    ```sh
    docker compose logs prometheus | grep "Unable to refresh"
@@ -266,7 +317,7 @@ http.createServer((req, res) => {
    curl -sG http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=manager:resource_usage_percent{server_id="7"}'
    ```
 
-4. 경보가 관리자 서버에 오는지 본다. 일부러 없는 주소(예: `http://does-not-exist.invalid/`)를 감시 대상에 넣으면 약 2분 뒤 관리자 서버가 `firing` 경보를 받는다. 목록 갱신 15초, 실패가 이어지는 1분, 경보를 묶는 30초를 기다리기 때문이다. 경보가 오지 않으면 Alertmanager 로그에서 관리자 서버로 보내지 못했는지 본다.
+4. 장애가 관리자 서버에 오는지 본다. 일부러 없는 주소(예: `http://does-not-exist.invalid/`)를 감시 대상에 넣으면 약 2분 뒤 관리자 서버가 `firing` 장애를 받는다. 목록 갱신 15초, 실패가 이어지는 1분, 장애를 묶는 30초를 기다리기 때문이다. 장애가 오지 않으면 Alertmanager 로그에서 관리자 서버로 보내지 못했는지 본다.
 
    ```sh
    docker compose logs alertmanager | grep -i "notify"
@@ -275,6 +326,8 @@ http.createServer((req, res) => {
 ## OS exporter 설치
 
 CPU, Memory, Storage를 볼 감시 대상 서버마다 OS exporter를 설치한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(기본 포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(기본 포트 9182, 공식 문서의 metric 이름 기준)다. 설치한 뒤에는 관리자 서버에 그 서버를 등록해 사용량 수집을 켠다. 이 저장소의 Manager는 서버 상세에서 수집을 켜고 연결 시험을 누른다. 그 전에 [감시 대상 서버의 방화벽](#감시-대상-서버의-방화벽)을 먼저 설정한다.
+
+감시 대상 Linux 서버는 x86-64여야 한다. Docker가 있으면 Docker Compose v2로, 없으면 systemd 서비스로 띄운다. 9100 포트가 비어 있어야 한다.
 
 Linux 서버에 필요한 파일은 [코어 묶음을 만들 때](#내부망-서버에-옮겨-실행) 함께 생기는 `dist/node-exporter-<버전>/` 폴더에 모두 있다. 인터넷이 없는 감시 대상 서버에는 이 폴더를 옮기고, 먼저 `sha256sum -c SHA256SUMS`로 파일이 온전한지 확인한다. 폴더에 든 파일은 다음과 같다.
 
@@ -314,7 +367,18 @@ sudo systemctl enable --now node_exporter
 
 [windows_exporter 릴리스](https://github.com/prometheus-community/windows_exporter/releases)의 MSI로 설치한다. 설치 방법과 옵션은 그 저장소의 README를 따른다.
 
-### 설치 확인
+### node_exporter 갱신과 멈추기
+
+node_exporter를 새 버전으로 바꾸거나 멈추는 방법은 설치 방식마다 다르다.
+
+- **Docker 방식 갱신**: 새 node_exporter 묶음 폴더에서 `docker load -i node-exporter-image.tar` 뒤 `docker compose up -d`를 실행한다.
+- **Docker 방식 멈추기**: 묶음 폴더에서 `docker compose down`을 실행한다.
+- **systemd 방식 갱신**: 새 실행 파일을 같은 경로에 `sudo install`로 덮어쓴 뒤 `sudo systemctl restart node_exporter`를 실행한다.
+- **systemd 방식 멈추기**: `sudo systemctl disable --now node_exporter`를 실행한다.
+
+멈춘 서버는 관리자 서버에서도 수집을 끈다. 끄지 않으면 수집 실패가 계속 기록된다.
+
+### node_exporter 응답 확인
 
 코어 서버에서 다음을 실행해 exporter가 응답하는지 확인한다. `10.0.0.21`은 감시 대상 서버 주소의 예다. 응답 첫 줄들에 `# HELP`로 시작하는 줄이 보이면 된다.
 
