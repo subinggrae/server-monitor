@@ -16,20 +16,9 @@
 
 코어와 앱은 같은 호스트의 Docker 네트워크 `monitoring`으로 통신한다. 코어가 이 네트워크를 만들고, 앱은 `external: true`로 붙는다. 그래서 코어를 먼저 띄운다. 호스트에 여는 포트는 `127.0.0.1`에만 묶는다. 다른 호스트에 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 코어가 부르는 앱 주소는 하나뿐이라, 코어 하나에는 앱 하나만 붙는다.
 
-### 누가 무엇을 하는가
+코어와 앱이 맡는 일, 설치 순서, 앱이 만들 것의 쉬운 안내는 [운영 가이드](OPERATIONS.md)에 있다. 이 문서는 그 안내가 기대는 약속(경로, 형식, label, series)의 기준이다.
 
-Prometheus를 몰라도 앱을 만들 수 있게, 코어가 해 주는 일과 앱이 만들 일을 나누면 다음과 같다. 앱은 코어에 감시할 대상을 알려 주고, 결과를 읽고, 알림을 보낸다. 실제로 서버에 접속해 확인하고 값을 모으는 일은 코어가 한다.
-
-| 일 | 맡는 쪽 | 앱이 할 일 |
-|---|---|---|
-| 감시 대상(주소, 서버)과 확인 주기를 저장 | 앱 | DB에 저장하고 화면을 만든다 |
-| 감시 대상 목록을 코어에 알림 | 앱 | [앱이 제공할 API](#앱이-제공할-api)의 목록 API 두 개를 만든다 |
-| 주소가 살아 있는지 확인, 서버의 CPU·Memory·Storage 수집 | 코어 | 없음 |
-| 확인과 수집 결과 보관(15일) | 코어 | 없음 |
-| 주소 확인 실패가 1분 넘게 이어지면 Alert로 만듦 | 코어 | 없음 |
-| Alert를 받아 기록하고 알림을 보냄, 재발송 판단 | 앱 | webhook API를 만들고 알림 방법(문자, Telegram 등)을 만든다 |
-| 결과를 화면에 보임 | 앱 | [코어가 제공할 것](#코어가-제공할-것)의 조회 API로 읽는다 |
-| CPU·Memory·Storage 임계값 판단과 알림 | 앱 | [리소스 임계값 판단](#리소스-임계값-판단)대로 만든다 |
+### 용어
 
 이 문서에 쓰는 Prometheus 용어는 다음과 같다.
 
@@ -45,25 +34,15 @@ Prometheus를 몰라도 앱을 만들 수 있게, 코어가 해 주는 일과 �
 - **Alert**: 코어의 규칙이 "문제가 있다"고 판단한 상태다. Alertmanager가 앱의 webhook으로 보낸다. `fingerprint`는 Alertmanager가 label로 만든 Alert의 식별자다.
 - **Resource**: 서버에서 감시하는 CPU, Memory, 디스크 하나하나다. 사용자가 서버마다 고른다.
 
-### 처음 붙이는 순서
-
-다른 앱을 코어에 처음 붙일 때는 다음 순서로 한다.
-
-1. 코어를 띄운다. [코어 설정](#코어-설정)의 앱 주소와 webhook token을 넣는다.
-2. 앱의 DB를 만든다. 이 저장소의 기준 migration(`V1__baseline.sql`)과 [참고용 DDL](#참고용-ddl)을 참고한다.
-3. 목록 API 두 개와 webhook API를 [앱이 제공할 API](#앱이-제공할-api)의 경로와 형식대로 만든다.
-4. 앱을 `monitoring` 네트워크에 붙여 띄운다. 앱 주소는 코어 설정의 앱 주소와 같아야 한다.
-5. Prometheus 화면(`http://127.0.0.1:9090/targets`)에서 앱이 알려 준 대상이 보이는지 확인한다.
-6. 결과 조회, 리소스 임계값 판단, 알림 발송을 만든다.
-
 ## 코어 설정
 
-코어 설정은 두 가지다. 바꾸면 `docker compose -f infrastructure/compose.yml up -d`로 코어를 다시 띄운다.
+코어 설정은 세 가지다. 저장소에서는 `infrastructure/.env`와 `infrastructure/secrets/`에, 내부망 묶음에서는 묶음 폴더의 `.env`와 token 폴더에 둔다. 바꾼 뒤 다시 띄우는 방법은 [운영 가이드의 운영 작업](OPERATIONS.md#운영-작업)에 있다.
 
-- `infrastructure/.env`의 `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
-- `infrastructure/secrets/alertmanager_webhook_token`: webhook에 붙는 Bearer token이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 이 저장소의 앱은 루트 `compose.yml`의 `secrets`에서 이 파일을 설정 키 `monitoring-manager.notification.alertmanager-webhook-token`으로 받는다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
+- `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
+- `CORE_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 코어 폴더의 `secrets/`를 쓴다.
+- `alertmanager_webhook_token`: webhook에 붙는 Bearer token 파일이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 이 저장소의 앱은 루트 `compose.yml`의 `secrets`에서 이 파일을 설정 키 `monitoring-manager.notification.alertmanager-webhook-token`으로 받는다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
 
-Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 이미지 안에 들어 있다. 컨테이너가 시작할 때 이미지 안의 `render-config.sh`가 주소를 넣는다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드](OPERATIONS.md#서버마다-바꾸는-설정)에 있다.
+Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 이미지 안에 들어 있다. 컨테이너가 시작할 때 이미지 안의 `render-config.sh`가 주소를 넣는다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드](OPERATIONS.md#언제-무엇을-바꾸나)에 있다.
 
 ### 경로와 주소 바꾸기
 
@@ -71,8 +50,8 @@ Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_AD
 
 | 바꾸려는 것 | 방법 | 고치는 곳 |
 |---|---|---|
-| 앱 호스트, 포트 | 코어 설정의 앱 주소를 바꾸고 코어를 다시 띄움 | `infrastructure/.env` |
-| webhook token | 비밀값 파일을 바꾸고 코어와 앱을 다시 띄움 | `infrastructure/secrets/alertmanager_webhook_token` |
+| 앱 호스트, 포트 | 코어 설정의 앱 주소를 바꾸고 코어를 다시 띄움 | 코어의 `.env` |
+| webhook token | token 파일을 바꾸고 코어의 Alertmanager와 앱을 다시 만듦 | token 폴더의 `alertmanager_webhook_token` |
 | API 경로 | 바꾸지 않고, 앱 앞단(리버스 프록시 등)에서 받아 넘김 | 앱 쪽 |
 | `http`를 `https`로 | 지원하지 않음(같은 호스트의 Docker 네트워크 안에서만 부름) | 없음 |
 
