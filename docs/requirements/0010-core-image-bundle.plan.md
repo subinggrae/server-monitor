@@ -25,15 +25,19 @@
 | `infrastructure/prometheus/Dockerfile` | Prometheus 이미지에 설정 템플릿, 규칙, `render-config.sh`를 넣음(새 파일) |
 | `infrastructure/alertmanager/Dockerfile` | Alertmanager 이미지에 설정 템플릿과 `render-config.sh`를 넣음(새 파일) |
 | `infrastructure/blackbox/Dockerfile` | Blackbox 이미지에 `blackbox.yml`을 넣음(새 파일) |
-| `infrastructure/.dockerignore` | `secrets/`, `.env`, `grafana/`, `node-exporter/`를 빌드 context에서 뺌(새 파일) |
-| `infrastructure/compose.yml` | 설정 volume 마운트를 빼고 `build`, `image`, `pull_policy`를 더함(데이터 volume, 네트워크, 포트, 비밀값은 그대로) |
+| `infrastructure/.dockerignore` | `**/secrets/`, `.env`, `grafana/`, `node-exporter/`를 빌드 context에서 뺌(새 파일) |
+| `infrastructure/compose.yml` | 설정 volume 마운트를 빼고 `build`, `image`를 더함, token 폴더를 `CORE_SECRETS_DIR`로 바꿀 수 있음(데이터 volume, 네트워크, 포트는 그대로) |
+| `infrastructure/.env.example` | `CORE_SECRETS_DIR` 예시 추가 |
+| `infrastructure/render-config.sh` | `CORE_REQUIRED_FILES`의 파일이 없거나, 폴더이거나, 비었거나, 읽을 수 없으면 시작하지 않음 |
+| `infrastructure/licenses/` | 묶음에 싣는 세 구성 요소의 `LICENSE`, `NOTICE`(새 파일) |
 | `infrastructure/node-exporter/node_exporter.service` | 지금 운영 가이드에만 있는 systemd unit을 파일로 둠(새 파일) |
 | `scripts/build-core-bundle.mjs` | 빌드부터 묶음까지(새 파일) |
-| `.gitignore` | 묶음 출력 폴더 `dist/` 추가 |
-| `docs/OPERATIONS.md` | 내부망 설치 절, 코어 실행 명령을 `--build`로 |
-| `docs/DEVELOPMENT.md` | 코어 실행, 규칙 테스트, 코어 설정 검사 명령을 빌드한 이미지 기준으로 |
-| `docs/ARCHITECTURE.md` | 실행 단위와 코드 지도에 코어 이미지와 빌드 스크립트 |
-| `docs/LICENSES.md` | 묶음에 싣는 라이선스 파일의 출처 |
+| `.gitignore`, `.gitattributes` | 묶음 출력 폴더 `dist/` 추가, `*.service`를 LF로 고정 |
+| `compose.yml`(루트) | 코어 실행 안내 주석에 `--build` |
+| `docs/OPERATIONS.md` | 내부망 설치, 전체 흐름, 서버마다 바꾸는 설정, 관리자 서버 구현, 설치 확인, node_exporter 갱신과 멈추기 |
+| `docs/DEVELOPMENT.md`, `docs/TESTING.md`, `README.md` | 코어 실행, 규칙 테스트, 코어 설정 검사 명령을 빌드한 이미지 기준으로 |
+| `docs/ARCHITECTURE.md`, `docs/INTEGRATION.md` | 코어 이미지와 빌드 스크립트, 설정을 펼치는 위치 |
+| `docs/LICENSES.md`, `docs/TERMS.md` | 묶음에 싣는 라이선스 파일의 출처, 관리자 서버 용어 |
 
 ### 데이터 모델 변경
 
@@ -101,7 +105,7 @@ dist/node-exporter-<버전>/
 - [x] node_exporter 묶음 부분을 쓴다(C8).
 - [x] 깨끗한 Docker에서 C2~C5를 수동 확인한다. C2의 기존 E2E는 사람이 생략하기로 했다(2026-10-22, 앱 실행은 범위에서 뺌). 대신 시험용 관리자 서버로 목록 제공부터 경보 도착까지 확인했다.
 - [x] 운영 가이드, 개발 가이드, 아키텍처, 라이선스 문서를 고친다(C7).
-- [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다.
+- [x] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다. 리뷰 지적(중간 6건, 낮음 다수)을 반영했고, 주석 문체와 묶음의 GPL 구성 요소는 사람에게 물었다.
 - [ ] 요구사항을 구현됨으로, ADR 관련 줄에 PR 링크를 쓰고 이 계획을 지운다.
 
 ## 진행 중 발견
@@ -112,6 +116,9 @@ dist/node-exporter-<버전>/
 - token 파일 없이 코어를 띄우면 Compose는 오류 없이 컨테이너를 띄우고, Docker는 그 경로에 빈 디렉터리를 만든다. 그러면 Alertmanager가 token 없이 떠 경보가 401로 거부된다. 그래서 `render-config.sh`가 이미지의 `CORE_REQUIRED_FILES`가 일반 파일이고 비어 있지 않은지 확인하고, 아니면 알리고 멈춘다. 운영 가이드의 문제 해결 표에 폴더를 지우는 방법을 적었다.
 - 인터넷을 쓰지 않는 묶음 코어(`pull_policy: never`)와 묶음 node_exporter에 시험용 관리자 서버를 붙여, 목록 제공, 수집, 사용률 계산, 주소 확인 실패, 경보 도착(약 2분)까지 이어지는 것을 2026-10-22에 확인했다. 시험용 관리자 서버를 줄인 코드를 운영 가이드의 가장 작은 구현 예로 실었다.
 - 사람이 쓰는 말에 맞춰 운영 가이드에서는 앱을 관리자 서버라고 부르고, 통합 계약의 앱과 같은 것임을 첫머리에 밝혔다(사람 요청: 2026-10-22). Alert는 TERMS.md대로 장애라고 부른다.
+- 리뷰에서 `docker save`가 만든 tar의 layer가 gzip으로 압축되어 바이트 검사로는 이미지 안의 비밀값을 찾지 못한다는 것을 알았다. 그래서 이미지마다 `docker export`로 압축 없는 tar를 만들어 검사한다. 가짜 비밀값을 규칙 폴더에 넣어 빌드가 멈추는 것을 확인했다(2026-10-22).
+- 리뷰에서 token 파일 권한이 0600이면 컨테이너 사용자(nobody)가 읽지 못해 장애가 조용히 끊긴다는 것을 알았다. `render-config.sh`가 읽기 권한도 확인한다. `/etc/shadow`로 멈추는 것을 확인했다.
+- token 파일을 갈아 끼운 뒤 `up -d`만 해도 Docker Desktop에서는 새 값이 보였다. Linux bind mount는 옛 파일을 붙잡을 수 있다는 리뷰 지적은 Linux 서버가 없어 확인하지 못했다. 그래서 운영 가이드는 어디서나 확실한 `--force-recreate`를 쓴다.
 
 ## 남길 결정
 

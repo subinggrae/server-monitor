@@ -28,7 +28,7 @@
 
 코어 서버는 다음을 갖춘다.
 
-- **Docker**: Docker Engine과 Docker Compose v2. Linux 서버를 기준으로 한다. Windows의 Docker Desktop은 개발 환경에서만 쓴다.
+- **Docker**: Docker Engine과 Docker Compose v2. Linux 서버를 기준으로 한다. 코어 묶음은 Docker Engine 29.2와 Docker Compose 5.1에서 확인했고, 그보다 오래된 버전에서는 확인하지 않았다. Windows의 Docker Desktop은 개발 환경에서만 쓴다.
 - **CPU**: x86-64. 코어 이미지는 x86-64에서 확인했다.
 - **디스크**: 확인·수집 기록을 15일 보관할 공간. 대상 수에 비례해 늘어난다.
 - **네트워크**: 감시할 주소와 감시 대상 서버의 exporter 포트에 닿아야 한다. 코어 자체는 인터넷에 나가지 않는다. 관리자 서버가 외부 메신저로 알리면 관리자 서버는 그 서비스에 닿아야 한다.
