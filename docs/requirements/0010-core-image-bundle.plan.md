@@ -99,8 +99,8 @@ dist/node-exporter-<버전>/
 - [x] Dockerfile 세 개와 `.dockerignore`를 쓰고 `infrastructure/compose.yml`을 바꾼다. 개발 환경에서 세 컨테이너가 `healthy`인지와 기존 E2E를 확인한다(C2 일부, C6).
 - [x] 빌드 스크립트의 코어 묶음 부분을 쓴다(C1, C5의 체크섬).
 - [x] node_exporter 묶음 부분을 쓴다(C8).
-- [ ] 깨끗한 Docker에서 C2~C5를 수동 확인한다.
-- [ ] 운영 가이드, 개발 가이드, 아키텍처, 라이선스 문서를 고친다(C7).
+- [x] 깨끗한 Docker에서 C2~C5를 수동 확인한다. C2의 기존 E2E는 사람이 생략하기로 했다(2026-10-22, 앱 실행은 범위에서 뺌). 대신 시험용 관리자 서버로 목록 제공부터 경보 도착까지 확인했다.
+- [x] 운영 가이드, 개발 가이드, 아키텍처, 라이선스 문서를 고친다(C7).
 - [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다.
 - [ ] 요구사항을 구현됨으로, ADR 관련 줄에 PR 링크를 쓰고 이 계획을 지운다.
 
@@ -109,6 +109,9 @@ dist/node-exporter-<버전>/
 - `build`와 `image`가 함께 있는 compose 파일은 이미지를 불러온 뒤에는 `pull_policy: never`로 빌드 정의 없이 뜬다. 하지만 이미지가 없으면 받지 않는 대신 빌드를 시도해 `unable to prepare context ... not found`로 멈춘다. 요구사항 S9의 오류와 다르고 원인을 알기 어렵다. 그래서 빌드 스크립트가 `build` 항목을 `pull_policy: never`로 바꾼 실행용 compose 파일을 만든다. 근거: 2026-10-22 Docker Compose v5.1.0에서 시험했다.
 - 공개 이미지 가운데 Prometheus에만 `/LICENSE`와 `/NOTICE`가 있고 Alertmanager와 Blackbox Exporter에는 없다. 그래서 세 구성 요소의 같은 버전 태그에서 받은 파일을 `infrastructure/licenses/`에 두고 묶음에 싣는다.
 - 개발 환경의 `prometheus-data`, `alertmanager-data` volume은 옛 프로젝트 이름(`monitoring`)으로 만들어져 Compose가 경고를 낸다. 이번 변경 전부터 있던 경고이고, 이름이 같아 기록은 이어진다.
+- token 파일 없이 코어를 띄우면 Compose는 오류 없이 컨테이너를 띄우고, Docker는 그 경로에 빈 디렉터리를 만든다. 그러면 Alertmanager가 token 없이 떠 경보가 401로 거부된다. 그래서 `render-config.sh`가 이미지의 `CORE_REQUIRED_FILES`가 일반 파일이고 비어 있지 않은지 확인하고, 아니면 알리고 멈춘다. 운영 가이드의 문제 해결 표에 폴더를 지우는 방법을 적었다.
+- 인터넷을 쓰지 않는 묶음 코어(`pull_policy: never`)와 묶음 node_exporter에 시험용 관리자 서버를 붙여, 목록 제공, 수집, 사용률 계산, 주소 확인 실패, 경보 도착(약 2분)까지 이어지는 것을 2026-10-22에 확인했다. 시험용 관리자 서버를 줄인 코드를 운영 가이드의 가장 작은 구현 예로 실었다.
+- 사람이 쓰는 말에 맞춰 운영 가이드에서는 앱을 관리자 서버, Alert를 경보라고 부른다. 통합 계약의 앱과 같은 것임을 첫머리에 밝혔다(사람 요청: 2026-10-22).
 
 ## 남길 결정
 

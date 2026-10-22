@@ -94,4 +94,7 @@ AI는 라이선스를 찾고, 분류 표와 대조하고, 기록과 고지 파�
 
 | 파일 | 출처 | 라이선스 | 권리자 | 허락된 용도 |
 |---|---|---|---|---|
+| `infrastructure/licenses/prometheus-LICENSE`, `prometheus-NOTICE` | https://github.com/prometheus/prometheus 의 v3.14.0 `LICENSE`, `NOTICE`(2026-10-22 받음) | Apache-2.0 원문과 고지 | The Prometheus Authors | 코어 이미지 묶음을 배포할 때 함께 싣는 라이선스와 고지 |
+| `infrastructure/licenses/alertmanager-LICENSE`, `alertmanager-NOTICE` | https://github.com/prometheus/alertmanager 의 v0.34.1 `LICENSE`, `NOTICE`(2026-10-22 받음) | Apache-2.0 원문과 고지 | The Prometheus Authors | 코어 이미지 묶음을 배포할 때 함께 싣는 라이선스와 고지 |
+| `infrastructure/licenses/blackbox-exporter-LICENSE`, `blackbox-exporter-NOTICE` | https://github.com/prometheus/blackbox_exporter 의 v0.28.0 `LICENSE`, `NOTICE`(2026-10-22 받음) | Apache-2.0 원문과 고지 | The Prometheus Authors | 코어 이미지 묶음을 배포할 때 함께 싣는 라이선스와 고지 |
 | `frontend/public/licenses/pretendard-OFL.txt` | https://github.com/orioncactus/pretendard 의 `LICENSE`(2026-10-15 받음) | OFL-1.1 원문 | Kil Hyung-jin 외 | 글꼴 패키지 `pretendard`를 웹 폰트로 배포할 때 함께 싣는 라이선스 전문 |

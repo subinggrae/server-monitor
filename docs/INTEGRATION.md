@@ -63,7 +63,7 @@ Prometheus를 몰라도 앱을 만들 수 있게, 코어가 해 주는 일과 �
 - `infrastructure/.env`의 `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
 - `infrastructure/secrets/alertmanager_webhook_token`: webhook에 붙는 Bearer token이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 이 저장소의 앱은 루트 `compose.yml`의 `secrets`에서 이 파일을 설정 키 `monitoring-manager.notification.alertmanager-webhook-token`으로 받는다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
 
-Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이다. 컨테이너가 시작할 때 `infrastructure/render-config.sh`가 주소를 넣는다.
+Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 이미지 안에 들어 있다. 컨테이너가 시작할 때 이미지 안의 `render-config.sh`가 주소를 넣는다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드](OPERATIONS.md#서버마다-바꾸는-설정)에 있다.
 
 ### 경로와 주소 바꾸기
 
@@ -76,7 +76,7 @@ Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_AD
 | API 경로 | 바꾸지 않고, 앱 앞단(리버스 프록시 등)에서 받아 넘김 | 앱 쪽 |
 | `http`를 `https`로 | 지원하지 않음(같은 호스트의 Docker 네트워크 안에서만 부름) | 없음 |
 
-API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의 `http_sd_configs.url` 두 곳과 `infrastructure/alertmanager/alertmanager.yml`의 `webhook_configs.url`을 고친다. 이는 코어 변경이라 이 저장소에서는 큰 변경으로 다루고, 이 문서도 함께 고친다.
+API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의 `http_sd_configs.url` 두 곳과 `infrastructure/alertmanager/alertmanager.yml`의 `webhook_configs.url`을 고친 뒤 코어 이미지를 다시 빌드하고 모든 코어 서버를 갱신한다. 이는 코어 변경이라 이 저장소에서는 큰 변경으로 다루고, 이 문서도 함께 고친다.
 
 ## 앱이 제공할 API
 
