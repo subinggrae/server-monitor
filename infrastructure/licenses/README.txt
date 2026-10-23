@@ -13,7 +13,7 @@
 
 BusyBox는 컨테이너 이미지의 바탕(공개 이미지 quay.io/prometheus/*)에 들어 있는 셸과 기본 명령이다.
 GPL-2.0 제3조에 따라 이 묶음에 든 BusyBox 버전의 소스를 sources/ 폴더에 함께 담았다.
-소스는 https://busybox.net/downloads/ 에서 받아 공식 체크섬과 대조했다.
+소스는 https://busybox.net/downloads/ (닿지 않으면 Buildroot 미러 https://sources.buildroot.net/busybox/)에서 받아 busybox.net의 공식 체크섬과 대조했다.
 
 이 묶음의 설정 파일과 Alert 규칙은 https://github.com/subinggrae/server-monitor 에서 만들었다.
 

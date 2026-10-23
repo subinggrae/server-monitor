@@ -44,6 +44,8 @@ const BUSYBOX_SOURCES = {
   '1.38.0': '34f9ea6ff8636f2c9241153b9114eefa9e65674a45318ae1ef95bb5f31c53bb2',
   '1.37.0': '3311dff32e746499f4df0d5df04d7eb396382d7e108bb9250e7b519b837043a4',
 };
+// busybox.net의 HTTPS를 막는 네트워크가 있어, 닿지 않으면 Buildroot의 공식 소스 미러에서 받는다. 두 곳의 파일은 같다(2026-10-23 확인).
+const BUSYBOX_MIRRORS = ['https://busybox.net/downloads', 'https://sources.buildroot.net/busybox'];
 const CACHE = path.join(DIST, '.cache');
 
 function fail(message) {
@@ -299,22 +301,30 @@ async function buildCoreBundle(core) {
   return out;
 }
 
-async function download(url, file) {
-  // busybox.net은 응답이 늦을 때가 있어 세 번까지 다시 시도한다.
+// fetch는 실패 원인(연결 시간 초과, 이름 풀이 실패 등)을 cause에만 담으므로 함께 보인다.
+function failureReason(error) {
+  const cause = error.cause;
+  return cause ? `${error.message} (${cause.code ?? cause.message})` : error.message;
+}
+
+// 주소를 차례로 시도하고, 모두 실패하면 처음부터 세 번까지 다시 돈다. 받은 파일은 부르는 쪽이 체크섬으로 확인한다.
+async function download(urls, file) {
   for (let attempt = 1; ; attempt += 1) {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(300_000) });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+    for (const url of urls) {
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(300_000) });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        fs.writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+        return;
       }
-      fs.writeFileSync(file, Buffer.from(await response.arrayBuffer()));
-      return;
-    }
-    catch (error) {
-      if (attempt >= 3) {
-        fail(`${url}을 받지 못했다: ${error.message}`);
+      catch (error) {
+        if (attempt >= 3 && url === urls.at(-1)) {
+          fail(`${urls.join(', ')}에서 받지 못했다: ${failureReason(error)}`);
+        }
+        console.warn(`경고: ${url}을 받지 못했다(${attempt}/3): ${failureReason(error)}`);
       }
-      console.warn(`경고: ${url}을 받지 못해 다시 시도한다(${attempt}/3): ${error.message}`);
     }
   }
 }
@@ -345,7 +355,7 @@ async function addLicensesAndSources(out, images) {
     if (!fs.existsSync(cached) || sha256(cached) !== expected) {
       console.log(`BusyBox ${version} 소스를 받는다.`);
       fs.mkdirSync(CACHE, { recursive: true });
-      await download(`https://busybox.net/downloads/${name}`, cached);
+      await download(BUSYBOX_MIRRORS.map((mirror) => `${mirror}/${name}`), cached);
       if (sha256(cached) !== expected) {
         fs.rmSync(cached);
         fail(`${name}의 체크섬이 공식 값과 다르다. 받은 파일을 지웠다.`);
@@ -370,7 +380,7 @@ async function buildNodeExporterBundle(core) {
 
   console.log(`node_exporter 실행 파일을 받아 공식 체크섬과 대조한다(${NODE_EXPORTER.archive}).`);
   const archive = path.join(out, NODE_EXPORTER.archive);
-  await download(`https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER.version}/${NODE_EXPORTER.archive}`,
+  await download([`https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER.version}/${NODE_EXPORTER.archive}`],
     archive);
   if (sha256(archive) !== NODE_EXPORTER.archiveSha256) {
     fs.rmSync(archive);
