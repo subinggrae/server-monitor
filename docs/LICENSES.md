@@ -75,7 +75,7 @@ AI 생성물과 생성 AI 서비스는 다음처럼 다룬다.
 - 라이선스 파일 설정: Vite의 `build.license`로 번들한 패키지 라이선스를 `dist/licenses.txt`에 낸다(`frontend/vite.config.ts`).
 - 고지 화면: 설정 화면의 "오픈소스 고지" 절이 `/licenses.txt`와 직접 넣은 라이선스 전문(`frontend/public/licenses/`)을 링크한다.
 - 라이선스 검사: 아직 정하지 않았다. 도구를 정한다.
-- 코어 묶음: 코어와 node_exporter 묶음은 회사 밖(다른 회사의 프로젝트)에도 준다(사람 확인: 2026-10-22). 그래서 `scripts/build-core-bundle.mjs`가 묶음의 `licenses/`에 각 프로그램의 라이선스 전문과 고지, 안내 파일(`infrastructure/licenses/README.txt`)을 싣는다. 이미지 바탕의 BusyBox(GPL-2.0)는 이미지에 든 버전을 읽어 같은 버전의 소스를 `sources/`에 싣고, 소스 체크섬이 없는 버전이면 빌드를 멈춘다.
+- 코어 묶음: 코어와 node_exporter 묶음은 회사 밖(다른 회사의 프로젝트)에도 준다(사람 확인: 2026-10-22). 그래서 `scripts/build-core-bundle.mjs`가 묶음의 `licenses/`에 각 프로그램의 라이선스 전문과 고지, 안내 파일(`infrastructure/licenses/README.txt`)을 싣는다. 이미지 바탕의 BusyBox(GPL-2.0)는 이미지에 든 버전을 읽어 같은 버전의 소스를 `sources/`에 싣고, 소스 체크섬이 없는 버전이면 빌드를 멈춘다. BusyBox가 없는 이미지로 바꾸는 방법보다 작업이 작고 조건을 스크립트가 강제해서 이 방법을 골랐다(사람 확인: 2026-10-22). 이 처리는 라이선스 문구를 읽고 내린 실무 판단이고 법률 검토를 대신하지 않는다.
 
 ## 사람이 하는 일
 
