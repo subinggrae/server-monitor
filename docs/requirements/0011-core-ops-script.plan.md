@@ -135,9 +135,9 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
 - [x] `core-server.sh`의 경로, `.env` 읽기, 사전 검사, `install`을 쓴다(C5, S1, S3, S9, S10, S12, S13).
 - [x] `start`, `rotate-token`, `status`와 Docker 자동 시작 확인을 쓴다(S2, S4~S8, S11, S14, S18, S19).
 - [x] 빌드 스크립트와 `.env.example`, `.gitattributes`를 바꾼다(C7).
-- [ ] `core-dev.bat`을 쓰고 Windows에서 확인한다(C9). `check`, 사용법, 다른 폴더에서 `stop`까지 확인했다. `build`, `start`는 남았다.
-- [ ] `docker:dind`에서 C1~C4, C6, C10을 수동 확인한다.
-- [ ] 운영 가이드, 개발 가이드, README, 테스트·아키텍처 문서와 compose 주석을 고친다(C8).
+- [ ] `core-dev.bat`을 쓰고 Windows에서 확인한다(C9). `check`, `build`, 사용법, 다른 폴더에서 `stop`까지 확인했다. `start`가 남았다.
+- [ ] `docker:dind`에서 C1~C4, C6, C10을 수동 확인한다. C1, C3, C4, C6, C10을 확인했다. C2는 두 번째 묶음으로 확인한다.
+- [x] 운영 가이드, 개발 가이드, README, 테스트·아키텍처·통합 계약 문서와 compose 주석을 고친다(C8).
 - [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다.
 - [ ] 요구사항을 구현됨으로 바꾸고 이 계획을 지운다.
 
@@ -147,6 +147,11 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
 - 로그 안내는 `docker compose logs <서비스>` 대신 `docker logs <컨테이너>`를 쓴다. 컨테이너 이름이 고정이라 어느 폴더에서 실행해도 맞기 때문이다.
 - 이 작업 환경은 `NoDefaultCurrentDirectoryInExePath`가 켜져 있어 cmd가 현재 폴더의 `core-dev.bat`을 찾지 못한다. 시험에서는 `.\core-dev.bat`으로 실행했다. 보통의 cmd에서는 해당하지 않는다.
 - Git Bash의 `sed -i`가 CRLF 파일의 CR을 지웠다. 배치 파일은 Node로 고치고 CRLF를 확인했다.
+- 수동 확인은 `docker:29-dind`(`sha256:9e79b879b177fbd72c34376a3dd3d91747da5db49e1f560f76aea59561471977`, Docker 29.9.2, Compose 5.6.1)를 `--network none`으로 띄워 했다. 이 이미지의 `sh`도 BusyBox다(2026-10-28).
+  - C1, C6: 인터넷 없이 `install`, `start`로 세 컨테이너가 `healthy`, token 폴더 0700, 파일 0644, 출력에 token 값 없음. `systemctl`이 없어 자동 시작은 확인하지 못했다고 알렸다.
+  - C3: 이미지 안의 BusyBox `nc`로 만든 시험용 관리자 서버에 Alertmanager API로 Alert를 넣었고, 받은 Bearer 값이 `rotate-token` 뒤의 파일 값과 같았다(해시로 비교).
+  - C4: `status`가 버전, 커밋, 세 컨테이너의 `running healthy`를 보였다.
+  - C10: dind 컨테이너를 다시 시작하자 세 컨테이너가 스스로 다시 떠 `healthy`가 됐고, `docker compose stop` 뒤 다시 시작하자 뜨지 않았다.
 
 ## 남길 결정
 

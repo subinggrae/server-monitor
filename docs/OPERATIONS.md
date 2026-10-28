@@ -26,8 +26,8 @@
 
 | 어디 | 필요한 것 |
 |---|---|
-| 빌드 PC | 인터넷, 이 저장소(커밋한 상태), Docker, Node 18 이상 |
-| 코어 서버 | x86-64 Linux, Docker Engine과 Docker Compose v2(29.2와 5.1에서 확인), 15일치 기록을 둘 디스크, 감시할 주소와 감시 대상 서버의 9100·9182 포트에 닿는 네트워크 |
+| 빌드 PC | Windows, 인터넷, 이 저장소(커밋한 상태), Docker Desktop, Node 18 이상 |
+| 코어 서버 | x86-64 Linux, Docker Engine과 Docker Compose v2(29.2와 5.1에서 확인), 서버가 켜질 때 Docker가 자동으로 켜지는 설정(`sudo systemctl enable docker`), 15일치 기록을 둘 디스크, 감시할 주소와 감시 대상 서버의 9100·9182 포트에 닿는 네트워크 |
 | 감시 대상 Linux 서버 | x86-64, Docker Compose v2 또는 systemd, 비어 있는 9100 포트 |
 | 감시 대상 Windows 서버 | windows_exporter를 설치할 권한, 비어 있는 9182 포트 |
 
@@ -43,16 +43,25 @@
 
 | 바꾸고 싶은 것 | 바꾸는 곳 | 기본값 |
 |---|---|---|
-| 묶음 폴더 위치 | 폴더를 원하는 곳에 그대로 둠 | 없음(어디든 됨) |
-| 관리자 서버 이름·포트 | 묶음 폴더 `.env`의 `MONITORING_APP_ADDRESS` | `manager-api:8080` |
-| token 폴더 위치 | 묶음 폴더 `.env`의 `CORE_SECRETS_DIR` | 묶음 폴더 안의 `secrets/` |
-| token 값 | token 폴더의 `alertmanager_webhook_token` 파일 | 없음(직접 만듦) |
+| 설치 폴더 위치 | 원하는 곳에 폴더를 만들고 묶음 폴더를 그 안에 둠 | 없음(어디든 됨) |
+| 관리자 서버 이름·포트 | 묶음 폴더 `.env`의 `MONITORING_APP_ADDRESS` | 없음(`install`이 물음) |
+| token 폴더 위치 | 묶음 폴더 `.env`의 `CORE_SECRETS_DIR` | 설치 폴더의 `secrets/` |
+| token 값 | token 폴더의 `alertmanager_webhook_token` 파일 | 없음(`install`이 만듦) |
 | 관리자 서버가 코어에 물을 주소 | 관리자 서버의 설정 | `http://prometheus:9090` |
 | 감시 대상 서버의 접근 허용 | 그 서버의 방화벽 | 없음(코어 서버 IP에만 연다) |
 
 관리자 서버 이름·포트는 `monitoring` 네트워크 안에서 닿는 `컨테이너 이름:포트`이고 `http://`를 붙이지 않는다. 관리자 서버의 컨테이너 이름이나 포트를 바꾸면 이 값도 함께 바꾼다.
 
-token 폴더는 버전 폴더 밖의 고정 경로에 두기를 권한다. 묶음 폴더는 버전마다 새로 생기므로, token이 그 안에 있으면 갱신할 때마다 옮기고 관리자 서버의 경로도 바꿔야 한다. 경로는 `/opt/monitoring/secrets`, `/srv/monitoring/secrets` 등 어디든 되고, 코어 `.env`와 관리자 서버가 같은 파일을 가리키기만 하면 된다.
+묶음 폴더는 버전마다 새로 생긴다. 그래서 묶음 폴더들을 한 설치 폴더에 나란히 두고, token은 설치 폴더의 `secrets/`에 둔다. 버전이 바뀌어도 token 경로가 그대로라 관리자 서버의 설정을 바꾸지 않는다. 설치 폴더는 `/opt/monitoring` 등 어디든 된다.
+
+```text
+/opt/monitoring/                         설치 폴더
+├── secrets/alertmanager_webhook_token   코어와 관리자 서버가 함께 읽는 token
+├── monitoring-core-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
+└── monitoring-core-<새 버전>/
+```
+
+token을 다른 곳에 두려면 `.env`의 `CORE_SECRETS_DIR`에 경로를 적는다. 상대 경로는 묶음 폴더 기준이다.
 
 ### 관리자 서버 화면에서 바꾸는 값
 
@@ -88,46 +97,45 @@ token 폴더는 버전 폴더 밖의 고정 경로에 두기를 권한다. 묶�
 
 ### 내부망 서버에 옮겨 실행
 
-1. 빌드 PC의 저장소 폴더에서 묶음을 만든다. 이미지를 빌드하고 설정 검사와 규칙 테스트를 통과하면 `dist/monitoring-core-<버전>/`과 `dist/node-exporter-<버전>/`이 생긴다. `<버전>`은 커밋에서 나온 값이고, 커밋하지 않은 변경이 있으면 같은 버전 이름이 다른 내용에 붙을 수 있어 멈춘다.
+1. Windows 빌드 PC의 저장소 폴더에서 묶음을 만든다. 이미지를 빌드하고 설정 검사, 규칙 테스트, 운영 명령 시험을 통과하면 `dist\monitoring-core-<버전>\`과 `dist\node-exporter-<버전>\`이 생긴다. `<버전>`은 커밋에서 나온 값이고, 커밋하지 않은 변경이 있으면 같은 버전 이름이 다른 내용에 붙을 수 있어 멈춘다.
+
+   ```bat
+   core-dev.bat build
+   ```
+
+2. 코어 서버에 설치 폴더(예: `/opt/monitoring`)를 만들고, `dist\monitoring-core-<버전>\` 폴더를 그 안에 옮긴다. 폴더 안의 `licenses/`와 `sources/`도 함께 옮긴다([라이선스](#라이선스)).
+3. 묶음 폴더에서 설치를 준비한다. 관리자 서버 주소(`컨테이너 이름:포트`)를 물으면 넣는다. 설치 폴더의 `secrets/`에 token 파일을 만들고, 묶음 폴더에 `.env`를 만든다. token 폴더는 운영자만 열 수 있게(0700), 파일은 컨테이너 사용자(`nobody`)가 읽을 수 있게(0644) 만든다. token 값은 화면에 보이지 않는다.
 
    ```sh
-   node scripts/build-core-bundle.mjs
+   sh core-server.sh install
    ```
 
-2. `dist/monitoring-core-<버전>/` 폴더를 코어 서버의 원하는 위치로 옮긴다. 폴더 안의 `licenses/`와 `sources/`도 함께 옮긴다([라이선스](#라이선스)).
-3. 처음 설치할 때만 token 파일을 만든다. 폴더는 운영자만 열 수 있게(0700), 파일은 컨테이너 안의 사용자(`nobody`)가 읽을 수 있게(0644) 둔다. Docker는 이 파일 자체를 컨테이너에 붙이므로 폴더를 닫아 두어도 컨테이너는 읽는다. 다음은 `/opt/monitoring/secrets`에 두는 예다.
+4. 묶음 폴더에서 코어를 띄운다. 파일이 온전한지 체크섬으로 확인하고, 설정과 token을 검사한 뒤, 이미지를 불러와 띄우고 세 컨테이너가 정상 상태가 될 때까지 최대 3분 기다린다. 이 폴더의 `compose.yml`은 인터넷에서 이미지를 받지 않는다. 서버가 켜질 때 Docker가 자동으로 켜지지 않으면 경고와 켜는 명령을 보인다.
 
    ```sh
-   sudo install -d -m 0700 /opt/monitoring/secrets
-   openssl rand -hex 32 | sudo tee /opt/monitoring/secrets/alertmanager_webhook_token > /dev/null
-   sudo chmod 0644 /opt/monitoring/secrets/alertmanager_webhook_token
+   sh core-server.sh start
    ```
 
-4. 묶음 폴더에서 설정 파일을 만들고 두 값을 고친다. `MONITORING_APP_ADDRESS`는 관리자 서버의 `컨테이너 이름:포트`다.
-
-   ```sh
-   cp .env.example .env
-   ```
-
-   ```ini
-   MONITORING_APP_ADDRESS=my-admin:8080
-   CORE_SECRETS_DIR=/opt/monitoring/secrets
-   ```
-
-5. 묶음 폴더에서 파일이 온전한지 확인하고, 이미지를 불러와 코어를 띄운다. `sha256sum`은 모든 줄이 `OK`여야 하고, `ps`는 세 컨테이너가 `healthy`여야 한다. 이 폴더의 `compose.yml`은 인터넷에서 이미지를 받지 않는다.
-
-   ```sh
-   sha256sum -c SHA256SUMS
-   docker load -i core-images.tar
-   docker compose up -d
-   docker compose ps
-   ```
-
-6. 관리자 서버를 띄운다. 코어가 `monitoring` 네트워크를 만들었으므로 코어 다음에 띄운다. 띄우는 옵션은 [관리자 서버 띄우기](#관리자-서버-띄우기)에 있다.
-7. 감시 대상 서버에 OS exporter를 설치하고 방화벽을 연다([OS exporter 설치](#os-exporter-설치)).
-8. 관리자 서버에 감시 대상을 등록하고 [설치 확인](#설치-확인)대로 동작을 본다.
+5. 관리자 서버를 띄운다. 코어가 `monitoring` 네트워크를 만들었으므로 코어 다음에 띄운다. 띄우는 옵션은 [관리자 서버 띄우기](#관리자-서버-띄우기)에 있다.
+6. 감시 대상 서버에 OS exporter를 설치하고 방화벽을 연다([OS exporter 설치](#os-exporter-설치)).
+7. 관리자 서버에 감시 대상을 등록하고 [설치 확인](#설치-확인)대로 동작을 본다.
 
 관리자 서버가 없어도 코어는 정상으로 뜬다. 감시 대상이 없는 상태로 기다리다가, 관리자 서버가 뜨면 15~30초 안에 대상 목록을 받아 간다.
+
+코어는 사람이 멈추지 않는 한 서버나 Docker가 재시작된 뒤 다시 뜬다. 세 컨테이너의 재시작 정책이 `unless-stopped`이기 때문이다. 다만 서버가 켜질 때 Docker가 자동으로 켜져야 한다.
+
+운영 명령 없이 직접 실행할 수도 있다. 3, 4번 대신 묶음 폴더에서 다음을 실행한다. token은 설치 폴더의 `secrets/`(`../secrets`)에서 읽는다. token 파일이 없는데 띄우면 Docker가 그 자리에 빈 폴더를 만들므로, token을 먼저 만든다.
+
+```sh
+install -d -m 0700 ../secrets
+openssl rand -hex 32 > ../secrets/alertmanager_webhook_token
+chmod 0644 ../secrets/alertmanager_webhook_token
+cp .env.example .env              # MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
+sha256sum -c SHA256SUMS           # 모든 줄이 OK여야 한다
+docker load -i core-images.tar
+docker compose up -d
+docker compose ps                 # 세 컨테이너가 healthy여야 한다
+```
 
 ### 저장소에서 실행
 
@@ -137,6 +145,11 @@ token 폴더는 버전 폴더 밖의 고정 경로에 두기를 권한다. 묶�
 cp infrastructure/.env.example infrastructure/.env
 openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
 chmod 0644 infrastructure/secrets/alertmanager_webhook_token
+```
+
+Windows에서는 `core-dev.bat start`로 띄우고 `core-dev.bat stop`으로 멈춘다. 다른 OS에서는 같은 일을 하는 다음 명령을 쓴다.
+
+```sh
 docker compose -f infrastructure/compose.yml up -d --build
 docker compose -f infrastructure/compose.yml ps
 ```
@@ -399,25 +412,29 @@ http.createServer((req, res) => {
 
 ## 운영 작업
 
-코어를 운영하면서 하는 일은 다음과 같다. 명령은 묶음 폴더에서 실행한다. 저장소에서 실행했으면 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
+코어를 운영하면서 하는 일은 다음과 같다. 명령은 지금 쓰는 버전의 묶음 폴더에서 실행한다. 저장소에서 실행했으면 `core-dev.bat`을 쓰거나 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
 
-- **관리자 서버 이름·포트 바꾸기**: `.env`를 고친 뒤 `docker compose up -d`를 실행한다.
-- **token 바꾸기**: token 파일을 새 값으로 바꾼 뒤 `docker compose up -d --force-recreate alertmanager`로 Alertmanager를 다시 만든다. `up -d`만으로는 파일이 바뀐 것을 알아채지 못해 옛 값을 쓸 수 있다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
-- **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `docker compose -f infrastructure/compose.yml up -d --build`로 다시 띄운다.
-- **새 버전으로 갱신**: 새 묶음 폴더에 이전 폴더의 `.env`를 복사하고, 새 폴더에서 `sha256sum -c SHA256SUMS`, `docker load -i core-images.tar`, `docker compose up -d`를 실행한다. token은 고정 폴더에 두므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
-- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `docker compose up -d`를 실행한다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않아도 된다.
-- **띄운 버전 확인**: `docker compose ps`의 이미지 태그가 버전이다. 그 버전을 빌드한 커밋은 `docker image inspect monitoring-core-prometheus:<버전> | grep image.revision`으로 본다.
-- **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남는다.
-- **기록까지 지우기**: `docker compose down -v`를 실행한다. 되돌릴 수 없다.
-- **로그 보기**: `docker compose logs -f prometheus`를 실행한다.
+- **관리자 서버 이름·포트 바꾸기**: `.env`의 `MONITORING_APP_ADDRESS`를 고친 뒤 `sh core-server.sh start`를 실행한다.
+- **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
+- **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
+- **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
+- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 이전 버전으로 바꿀지 물으면 `y`를 넣는다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다.
+- **띄운 버전 확인**: `sh core-server.sh status`를 실행한다. 떠 있는 버전, 그 버전을 빌드한 커밋, 세 컨테이너의 상태가 보인다.
+- **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남고, 서버가 재시작돼도 다시 뜨지 않는다. 다시 띄우려면 `sh core-server.sh start`를 실행한다.
+- **기록까지 지우기**: `docker compose down -v`를 실행한다. 되돌릴 수 없어 운영 명령에 넣지 않았다.
+- **로그 보기**: `docker logs -f prometheus`를 실행한다.
 
 ## 문제 해결
 
-코어가 뜨지 않거나 동작하지 않으면 다음 표에서 보이는 것을 찾는다.
+코어가 뜨지 않거나 동작하지 않으면 다음 표에서 보이는 것을 찾는다. 운영 명령은 대부분의 경우를 띄우기 전에 알아보고 고치는 방법을 함께 보인다. 아래 표는 그 안내에 없는 경우와 직접 실행했을 때를 다룬다.
 
 | 보이는 것 | 원인 | 해결 |
 |---|---|---|
-| `MONITORING_APP_ADDRESS가 필요합니다` | `.env`가 없거나 관리자 서버 주소가 비어 있음 | `.env`를 만들고 관리자 서버 주소를 넣는다 |
+| `Docker에 연결하지 못했습니다` | Docker가 꺼져 있거나 이 사용자가 `docker`를 쓸 권한이 없음 | `sudo systemctl start docker`, 또는 사용자를 `docker` 그룹에 넣는다 |
+| `서버가 켜질 때 Docker가 자동으로 켜지지 않습니다` | Docker 서비스가 자동 시작으로 설정되지 않음 | `sudo systemctl enable docker` |
+| `이전 버전(…)으로 바꾸려면 터미널에서 실행해 확인해 주세요` | 이전 버전 폴더에서 `start`를 실행했는데, 입력을 받을 수 없는 방식으로 실행함 | 이전 버전으로 되돌리려는 것이 맞으면 터미널에서 직접 실행하고 `y`를 넣는다 |
+| `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
+| `MONITORING_APP_ADDRESS가 필요합니다` | 직접 실행했는데 `.env`가 없거나 관리자 서버 주소가 비어 있음 | `.env`를 만들고 관리자 서버 주소를 넣는다 |
 | `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 없음` | token 파일이 없거나 비어 있음 | 로그의 경로에 token 파일을 만든다 |
 | `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 읽기 불가` | token 파일 권한이 0600 등이라 컨테이너 사용자가 읽지 못함 | 파일 권한을 0644로 바꾼다 |
 | `alertmanager_webhook_token`이 폴더임 | token 파일 없이 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
