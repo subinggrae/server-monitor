@@ -22,8 +22,8 @@ gradle wrapper처럼 쓰는 곳마다 스크립트 파일을 하나씩 두고, �
 - **`.env` 읽기**: `.env`를 셸로 실행(`.`, `source`)하지 않는다. `sed`로 `KEY=` 줄의 값만 읽는다.
 - **`install`**: token 파일이 없으면 token 폴더를 0700으로 만들고, `od -An -tx1 -N32 /dev/urandom`으로 만든 64자 값을 같은 폴더의 임시 파일에 쓴 뒤 0644로 바꾸고 이름을 옮긴다. `.env`가 없으면 떠 있는 `prometheus` 컨테이너의 Compose label `com.docker.compose.project.working_dir`로 그 묶음 폴더를 찾는다. 그 폴더가 같은 설치 폴더 안에 있고 `.env`가 있으면 복사한다(S3). 아니면 관리자 서버 주소를 묻고 `.env.example`을 복사해 주소 줄만 바꾼다(S1, S13). 이미 있는 파일은 덮어쓰지 않는다(S12).
 - **`start`**: Docker 실행 확인(S19) → 체크섬 확인(S8) → 사전 검사(S9, S10) → 세 이미지가 없으면 `docker load` → 버전 비교 → `docker compose up -d` → 정상 상태 대기(S11) → Docker 자동 시작 확인(S18) → 버전과 커밋 출력. 사전 검사는 Docker가 token 자리에 폴더를 만들기 전에 실행한다.
-- **버전 비교**: 묶음의 버전은 실행용 compose 파일의 이미지 태그, 떠 있는 버전은 `prometheus` 컨테이너의 OCI label `org.opencontainers.image.version`과 `revision`에서 읽는다. 둘이 다르면 두 이미지의 `Created` 시각을 비교한다. 묶음 쪽이 더 오래됐으면 `[ -t 0 ]`일 때만 확인을 묻고, 터미널이 아니면 바꾸지 않고 멈춘다(S5). 버전 태그는 `git describe` 값이라 크기를 비교할 수 없어 빌드 시각을 쓴다.
-- **정상 상태 대기**: 5초마다 세 컨테이너의 `State.Health.Status`를 읽어 3분까지 기다린다. 넘으면 `healthy`가 아닌 컨테이너와 `docker compose logs <서비스>`를 보인다.
+- **버전 비교**: 묶음의 버전은 실행용 compose 파일의 이미지 태그, 떠 있는 버전은 `prometheus` 컨테이너의 OCI label `org.opencontainers.image.version`과 `revision`에서 읽는다. 둘이 다르면 두 이미지의 커밋 시각 label `monitoring-core.commit-time`(빌드 스크립트가 넣는 epoch 초, 없으면 0)을 비교한다. 묶음 쪽이 더 이르면 `[ -t 0 ]`일 때만 확인을 묻고, 터미널이 아니면 바꾸지 않고 멈춘다(S5). 버전 태그는 `git describe` 값이라 크기를 비교할 수 없고, 이미지의 `Created`는 빌드 캐시 때문에 버전마다 같을 수 있다(진행 중 발견).
+- **정상 상태 대기**: 5초마다 세 컨테이너의 `State.Health.Status`를 읽어 3분까지 기다린다. 넘으면 `healthy`가 아닌 컨테이너와 `docker logs <컨테이너>`를 보인다.
 - **Docker 자동 시작 확인**: `systemctl`이 있으면 `systemctl is-enabled docker.service`가 `enabled`인지 본다. 아니면 경고와 `sudo systemctl enable docker`를 보이고 계속한다. `docker.socket`만 켜져 있으면 서버가 켜질 때 Docker가 뜨지 않으므로 `docker.service`를 본다. `systemctl`이 없으면 확인하지 못했다고 알린다.
 - **`rotate-token`**: 사전 검사 → 새 token을 임시 파일에 써서 이름을 옮김 → `docker compose up -d --force-recreate alertmanager` → Alertmanager 정상 대기 → token 파일의 실제 경로(`pwd -P`)와 관리자 서버도 다시 띄우라는 안내
 - **`status`**: 떠 있는 버전, 커밋, 세 컨테이너의 상태와 health, 묶음 버전과 다르면 그 사실
@@ -43,14 +43,16 @@ gradle wrapper처럼 쓰는 곳마다 스크립트 파일을 하나씩 두고, �
 | `core-dev.bat` | 빌드 PC용 명령(새 파일) |
 | `infrastructure/core-server.sh` | 코어 서버용 운영 명령(새 파일) |
 | `infrastructure/tests/core-server.test.sh` | 운영 명령의 예외 동작 자동 시험(새 파일) |
-| `scripts/build-core-bundle.mjs` | 묶음에 운영 명령 추가, token 기본값 변경, `--check`에서 자동 시험 실행 |
+| `scripts/build-core-bundle.mjs` | 묶음에 운영 명령 추가, token 기본값 변경, `--check`에서 자동 시험 실행, 커밋 시각 전달 |
+| `infrastructure/*/Dockerfile` | 커밋 시각 label `monitoring-core.commit-time` 추가 |
 | `infrastructure/.env.example` | `CORE_SECRETS_DIR` 기본값 설명 |
 | `.gitattributes` | `*.bat text eol=crlf` 추가 |
-| `infrastructure/compose.yml`, `compose.yml` | 머리 주석의 실행 안내 |
+| `infrastructure/compose.yml` | 머리 주석의 실행 안내, 빌드 인자 `CORE_COMMIT_TIME` |
+| `compose.yml` | 머리 주석의 실행 안내 |
 | `docs/OPERATIONS.md` | 설치 순서, 운영 작업, 문제 해결, 준비물 |
 | `docs/DEVELOPMENT.md`, `README.md` | 코어 실행, 설정 검사, 묶음 명령 |
 | `docs/TESTING.md` | 종류별 기준에 운영 명령 시험 행 |
-| `docs/ARCHITECTURE.md` | 코드 지도에 두 스크립트 |
+| `docs/ARCHITECTURE.md`, `docs/INTEGRATION.md` | 코드 지도에 두 스크립트, token 폴더 기본값 |
 
 표에 다 적지 못한 내용은 다음과 같다.
 
@@ -87,7 +89,7 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
 - 묶음 폴더 안의 `secrets/`에 token을 둔 기존 서버: 새 묶음은 기본값이 `../secrets`라 token을 찾지 못한다. `start`의 사전 검사가 이 경우를 알아보고 옮기라고 안내한다(S10). `.env`에 `CORE_SECRETS_DIR`를 적은 서버는 영향이 없다.
 - 서버의 셸이나 도구 차이(dash, bash, BusyBox): POSIX 문법과 공통 옵션만 쓰고, 자동 시험은 BusyBox `sh`에서, 수동 확인은 Debian 계열 `sh`(dash)에서 실행해 두 쪽을 본다.
 - Windows 콘솔의 한글 깨짐: `chcp 65001` 뒤에 출력한다. 깨지면 영문 메시지로 바꾸는 대신 진행 중 발견에 쓰고 사람에게 묻는다.
-- `Created` 비교가 틀림(같은 커밋을 다시 빌드한 경우 등): 버전이 같으면 비교하지 않는다. 다른 버전을 같은 시각에 빌드하는 경우는 없다고 보고, 틀리게 물어도 확인 질문이 하나 더 나올 뿐이다.
+- 버전의 앞뒤를 틀리게 판단함: 커밋 시각 label로 판단하므로 같은 커밋을 나중에 다시 빌드해도 순서가 바뀌지 않는다. label이 없는 예전 이미지는 0으로 보아, 예전 버전에서 올리는 갱신은 묻지 않고 예전 버전으로 되돌릴 때만 확인을 받는다. 커밋 시각이 같은 두 버전(같은 커밋의 `-dirty` 시험 묶음)은 묻지 않고 바꾼다.
 - 되돌리기: 이 변경을 revert하면 스크립트가 빠지고 묶음의 token 기본값이 `./secrets`로 돌아간다. 직접 실행하는 절차는 그대로 남아 있다.
 
 ### 보안 위협
@@ -152,6 +154,9 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
   - C3: 이미지 안의 BusyBox `nc`로 만든 시험용 관리자 서버에 Alertmanager API로 Alert를 넣었고, 받은 Bearer 값이 `rotate-token` 뒤의 파일 값과 같았다(해시로 비교).
   - C4: `status`가 버전, 커밋, 세 컨테이너의 `running healthy`를 보였다.
   - C10: dind 컨테이너를 다시 시작하자 세 컨테이너가 스스로 다시 떠 `healthy`가 됐고, `docker compose stop` 뒤 다시 시작하자 뜨지 않았다.
+- C2를 확인하다 결함을 찾았다. 이전 버전 폴더에서 터미널 없이 `start`했는데 확인 없이 되돌려졌다. 두 버전 이미지의 `Created`가 `2026-10-22T07:25:33Z`로 같았기 때문이다. 빌드 캐시가 이전 빌드의 시각을 그대로 썼고, 계획의 "다른 버전을 같은 시각에 빌드하는 경우는 없다"는 가정이 틀렸다. 그래서 Dockerfile 세 개에 커밋 시각 label을 넣고 그 값으로 판단하도록 바꿨다. 자동 시험의 가짜 docker가 `Created`를 버전마다 다르게 돌려줘 이 결함을 잡지 못했다. label 기준 시험과 확인 질문에 `y`, `n`을 넣는 시험을 더했고, 고치기 전 스크립트에서 4건이 실패하는 것을 봤다(2026-10-28).
+- 확인 질문 시험은 BusyBox `script`로 가상 터미널을 연다. 이미지의 기본 사용자 `nobody`는 가상 터미널을 열지 못해(안의 명령 출력이 사라짐), 빌드 스크립트가 자동 시험을 root로 실행한다. 권한 검사는 접근 가능 여부가 아니라 권한 비트(`find -perm`)를 보므로 root로 실행해도 결과가 같다. `script`는 입력이 끝나면 안의 명령을 기다리지 않아, 답을 넣은 뒤 입력을 3초 열어 둔다.
+- `install`이 이미 있는 token의 경로를 `.../monitoring-core-<버전>/../secrets/...`처럼 풀지 않고 보여서 실제 경로로 바꿨다.
 
 ## 남길 결정
 

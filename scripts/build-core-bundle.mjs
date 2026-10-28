@@ -111,19 +111,21 @@ function writeText(file, text) {
 function version({ allowDirty }) {
   const describe = run('git', ['describe', '--tags', '--always', '--dirty'], { capture: true });
   const revision = run('git', ['rev-parse', 'HEAD'], { capture: true });
+  const commitTime = run('git', ['show', '-s', '--format=%ct', 'HEAD'], { capture: true });
   if (describe.endsWith('-dirty')) {
     if (!allowDirty) {
       fail('커밋하지 않은 변경이 있다. 커밋한 뒤 묶음을 만든다. 시험용으로만 만들려면 --allow-dirty를 붙인다.');
     }
     console.warn('경고: 커밋하지 않은 변경이 있다. 버전 끝에 -dirty가 붙고, 그 커밋만으로는 같은 이미지를 다시 만들 수 없다.');
   }
-  return { describe, revision };
+  return { describe, revision, commitTime };
 }
 
 function composeEnv(core) {
   return {
     CORE_VERSION: core.describe,
     CORE_REVISION: core.revision,
+    CORE_COMMIT_TIME: core.commitTime,
     DOCKER_DEFAULT_PLATFORM: PLATFORM,
     // compose.yml의 ${MONITORING_APP_ADDRESS:?}가 빌드에서도 값을 요구한다. 이미지에는 들어가지 않는다.
     MONITORING_APP_ADDRESS: process.env.MONITORING_APP_ADDRESS ?? CHECK_APP_ADDRESS,
@@ -155,8 +157,9 @@ function checkCoreImages(core) {
     '/etc/core/render-config.sh', '/etc/alertmanager/alertmanager.yml.template', '/tmp/alertmanager.yml',
     'amtool', 'check-config', '/tmp/alertmanager.yml']);
   // 코어 서버의 sh가 BusyBox일 수도 있어, 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
+  // 확인 질문 시험이 가상 터미널을 여는데, 이미지의 기본 사용자(nobody)는 열 수 없어 root로 실행한다.
   console.log('코어 서버 운영 명령(core-server.sh)의 자동 시험을 실행한다.');
-  run('docker', ['run', '--rm', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', prometheus,
+  run('docker', ['run', '--rm', '--user', '0', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', prometheus,
     '/src/tests/core-server.test.sh', '/src/core-server.sh']);
 }
 

@@ -141,7 +141,16 @@ load_images() {
   done
 }
 
-# 버전 태그는 git describe 값이라 크기를 비교할 수 없어, 이미지를 빌드한 시각으로 이전 버전인지 판단한다.
+# 버전 태그는 git describe 값이라 크기를 비교할 수 없고, 이미지의 Created는 빌드 캐시 때문에 버전마다 같을 수 있다.
+# 그래서 빌드할 때 넣은 커밋 시각 label로 앞뒤를 판단한다. label이 없는 예전 이미지는 0으로 본다.
+commit_time() {
+  value=$(docker image inspect -f '{{index .Config.Labels "monitoring-core.commit-time"}}' "$1" 2>/dev/null) || value=""
+  case "$value" in
+    ''|*[!0-9]*) echo 0 ;;
+    *) echo "$value" ;;
+  esac
+}
+
 confirm_version() {
   new=$(bundle_version)
   current=$(running_label org.opencontainers.image.version) || current=""
@@ -154,10 +163,9 @@ confirm_version() {
     return 0
   fi
   say "떠 있는 버전: $current → 띄울 버전: $new"
-  current_created=$(docker image inspect -f '{{.Created}}' "$(docker inspect -f '{{.Image}}' prometheus)")
-  new_created=$(docker image inspect -f '{{.Created}}' "monitoring-core-prometheus:$new")
-  earliest=$(printf '%s\n%s\n' "$current_created" "$new_created" | sort | head -n 1)
-  if [ "$new_created" = "$current_created" ] || [ "$earliest" != "$new_created" ]; then
+  current_time=$(commit_time "$(docker inspect -f '{{.Image}}' prometheus)")
+  new_time=$(commit_time "monitoring-core-prometheus:$new")
+  if [ "$new_time" -ge "$current_time" ]; then
     return 0
   fi
   if [ ! -t 0 ]; then
@@ -249,7 +257,7 @@ cmd_install() {
   fi
 
   if [ "$token_existed" = yes ]; then
-    say "token 파일이 이미 있습니다. 그대로 씁니다: $file"
+    say "token 파일이 이미 있습니다. 그대로 씁니다: $(real_path "$file")"
   else
     mkdir -p "$(dirname "$file")"
     chmod 0700 "$(dirname "$file")"

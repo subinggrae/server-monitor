@@ -33,7 +33,7 @@ EOF
   (cd "$BUNDLE" && sha256sum compose.yml .env.example core-images.tar core-server.sh > SHA256SUMS)
   printf 'enabled\n' > "$FAKE/systemctl"
   printf 'healthy\n' > "$FAKE/health"
-  printf '2026-10-28T00:00:00Z\n' > "$FAKE/bundle_created"
+  printf '1761600000\n' > "$FAKE/bundle_time"
   write_fake_docker
   write_fake_systemctl
   PATH="$T/bin:$ORIGINAL_PATH"
@@ -54,8 +54,8 @@ case "$1" in
   image)
     [ -f "$FAKE/images_loaded" ] || exit 1
     case "$*" in
-      *Created*running-image*) cat "$FAKE/running_created" ;;
-      *Created*) cat "$FAKE/bundle_created" ;;
+      *commit-time*running-image*) cat "$FAKE/running_time" ;;
+      *commit-time*) cat "$FAKE/bundle_time" ;;
     esac ;;
   inspect)
     [ -f "$FAKE/running" ] || { echo "Error: No such object" >&2; exit 1; }
@@ -90,16 +90,25 @@ prepared() {
   printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$BUNDLE/.env"
 }
 
-# 다른 버전의 코어가 떠 있는 상태
+# 다른 버전의 코어가 떠 있는 상태. 두 번째 인자는 그 이미지의 커밋 시각 label 값이다.
 running_other() {
   touch "$FAKE/running" "$FAKE/images_loaded"
   printf '%s\n' "$1" > "$FAKE/running_version"
-  printf '%s\n' "$2" > "$FAKE/running_created"
+  printf '%s\n' "$2" > "$FAKE/running_time"
   printf '%s\n' "$3" > "$FAKE/running_workdir"
 }
 
 run() {
   OUT=$(cd "$BUNDLE" && sh ./core-server.sh "$@" 2>&1 < "${STDIN:-/dev/null}")
+  RC=$?
+}
+
+# 확인 질문은 터미널에서만 묻는다. BusyBox script로 가상 터미널을 만들어 답을 넣는다.
+# script는 입력이 끝나면 안의 명령을 기다리지 않고 끝나므로, 답을 넣은 뒤 입력을 잠시 열어 둔다.
+run_in_terminal() {
+  answer=$1
+  shift
+  OUT=$(cd "$BUNDLE" && { printf '%s\n' "$answer"; sleep 3; } | script -q -c "sh ./core-server.sh $*" /dev/null 2>&1)
   RC=$?
 }
 
@@ -203,15 +212,35 @@ run start
 check '정해진 시간 안에 정상이 되지 않으면 컨테이너와 로그 명령을 보인다' \
   '[ $RC -ne 0 ] && contains "정상 상태가 되지 않았습니다" && contains "docker logs prometheus"'
 
-setup; prepared; running_other v3 '2026-10-29T00:00:00Z' "$INSTALL/monitoring-core-v3"
+setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
 run start
 check '이전 버전으로 바꾸는데 터미널이 아니면 바꾸지 않는다' \
   '[ $RC -ne 0 ] && contains "v3" && ! called "compose.* up"'
 
-setup; prepared; running_other v1 '2026-10-27T00:00:00Z' "$INSTALL/monitoring-core-v1"
+setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
+run_in_terminal n start
+check '이전 버전으로 바꿀지 물었을 때 n이면 바꾸지 않는다' \
+  'contains "계속할까요" && contains "아무것도 바꾸지 않았습니다" && ! called "compose.* up"'
+
+setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
+run_in_terminal y start
+check '이전 버전으로 바꿀지 물었을 때 y이면 바꾼다' \
+  '[ $RC -eq 0 ] && contains "계속할까요" && called "compose.* up"'
+
+setup; prepared; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
 run start
 check '새 버전으로 바꿀 때는 묻지 않고 떠 있는 버전과 새 버전을 보인다' \
-  '[ $RC -eq 0 ] && contains "v1" && called "compose.* up"'
+  '[ $RC -eq 0 ] && contains "v1" && ! contains "계속할까요" && called "compose.* up"'
+
+setup; prepared; running_other v0 '<no value>' "$INSTALL/monitoring-core-v0"
+run start
+check '떠 있는 이미지에 커밋 시각이 없으면 예전 버전으로 보고 묻지 않는다' \
+  '[ $RC -eq 0 ] && called "compose.* up"'
+
+setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"; printf '<no value>\n' > "$FAKE/bundle_time"
+run start
+check '띄울 이미지에 커밋 시각이 없으면 이전 버전으로 보고 터미널이 아니면 바꾸지 않는다' \
+  '[ $RC -ne 0 ] && ! called "compose.* up"'
 
 setup; prepared; printf 'disabled\n' > "$FAKE/systemctl"
 run start

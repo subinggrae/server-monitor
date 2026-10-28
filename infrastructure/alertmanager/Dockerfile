@@ -6,9 +6,12 @@ FROM quay.io/prometheus/alertmanager:v0.34.1@sha256:e9733bafb1bdef9b00e25a21f8f9
 
 ARG CORE_VERSION=dev
 ARG CORE_REVISION=unknown
+# 코어 서버의 core-server.sh가 이 값(커밋 시각, epoch 초)으로 버전의 앞뒤를 판단합니다. 빌드 캐시 때문에 이미지의 Created는 버전마다 같을 수 있습니다.
+ARG CORE_COMMIT_TIME=0
 LABEL org.opencontainers.image.title="monitoring-core-alertmanager" \
       org.opencontainers.image.version="${CORE_VERSION}" \
       org.opencontainers.image.revision="${CORE_REVISION}" \
+      monitoring-core.commit-time="${CORE_COMMIT_TIME}" \
       org.opencontainers.image.source="https://github.com/subinggrae/server-monitor"
 
 # token 파일이 없으면 webhook이 401로 거부되어 알림이 조용히 끊기므로, 시작할 때 확인합니다.

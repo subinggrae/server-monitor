@@ -5,9 +5,12 @@ FROM quay.io/prometheus/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5ed
 
 ARG CORE_VERSION=dev
 ARG CORE_REVISION=unknown
+# 코어 서버의 core-server.sh가 이 값(커밋 시각, epoch 초)으로 버전의 앞뒤를 판단합니다. 빌드 캐시 때문에 이미지의 Created는 버전마다 같을 수 있습니다.
+ARG CORE_COMMIT_TIME=0
 LABEL org.opencontainers.image.title="monitoring-core-blackbox-exporter" \
       org.opencontainers.image.version="${CORE_VERSION}" \
       org.opencontainers.image.revision="${CORE_REVISION}" \
+      monitoring-core.commit-time="${CORE_COMMIT_TIME}" \
       org.opencontainers.image.source="https://github.com/subinggrae/server-monitor"
 
 COPY blackbox/blackbox.yml /etc/blackbox_exporter/config.yml

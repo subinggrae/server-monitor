@@ -7,9 +7,12 @@ FROM quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5
 
 ARG CORE_VERSION=dev
 ARG CORE_REVISION=unknown
+# 코어 서버의 core-server.sh가 이 값(커밋 시각, epoch 초)으로 버전의 앞뒤를 판단합니다. 빌드 캐시 때문에 이미지의 Created는 버전마다 같을 수 있습니다.
+ARG CORE_COMMIT_TIME=0
 LABEL org.opencontainers.image.title="monitoring-core-prometheus" \
       org.opencontainers.image.version="${CORE_VERSION}" \
       org.opencontainers.image.revision="${CORE_REVISION}" \
+      monitoring-core.commit-time="${CORE_COMMIT_TIME}" \
       org.opencontainers.image.source="https://github.com/subinggrae/server-monitor"
 
 COPY render-config.sh /etc/core/render-config.sh

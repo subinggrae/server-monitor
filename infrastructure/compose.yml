@@ -19,6 +19,7 @@ x-render-config: &render-config
 x-core-build-args: &core-build-args
   CORE_VERSION: ${CORE_VERSION:-dev}
   CORE_REVISION: ${CORE_REVISION:-unknown}
+  CORE_COMMIT_TIME: ${CORE_COMMIT_TIME:-0}
 
 services:
 
