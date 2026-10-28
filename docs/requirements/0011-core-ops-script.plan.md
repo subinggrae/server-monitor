@@ -137,7 +137,7 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
 - [x] `core-server.sh`의 경로, `.env` 읽기, 사전 검사, `install`을 쓴다(C5, S1, S3, S9, S10, S12, S13).
 - [x] `start`, `rotate-token`, `status`와 Docker 자동 시작 확인을 쓴다(S2, S4~S8, S11, S14, S18, S19).
 - [x] 빌드 스크립트와 `.env.example`, `.gitattributes`를 바꾼다(C7).
-- [ ] `core-dev.bat`을 쓰고 Windows에서 확인한다(C9). `check`, `build`, 사용법, 다른 폴더에서 `stop`까지 확인했다. `start`가 남았다.
+- [x] `core-dev.bat`을 쓰고 Windows에서 확인한다(C9). `build`, `check`, `start`(세 컨테이너 `healthy`), `stop`, 사용법, 다른 폴더에서 실행을 확인했고 한글이 깨지지 않았다.
 - [ ] `docker:dind`에서 C1~C4, C6, C10을 수동 확인한다. C1, C3, C4, C6, C10을 확인했다. C2는 두 번째 묶음으로 확인한다.
 - [x] 운영 가이드, 개발 가이드, README, 테스트·아키텍처·통합 계약 문서와 compose 주석을 고친다(C8).
 - [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다.
