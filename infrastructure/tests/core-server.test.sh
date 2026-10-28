@@ -324,6 +324,8 @@ mkdir "$INSTALL/monitoring-core-v1/secrets"; printf 'old\n' > "$INSTALL/monitori
 run install
 check '이전 묶음 폴더 안에 token이 있으면 새 token을 만들지 않고 옮기라고 안내한다' \
   '[ $RC -ne 0 ] && contains "monitoring-core-v1/secrets/alertmanager_webhook_token" && [ ! -e "$INSTALL/secrets" ] && [ ! -e "$BUNDLE/.env" ]'
+check 'token을 옮길 곳은 ../ 없이 설치 폴더의 실제 경로로 보인다' \
+  'contains "$(cd "$INSTALL" && pwd -P)/secrets/로 옮기고" && ! contains "/../"'
 
 setup; prepared; mkdir "$T/fixed"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/fixed/"; rm "$BUNDLE/.env"
 old_bundle "CORE_SECRETS_DIR=$T/fixed

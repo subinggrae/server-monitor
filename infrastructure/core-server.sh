@@ -76,6 +76,11 @@ token_file() {
     /*) ;;
     *) dir="$BUNDLE_DIR/$dir" ;;
   esac
+  # 안내에 ../가 남지 않도록, token 폴더가 아직 없어도 상위 폴더가 있으면 실제 경로로 푼다.
+  parent=$(dirname "$dir")
+  if [ -d "$parent" ]; then
+    dir="$(cd "$parent" && pwd -P)/$(basename "$dir")"
+  fi
   printf '%s/%s' "$dir" "$TOKEN_NAME"
 }
 

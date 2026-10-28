@@ -164,6 +164,8 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
   - 낮음: `install`의 Docker 확인, `.env`의 `export`·작은따옴표·줄 끝 주석과 셸 환경 변수 우선, 멈춘 코어를 떠 있다고 보이던 것(`.State.Running`), 이미 있는 폴더의 권한을 바꾸던 것, `core-dev.bat`이 코드페이지를 되돌리지 않던 것, 되돌리기를 거절했을 때 "아무것도 바꾸지 않았습니다"라는 부정확한 안내(이미지는 이미 불러온 상태라 "코어는 바꾸지 않았습니다"로)
   - 자동 시험은 52건이 되었다. 리뷰 전 스크립트에서는 새 시험 12건이 실패했다(1건은 안내 문구 변경).
   - 시험의 `called compose`가 `inspect`의 label 이름(`com.docker.compose...`)에도 걸려, 줄 머리의 `compose` 명령만 보도록 고쳤다.
+  - 실제 Docker로도 확인했다. `main`(c0f9c1b) 묶음을 예전 방식(token은 묶음 폴더 안, `.env`에 `CORE_SECRETS_DIR` 없음)으로 dind에서 띄운 뒤 `00c3de8` 묶음에서 `install`하자, token을 만들지 않고 옛 token 경로를 안내하며 멈췄다. 운영 가이드 절차대로 token을 설치 폴더로 옮기자 `install`이 이전 `.env`를 가져왔고 `start`가 묻지 않고 갱신했다. 갱신 뒤 webhook의 Bearer 값이 갱신 전 token과 같았다(해시 비교).
+  - 이때 안내 경로가 `.../monitoring-core-<버전>/../secrets/`로 보여, token 폴더의 상위 폴더가 있으면 실제 경로로 풀게 했다. 시험을 더해 53건이 되었다.
 - C1, C3, C4, C6, C10은 결함을 고치기 전 묶음(`63c7b81`)으로 확인했다. 고친 부분(버전 비교, 안내 경로)은 이 기준들의 흐름에 들지 않고, 자동 시험이 덮는다.
 
 ## 남길 결정
