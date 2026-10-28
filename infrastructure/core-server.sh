@@ -40,11 +40,24 @@ usage() {
 EOF
 }
 
-# .env를 셸로 실행하면 값에 든 명령이 실행되므로 KEY= 줄의 값만 읽는다. 같은 키가 여럿이면 Compose처럼 마지막 값을 쓴다.
+# Compose와 같은 값을 보도록, 셸 환경 변수가 있으면 그 값을 쓰고 없으면 .env(두 번째 인자로 다른 파일)의 값을 쓴다.
+# .env를 셸로 실행하면 값에 든 명령이 실행되므로 실행하지 않고 읽는다. export, 따옴표, 줄 끝 주석은 Compose처럼 다루고,
+# 같은 키가 여럿이면 마지막 값을 쓴다.
 env_value() {
-  if [ -f "$ENV_FILE" ]; then
-    sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1 | tr -d '\r' | sed 's/^"\(.*\)"$/\1/'
+  if value=$(printenv "$1"); then
+    printf '%s' "$value"
+    return 0
   fi
+  file=${2:-$ENV_FILE}
+  if [ ! -f "$file" ]; then
+    return 0
+  fi
+  raw=$(sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=[[:space:]]*//p" "$file" | tail -n 1 | tr -d '\r')
+  case "$raw" in
+    \"*) printf '%s' "$raw" | sed 's/^"\([^"]*\)".*$/\1/' ;;
+    \'*) printf '%s' "$raw" | sed "s/^'\([^']*\)'.*\$/\1/" ;;
+    *) printf '%s' "$raw" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//' ;;
+  esac
 }
 
 valid_address() {
@@ -53,9 +66,9 @@ valid_address() {
   [ "$port" -ge 1 ] && [ "$port" -le 65535 ]
 }
 
-# Compose와 같이 상대 경로는 묶음 폴더 기준으로 푼다.
+# Compose와 같이 상대 경로는 이 묶음 폴더 기준으로 푼다. 인자로 .env를 주면 그 파일을 이 묶음에 복사했을 때의 경로다.
 token_file() {
-  dir=$(env_value CORE_SECRETS_DIR)
+  dir=$(env_value CORE_SECRETS_DIR "${1:-}")
   if [ -z "$dir" ]; then
     dir=../secrets
   fi
@@ -82,6 +95,23 @@ write_token() {
 
 running_label() {
   docker inspect -f "{{index .Config.Labels \"$1\"}}" prometheus 2>/dev/null
+}
+
+# 멈춘 컨테이너도 있다고 본다. 멈춰 있어도 관리자 서버는 그 코어의 token을 쓰고 있을 수 있다.
+core_exists() {
+  docker inspect -f '{{.State.Running}}' prometheus > /dev/null 2>&1
+}
+
+core_running() {
+  [ "$(docker inspect -f '{{.State.Running}}' prometheus 2>/dev/null)" = true ]
+}
+
+# Compose가 컨테이너에 남긴 작업 폴더, 곧 마지막으로 코어를 띄운 묶음 폴더의 실제 경로
+core_bundle_dir() {
+  workdir=$(running_label com.docker.compose.project.working_dir) || return 0
+  if [ -n "$workdir" ] && [ -d "$workdir" ]; then
+    (cd "$workdir" && pwd -P)
+  fi
 }
 
 bundle_version() {
@@ -168,14 +198,15 @@ confirm_version() {
   if [ "$new_time" -ge "$current_time" ]; then
     return 0
   fi
+  # 이미지의 label을 읽으려고 이미지는 이미 불러온 상태다. 떠 있는 코어만 그대로 둔다.
   if [ ! -t 0 ]; then
-    fail "지금($current)보다 이전 버전($new)으로 바꾸려면 터미널에서 실행해 확인해 주세요. 아무것도 바꾸지 않았습니다."
+    fail "지금($current)보다 이전 버전($new)으로 바꾸려면 터미널에서 실행해 확인해 주세요. 코어는 바꾸지 않았습니다."
   fi
   printf '지금(%s)보다 이전 버전(%s)으로 바꿉니다. 계속할까요? [y/N] ' "$current" "$new"
   read -r answer || answer=""
   case "$answer" in
     y|Y|yes) ;;
-    *) say "아무것도 바꾸지 않았습니다."; exit 0 ;;
+    *) say "코어는 바꾸지 않았습니다."; exit 0 ;;
   esac
 }
 
@@ -220,47 +251,67 @@ check_autostart() {
   fi
 }
 
-# Compose가 컨테이너에 남긴 작업 폴더로 떠 있는 버전의 묶음 폴더를 찾는다. 같은 설치 폴더 안의 폴더만 믿는다.
+# 마지막으로 코어를 띄운 묶음 폴더에서 설정을 가져온다. 같은 설치 폴더 안의 폴더만 믿는다.
 previous_bundle() {
-  workdir=$(running_label com.docker.compose.project.working_dir) || return 0
-  if [ -z "$workdir" ] || [ ! -d "$workdir" ]; then
-    return 0
-  fi
-  real=$(cd "$workdir" && pwd -P) || return 0
-  if [ "$(dirname "$real")" = "$INSTALL_DIR" ] && [ "$real" != "$BUNDLE_DIR" ] && [ -f "$real/.env" ]; then
+  real=$(core_bundle_dir) || return 0
+  if [ -n "$real" ] && [ "$(dirname "$real")" = "$INSTALL_DIR" ] && [ "$real" != "$BUNDLE_DIR" ] && [ -f "$real/.env" ]; then
     printf '%s' "$real"
   fi
 }
 
+# 코어가 이미 있으면 관리자 서버도 그 코어의 token을 쓰고 있다. 여기서 새 token을 만들면 둘이 어긋나므로 만들지 않고 멈춘다.
+refuse_new_token() {
+  old=$(core_bundle_dir) || old=""
+  hint=" 떠 있는 코어가 쓰는 token 파일을 이 위치로 옮기거나, .env의 CORE_SECRETS_DIR에 그 폴더를 적은 뒤 다시 실행해 주세요."
+  if [ -n "$old" ] && [ -f "$old/secrets/$TOKEN_NAME" ]; then
+    hint=" 지금 코어는 $old/secrets/$TOKEN_NAME 을 씁니다. 이 파일을 $(dirname "$1")/로 옮기고(폴더 0700, 파일 0644), 관리자 서버가 붙이는 경로도 바꾼 뒤 다시 실행해 주세요."
+  fi
+  fail "코어가 이미 있는데 token 파일이 없습니다: $1. 새 token을 만들면 관리자 서버의 token과 어긋나므로 만들지 않았습니다.$hint"
+}
+
 cmd_install() {
-  file=$(token_file)
+  check_docker
+
+  env_from=""
+  if [ -f "$ENV_FILE" ]; then
+    file=$(token_file)
+  else
+    env_from=$(previous_bundle) || env_from=""
+    if [ -n "$env_from" ]; then
+      file=$(token_file "$env_from/.env")
+    else
+      file=$(token_file)
+    fi
+  fi
   token_existed=no
   if [ -e "$file" ]; then
     token_existed=yes
+  elif core_exists; then
+    refuse_new_token "$file"
   fi
 
-  env_from=""
   address=""
   if [ -f "$ENV_FILE" ]; then
     say "설정 파일(.env)이 이미 있습니다. 그대로 씁니다."
-  else
-    env_from=$(previous_bundle) || env_from=""
-    if [ -z "$env_from" ]; then
-      if [ "$token_existed" = yes ]; then
-        say "설정을 가져올 폴더를 찾지 못했습니다. 떠 있는 코어가 없거나, 떠 있는 버전의 폴더가 $INSTALL_DIR 안에 없습니다."
-      fi
-      printf '관리자 서버 주소(컨테이너 이름:포트, 예: manager-api:8080): '
-      read -r address || address=""
-      valid_address "$address" \
-        || fail "관리자 서버 주소가 올바르지 않습니다: '$address'. 컨테이너 이름:포트 형식(예: manager-api:8080)으로 다시 실행해 주세요."
+  elif [ -z "$env_from" ]; then
+    if [ "$token_existed" = yes ]; then
+      say "설정을 가져올 폴더를 찾지 못했습니다. 떠 있는 코어가 없거나, 떠 있는 버전의 폴더가 $INSTALL_DIR 안에 없습니다."
     fi
+    printf '관리자 서버 주소(컨테이너 이름:포트, 예: manager-api:8080): '
+    read -r address || address=""
+    valid_address "$address" \
+      || fail "관리자 서버 주소가 올바르지 않습니다: '$address'. 컨테이너 이름:포트 형식(예: manager-api:8080)으로 다시 실행해 주세요."
   fi
 
   if [ "$token_existed" = yes ]; then
     say "token 파일이 이미 있습니다. 그대로 씁니다: $(real_path "$file")"
   else
-    mkdir -p "$(dirname "$file")"
-    chmod 0700 "$(dirname "$file")"
+    dir=$(dirname "$file")
+    # 이미 있는 폴더는 다른 파일도 있을 수 있어 권한을 바꾸지 않는다.
+    if [ ! -d "$dir" ]; then
+      mkdir -p "$dir"
+      chmod 0700 "$dir"
+    fi
     write_token "$file"
     say "token 파일을 만들었습니다: $(real_path "$file")"
   fi
@@ -292,16 +343,22 @@ cmd_rotate_token() {
   check_docker
   check_env
   check_token
+  # 다른 버전 폴더의 compose로 Alertmanager를 다시 만들면 그 컨테이너만 다른 버전이 된다.
+  if core_exists; then
+    owner=$(core_bundle_dir) || owner=""
+    if [ "$owner" != "$BUNDLE_DIR" ]; then
+      fail "token은 코어를 띄운 묶음 폴더에서 바꿔 주세요: ${owner:-알 수 없음}. token은 바꾸지 않았습니다."
+    fi
+  fi
   file=$(token_file)
   write_token "$file"
   say "token을 새 값으로 바꿨습니다: $(real_path "$file")"
-  current=$(running_label org.opencontainers.image.version) || current=""
-  if [ -z "$current" ]; then
-    say "코어가 떠 있지 않습니다. 다음 start부터 새 token을 씁니다."
-  else
+  if core_running; then
     # 파일만 바꾸면 Alertmanager가 붙잡은 옛 파일을 계속 읽을 수 있어 컨테이너를 다시 만든다.
     (cd "$BUNDLE_DIR" && docker compose up -d --force-recreate alertmanager)
     wait_healthy alertmanager
+  else
+    say "코어가 떠 있지 않습니다. 다음 start부터 새 token을 씁니다."
   fi
   say "관리자 서버도 이 파일을 다시 읽도록 다시 띄워 주세요. 다시 띄울 때까지 장애 알림이 거부됩니다."
 }
@@ -309,18 +366,22 @@ cmd_rotate_token() {
 cmd_status() {
   check_docker
   new=$(bundle_version)
-  current=$(running_label org.opencontainers.image.version) || current=""
-  if [ -z "$current" ]; then
-    say "코어가 떠 있지 않습니다. 이 묶음의 버전: $new"
+  if ! core_exists; then
+    say "코어가 없습니다. 이 묶음의 버전: $new"
     return 0
   fi
-  say "떠 있는 버전: $current (커밋 $(running_label org.opencontainers.image.revision))"
+  current=$(running_label org.opencontainers.image.version) || current=""
+  if core_running; then
+    say "떠 있는 버전: $current (커밋 $(running_label org.opencontainers.image.revision))"
+  else
+    say "코어가 멈춰 있습니다. 마지막으로 띄운 버전: $current (커밋 $(running_label org.opencontainers.image.revision))"
+  fi
   for name in $CONTAINERS; do
     state=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name" 2>/dev/null) || state="없음"
     say "  $name: $state"
   done
   if [ "$current" != "$new" ]; then
-    say "이 묶음의 버전($new)은 떠 있는 버전과 다릅니다."
+    say "이 묶음의 버전($new)은 코어의 버전($current)과 다릅니다."
   fi
 }
 

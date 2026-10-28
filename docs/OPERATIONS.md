@@ -418,6 +418,11 @@ http.createServer((req, res) => {
 - **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
 - **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
 - **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
+- **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 `install`을 실행하면 새 token을 만들지 않고 멈춘다. 새 token을 만들면 관리자 서버의 token과 어긋나기 때문이다. 다음 순서로 옮긴다.
+  1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다. 이전 묶음 폴더도 같은 설치 폴더에 있으면 `install`이 그 폴더의 `.env`를 가져온다.
+  2. token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). `install`이 멈출 때 보인 옛 token 경로를 쓴다. 이전 `.env`에 `CORE_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
+  3. 관리자 서버가 붙이는 token 경로를 새 위치로 바꾼다.
+  4. 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행하고, 관리자 서버를 다시 띄운다.
 - **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 이전 버전으로 바꿀지 물으면 `y`를 넣는다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다.
 - **띄운 버전 확인**: `sh core-server.sh status`를 실행한다. 떠 있는 버전, 그 버전을 빌드한 커밋, 세 컨테이너의 상태가 보인다.
 - **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남고, 서버가 재시작돼도 다시 뜨지 않는다. 다시 띄우려면 `sh core-server.sh start`를 실행한다.
@@ -433,7 +438,9 @@ http.createServer((req, res) => {
 | `Docker에 연결하지 못했습니다` | Docker가 꺼져 있거나 이 사용자가 `docker`를 쓸 권한이 없음 | `sudo systemctl start docker`, 또는 사용자를 `docker` 그룹에 넣는다 |
 | `서버가 켜질 때 Docker가 자동으로 켜지지 않습니다` | Docker 서비스가 자동 시작으로 설정되지 않음 | `sudo systemctl enable docker` |
 | `이전 버전(…)으로 바꾸려면 터미널에서 실행해 확인해 주세요` | 이전 버전 폴더에서 `start`를 실행했는데, 입력을 받을 수 없는 방식으로 실행함 | 이전 버전으로 되돌리려는 것이 맞으면 터미널에서 직접 실행하고 `y`를 넣는다 |
-| `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
+| `코어가 이미 있는데 token 파일이 없습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
+| `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 새 묶음 폴더의 `secrets/`에 token을 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
+| `token은 코어를 띄운 묶음 폴더에서 바꿔 주세요` | 다른 버전 폴더에서 `rotate-token`을 실행함 | 안내된 폴더에서 다시 실행한다 |
 | `MONITORING_APP_ADDRESS가 필요합니다` | 직접 실행했는데 `.env`가 없거나 관리자 서버 주소가 비어 있음 | `.env`를 만들고 관리자 서버 주소를 넣는다 |
 | `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 없음` | token 파일이 없거나 비어 있음 | 로그의 경로에 token 파일을 만든다 |
 | `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 읽기 불가` | token 파일 권한이 0600 등이라 컨테이너 사용자가 읽지 못함 | 파일 권한을 0644로 바꾼다 |

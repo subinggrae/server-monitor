@@ -1,4 +1,5 @@
 @echo off
+for /f "tokens=2 delims=:." %%c in ('chcp') do set "OLD_CODEPAGE=%%c"
 chcp 65001 >nul
 setlocal
 rem Windows 빌드 PC에서 모니터링 코어를 빌드하고 개발용으로 띄우는 명령이다. 저장소 어디에서 실행해도 된다.
@@ -72,4 +73,6 @@ exit /b 0
 
 :end
 popd
+rem 한글 출력을 위해 바꾼 콘솔 코드페이지를 되돌린다.
+if defined OLD_CODEPAGE chcp %OLD_CODEPAGE% >nul
 exit /b %RC%

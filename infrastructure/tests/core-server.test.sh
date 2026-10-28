@@ -17,6 +17,7 @@ setup() {
   INSTALL="$T/install"
   BUNDLE="$INSTALL/monitoring-core-v2"
   FAKE="$T/fake"
+  TOKEN="$INSTALL/secrets/alertmanager_webhook_token"
   mkdir -p "$BUNDLE" "$FAKE" "$T/bin"
   cp "$SCRIPT" "$BUNDLE/core-server.sh"
   cat > "$BUNDLE/compose.yml" <<'EOF'
@@ -65,6 +66,7 @@ case "$1" in
       *image.revision*) echo "abc1234" ;;
       *Health*) cat "$FAKE/health" ;;
       *.Image*) echo "running-image" ;;
+      *State.Running*) if [ -f "$FAKE/stopped" ]; then echo false; else echo true; fi ;;
       *) echo "running" ;;
     esac ;;
 esac
@@ -132,32 +134,32 @@ ORIGINAL_PATH=$PATH
 setup
 run deploy
 check '알 수 없는 작업이면 쓸 수 있는 작업을 보이고 실패한다' \
-  '[ $RC -ne 0 ] && contains "install" && contains "rotate-token" && ! called compose'
+  '[ $RC -ne 0 ] && contains "install" && contains "rotate-token" && ! called "^compose"'
 
 setup; prepared; touch "$FAKE/docker_down"
 run start
 check 'Docker가 꺼져 있으면 알리고 아무것도 하지 않는다' \
-  '[ $RC -ne 0 ] && contains "Docker에 연결하지 못했습니다" && ! called load && ! called compose'
+  '[ $RC -ne 0 ] && contains "Docker에 연결하지 못했습니다" && ! called load && ! called "^compose"'
 
 # --- 체크섬 ---
 
 setup; prepared; printf 'broken' > "$BUNDLE/core-images.tar"
 run start
 check '묶음 파일이 바뀌었으면 그 파일을 알리고 불러오거나 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "core-images.tar" && contains "체크섬" && ! called load && ! called compose'
+  '[ $RC -ne 0 ] && contains "core-images.tar" && contains "체크섬" && ! called load && ! called "^compose"'
 
 # --- 설정 파일 ---
 
 setup; prepared; rm "$BUNDLE/.env"
 run start
 check '설정 파일이 없으면 설치 준비를 안내하고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && ! called compose'
+  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && ! called "^compose"'
 
 for address in '' 'http://manager-api:8080' 'manager-api' 'a;touch${IFS}x:80' 'manager-api:70000'; do
   setup; prepared; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$BUNDLE/.env"
   run start
   check "관리자 서버 주소가 '$address'이면 거부한다" \
-    '[ $RC -ne 0 ] && contains "관리자 서버 주소" && ! called compose && [ ! -e "$BUNDLE/x" ]'
+    '[ $RC -ne 0 ] && contains "관리자 서버 주소" && ! called "^compose" && [ ! -e "$BUNDLE/x" ]'
 done
 
 setup; prepared; printf 'MONITORING_APP_ADDRESS=manager-api:8080\n$(touch %s/injected)\n' "$T" > "$BUNDLE/.env"
@@ -169,39 +171,39 @@ check '설정 파일의 셸 명령은 실행하지 않는다' '[ ! -e "$T/inject
 setup; prepared; rm "$INSTALL/secrets/alertmanager_webhook_token"
 run start
 check 'token 파일이 없으면 알리고 그 자리에 폴더를 만들지 않는다' \
-  '[ $RC -ne 0 ] && contains "token 파일이 없습니다" && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ] && ! called compose'
+  '[ $RC -ne 0 ] && contains "token 파일이 없습니다" && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ] && ! called "^compose"'
 
 setup; prepared; : > "$INSTALL/secrets/alertmanager_webhook_token"
 run start
 check 'token 파일이 비어 있으면 알리고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "비어 있습니다" && ! called compose'
+  '[ $RC -ne 0 ] && contains "비어 있습니다" && ! called "^compose"'
 
 setup; prepared; rm "$INSTALL/secrets/alertmanager_webhook_token"; mkdir "$INSTALL/secrets/alertmanager_webhook_token"
 run start
 check 'token 자리에 폴더가 있으면 알리고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "폴더가 있습니다" && ! called compose'
+  '[ $RC -ne 0 ] && contains "폴더가 있습니다" && ! called "^compose"'
 
 setup; prepared; chmod 0600 "$INSTALL/secrets/alertmanager_webhook_token"
 run start
 check 'token 파일을 다른 사용자가 읽을 수 없으면 알리고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && contains "0644" && ! called compose'
+  '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && contains "0644" && ! called "^compose"'
 
 setup; prepared; rm -r "$INSTALL/secrets"; mkdir "$BUNDLE/secrets"; printf 'old\n' > "$BUNDLE/secrets/alertmanager_webhook_token"
 run start
 check '묶음 폴더 안에 token이 있으면 설치 폴더로 옮기라고 안내한다' \
-  '[ $RC -ne 0 ] && contains "묶음 폴더 안에 token이 있습니다" && ! called compose'
+  '[ $RC -ne 0 ] && contains "묶음 폴더 안에 token이 있습니다" && ! called "^compose"'
 
 setup; prepared; mkdir "$T/custom"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/custom/"
 printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/custom" > "$BUNDLE/.env"
 run start
-check '설정 파일에 token 폴더를 적었으면 그 폴더를 쓴다' '[ $RC -eq 0 ] && called compose'
+check '설정 파일에 token 폴더를 적었으면 그 폴더를 쓴다' '[ $RC -eq 0 ] && called "^compose"'
 
 # --- 띄우기 ---
 
 setup; prepared
 run start
 check '준비를 마쳤으면 불러오고 띄운 뒤 버전을 보인다' \
-  '[ $RC -eq 0 ] && called load && called "compose.* up" && contains "v2" && ! contains "secret-value-for-test"'
+  '[ $RC -eq 0 ] && called load && called "^compose.* up" && contains "v2" && ! contains "secret-value-for-test"'
 
 setup; prepared; touch "$FAKE/images_loaded"
 run start
@@ -215,32 +217,32 @@ check '정해진 시간 안에 정상이 되지 않으면 컨테이너와 로그
 setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
 run start
 check '이전 버전으로 바꾸는데 터미널이 아니면 바꾸지 않는다' \
-  '[ $RC -ne 0 ] && contains "v3" && ! called "compose.* up"'
+  '[ $RC -ne 0 ] && contains "v3" && ! called "^compose.* up"'
 
 setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
 run_in_terminal n start
 check '이전 버전으로 바꿀지 물었을 때 n이면 바꾸지 않는다' \
-  'contains "계속할까요" && contains "아무것도 바꾸지 않았습니다" && ! called "compose.* up"'
+  'contains "계속할까요" && contains "코어는 바꾸지 않았습니다" && ! called "^compose.* up"'
 
 setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
 run_in_terminal y start
 check '이전 버전으로 바꿀지 물었을 때 y이면 바꾼다' \
-  '[ $RC -eq 0 ] && contains "계속할까요" && called "compose.* up"'
+  '[ $RC -eq 0 ] && contains "계속할까요" && called "^compose.* up"'
 
 setup; prepared; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
 run start
 check '새 버전으로 바꿀 때는 묻지 않고 떠 있는 버전과 새 버전을 보인다' \
-  '[ $RC -eq 0 ] && contains "v1" && ! contains "계속할까요" && called "compose.* up"'
+  '[ $RC -eq 0 ] && contains "v1" && ! contains "계속할까요" && called "^compose.* up"'
 
 setup; prepared; running_other v0 '<no value>' "$INSTALL/monitoring-core-v0"
 run start
 check '떠 있는 이미지에 커밋 시각이 없으면 예전 버전으로 보고 묻지 않는다' \
-  '[ $RC -eq 0 ] && called "compose.* up"'
+  '[ $RC -eq 0 ] && called "^compose.* up"'
 
 setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"; printf '<no value>\n' > "$FAKE/bundle_time"
 run start
 check '띄울 이미지에 커밋 시각이 없으면 이전 버전으로 보고 터미널이 아니면 바꾸지 않는다' \
-  '[ $RC -ne 0 ] && ! called "compose.* up"'
+  '[ $RC -ne 0 ] && ! called "^compose.* up"'
 
 setup; prepared; printf 'disabled\n' > "$FAKE/systemctl"
 run start
@@ -297,6 +299,100 @@ run install
 unset STDIN
 check '설치 준비에서 잘못된 주소를 넣으면 설정 파일을 만들지 않는다' \
   '[ $RC -ne 0 ] && contains "관리자 서버 주소" && [ ! -e "$BUNDLE/.env" ]'
+
+# --- 설정 파일 읽기 ---
+
+setup; prepared; printf "export MONITORING_APP_ADDRESS='manager-api:8080' # 관리자 서버\n" > "$BUNDLE/.env"
+run start
+check 'export, 작은따옴표, 줄 끝 주석이 있는 설정 파일을 Compose처럼 읽는다' '[ $RC -eq 0 ] && called "^compose.* up"'
+
+setup; prepared; mkdir "$T/fromshell"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/fromshell/"
+OUT=$(cd "$BUNDLE" && CORE_SECRETS_DIR="$T/fromshell" sh ./core-server.sh start 2>&1 < /dev/null)
+RC=$?
+check '셸 환경 변수에 token 폴더가 있으면 Compose처럼 그 값을 쓴다' '[ $RC -eq 0 ] && called "^compose.* up"'
+
+# --- 예전 방식(token이 묶음 폴더 안)으로 설치한 서버에서 갱신 ---
+
+old_bundle() {
+  mkdir -p "$INSTALL/monitoring-core-v1"
+  printf 'MONITORING_APP_ADDRESS=old-admin:9000\n%s' "${1:-}" > "$INSTALL/monitoring-core-v1/.env"
+  running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+}
+
+setup; prepared; rm -r "$INSTALL/secrets"; rm "$BUNDLE/.env"; old_bundle
+mkdir "$INSTALL/monitoring-core-v1/secrets"; printf 'old\n' > "$INSTALL/monitoring-core-v1/secrets/alertmanager_webhook_token"
+run install
+check '이전 묶음 폴더 안에 token이 있으면 새 token을 만들지 않고 옮기라고 안내한다' \
+  '[ $RC -ne 0 ] && contains "monitoring-core-v1/secrets/alertmanager_webhook_token" && [ ! -e "$INSTALL/secrets" ] && [ ! -e "$BUNDLE/.env" ]'
+
+setup; prepared; mkdir "$T/fixed"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/fixed/"; rm "$BUNDLE/.env"
+old_bundle "CORE_SECRETS_DIR=$T/fixed
+"
+run install
+check '가져온 설정에 token 폴더가 적혀 있으면 그 token을 쓰고 새로 만들지 않는다' \
+  '[ $RC -eq 0 ] && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ] && grep -q "old-admin" "$BUNDLE/.env"'
+
+setup; prepared; rm "$INSTALL/secrets/alertmanager_webhook_token" "$BUNDLE/.env"
+running_other v1 1761500000 "$T/elsewhere"; touch "$FAKE/stopped"
+STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
+run install
+unset STDIN
+check '멈춘 코어가 있어도 token이 없으면 새로 만들지 않는다' \
+  '[ $RC -ne 0 ] && contains "만들지 않았습니다" && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ]'
+
+setup; touch "$FAKE/docker_down"; STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
+run install
+unset STDIN
+check 'Docker가 꺼져 있으면 설치 준비에서 아무것도 만들지 않는다' \
+  '[ $RC -ne 0 ] && contains "Docker에 연결하지 못했습니다" && [ ! -e "$INSTALL/secrets" ] && [ ! -e "$BUNDLE/.env" ]'
+
+setup; mkdir "$T/shared"; chmod 0755 "$T/shared"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/shared" > "$BUNDLE/.env"
+run install
+check 'token을 이미 있는 폴더에 만들면 그 폴더의 권한을 바꾸지 않는다' \
+  '[ $RC -eq 0 ] && [ "$(mode "$T/shared")" = drwxr-xr-x ] && [ -s "$T/shared/alertmanager_webhook_token" ]'
+
+# --- token 바꾸기 ---
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; before=$(cat "$TOKEN")
+run rotate-token
+check 'token을 바꾸면 새 값을 쓰고 출력하지 않는다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$TOKEN")" != "$before" ] && grep -Eq "^[0-9a-f]{64}$" "$TOKEN" && ! contains "$(cat "$TOKEN")"'
+check 'token을 바꾸면 Alertmanager를 다시 만든다' 'called "^compose.*--force-recreate alertmanager"'
+
+setup; prepared; mkdir "$INSTALL/monitoring-core-v1"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"; before=$(cat "$TOKEN")
+run rotate-token
+check '코어를 띄운 폴더가 아니면 token을 바꾸지 않는다' \
+  '[ $RC -ne 0 ] && contains "monitoring-core-v1" && [ "$(cat "$TOKEN")" = "$before" ] && ! called "^compose"'
+
+setup; prepared; rm "$BUNDLE/.env"; before=$(cat "$TOKEN")
+run rotate-token
+check '사전 검사에 실패하면 token을 바꾸지 않는다' '[ $RC -ne 0 ] && [ "$(cat "$TOKEN")" = "$before" ]'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; touch "$FAKE/stopped"; before=$(cat "$TOKEN")
+run rotate-token
+check '코어가 멈춰 있으면 token만 바꾸고 컨테이너를 띄우지 않는다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$TOKEN")" != "$before" ] && ! called "^compose" && contains "다음 start"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; printf 'starting\n' > "$FAKE/health"
+run rotate-token
+check 'token을 바꾼 뒤 Alertmanager가 정상이 되지 않으면 로그 명령을 보인다' \
+  '[ $RC -ne 0 ] && contains "docker logs alertmanager"'
+
+# --- 상태 보기 ---
+
+setup; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+run status
+check '상태를 보면 코어의 버전, 커밋, 컨테이너 상태와 묶음과의 버전 차이를 보인다' \
+  '[ $RC -eq 0 ] && contains "떠 있는 버전: v1" && contains "abc1234" && contains "prometheus: healthy" && contains "버전(v2)"'
+
+setup; running_other v2 1761600000 "$BUNDLE"; touch "$FAKE/stopped"
+run status
+check '코어가 멈춰 있으면 떠 있다고 보이지 않는다' 'contains "멈춰 있습니다" && ! contains "떠 있는 버전"'
+
+setup
+run status
+check '코어가 없으면 없다고 보인다' '[ $RC -eq 0 ] && contains "코어가 없습니다"'
 
 printf '\n통과 %s, 실패 %s\n' "$PASSED" "$FAILED"
 [ "$FAILED" -eq 0 ]

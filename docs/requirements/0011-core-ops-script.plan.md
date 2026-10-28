@@ -20,7 +20,7 @@ gradle wrapper처럼 쓰는 곳마다 스크립트 파일을 하나씩 두고, �
 
 - **경로**: 스크립트가 있는 폴더가 묶음 폴더이고, 그 상위 폴더가 설치 폴더다. token 폴더는 `.env`의 `CORE_SECRETS_DIR`가 있으면 그 값, 없으면 `../secrets`다. 상대 경로는 Compose와 같이 묶음 폴더 기준으로 푼다.
 - **`.env` 읽기**: `.env`를 셸로 실행(`.`, `source`)하지 않는다. `sed`로 `KEY=` 줄의 값만 읽는다.
-- **`install`**: token 파일이 없으면 token 폴더를 0700으로 만들고, `od -An -tx1 -N32 /dev/urandom`으로 만든 64자 값을 같은 폴더의 임시 파일에 쓴 뒤 0644로 바꾸고 이름을 옮긴다. `.env`가 없으면 떠 있는 `prometheus` 컨테이너의 Compose label `com.docker.compose.project.working_dir`로 그 묶음 폴더를 찾는다. 그 폴더가 같은 설치 폴더 안에 있고 `.env`가 있으면 복사한다(S3). 아니면 관리자 서버 주소를 묻고 `.env.example`을 복사해 주소 줄만 바꾼다(S1, S13). 이미 있는 파일은 덮어쓰지 않는다(S12).
+- **`install`**: 먼저 Docker 연결을 확인한다. token 경로는 가져올 `.env`가 있으면 그 파일 기준으로 계산한다. token이 없는데 코어(멈춘 컨테이너 포함)가 이미 있으면 관리자 서버의 token과 어긋나지 않도록 새로 만들지 않고 멈춘다(리뷰 반영). token 파일이 없고 코어도 없으면 token 폴더를 새로 만들 때만 0700으로 만들고, `od -An -tx1 -N32 /dev/urandom`으로 만든 64자 값을 같은 폴더의 임시 파일에 쓴 뒤 0644로 바꾸고 이름을 옮긴다. `.env`가 없으면 떠 있는 `prometheus` 컨테이너의 Compose label `com.docker.compose.project.working_dir`로 그 묶음 폴더를 찾는다. 그 폴더가 같은 설치 폴더 안에 있고 `.env`가 있으면 복사한다(S3). 아니면 관리자 서버 주소를 묻고 `.env.example`을 복사해 주소 줄만 바꾼다(S1, S13). 이미 있는 파일은 덮어쓰지 않는다(S12).
 - **`start`**: Docker 실행 확인(S19) → 체크섬 확인(S8) → 사전 검사(S9, S10) → 세 이미지가 없으면 `docker load` → 버전 비교 → `docker compose up -d` → 정상 상태 대기(S11) → Docker 자동 시작 확인(S18) → 버전과 커밋 출력. 사전 검사는 Docker가 token 자리에 폴더를 만들기 전에 실행한다.
 - **버전 비교**: 묶음의 버전은 실행용 compose 파일의 이미지 태그, 떠 있는 버전은 `prometheus` 컨테이너의 OCI label `org.opencontainers.image.version`과 `revision`에서 읽는다. 둘이 다르면 두 이미지의 커밋 시각 label `monitoring-core.commit-time`(빌드 스크립트가 넣는 epoch 초, 없으면 0)을 비교한다. 묶음 쪽이 더 이르면 `[ -t 0 ]`일 때만 확인을 묻고, 터미널이 아니면 바꾸지 않고 멈춘다(S5). 버전 태그는 `git describe` 값이라 크기를 비교할 수 없고, 이미지의 `Created`는 빌드 캐시 때문에 버전마다 같을 수 있다(진행 중 발견).
 - **정상 상태 대기**: 5초마다 세 컨테이너의 `State.Health.Status`를 읽어 3분까지 기다린다. 넘으면 `healthy`가 아닌 컨테이너와 `docker logs <컨테이너>`를 보인다.
@@ -158,6 +158,12 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
 - 확인 질문 시험은 BusyBox `script`로 가상 터미널을 연다. 이미지의 기본 사용자 `nobody`는 가상 터미널을 열지 못해(안의 명령 출력이 사라짐), 빌드 스크립트가 자동 시험을 root로 실행한다. 권한 검사는 접근 가능 여부가 아니라 권한 비트(`find -perm`)를 보므로 root로 실행해도 결과가 같다. `script`는 입력이 끝나면 안의 명령을 기다리지 않아, 답을 넣은 뒤 입력을 3초 열어 둔다.
 - `install`이 이미 있는 token의 경로를 `.../monitoring-core-<버전>/../secrets/...`처럼 풀지 않고 보여서 실제 경로로 바꿨다.
 - C2: 고친 뒤 새 dind에서 `7ef569a` 묶음을 띄우고 Alertmanager silence를 만든 다음, 옆에 둔 `ebcedaa` 묶음에서 주소 입력 없이 `install`(설정을 `7ef569a` 폴더에서 가져옴), `start`(묻지 않음)로 갱신했다. silence가 남아 있었다. `7ef569a` 폴더에서 터미널 없이 `start`하면 거부하고 버전이 그대로였다. 코어 이미지의 `script`로 가상 터미널을 연 보조 컨테이너에서 `n`이면 그대로, `y`이면 `7ef569a`로 바뀌었다(2026-10-28).
+- 새 하위 에이전트의 리뷰(871e2ef 기준)에서 9건이 나왔고 모두 반영했다(2026-10-28).
+  - 높음: 운영 명령이 없던 묶음(token이 이전 묶음 폴더 안)에서 갱신하면 `install`이 새 token을 만들어 관리자 서버와 어긋났다. token 경로를 가져올 `.env` 기준으로 계산하고, 코어가 있으면 token을 만들지 않고 옮길 경로를 안내한다. 운영 가이드에 옮기는 절차를 적었다.
+  - 중간: `rotate-token`이 다른 버전 폴더에서도 Alertmanager를 다시 만들었다. 코어를 띄운 폴더에서만 실행된다. `rotate-token`과 `status`의 자동 시험을 더했다.
+  - 낮음: `install`의 Docker 확인, `.env`의 `export`·작은따옴표·줄 끝 주석과 셸 환경 변수 우선, 멈춘 코어를 떠 있다고 보이던 것(`.State.Running`), 이미 있는 폴더의 권한을 바꾸던 것, `core-dev.bat`이 코드페이지를 되돌리지 않던 것, 되돌리기를 거절했을 때 "아무것도 바꾸지 않았습니다"라는 부정확한 안내(이미지는 이미 불러온 상태라 "코어는 바꾸지 않았습니다"로)
+  - 자동 시험은 52건이 되었다. 리뷰 전 스크립트에서는 새 시험 12건이 실패했다(1건은 안내 문구 변경).
+  - 시험의 `called compose`가 `inspect`의 label 이름(`com.docker.compose...`)에도 걸려, 줄 머리의 `compose` 명령만 보도록 고쳤다.
 - C1, C3, C4, C6, C10은 결함을 고치기 전 묶음(`63c7b81`)으로 확인했다. 고친 부분(버전 비교, 안내 경로)은 이 기준들의 흐름에 들지 않고, 자동 시험이 덮는다.
 
 ## 남길 결정
