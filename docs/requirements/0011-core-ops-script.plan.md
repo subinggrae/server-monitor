@@ -1,7 +1,7 @@
 # 0011. 코어를 빌드하고 운영하는 명령 구현 계획
 
 - 요구사항: [0011. 코어를 빌드하고 운영하는 명령](0011-core-ops-script.md)
-- 상태: 검토 중
+- 상태: 진행 중
 
 ## 접근 방법
 
@@ -130,12 +130,12 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
 
 ## 작업 순서
 
-- [ ] 이 계획을 승인받는다.
-- [ ] 운영 명령 자동 시험을 쓰고, 스크립트 없이 실패하는 것을 본다(C5).
-- [ ] `core-server.sh`의 경로, `.env` 읽기, 사전 검사, `install`을 쓴다(C5, S1, S3, S9, S10, S12, S13).
-- [ ] `start`, `rotate-token`, `status`와 Docker 자동 시작 확인을 쓴다(S2, S4~S8, S11, S14, S18, S19).
-- [ ] 빌드 스크립트와 `.env.example`, `.gitattributes`를 바꾼다(C7).
-- [ ] `core-dev.bat`을 쓰고 Windows에서 확인한다(C9).
+- [x] 이 계획을 승인받는다(사람 확인: 2026-10-28).
+- [x] 운영 명령 자동 시험을 쓰고, 스크립트 없이 실패하는 것을 본다(C5).
+- [x] `core-server.sh`의 경로, `.env` 읽기, 사전 검사, `install`을 쓴다(C5, S1, S3, S9, S10, S12, S13).
+- [x] `start`, `rotate-token`, `status`와 Docker 자동 시작 확인을 쓴다(S2, S4~S8, S11, S14, S18, S19).
+- [x] 빌드 스크립트와 `.env.example`, `.gitattributes`를 바꾼다(C7).
+- [ ] `core-dev.bat`을 쓰고 Windows에서 확인한다(C9). `check`, 사용법, 다른 폴더에서 `stop`까지 확인했다. `build`, `start`는 남았다.
 - [ ] `docker:dind`에서 C1~C4, C6, C10을 수동 확인한다.
 - [ ] 운영 가이드, 개발 가이드, README, 테스트·아키텍처 문서와 compose 주석을 고친다(C8).
 - [ ] 전체 검증을 실행하고, 새 세션의 하위 에이전트에게 리뷰를 맡긴다.
@@ -143,7 +143,10 @@ monitoring-core-<버전>/                      monitoring-core-<버전>/
 
 ## 진행 중 발견
 
-없음.
+- 자동 시험 32건은 스크립트가 없을 때 31건이 실패했다(나머지 1건은 셸 명령이 실행되지 않는지 보는 시험). 검사를 하나씩 지운 사본 16개를 만들어 돌렸고, 모두 1건 이상 실패했다(2026-10-28).
+- 로그 안내는 `docker compose logs <서비스>` 대신 `docker logs <컨테이너>`를 쓴다. 컨테이너 이름이 고정이라 어느 폴더에서 실행해도 맞기 때문이다.
+- 이 작업 환경은 `NoDefaultCurrentDirectoryInExePath`가 켜져 있어 cmd가 현재 폴더의 `core-dev.bat`을 찾지 못한다. 시험에서는 `.\core-dev.bat`으로 실행했다. 보통의 cmd에서는 해당하지 않는다.
+- Git Bash의 `sed -i`가 CRLF 파일의 CR을 지웠다. 배치 파일은 Node로 고치고 CRLF를 확인했다.
 
 ## 남길 결정
 

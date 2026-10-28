@@ -3,3 +3,6 @@
 
 # 감시 대상 Linux 서버로 옮기는 systemd unit도 LF를 유지합니다. CRLF면 systemd가 값 끝의 CR까지 읽습니다.
 *.service text eol=lf
+
+# Windows 배치 파일은 CRLF를 유지합니다. LF만 있으면 cmd가 레이블과 goto를 잘못 읽습니다.
+*.bat text eol=crlf

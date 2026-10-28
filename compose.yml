@@ -1,7 +1,7 @@
 # 이 저장소의 앱(Manager API, 화면, 개발용 DB)입니다.
 # 모니터링 코어(infrastructure/compose.yml)를 먼저 띄웁니다. 앱은 코어가 만든 monitoring 네트워크에 붙습니다.
 #
-#   docker compose -f infrastructure/compose.yml up -d --build
+#   core-dev.bat start      (Windows. 직접 실행하면 docker compose -f infrastructure/compose.yml up -d --build)
 #
 # 외부 Manager DB 사용:          docker compose up -d --build
 # 로컬 개발용 MariaDB까지 사용:   docker compose --profile local-db up -d --build
