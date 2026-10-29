@@ -42,6 +42,7 @@
 - 이미 쌓인 time series를 새 label 집합으로 옮기는 것
 - 장애 판단 규칙(`for: 1m` 등)을 바꾸는 것. 장애 판단은 코어가 정한다([ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계)).
 - OS exporter SD의 `server_name`, `environment`를 바꾸는 것. OS exporter에는 Alert 규칙이 없고, 앱이 읽는 recording rule은 id만 쓰며, Grafana에서 서버를 이름으로 보려면 이 label이 필요하다(사람 확인: 2026-10-29).
+- 대시보드와 감시 항목 상세가 함께 쓰는 최근 장애 표(`RecentAlertTable`)에 이름을 보이는 것. 이 변경 뒤에는 이 표의 장애 내용에서 이름이 빠진다. 화면 목록을 다시 정할 예정이라 이번에는 고치지 않는다(사람 확인: 2026-10-29).
 
 ## 사용자 경험
 
@@ -108,7 +109,6 @@
 - 장애를 `fingerprint`와 `startsAt`으로 구분하는 방식과 재발송 판단([ADR 0001](../decisions/0001-alert-repeat-in-manager.md))
 - 한 감시 항목의 여러 대상 Alert가 한 webhook 요청으로 묶여 오는 것
 - 장애 목록의 상태 필터, 정렬, 다른 열, `GET /api/alerts`의 기존 필드
-- 대시보드와 감시 항목 상세의 최근 장애 표 [확인 필요]
 
 ## 완료 기준
 
@@ -125,4 +125,4 @@
 
 ## 확인 필요
 
-- 대시보드와 감시 항목 상세가 함께 쓰는 최근 장애 표(`RecentAlertTable`)도 내용 칸에 `alert.summary`를 보인다. summary에서 이름이 빠지면 대시보드의 최근 장애 표에서도 이름이 보이지 않는다. 이 표에도 S6, S8과 같게 이름을 보일지 정한다.
+없음
