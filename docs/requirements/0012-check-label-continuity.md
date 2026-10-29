@@ -1,6 +1,6 @@
 # 0012. 감시 항목 이름·환경을 바꿔도 이어지는 장애
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-10-29
 - 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md)
 
@@ -40,7 +40,7 @@
 - 감시 항목 종류(`check_type`, `module`)를 바꿨을 때 장애를 잇는 것. 종류가 바뀌면 확인 방법이 달라진다.
 - 이미 쌓인 time series를 새 label 집합으로 옮기는 것
 - 장애 판단 규칙(`for: 1m` 등)을 바꾸는 것. 장애 판단은 코어가 정한다([ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계)).
-- OS exporter SD의 `server_name`, `environment`를 바꾸는 것 [확인 필요]
+- OS exporter SD의 `server_name`, `environment`를 바꾸는 것. OS exporter에는 Alert 규칙이 없고, 앱이 읽는 recording rule은 id만 쓰며, Grafana에서 서버를 이름으로 보려면 이 label이 필요하다(사람 확인: 2026-10-29).
 
 ## 사용자 경험
 
@@ -68,7 +68,7 @@
 - **S4. 변경을 배포할 때의 1회성 영향**
   - 상황: 이 변경 전부터 이어지는 장애와 쌓인 time series가 있다.
   - 행동: 이 변경을 배포한다.
-  - 결과: Alert의 label 집합이 한 번 바뀌므로 이어지던 장애가 한 번 복구됐다가 새 장애로 다시 생긴다. SD label은 바뀌지 않으므로 쌓인 time series는 이어진다. 운영 가이드에 이 영향과 배포할 시점을 적는다.
+  - 결과: Alert의 label 집합이 한 번 바뀌므로 이어지던 장애가 한 번 복구됐다가 새 장애로 다시 생긴다. SD label은 바뀌지 않으므로 쌓인 time series는 이어진다. 이 영향은 피할 수 없어 받아들이고, 운영 가이드에 이 영향과 장애가 적은 시간에 배포하라는 안내를 적는다(사람 확인: 2026-10-29).
 
 ### 예외 동작
 
@@ -104,5 +104,4 @@
 
 ## 확인 필요
 
-- OS exporter SD의 `server_name`, `environment`도 같은 방식으로 바꿀지 정한다. (가정: 이번에는 바꾸지 않는다. OS exporter에는 Alert 규칙이 없고, 앱이 읽는 recording rule은 id만 쓰기 때문이다.)
-- 배포 때 이어지던 장애가 한 번 복구됐다가 다시 생기는 영향을 받아들일지 정한다. (가정: 받아들이고 운영 가이드에 장애가 적은 시간에 배포하라고 적는다.)
+없음
