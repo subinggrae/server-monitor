@@ -89,6 +89,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 - Check 대상 하나가 HTTP SD entry 하나다. 대상의 id와 SD label은 Prometheus time series의 이름표이므로, 바꾸면 쌓아 온 time series가 끊긴다.
 - Check와 OS exporter 수집 서버의 수집 주기(10~240초)는 Manager Database에 두고, SD entry의 `__scrape_interval__` label로 Prometheus에 전한다. `__`로 시작하는 label은 relabel 뒤에 지워져 time series 이름표가 되지 않는다. 그래서 `manager-blackbox`, `manager-os` job은 `prometheus.yml`의 `scrape_interval`을 쓰지 않는다. `prometheus.yml`의 `scrape_timeout`은 수집 주기 하한(10초)보다 길게 두지 않는다. timeout이 주기보다 긴 대상을 Prometheus가 수집하지 않기 때문이다. 결정과 이유는 [ADR 0002](decisions/0002-scrape-interval-via-http-sd.md)에 있다.
 - Alert가 이어지는 동안 Telegram 알림을 다시 보내는 주기(5~1440분)는 Check마다 Manager Database에 둔다. Alertmanager는 이어지는 Alert를 `group_interval`(5분)마다 webhook으로 다시 보내고, Manager가 마지막 성공 전송 뒤 그 Check의 주기가 지났는지 보고 보낸다. 그래서 `alertmanager.yml`의 `repeat_interval`(4분)은 `group_interval`보다 짧게 두고, 재발송 주기 하한은 `group_interval`보다 짧게 두지 않는다. `repeat_interval`을 `group_interval`과 같게 두면 Alertmanager가 한 번씩 건너뛰어 10분마다 보낸다. 결정과 이유는 [ADR 0001](decisions/0001-alert-repeat-in-manager.md)에 있다.
+- 감시 항목의 장애 판단 규칙(실패가 얼마나 이어지면 장애인지 등)은 코어의 Alert 규칙(`infrastructure/prometheus/rules/monitoring-checks.yml`)에 두고, 바꾸려면 코어를 다시 빌드한다. 사용자가 Manager에서 정하는 것은 위의 수집 주기와 알림 재전송 주기뿐이다(사람 확인: 2026-10-29, [#5](https://github.com/subinggrae/server-monitor/issues/5)). 서버 리소스 임계값은 이 규칙의 예외로, 위대로 앱이 판단한다.
 - Manager Database는 MariaDB와 PostgreSQL을 함께 지원한다. Flyway migration은 두 vendor 디렉터리에 같은 version으로 둔다. 접속 URL이 vendor를 정하고, 지원하지 않는 DB면 기동에 실패한다.
 - 테이블과 열 이름은 JPA Entity 어노테이션과 기준 migration에만 둔다. 네이티브 SQL을 쓰지 않는다. 도입하는 쪽이 이름을 바꾸는 절차는 [INTEGRATION.md의 테이블과 열 이름 바꾸기](INTEGRATION.md#테이블과-열-이름-바꾸기)에 있고, `DatabaseNameLocationTest`가 지킨다.
 - 코어 설정 파일에 앱 주소를 직접 적지 않는다. 앱 주소는 `MONITORING_APP_ADDRESS`로만 받는다. 코어와 앱 사이에 오가는 것은 [INTEGRATION.md](INTEGRATION.md)에 적은 것뿐이다.
@@ -99,7 +100,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
   - `/api/integrations/telegram/webhook`: Telegram이 호출한다. 공개 API로 본다.
 - 신뢰 경계는 다음과 같다.
   - 신뢰할 수 없는 입력은 화면용 REST API의 요청, 두 webhook의 요청, Prometheus와 Telegram의 응답, OS exporter의 `/metrics` 응답으로 들어온다. Manager는 `/metrics`를 경로를 고정해 `GET`으로만 읽고, 리다이렉트를 따르지 않으며, 크기와 시간에 한도를 둔다. 응답 본문은 화면과 로그에 넣지 않는다.
-  - OS exporter는 인증 없이 열린다. 대상 서버의 방화벽에서 Prometheus와 Monitoring Manager만 접근하게 한다.
+  - OS exporter는 인증 없이 열린다. 운영자가 대상 서버의 방화벽이나 AWS 보안 그룹에서 코어 서버(Prometheus와 Monitoring Manager)만 접근하게 한다. exporter 트래픽이 VPC나 사내망 밖을 지나거나 고객사가 암호화·인증을 요구하면 TLS와 인증을 건다([#15](https://github.com/subinggrae/server-monitor/issues/15), 사람 확인: 2026-10-29).
   - 두 webhook은 각각 Bearer token과 Telegram secret header로 호출하는 쪽을 확인한다.
   - 데이터가 외부로 나가는 곳은 Telegram Bot API(알림 메시지)다.
 

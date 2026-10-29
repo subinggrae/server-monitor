@@ -604,13 +604,37 @@ ssh -L 8081:127.0.0.1:8081 운영자@코어서버
 
 ### 감시 대상 서버의 방화벽
 
-exporter는 인증과 암호화 없이 열린다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 그래서 감시 대상 서버의 방화벽에서 exporter 포트를 코어 서버에만 연다. 관리자 서버의 연결 시험도 코어 서버에서 exporter를 읽으므로 코어 서버 하나만 허용하면 된다. 예를 들어 `ufw`를 쓰는 Linux 서버에서 코어 서버가 `10.0.0.5`면 다음과 같다.
+exporter는 인증과 암호화 없이 열린다. 그래서 감시 대상 서버의 exporter 포트(Linux 9100, Windows 9182)를 코어 서버에서만 열 수 있게 운영자가 방화벽을 직접 설정한다. 관리자 서버의 연결 시험도 코어 서버에서 exporter를 읽으므로 코어 서버 하나만 허용하면 된다. 출발지를 `0.0.0.0/0`이나 서브넷 전체로 열지 않는다.
+
+서버가 어디에 있는지에 따라 다음 가운데 하나를 쓴다. 아래 예는 코어 서버가 `10.0.0.5`인 경우다. AWS의 보안 그룹과 서버 안의 방화벽을 함께 쓰면 두 곳 모두에서 허용해야 닿는다.
+
+- **AWS(EC2)**: 감시 대상 서버의 보안 그룹에 인바운드 규칙을 더한다. 유형은 사용자 지정 TCP, 포트는 9100 또는 9182, 소스는 코어 서버의 보안 그룹이다. 소스를 IP 대신 보안 그룹으로 두면 코어 서버의 IP가 바뀌어도 규칙이 맞는다. Amazon Linux 2023과 Ubuntu는 서버 안의 방화벽이 기본으로 꺼져 있어, AWS에서는 보안 그룹이 실제로 막는 곳이다.
+- **Ubuntu의 `ufw`**: 다음 규칙을 더한다. 이 규칙은 `ufw`가 켜져 있고 들어오는 연결의 기본 정책이 `deny`일 때만 다른 서버를 막는다. `sudo ufw status verbose`로 확인한다.
+
+  ```sh
+  sudo ufw allow from 10.0.0.5 to any port 9100 proto tcp
+  ```
+
+- **Amazon Linux·RHEL 계열의 `firewalld`**: `firewalld`를 켜 둔 서버에서만 쓴다. `sudo firewall-cmd --state`가 `running`이면 다음 규칙을 더한다.
+
+  ```sh
+  sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="10.0.0.5" port port="9100" protocol="tcp" accept'
+  sudo firewall-cmd --reload
+  ```
+
+- **Windows 서버**: Windows Defender 방화벽의 인바운드 규칙에서 9182 포트의 원격 주소를 코어 서버로 제한한다.
+
+설정한 뒤에는 막혔는지 확인한다. 코어 서버에서는 응답이 오고, 코어 서버가 아닌 같은 망의 다른 PC에서는 연결이 실패해야 한다. 다른 PC에서도 응답이 오면 방화벽 설정이 빠졌으므로 다시 확인한다.
 
 ```sh
-sudo ufw allow from 10.0.0.5 to any port 9100 proto tcp
+curl -s -m 5 http://<대상 서버 주소>:9100/metrics | head -n 1
 ```
 
-이 규칙은 `ufw`가 켜져 있고 들어오는 연결의 기본 정책이 `deny`일 때만 다른 서버를 막는다. `sudo ufw status verbose`로 확인한다. Windows 서버는 Windows 방화벽의 인바운드 규칙에서 9182 포트의 원격 주소를 코어 서버로 제한한다.
+이 방법은 exporter 트래픽이 VPC나 사내망 안에서만 오갈 때 충분하다. 다음 가운데 하나에 해당하면 방화벽만으로는 부족하므로 exporter에 TLS와 인증을 건다([#15](https://github.com/subinggrae/server-monitor/issues/15)).
+
+- 고객사 보안 정책이 감시 트래픽의 암호화나 인증을 요구한다.
+- exporter 트래픽이 인터넷을 지난다.
+- 방화벽이나 보안 그룹으로 출발지를 제한할 수 없다.
 
 ### 비밀값
 
