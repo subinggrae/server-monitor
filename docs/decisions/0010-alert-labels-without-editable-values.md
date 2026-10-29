@@ -1,6 +1,6 @@
 # 0010. Alert label에는 사용자가 바꾸는 이름과 환경을 넣지 않는다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-10-29
 - 관련: [요구사항 0012](../requirements/0012-check-label-continuity.md), [#22](https://github.com/subinggrae/server-monitor/issues/22), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0007](0007-core-app-contract.md)
 
