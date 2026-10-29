@@ -20,7 +20,7 @@
 - **테이블과 열 이름이 여러 곳에 흩어져 있다**: 이름은 JPA Entity 어노테이션 83곳과 Flyway migration V1~V9에 있다. 이미 적용한 migration은 고칠 수 없어서, 한 테이블의 지금 이름과 열 목록을 보려면 여러 migration을 따라가야 한다. 네이티브 SQL은 없다. 지금 설치를 이어 받지 않으므로 V1~V9를 기준 migration 하나로 바꾼다. 이 결정은 ADR로 남기고, AGENTS.md의 "이미 있는 migration은 고치지 않는다" 규칙에 기준을 새로 잡을 때의 예외를 더한다(사람 확인: 2026-10-19).
 - **쓰지 않는 구조가 남아 있다**: 2026-10-19에 Manager Database의 모든 열과 인덱스가 어디에서 읽히는지 확인했다([#18](https://github.com/subinggrae/server-monitor/issues/18)). 리소스 선택의 `enabled`는 바꾸는 코드가 없어 늘 켜져 있다. 장애 기록의 `description`은 저장만 하고 어디에서도 읽지 않는다. 인덱스 `ix_monitored_resources_server`와 `ix_alert_events_check_id`는 쓰는 조회가 없다. 설정 키 `alertmanager.base-url`, `exporters.blackbox-url`, `exporters.mysqld-url`은 읽는 코드가 없는데 비어 있으면 Manager가 기동하지 않는다. 부르는 곳이 없는 repository 메서드 둘, 쓰이지 않는 Telegram client 기본 주소, `package-info.java`만 있는 빈 패키지 넷(`threshold`, `grafana`, `database`, `database/provider`), 원문이 저장소에 없는 `(CLAUDE.md N번)` 주석도 있다. 도입하는 쪽이 읽고 이름을 바꿀 대상이 늘어나므로, 기준 migration을 새로 쓸 때 함께 걷어낸다.
 
-나머지 두 목표 가운데 임계치·조건 알림은 [#23](https://github.com/subinggrae/server-monitor/issues/23), 알림 방법은 [#24](https://github.com/subinggrae/server-monitor/issues/24)에서 따로 요구사항을 쓴다. 코어와 앱의 약속이 먼저 정해져야 알림을 어디에서 판단할지 정할 수 있기 때문이다.
+나머지 두 목표 가운데 임계치·조건 알림은 [#23](https://github.com/subinggrae/server-monitor/issues/23), 알림 방법은 [#24](https://github.com/subinggrae/server-monitor/issues/24)에서 따로 요구사항을 쓴다. 코어와 앱의 약속이 먼저 정해져야 알림을 어디에서 판단할지 정할 수 있기 때문이다. #24는 2026-10-29에 진행하지 않기로 했다. 알림 수단은 Alertmanager webhook을 받는 관리자 서버마다 구현하고, 이 저장소의 Manager는 Telegram을 쓴다.
 
 ## 목표
 
@@ -38,7 +38,7 @@
 - 설치할 때 설정으로 테이블·열 이름을 바꾸게 하는 것. 도입하는 쪽이 소스를 고친다(사람 확인: 2026-10-19).
 - Prometheus TSDB의 metric 이름과 label 이름을 바꿀 수 있게 하는 것.
 - 사용자가 정하는 임계치와 상태 조건으로 알림을 보내는 것([#23](https://github.com/subinggrae/server-monitor/issues/23)).
-- 일반 webhook 알림을 더하고 Telegram을 선택 기능으로 바꾸는 것([#24](https://github.com/subinggrae/server-monitor/issues/24)). Telegram은 남긴다(사람 확인: 2026-10-19).
+- 일반 webhook 알림을 더하고 Telegram을 선택 기능으로 바꾸는 것([#24](https://github.com/subinggrae/server-monitor/issues/24)). Telegram은 남긴다(사람 확인: 2026-10-19). 이후 이 일은 하지 않기로 했다(사람 확인: 2026-10-29).
 - 알림 연결의 `warning_enabled`, `critical_enabled`, `enabled` 열과 화면의 "경고"·"심각" 선택, severity에 따른 발송 분기를 지우는 것. 임계치 알림([#23](https://github.com/subinggrae/server-monitor/issues/23))이 Warning·Critical을 쓰므로 그때까지 남긴다(사람 확인: 2026-10-19).
 - 읽는 곳이 없는 기록용 열을 지우는 것: getter가 없는 `created_at`·`updated_at`, 장애 기록의 `created_at`·`check_target_id`, 발송 기록의 `error_message`. 장애나 발송 실패를 조사할 때 DB를 직접 보는 용도다(사람 확인: 2026-10-19).
 - 화면에 보이는 설명과 표시 열(`*.description`, `server_targets.environment`, 장애 기록의 `severity`·`summary`·`instance`·`alert_name`·`status`·`check_id`), Grafana 링크 주소(`GRAFANA_URL`), `notification.dedupe-window` 설정 키와 `AlertIngestService`를 정리하는 것.

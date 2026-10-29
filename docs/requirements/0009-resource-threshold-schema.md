@@ -34,7 +34,7 @@
 - 코어(Prometheus, Alertmanager, Blackbox Exporter)의 설정과 규칙을 바꾸는 것. 리소스 임계값은 Prometheus Alert 규칙으로 판단하지 않는다(사람 확인: 2026-10-19).
 - 참고용 DDL을 이 앱의 Manager Database migration에 넣는 것과 그 Entity를 만드는 것. 이 앱도 다른 웹도 새 테이블을 그대로 쓰지 않는다(사람 확인: 2026-10-19).
 - 판단, 발송, 설정 API, 화면을 이 저장소에 만드는 것. 다른 웹이 만든다(사람 확인: 2026-10-19). 이 저장소 화면의 안내(임계값 기능이 아직 없다는 문구, 설정 화면의 기본 임계값 자리)도 그대로 둔다.
-- 알림 방법과 받는 곳을 정하는 것. 문자, Telegram, webhook 가운데 무엇으로 보낼지는 다른 웹의 백엔드를 구현할 때 정한다(사람 확인: 2026-10-19, [#24](https://github.com/subinggrae/server-monitor/issues/24)). 그래서 리소스 알림을 누구에게 보낼지 정하는 테이블도 이번에 만들지 않는다.
+- 알림 방법과 받는 곳을 정하는 것. 문자, Telegram, webhook 가운데 무엇으로 보낼지는 다른 웹의 백엔드를 구현할 때 정한다(사람 확인: 2026-10-19, [#24](https://github.com/subinggrae/server-monitor/issues/24), 2026-10-29에 각 관리자 서버가 구현하는 것으로 확정). 그래서 리소스 알림을 누구에게 보낼지 정하는 테이블도 이번에 만들지 않는다.
 - Resource 종류별 기본 임계값. 사용자가 임계값을 정한 Resource만 판단한다(요구사항 0004에서 사람 확인: 2026-10-15).
 - 사용률이 아닌 값(남은 용량, Load average 등)에 임계값을 두는 것과 복구 기준을 임계값과 다르게 두는 것
 - Check 알림의 지속 시간([#5](https://github.com/subinggrae/server-monitor/issues/5)), 재발송 주기, 알림 흐름을 바꾸는 것
