@@ -27,7 +27,7 @@ Prometheus, Blackbox Exporter, Alertmanager는 모니터링 코어로 묶어 앱
 표에 다 적지 못한 내용은 다음과 같다.
 
 - 개발용 Manager Database는 `local-db` profile의 `manager-db`(MariaDB)다. 운영에서는 외부 MariaDB나 PostgreSQL을 쓴다.
-- 코어 이미지는 공개 이미지에 설정 템플릿, Alert 규칙, `render-config.sh`를 넣어 빌드한다. 개발과 내부망 배포가 같은 이미지를 쓴다([ADR 0009](decisions/0009-core-config-in-image.md)). 내부망 서버에는 `scripts/build-core-bundle.mjs`가 만든 묶음을 옮긴다.
+- 코어 이미지는 공개 이미지에 설정 템플릿, Alert 규칙, `render-config.sh`를 넣어 빌드한다. 개발과 내부망 배포가 같은 이미지를 쓴다([ADR 0009](decisions/0009-core-config-in-image.md)). 내부망 서버에는 Windows 빌드 PC에서 `core-dev.bat build`로 만든 묶음을 옮기고, 묶음 안의 `core-server.sh`로 설치하고 띄운다.
 - 코어가 부르는 앱 주소는 `infrastructure/.env`의 `MONITORING_APP_ADDRESS` 하나다. Prometheus와 Alertmanager가 시작할 때 이미지 안의 `render-config.sh`가 설정 템플릿에 펼친다.
 - OS exporter는 이 시스템이 띄우지 않는다. 감시 대상 서버에 사람이 설치하고, Prometheus가 HTTP SD로 받은 주소를 직접 수집한다. Linux 서버용 배포 묶음은 `infrastructure/node-exporter/compose.yml`이고, 설치 안내는 [운영 가이드의 OS exporter 설치](OPERATIONS.md#os-exporter-설치)에 있다.
 
@@ -69,6 +69,8 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 | `docs/reference-schema/` | 다른 앱이 참고하는 리소스 임계값 DDL(이 앱의 migration이 아님, `ReferenceSchemaIntegrationTest`가 적용 확인) |
 | `infrastructure/` | 모니터링 코어(`compose.yml`, 구성 요소마다 `Dockerfile`, 설정을 펼치는 `render-config.sh`), Prometheus 설정 템플릿과 규칙(규칙 테스트는 `prometheus/tests/`), Alertmanager, Blackbox 설정, 묶음에 싣는 라이선스 파일(`licenses/`), node_exporter 배포 묶음(`node-exporter/`), 비밀값 예시 파일 |
 | `scripts/build-core-bundle.mjs` | 코어 이미지 빌드와 검사, 내부망 서버로 옮길 코어·node_exporter 묶음 |
+| `core-dev.bat` | Windows 빌드 PC에서 묶음 만들기, 설정 검사, 개발용 코어 띄우기·멈추기 |
+| `infrastructure/core-server.sh` | 묶음에 들어가 코어 서버(Linux)에서 설치 준비, 띄우기, token 바꾸기, 상태 보기(시험은 `infrastructure/tests/`) |
 
 `notification` 안에서 `routing`은 알림을 받을 그룹을 찾고, `telegram`은 그룹 관리와 Bot API 호출을 맡는다.
 

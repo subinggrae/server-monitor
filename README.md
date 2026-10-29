@@ -8,10 +8,10 @@ Prometheus 기반 감시 설정을 화면에서 관리하는 도구다. 사내 �
 
 ## 시작하기
 
-[개발 가이드의 준비](docs/DEVELOPMENT.md#준비)대로 `.env`, `infrastructure/.env`, `infrastructure/secrets/`의 비밀값 파일을 만든다. 그다음 저장소 폴더에서 코어를 먼저 띄우고 앱을 띄운 뒤, 브라우저로 http://localhost:8081 을 연다. 두 번째 명령은 개발용 MariaDB까지 함께 띄운다.
+[개발 가이드의 준비](docs/DEVELOPMENT.md#준비)대로 `.env`, `infrastructure/.env`, `infrastructure/secrets/`의 비밀값 파일을 만든다. 그다음 저장소 폴더에서 코어를 먼저 띄우고 앱을 띄운 뒤, 브라우저로 http://localhost:8081 을 연다. 두 번째 명령은 개발용 MariaDB까지 함께 띄운다. Windows가 아니면 첫 명령 대신 `docker compose -f infrastructure/compose.yml up -d --build`를 쓴다.
 
 ```sh
-docker compose -f infrastructure/compose.yml up -d --build
+core-dev.bat start
 docker compose --profile local-db up -d --build
 ```
 

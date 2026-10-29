@@ -39,7 +39,7 @@
 코어 설정은 세 가지다. 저장소에서는 `infrastructure/.env`와 `infrastructure/secrets/`에, 내부망 묶음에서는 묶음 폴더의 `.env`와 token 폴더에 둔다. 바꾼 뒤 다시 띄우는 방법은 [운영 가이드의 운영 작업](OPERATIONS.md#운영-작업)에 있다.
 
 - `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
-- `CORE_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 코어 폴더의 `secrets/`를 쓴다.
+- `CORE_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 저장소에서는 `infrastructure/secrets/`를, 내부망 묶음에서는 설치 폴더(묶음 폴더의 상위 폴더)의 `secrets/`를 쓴다.
 - `alertmanager_webhook_token`: webhook에 붙는 Bearer token 파일이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 이 저장소의 앱은 루트 `compose.yml`의 `secrets`에서 이 파일을 설정 키 `monitoring-manager.notification.alertmanager-webhook-token`으로 받는다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
 
 Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 이미지 안에 들어 있다. 컨테이너가 시작할 때 이미지 안의 `render-config.sh`가 주소를 넣는다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드](OPERATIONS.md#언제-무엇을-바꾸나)에 있다.
@@ -51,7 +51,7 @@ Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_AD
 | 바꾸려는 것 | 방법 | 고치는 곳 |
 |---|---|---|
 | 앱 호스트, 포트 | 코어 설정의 앱 주소를 바꾸고 코어를 다시 띄움 | 코어의 `.env` |
-| webhook token | token 파일을 바꾸고 코어의 Alertmanager와 앱을 다시 만듦 | token 폴더의 `alertmanager_webhook_token` |
+| webhook token | token 파일을 바꾸고 코어의 Alertmanager와 앱을 다시 만듦(내부망 묶음은 `sh core-server.sh rotate-token`) | token 폴더의 `alertmanager_webhook_token` |
 | API 경로 | 바꾸지 않고, 앱 앞단(리버스 프록시 등)에서 받아 넘김 | 앱 쪽 |
 | `http`를 `https`로 | 지원하지 않음(같은 호스트의 Docker 네트워크 안에서만 부름) | 없음 |
 

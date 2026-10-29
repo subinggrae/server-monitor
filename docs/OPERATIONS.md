@@ -22,16 +22,116 @@
 
 코어와 관리자 서버는 같은 서버에서 각자 컨테이너로 띄우고, Docker 네트워크 `monitoring`으로만 통신한다. 서로 다른 서버에 나눠 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 서버 한 대에는 코어 하나와 관리자 서버 하나만 둔다.
 
-## 준비물
+## 처음 따라 하기
 
-| 어디 | 필요한 것 |
-|---|---|
-| 빌드 PC | 인터넷, 이 저장소(커밋한 상태), Docker, Node 18 이상 |
-| 코어 서버 | x86-64 Linux, Docker Engine과 Docker Compose v2(29.2와 5.1에서 확인), 15일치 기록을 둘 디스크, 감시할 주소와 감시 대상 서버의 9100·9182 포트에 닿는 네트워크 |
-| 감시 대상 Linux 서버 | x86-64, Docker Compose v2 또는 systemd, 비어 있는 9100 포트 |
-| 감시 대상 Windows 서버 | windows_exporter를 설치할 권한, 비어 있는 9182 포트 |
+배포를 처음 하는 사람이 Windows PC에서 코어 묶음을 만들어, 인터넷이 없어도 되는 Linux 코어 서버에 설치하고 띄우기까지의 순서다. 명령은 그대로 복사해 쓰고, `<버전>`, `<계정>`처럼 꺾쇠로 감싼 부분만 자기 값으로 바꾼다. 설치한 뒤 갱신, 되돌리기, token 바꾸기는 [운영 작업](#운영-작업)에 있다.
 
-코어는 실행 중에 인터넷에 나가지 않는다. 관리자 서버가 외부 메신저로 알리면 관리자 서버만 그 서비스에 닿으면 된다. Windows의 Docker Desktop은 개발 환경에서만 쓴다.
+```text
+[빌드 PC: Windows]                         [코어 서버: Linux]
+1. 준비 → 2. 묶음 만들기 → 4. 폴더 옮기기 →  3. Docker 준비 → 5. 설치하고 띄우기
+```
+
+### 1. 빌드 PC 준비
+
+처음 한 번만 한다. 빌드 PC에는 인터넷이 필요하다.
+
+1. [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)을 설치하고 실행한다. 직원 250명이 넘거나 연 매출 1천만 달러가 넘는 회사는 유료 구독이 필요하다.
+2. [Node.js](https://nodejs.org/) LTS(18 이상)와 [Git](https://git-scm.com/)을 설치한다.
+3. 시작 메뉴에서 `cmd`(명령 프롬프트)를 열고 저장소를 받는다. 이후 빌드 PC의 명령은 모두 이 저장소 폴더에서 실행한다.
+
+   ```bat
+   git clone https://github.com/subinggrae/server-monitor.git
+   cd server-monitor
+   ```
+
+### 2. 묶음 만들기
+
+저장소 폴더에서 다음을 실행한다. 5~10분 걸린다.
+
+```bat
+core-dev.bat build
+```
+
+마지막에 `묶음을 만들었다`와 함께 `dist\monitoring-core-<버전>` 폴더가 보이면 성공이다. 이 폴더 하나가 서버로 옮길 묶음이다. 저장소의 파일을 고치고 커밋하지 않았으면 멈추므로, 먼저 커밋하거나 받은 그대로 둔다. `Docker에 연결하지 못했습니다`가 나오면 Docker Desktop을 켠다.
+
+### 3. 코어 서버 준비
+
+처음 한 번만 한다. 코어 서버는 x86-64 Linux이고, 15일치 기록을 둘 디스크와 감시할 주소, 감시 대상 서버의 9100·9182 포트에 닿는 네트워크가 있어야 한다. 서버 주소, 접속 계정, 그 계정의 `sudo` 권한을 준비한다.
+
+서버에 접속해(5번의 `ssh`) Docker가 있는지 본다. 두 명령 모두 버전이 나오면 설치할 필요가 없다. 이 저장소는 Docker Engine 29, Compose 5에서 확인했다.
+
+```sh
+docker --version
+docker compose version
+```
+
+없으면 서버 OS에 맞게 설치한다. 다른 OS는 [Docker 공식 설치 문서](https://docs.docker.com/engine/install/)를 따른다.
+
+- **Ubuntu**: 인터넷이 되는 서버는 공식 문서의 저장소 방식으로 설치한다. 인터넷이 없으면 인터넷이 되는 PC에서 `https://download.docker.com/linux/ubuntu/dists/<우분투 코드명>/pool/stable/amd64/`의 `.deb` 다섯 개(`containerd.io`, `docker-ce`, `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`)를 받아 서버로 옮긴 뒤 설치한다. 우분투 코드명은 서버에서 `grep VERSION_CODENAME /etc/os-release`로 본다([공식 문서의 패키지로 설치](https://docs.docker.com/engine/install/ubuntu/#install-from-a-package)).
+
+  ```sh
+  sudo dpkg -i ./containerd.io_*.deb ./docker-ce_*.deb ./docker-ce-cli_*.deb ./docker-buildx-plugin_*.deb ./docker-compose-plugin_*.deb
+  ```
+
+- **Amazon Linux 2023**: Docker는 Amazon의 패키지 저장소에 있다([AWS 안내](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/create-container-image.html#create-container-image-install-docker)). Compose는 들어 있지 않으므로, 인터넷이 되는 PC에서 [Compose 릴리스](https://github.com/docker/compose/releases)의 `docker-compose-linux-x86_64`를 받아 서버로 옮긴 뒤 플러그인 폴더에 넣는다([공식 문서의 수동 설치](https://docs.docker.com/compose/install/linux/#install-the-plugin-manually)).
+
+  ```sh
+  sudo yum install -y docker
+  sudo mkdir -p /usr/local/lib/docker/cli-plugins
+  sudo install -m 0755 docker-compose-linux-x86_64 /usr/local/lib/docker/cli-plugins/docker-compose
+  ```
+
+설치한 뒤에는 서버가 켜질 때 Docker도 켜지게 하고, 지금 켠다. 코어는 사람이 멈추지 않는 한 서버가 재시작돼도 다시 뜨는데(재시작 정책 `unless-stopped`), Docker가 먼저 켜져야 하기 때문이다.
+
+```sh
+sudo systemctl enable --now docker
+```
+
+### 4. 묶음 폴더를 서버로 옮기기
+
+빌드 PC의 `dist\monitoring-core-<버전>` 폴더를 통째로 서버의 `/tmp/`로 옮긴다. 폴더 안의 `licenses`, `sources`도 함께 옮긴다([라이선스](#라이선스)). [WinSCP](https://winscp.net/) 같은 파일 전송 프로그램을 써도 되고, 저장소 폴더의 cmd에서 다음을 실행해도 된다. Windows 10 이상에는 `scp`가 들어 있다.
+
+```bat
+scp -r dist\monitoring-core-<버전> <계정>@<서버 주소>:/tmp/
+```
+
+### 5. 서버에서 설치하고 띄우기
+
+cmd에서 서버에 접속한 뒤, 서버에서 다음을 차례로 실행한다. `/opt/monitoring`이 설치 폴더다. `sudo`는 `/opt`에 쓰고 Docker를 쓰는 데 필요하다.
+
+```bat
+ssh <계정>@<서버 주소>
+```
+
+```sh
+sudo mkdir -p /opt/monitoring
+sudo mv /tmp/monitoring-core-<버전> /opt/monitoring/
+cd /opt/monitoring/monitoring-core-<버전>
+sudo sh core-server.sh install
+sudo sh core-server.sh start
+```
+
+- **`install`**: 관리자 서버 주소를 묻는다. 이 저장소의 관리자 서버(Manager)를 쓰면 `manager-api:8080`을 넣는다. 다른 관리자 서버는 그 컨테이너의 `이름:포트`를 넣는다([관리자 서버 띄우기](#관리자-서버-띄우기)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
+- **`start`**: 파일이 온전한지 확인하고, 설정과 token을 검사한 뒤 코어를 띄워 정상 상태가 될 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
+
+`sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running healthy`인지도 볼 수 있다. 설치를 마친 서버의 폴더는 다음 모양이다. 새 버전은 이 설치 폴더에 나란히 둔다.
+
+```text
+/opt/monitoring/                         설치 폴더
+├── secrets/alertmanager_webhook_token   코어와 관리자 서버가 함께 읽는 token
+├── monitoring-core-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
+└── monitoring-core-<새 버전>/
+```
+
+### 6. 다음 할 일
+
+코어는 관리자 서버 없이도 정상으로 뜨고, 감시 대상이 없는 상태로 기다린다. 이어서 다음을 한다.
+
+1. 관리자 서버를 띄운다. 코어가 만든 `monitoring` 네트워크에 붙으므로 코어 다음에 띄운다([관리자 서버 띄우기](#관리자-서버-띄우기)). 관리자 서버가 뜨면 코어가 15~30초 안에 감시 대상 목록을 받아 간다.
+2. 감시 대상 서버에 OS exporter를 설치하고 방화벽을 연다([OS exporter 설치](#os-exporter-설치)).
+3. 관리자 서버에 감시 대상을 등록하고 [설치 확인](#설치-확인)대로 동작을 본다.
+
+코어는 실행 중에 인터넷에 나가지 않는다. 관리자 서버가 외부 메신저로 알리면 관리자 서버만 그 서비스에 닿으면 된다.
 
 ## 언제 무엇을 바꾸나
 
@@ -43,16 +143,16 @@
 
 | 바꾸고 싶은 것 | 바꾸는 곳 | 기본값 |
 |---|---|---|
-| 묶음 폴더 위치 | 폴더를 원하는 곳에 그대로 둠 | 없음(어디든 됨) |
-| 관리자 서버 이름·포트 | 묶음 폴더 `.env`의 `MONITORING_APP_ADDRESS` | `manager-api:8080` |
-| token 폴더 위치 | 묶음 폴더 `.env`의 `CORE_SECRETS_DIR` | 묶음 폴더 안의 `secrets/` |
-| token 값 | token 폴더의 `alertmanager_webhook_token` 파일 | 없음(직접 만듦) |
+| 설치 폴더 위치 | 원하는 곳에 폴더를 만들고 묶음 폴더를 그 안에 둠 | 없음(어디든 됨) |
+| 관리자 서버 이름·포트 | 묶음 폴더 `.env`의 `MONITORING_APP_ADDRESS` | 없음(`install`이 물음) |
+| token 폴더 위치 | 묶음 폴더 `.env`의 `CORE_SECRETS_DIR` | 설치 폴더의 `secrets/` |
+| token 값 | token 폴더의 `alertmanager_webhook_token` 파일 | 없음(`install`이 만듦) |
 | 관리자 서버가 코어에 물을 주소 | 관리자 서버의 설정 | `http://prometheus:9090` |
 | 감시 대상 서버의 접근 허용 | 그 서버의 방화벽 | 없음(코어 서버 IP에만 연다) |
 
 관리자 서버 이름·포트는 `monitoring` 네트워크 안에서 닿는 `컨테이너 이름:포트`이고 `http://`를 붙이지 않는다. 관리자 서버의 컨테이너 이름이나 포트를 바꾸면 이 값도 함께 바꾼다.
 
-token 폴더는 버전 폴더 밖의 고정 경로에 두기를 권한다. 묶음 폴더는 버전마다 새로 생기므로, token이 그 안에 있으면 갱신할 때마다 옮기고 관리자 서버의 경로도 바꿔야 한다. 경로는 `/opt/monitoring/secrets`, `/srv/monitoring/secrets` 등 어디든 되고, 코어 `.env`와 관리자 서버가 같은 파일을 가리키기만 하면 된다.
+묶음 폴더는 버전마다 새로 생기므로, 묶음 폴더들을 한 설치 폴더에 나란히 두고 token은 설치 폴더의 `secrets/`에 둔다([처음 따라 하기의 폴더 모양](#5-서버에서-설치하고-띄우기)). 버전이 바뀌어도 token 경로가 그대로라 관리자 서버의 설정을 바꾸지 않는다. token을 다른 곳에 두려면 `.env`의 `CORE_SECRETS_DIR`에 경로를 적는다. 상대 경로는 묶음 폴더 기준이다.
 
 ### 관리자 서버 화면에서 바꾸는 값
 
@@ -82,52 +182,24 @@ token 폴더는 버전 폴더 밖의 고정 경로에 두기를 권한다. 묶�
 - **네트워크 이름**: `monitoring`
 - **관리자 서버 API 경로 세 개**: 관리자 서버 안의 경로가 다르면 앞단(리버스 프록시 등)에서 이 경로를 받아 넘긴다.
 
-## 설치 순서
+## 다른 실행 방법
 
-인터넷이 없는 서버에 설치하는 순서다. 인터넷이 되는 서버나 개발 PC에서는 [저장소에서 실행](#저장소에서-실행)이 더 간단하다.
+보통은 [처음 따라 하기](#처음-따라-하기)대로 운영 명령을 쓴다. 다음은 운영 명령 없이 실행하는 방법과 저장소에서 바로 띄우는 방법이다.
 
-### 내부망 서버에 옮겨 실행
+### 운영 명령 없이 실행
 
-1. 빌드 PC의 저장소 폴더에서 묶음을 만든다. 이미지를 빌드하고 설정 검사와 규칙 테스트를 통과하면 `dist/monitoring-core-<버전>/`과 `dist/node-exporter-<버전>/`이 생긴다. `<버전>`은 커밋에서 나온 값이고, 커밋하지 않은 변경이 있으면 같은 버전 이름이 다른 내용에 붙을 수 있어 멈춘다.
+[처음 따라 하기](#처음-따라-하기)의 5번에서 `install`, `start` 대신 묶음 폴더에서 다음을 실행한다. token은 설치 폴더의 `secrets/`(`../secrets`)에서 읽는다. token 파일이 없는데 띄우면 Docker가 그 자리에 빈 폴더를 만들므로, token을 먼저 만든다.
 
-   ```sh
-   node scripts/build-core-bundle.mjs
-   ```
-
-2. `dist/monitoring-core-<버전>/` 폴더를 코어 서버의 원하는 위치로 옮긴다. 폴더 안의 `licenses/`와 `sources/`도 함께 옮긴다([라이선스](#라이선스)).
-3. 처음 설치할 때만 token 파일을 만든다. 폴더는 운영자만 열 수 있게(0700), 파일은 컨테이너 안의 사용자(`nobody`)가 읽을 수 있게(0644) 둔다. Docker는 이 파일 자체를 컨테이너에 붙이므로 폴더를 닫아 두어도 컨테이너는 읽는다. 다음은 `/opt/monitoring/secrets`에 두는 예다.
-
-   ```sh
-   sudo install -d -m 0700 /opt/monitoring/secrets
-   openssl rand -hex 32 | sudo tee /opt/monitoring/secrets/alertmanager_webhook_token > /dev/null
-   sudo chmod 0644 /opt/monitoring/secrets/alertmanager_webhook_token
-   ```
-
-4. 묶음 폴더에서 설정 파일을 만들고 두 값을 고친다. `MONITORING_APP_ADDRESS`는 관리자 서버의 `컨테이너 이름:포트`다.
-
-   ```sh
-   cp .env.example .env
-   ```
-
-   ```ini
-   MONITORING_APP_ADDRESS=my-admin:8080
-   CORE_SECRETS_DIR=/opt/monitoring/secrets
-   ```
-
-5. 묶음 폴더에서 파일이 온전한지 확인하고, 이미지를 불러와 코어를 띄운다. `sha256sum`은 모든 줄이 `OK`여야 하고, `ps`는 세 컨테이너가 `healthy`여야 한다. 이 폴더의 `compose.yml`은 인터넷에서 이미지를 받지 않는다.
-
-   ```sh
-   sha256sum -c SHA256SUMS
-   docker load -i core-images.tar
-   docker compose up -d
-   docker compose ps
-   ```
-
-6. 관리자 서버를 띄운다. 코어가 `monitoring` 네트워크를 만들었으므로 코어 다음에 띄운다. 띄우는 옵션은 [관리자 서버 띄우기](#관리자-서버-띄우기)에 있다.
-7. 감시 대상 서버에 OS exporter를 설치하고 방화벽을 연다([OS exporter 설치](#os-exporter-설치)).
-8. 관리자 서버에 감시 대상을 등록하고 [설치 확인](#설치-확인)대로 동작을 본다.
-
-관리자 서버가 없어도 코어는 정상으로 뜬다. 감시 대상이 없는 상태로 기다리다가, 관리자 서버가 뜨면 15~30초 안에 대상 목록을 받아 간다.
+```sh
+install -d -m 0700 ../secrets
+openssl rand -hex 32 > ../secrets/alertmanager_webhook_token
+chmod 0644 ../secrets/alertmanager_webhook_token
+cp .env.example .env              # MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
+sha256sum -c SHA256SUMS           # 모든 줄이 OK여야 한다
+docker load -i core-images.tar
+docker compose up -d
+docker compose ps                 # 세 컨테이너가 healthy여야 한다
+```
 
 ### 저장소에서 실행
 
@@ -137,6 +209,11 @@ token 폴더는 버전 폴더 밖의 고정 경로에 두기를 권한다. 묶�
 cp infrastructure/.env.example infrastructure/.env
 openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
 chmod 0644 infrastructure/secrets/alertmanager_webhook_token
+```
+
+Windows에서는 `core-dev.bat start`로 띄우고 `core-dev.bat stop`으로 멈춘다. 다른 OS에서는 같은 일을 하는 다음 명령을 쓴다.
+
+```sh
 docker compose -f infrastructure/compose.yml up -d --build
 docker compose -f infrastructure/compose.yml ps
 ```
@@ -399,25 +476,36 @@ http.createServer((req, res) => {
 
 ## 운영 작업
 
-코어를 운영하면서 하는 일은 다음과 같다. 명령은 묶음 폴더에서 실행한다. 저장소에서 실행했으면 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
+코어를 운영하면서 하는 일은 다음과 같다. 명령은 지금 쓰는 버전의 묶음 폴더에서 실행한다. 저장소에서 실행했으면 `core-dev.bat`을 쓰거나 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
 
-- **관리자 서버 이름·포트 바꾸기**: `.env`를 고친 뒤 `docker compose up -d`를 실행한다.
-- **token 바꾸기**: token 파일을 새 값으로 바꾼 뒤 `docker compose up -d --force-recreate alertmanager`로 Alertmanager를 다시 만든다. `up -d`만으로는 파일이 바뀐 것을 알아채지 못해 옛 값을 쓸 수 있다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
-- **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `docker compose -f infrastructure/compose.yml up -d --build`로 다시 띄운다.
-- **새 버전으로 갱신**: 새 묶음 폴더에 이전 폴더의 `.env`를 복사하고, 새 폴더에서 `sha256sum -c SHA256SUMS`, `docker load -i core-images.tar`, `docker compose up -d`를 실행한다. token은 고정 폴더에 두므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
-- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `docker compose up -d`를 실행한다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않아도 된다.
-- **띄운 버전 확인**: `docker compose ps`의 이미지 태그가 버전이다. 그 버전을 빌드한 커밋은 `docker image inspect monitoring-core-prometheus:<버전> | grep image.revision`으로 본다.
-- **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남는다.
-- **기록까지 지우기**: `docker compose down -v`를 실행한다. 되돌릴 수 없다.
-- **로그 보기**: `docker compose logs -f prometheus`를 실행한다.
+- **관리자 서버 이름·포트 바꾸기**: `.env`의 `MONITORING_APP_ADDRESS`를 고친 뒤 `sh core-server.sh start`를 실행한다.
+- **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
+- **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
+- **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
+- **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 `install`을 실행하면 새 token을 만들지 않고 멈춘다. 새 token을 만들면 관리자 서버의 token과 어긋나기 때문이다. 다음 순서로 옮긴다.
+  1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다. 이전 묶음 폴더도 같은 설치 폴더에 있으면 `install`이 그 폴더의 `.env`를 가져온다.
+  2. token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). `install`이 멈출 때 보인 옛 token 경로를 쓴다. 이전 `.env`에 `CORE_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
+  3. 관리자 서버가 붙이는 token 경로를 새 위치로 바꾼다.
+  4. 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행하고, 관리자 서버를 다시 띄운다.
+- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 이전 버전으로 바꿀지 물으면 `y`를 넣는다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다.
+- **띄운 버전 확인**: `sh core-server.sh status`를 실행한다. 떠 있는 버전, 그 버전을 빌드한 커밋, 세 컨테이너의 상태가 보인다.
+- **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남고, 서버가 재시작돼도 다시 뜨지 않는다. 다시 띄우려면 `sh core-server.sh start`를 실행한다.
+- **기록까지 지우기**: `docker compose down -v`를 실행한다. 되돌릴 수 없어 운영 명령에 넣지 않았다.
+- **로그 보기**: `docker logs -f prometheus`를 실행한다.
 
 ## 문제 해결
 
-코어가 뜨지 않거나 동작하지 않으면 다음 표에서 보이는 것을 찾는다.
+코어가 뜨지 않거나 동작하지 않으면 다음 표에서 보이는 것을 찾는다. 운영 명령은 대부분의 경우를 띄우기 전에 알아보고 고치는 방법을 함께 보인다. 아래 표는 그 안내에 없는 경우와 직접 실행했을 때를 다룬다.
 
 | 보이는 것 | 원인 | 해결 |
 |---|---|---|
-| `MONITORING_APP_ADDRESS가 필요합니다` | `.env`가 없거나 관리자 서버 주소가 비어 있음 | `.env`를 만들고 관리자 서버 주소를 넣는다 |
+| `Docker에 연결하지 못했습니다` | Docker가 꺼져 있거나 이 사용자가 `docker`를 쓸 권한이 없음 | `sudo systemctl start docker`, 또는 사용자를 `docker` 그룹에 넣는다 |
+| `서버가 켜질 때 Docker가 자동으로 켜지지 않습니다` | Docker 서비스가 자동 시작으로 설정되지 않음 | `sudo systemctl enable docker` |
+| `이전 버전(…)으로 바꾸려면 터미널에서 실행해 확인해 주세요` | 이전 버전 폴더에서 `start`를 실행했는데, 입력을 받을 수 없는 방식으로 실행함 | 이전 버전으로 되돌리려는 것이 맞으면 터미널에서 직접 실행하고 `y`를 넣는다 |
+| `코어가 이미 있는데 token 파일이 없습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
+| `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 새 묶음 폴더의 `secrets/`에 token을 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
+| `token은 코어를 띄운 묶음 폴더에서 바꿔 주세요` | 다른 버전 폴더에서 `rotate-token`을 실행함 | 안내된 폴더에서 다시 실행한다 |
+| `MONITORING_APP_ADDRESS가 필요합니다` | 직접 실행했는데 `.env`가 없거나 관리자 서버 주소가 비어 있음 | `.env`를 만들고 관리자 서버 주소를 넣는다 |
 | `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 없음` | token 파일이 없거나 비어 있음 | 로그의 경로에 token 파일을 만든다 |
 | `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 읽기 불가` | token 파일 권한이 0600 등이라 컨테이너 사용자가 읽지 못함 | 파일 권한을 0644로 바꾼다 |
 | `alertmanager_webhook_token`이 폴더임 | token 파일 없이 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
@@ -428,7 +516,7 @@ http.createServer((req, res) => {
 
 ## OS exporter 설치
 
-CPU, Memory, 디스크를 볼 감시 대상 서버마다 OS exporter를 설치한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(포트 9182, 공식 문서의 metric 이름 기준)다. 설치하기 전에 [감시 대상 서버의 방화벽](#감시-대상-서버의-방화벽)을 먼저 설정하고, 설치한 뒤에는 관리자 서버에 그 서버를 등록해 사용량 수집을 켠다. 이 저장소의 Manager는 서버 상세에서 수집을 켜고 연결 시험을 누른다.
+CPU, Memory, 디스크를 볼 감시 대상 서버마다 OS exporter를 설치한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(포트 9182, 공식 문서의 metric 이름 기준)다. Linux 서버는 x86-64에 Docker Compose v2나 systemd가 있고 9100 포트가 비어 있어야 한다. Windows 서버는 windows_exporter를 설치할 권한과 비어 있는 9182 포트가 필요하다. 설치하기 전에 [감시 대상 서버의 방화벽](#감시-대상-서버의-방화벽)을 먼저 설정하고, 설치한 뒤에는 관리자 서버에 그 서버를 등록해 사용량 수집을 켠다. 이 저장소의 Manager는 서버 상세에서 수집을 켜고 연결 시험을 누른다.
 
 Linux 서버에 필요한 파일은 코어 묶음과 함께 생기는 `dist/node-exporter-<버전>/` 폴더에 모두 있다. 인터넷이 없는 서버에는 이 폴더를 옮기고, 먼저 `sha256sum -c SHA256SUMS`로 파일이 온전한지 확인한다.
 

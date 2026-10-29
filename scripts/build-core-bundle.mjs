@@ -111,19 +111,21 @@ function writeText(file, text) {
 function version({ allowDirty }) {
   const describe = run('git', ['describe', '--tags', '--always', '--dirty'], { capture: true });
   const revision = run('git', ['rev-parse', 'HEAD'], { capture: true });
+  const commitTime = run('git', ['show', '-s', '--format=%ct', 'HEAD'], { capture: true });
   if (describe.endsWith('-dirty')) {
     if (!allowDirty) {
       fail('커밋하지 않은 변경이 있다. 커밋한 뒤 묶음을 만든다. 시험용으로만 만들려면 --allow-dirty를 붙인다.');
     }
     console.warn('경고: 커밋하지 않은 변경이 있다. 버전 끝에 -dirty가 붙고, 그 커밋만으로는 같은 이미지를 다시 만들 수 없다.');
   }
-  return { describe, revision };
+  return { describe, revision, commitTime };
 }
 
 function composeEnv(core) {
   return {
     CORE_VERSION: core.describe,
     CORE_REVISION: core.revision,
+    CORE_COMMIT_TIME: core.commitTime,
     DOCKER_DEFAULT_PLATFORM: PLATFORM,
     // compose.yml의 ${MONITORING_APP_ADDRESS:?}가 빌드에서도 값을 요구한다. 이미지에는 들어가지 않는다.
     MONITORING_APP_ADDRESS: process.env.MONITORING_APP_ADDRESS ?? CHECK_APP_ADDRESS,
@@ -154,7 +156,16 @@ function checkCoreImages(core) {
   run('docker', ['run', '--rm', ...env, '--entrypoint', '/bin/sh', alertmanager,
     '/etc/core/render-config.sh', '/etc/alertmanager/alertmanager.yml.template', '/tmp/alertmanager.yml',
     'amtool', 'check-config', '/tmp/alertmanager.yml']);
+  // 코어 서버의 sh가 BusyBox일 수도 있어, 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
+  // 확인 질문 시험이 가상 터미널을 여는데, 이미지의 기본 사용자(nobody)는 열 수 없어 root로 실행한다.
+  console.log('코어 서버 운영 명령(core-server.sh)의 자동 시험을 실행한다.');
+  run('docker', ['run', '--rm', '--user', '0', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', prometheus,
+    '/src/tests/core-server.test.sh', '/src/core-server.sh']);
 }
+
+// 저장소에서는 infrastructure/secrets/를 쓰고, 묶음은 버전 폴더가 바뀌어도 같은 token을 쓰도록 설치 폴더의 secrets/를 쓴다(요구사항 0011).
+const SECRETS_DEFAULT = '${CORE_SECRETS_DIR:-./secrets}';
+const BUNDLE_SECRETS_DEFAULT = '${CORE_SECRETS_DIR:-../secrets}';
 
 // 묶음 폴더에서는 저장소의 infrastructure/ 아래 파일이 같은 폴더에 있으므로 안내 문구의 경로를 바꾼다.
 function forBundle(text) {
@@ -176,10 +187,10 @@ function runtimeCompose(core) {
   const out = [
     '# 내부망 서버용 모니터링 코어 실행 파일이다. scripts/build-core-bundle.mjs가 저장소의 infrastructure/compose.yml에서 만들었다.',
     `# 버전 ${core.describe}, 커밋 ${core.revision}`,
-    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있다. 이 파일은 고치지 않고, 바꿀 것은 .env와 secrets/에 둔다.',
+    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있다. 이 파일은 고치지 않고, 바꿀 것은 .env와 설치 폴더의 secrets/에 둔다.',
     '#',
-    '#   docker load -i core-images.tar',
-    '#   docker compose up -d',
+    '#   sh core-server.sh install',
+    '#   sh core-server.sh start',
     '',
   ];
   let skipIndent = -1;
@@ -200,9 +211,12 @@ function runtimeCompose(core) {
       skipIndent = indent;
       continue;
     }
-    out.push(line.replaceAll('${CORE_VERSION:-dev}', core.describe));
+    out.push(line.replaceAll('${CORE_VERSION:-dev}', core.describe).replaceAll(SECRETS_DEFAULT, BUNDLE_SECRETS_DEFAULT));
   }
   const text = `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
+  if (!text.includes(BUNDLE_SECRETS_DEFAULT)) {
+    fail(`실행용 compose 파일에 token 폴더 기본값 ${SECRETS_DEFAULT}가 없다. infrastructure/compose.yml의 secrets 항목을 확인한다.`);
+  }
   if (/^\s+build:/m.test(text) || /CORE_VERSION|x-core-build-args|core-build-args/.test(text)) {
     fail('실행용 compose 파일에 빌드 항목이 남았다. infrastructure/compose.yml의 형식이 바뀌었는지 확인한다.');
   }
@@ -292,8 +306,9 @@ async function buildCoreBundle(core) {
   writeText(path.join(out, 'compose.yml'), runtimeCompose(core));
   validateRuntimeCompose(out);
   writeText(path.join(out, '.env.example'), forBundle(fs.readFileSync(path.join(CORE_DIR, '.env.example'), 'utf8')));
-  copy(path.join(CORE_DIR, 'secrets', 'alertmanager_webhook_token.example'),
-    path.join(out, 'secrets', 'alertmanager_webhook_token.example'));
+  // token은 core-server.sh install이 설치 폴더에 만들므로 묶음에는 token 예시를 싣지 않는다.
+  writeText(path.join(out, 'core-server.sh'), fs.readFileSync(path.join(CORE_DIR, 'core-server.sh'), 'utf8'));
+  fs.chmodSync(path.join(out, 'core-server.sh'), 0o755);
   await addLicensesAndSources(out, images);
 
   assertNoSecrets(out, secrets);
