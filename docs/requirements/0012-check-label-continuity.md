@@ -26,6 +26,8 @@
 
 `environment`는 OS exporter SD(`server_name`, `environment`)에도 있다. 다만 `manager-os` job에는 Alert 규칙이 없고, 앱이 읽는 공통 recording rule의 label은 `server_id`, `resource_type`, `resource_key`뿐이라 리소스 값과 임계값 판단은 이어진다. 끊기는 것은 `up{job="manager-os"}`의 원래 series뿐이다. 이 내용은 코드와 설정을 읽어 판단했고 실행해 확인하지 않았다.
 
+그래서 이 문제를 고친다. SD label은 그대로 두고, 장애를 만드는 Alert 규칙과 Alertmanager `group_by`에서만 이름과 환경을 뺀다(사람 확인: 2026-10-29). SD label에서 빼지 않는 이유는 사용자의 Grafana가 이 Prometheus의 기록을 읽기 때문이다. 앱은 추세를 Grafana 링크로 넘기고([DESIGN.md](../design/DESIGN.md), [ARCHITECTURE.md](../ARCHITECTURE.md)), 기록에 이름과 환경이 있어야 Grafana 그래프에서 감시 항목을 이름으로 보고 환경으로 거를 수 있다. 앱 자체는 Prometheus에서 지금 값만 번호로 읽으므로 이 선택의 영향을 받지 않는다.
+
 ## 목표
 
 - 대상이 계속 실패하는 동안 사용자가 감시 항목의 이름이나 환경을 바꿔도 장애는 하나로 이어진다. 복구 알림과 새 장애 알림이 가지 않고, 장애 기록도 하나로 남는다.
@@ -66,7 +68,7 @@
 - **S4. 변경을 배포할 때의 1회성 영향**
   - 상황: 이 변경 전부터 이어지는 장애와 쌓인 time series가 있다.
   - 행동: 이 변경을 배포한다.
-  - 결과: Alert의 label 집합이 한 번 바뀌므로 이어지던 장애가 한 번 복구됐다가 새 장애로 다시 생긴다. SD label에서 빼는 방식을 고르면 모든 감시 항목의 series도 한 번 새로 시작한다 [확인 필요]. 운영 가이드에 이 영향과 배포할 시점을 적는다.
+  - 결과: Alert의 label 집합이 한 번 바뀌므로 이어지던 장애가 한 번 복구됐다가 새 장애로 다시 생긴다. SD label은 바뀌지 않으므로 쌓인 time series는 이어진다. 운영 가이드에 이 영향과 배포할 시점을 적는다.
 
 ### 예외 동작
 
@@ -84,7 +86,7 @@
 
 ### 바뀌지 않는 것
 
-- SD entry의 `check_id`, `check_target_id`, `check_type`, `module`, `__scrape_interval__`과 대상 주소
+- SD entry의 label 전부(`check_id`, `check_target_id`, `check_type`, `module`, `environment`, `check_name`, `__scrape_interval__`)와 대상 주소. 이름을 바꿀 때 원래 `probe_success` series가 새로 시작하는 것도 지금과 같다.
 - Alert 규칙의 장애 판단 식과 `for: 1m`, 규칙 이름(`MonitoringCheckDown`, `MonitoringCheckProbeFailed`)
 - Alertmanager의 `group_wait`, `group_interval`, `repeat_interval`, 복구 Alert 전송
 - 장애를 `fingerprint`와 `startsAt`으로 구분하는 방식과 재발송 판단([ADR 0001](../decisions/0001-alert-repeat-in-manager.md))
@@ -102,9 +104,5 @@
 
 ## 확인 필요
 
-- 이름·환경을 바꿀 때 장애가 끊기는 것을 고칠지 정한다. 고치지 않으면 `BlackboxServiceDiscoveryService`의 주석과 INTEGRATION.md의 설명만 실제 동작에 맞추는 작은 변경으로 끝난다. (가정: 고친다. 대상이 계속 실패하는데 복구 알림이 가서, 받는 사람이 장애가 끝났다고 오해할 수 있기 때문이다.)
-- 이름과 환경을 어디에서 뺄지 정한다. AGENTS.md의 HTTP SD label 규칙에 해당하는 질문이다. (가정: Alert 규칙과 `group_by`에서만 뺀다. 문제는 장애가 끊기는 것이고, 이 방식은 SD 계약을 바꾸지 않고 배경의 시험에서 장애가 이어졌기 때문이다.)
-  - **Alert 규칙과 `group_by`에서만 뺌**: SD label은 그대로 두고, 두 Alert 규칙(`MonitoringCheckDown`, `MonitoringCheckProbeFailed`)이 `check_name`, `environment`를 뺀 label로 장애를 만든다. `group_by`에서 `environment`를 뺀다. Alert summary에서 이름을 빼고, 알림의 이름과 환경은 Manager가 채운다. SD 계약은 그대로이고, 배포할 때 series가 끊기지 않는다. 대신 원래 `probe_success` series는 이름·환경을 바꿀 때마다 지금처럼 끊긴다. 앱이 id로 묶어 읽으면 영향이 없다. 또 공개 API인 Alertmanager webhook payload의 label이 줄어든다.
-  - **SD label에서 뺌**: `check_name`, `environment`를 SD 응답에서 지우고 label을 id 중심으로 둔다. 주석의 원래 의도와 맞고 series도 이어진다. 대신 공개 API인 SD 계약과 webhook payload가 함께 바뀌고, 배포할 때 모든 감시 항목의 series와 이어지던 장애가 한 번 끊긴다. Prometheus에서 이름·환경으로 거르는 조회(PromQL)도 할 수 없게 된다.
 - OS exporter SD의 `server_name`, `environment`도 같은 방식으로 바꿀지 정한다. (가정: 이번에는 바꾸지 않는다. OS exporter에는 Alert 규칙이 없고, 앱이 읽는 recording rule은 id만 쓰기 때문이다.)
 - 배포 때 이어지던 장애가 한 번 복구됐다가 다시 생기는 영향을 받아들일지 정한다. (가정: 받아들이고 운영 가이드에 장애가 적은 시간에 배포하라고 적는다.)
