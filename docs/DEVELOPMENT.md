@@ -55,7 +55,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 - 앱 주소를 펼친 Alertmanager 설정 검사(`amtool check-config`)
 - 코어 서버 운영 명령(`infrastructure/core-server.sh`)의 자동 시험(`infrastructure/tests/core-server.test.sh`). 이미지에 든 BusyBox `sh`에서 가짜 `docker`, `systemctl`로 실행한다
 
-`core-dev.bat build`(`node scripts/build-core-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `core-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 내부망 서버에 옮겨 실행](OPERATIONS.md#내부망-서버에-옮겨-실행)에 있다. 바탕 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/compose.yml`과 `scripts/build-core-bundle.mjs`의 버전·digest·체크섬을 함께 바꾼다.
+`core-dev.bat build`(`node scripts/build-core-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `core-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 처음 따라 하기](OPERATIONS.md#처음-따라-하기)에 있다. 바탕 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/compose.yml`과 `scripts/build-core-bundle.mjs`의 버전·digest·체크섬을 함께 바꾼다.
 
 감시 대상 서버용 node_exporter 배포 묶음(`infrastructure/node-exporter/compose.yml`)은 Docker Desktop에서 그대로 뜨지 않는다. Docker Desktop의 VM은 `/`가 shared mount가 아니라서 `/:/host:ro,rslave`를 붙일 수 없고, host 네트워크 기능이 꺼져 있으면 다른 컨테이너가 9100에 닿지 않는다. 개발 환경에서 OS exporter 수집을 확인할 때는 `os-test-node-exporter`를 쓴다.
 
