@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-11-09
-- 관련: [요구사항 0013](../requirements/0013-core-env-settings.md)(S16, C10), [ADR 0007](0007-core-app-contract.md)(이 ADR이 그 결정 가운데 앱 주소의 형식을 검사하지 않는다는 문장만 대신함), [#33](https://github.com/subinggrae/server-monitor/issues/33)
+- 관련: [요구사항 0013](../requirements/0013-core-env-settings.md)(S16, C10), [ADR 0007](0007-core-app-contract.md)(이 ADR이 그 결정 가운데 앱 주소의 형식을 검사하지 않는다는 문장만 대신함), [#33](https://github.com/subinggrae/server-monitor/issues/33), [PR #42](https://github.com/subinggrae/server-monitor/pull/42)(구현 계획 포함)
 
 ## 배경과 문제
 
