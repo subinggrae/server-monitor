@@ -27,7 +27,7 @@
 - 코어(`compose.yml`, Alert 규칙, Alertmanager 설정)를 바꾸는 것. Alert 규칙의 summary와 description은 그대로 두고 Alertmanager 화면에만 남는다(사람 확인: 2026-11-09).
 - 이 저장소의 기준 migration(`V1__baseline.sql`)을 고치거나, 메시지 틀 테이블을 이 저장소 Manager의 migration과 Entity에 넣는 것(사람 확인: 2026-11-09).
 - 틀 저장·검사 API, 메시지 만들기, 틀을 고치는 화면을 이 저장소에 만드는 것. 다른 웹이 만든다(사람 확인: 2026-11-09).
-- 이 저장소 Manager의 지금 알림 문구(`AlertMessageFormatter`의 `[RESOLVED]`, `[CRITICAL]` 등)를 기본 틀에 맞춰 고치는 것. 이 요구사항의 결과물은 문서와 참고용 DDL이고, Manager 코드를 고치면 범위와 검증이 크게 늘어나서 별도 작업으로 넘기고 GitHub 이슈로 남긴다(사람 확인: 2026-11-09).
+- 이 저장소 Manager의 지금 알림 문구(`AlertMessageFormatter`의 `[RESOLVED]`, `[CRITICAL]` 등)를 기본 틀에 맞춰 고치는 것. 실제로 운영자에게 알림을 보낼 관리자 서버는 다른 웹에서 이 요구사항의 틀과 기본 문구로 만들고, 이 저장소의 Manager는 참고용으로 남기 때문에 고치지 않는다(사람 확인: 2026-11-09).
 - 이미 쌓인 장애 기록의 문구를 새 문구로 바꾸는 것. 운영에는 쌓인 기록이 없다(사람 확인: 2026-11-09).
 - 감시 항목마다, 받는 곳마다, 환경마다 다른 틀을 두는 것. 틀은 종류마다 하나다(사람 확인: 2026-11-09).
 - 알림 수단(문자, Telegram, webhook 등)을 정하는 것. 관리자 서버마다 구현한다([#24](https://github.com/subinggrae/server-monitor/issues/24)).
