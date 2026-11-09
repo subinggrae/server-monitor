@@ -254,6 +254,24 @@ function checkRejectedSettings(images) {
   }
 }
 
+// 관리자 서버 주소가 컨테이너 이름:포트 형식이 아니면, 주소를 쓰는 이미지의 시작 스크립트가 원래 프로세스를 실행하지 않고
+// 변수 이름과 맞는 형식을 남기고 실패하는지 본다. 운영 명령 없이 띄울 때 설정에 그대로 펼쳐지지 않게 하기 위해서다.
+function checkRejectedAddresses(images) {
+  const addresses = ['', 'manager-api', 'http://manager-api:8080', 'manager-api:0', 'manager-api:70000', 'a:b:8080',
+    '-manager:8080', 'manager api:8080', 'manager|api:8080', 'manager&api:8080', 'manager;api:8080', '$(id):8080',
+    'manager-api:8080\nx', 'manager-api:8080\n      - url: http://x'];
+  for (const name of ['prometheus', 'alertmanager']) {
+    for (const address of addresses) {
+      const result = runResult('docker', renderArgs(images[name], name, { MONITORING_APP_ADDRESS: address },
+        ['/bin/sh', '-c', 'echo CORE_STARTED']));
+      if (result.status === 0 || result.stdout.includes('CORE_STARTED')
+        || !result.stderr.includes('MONITORING_APP_ADDRESS') || !result.stderr.includes('컨테이너 이름:포트')) {
+        fail(`${name}의 시작 스크립트가 MONITORING_APP_ADDRESS=${JSON.stringify(address)}을 거부하지 않았다. 종료 코드 ${result.status}, 오류 출력: ${result.stderr.trim()}`);
+      }
+    }
+  }
+}
+
 // promtool과 amtool이 모르는 약속을 본다. 허용 범위가 이 약속을 깨면 코어가 검사를 통과한 채로 잘못 돈다.
 function checkSettingContracts(images, ranges) {
   const range = (name) => ranges.find((item) => item.name === name);
@@ -334,6 +352,8 @@ function checkCoreImages(core) {
   }
   console.log('범위 밖이나 형식이 틀린 설정 값을 시작 스크립트가 거부하는지 확인한다.');
   checkRejectedSettings(images);
+  console.log('형식이 틀린 관리자 서버 주소를 시작 스크립트가 거부하는지 확인한다.');
+  checkRejectedAddresses(images);
   console.log('compose.yml의 포트가 127.0.0.1에만 열리는지 확인한다.');
   checkPortBindings(CORE_COMPOSE, CORE_DIR, ranges);
   // 테스트 파일은 ../rules/를 읽으므로 이미지 안의 규칙 바로 옆에 붙여, 이미지에 들어간 규칙을 그대로 시험한다.

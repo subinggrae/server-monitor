@@ -229,7 +229,7 @@ docker compose up -d
 docker compose ps                 # 세 컨테이너가 healthy여야 한다
 ```
 
-운영 명령 없이 띄우면 [서버에서 바꾸는 값](#서버에서-바꾸는-값)을 미리 검사하지 않는다. 기록 보관 값이나 주소 확인 제한 시간이 틀리면 그 값을 쓰는 컨테이너(`prometheus`나 `blackbox-exporter`)가 시작하지 않고 다시 시작을 되풀이하며, `docker logs prometheus`(또는 `blackbox-exporter`)에 운영 명령과 같은 안내를 남긴다. `blackbox-exporter`가 뜨지 않는 동안에는 모든 주소 확인이 실패해 장애 알림이 한꺼번에 갈 수 있으므로, 값을 바꿀 때는 운영 명령을 쓴다. 포트는 Compose가 형식만 검사하므로 허용 범위와 겹침을 확인하지 않는다. 기록 보관 값을 줄일 때의 확인도 묻지 않는다.
+운영 명령 없이 띄우면 관리자 서버 주소와 [서버에서 바꾸는 값](#서버에서-바꾸는-값)을 띄우기 전에 검사하지 않는다. 관리자 서버 주소가 `컨테이너 이름:포트` 형식이 아니면 `prometheus`와 `alertmanager`가 시작하지 않고 다시 시작을 되풀이하며, 로그에 맞는 형식과 고치는 방법을 남긴다. 기록 보관 값이나 주소 확인 제한 시간이 틀리면 그 값을 쓰는 컨테이너(`prometheus`나 `blackbox-exporter`)가 시작하지 않고 다시 시작을 되풀이하며, `docker logs prometheus`(또는 `blackbox-exporter`)에 운영 명령과 같은 안내를 남긴다. `blackbox-exporter`가 뜨지 않는 동안에는 모든 주소 확인이 실패해 장애 알림이 한꺼번에 갈 수 있으므로, 값을 바꿀 때는 운영 명령을 쓴다. 포트는 Compose가 형식만 검사하므로 허용 범위와 겹침을 확인하지 않는다. 기록 보관 값을 줄일 때의 확인도 묻지 않는다.
 
 ### 저장소에서 실행
 
@@ -319,6 +319,7 @@ docker compose -f infrastructure/compose.yml ps
 | `호스트 포트가 겹칩니다` | 세 포트 가운데 둘 이상이 같음 | `.env`의 세 포트를 서로 다른 값으로 고친다 |
 | `기록 보관 값을 줄이려면 터미널에서 실행해 확인해 주세요` | 보관 기간이나 용량을 줄였는데, 입력을 받을 수 없는 방식으로 실행함 | 줄이려는 것이 맞으면 터미널에서 직접 실행해 `y`를 넣고, 아니면 `.env`의 값을 되돌린다 |
 | `port is already allocated` 또는 `address already in use` | 코어 서버의 다른 프로그램이나 컨테이너가 그 포트를 씀 | `.env`의 그 포트(`CORE_PROMETHEUS_PORT` 등)를 비어 있는 포트로 바꾸고 다시 `start`를 실행한다 |
+| `prometheus`와 `alertmanager`가 계속 다시 시작하고 로그에 `관리자 서버 주소가 올바르지 않습니다` | 운영 명령 없이 띄웠는데 `.env`의 `MONITORING_APP_ADDRESS`가 `컨테이너 이름:포트` 형식이 아님 | 로그의 맞는 형식대로 고친 뒤 `sh core-server.sh start`로 띄운다 |
 | `prometheus`나 `blackbox-exporter`가 계속 다시 시작하고 로그에 `코어 설정 값이 올바르지 않아 시작하지 않습니다` | 운영 명령 없이 띄웠는데 기록 보관 값이나 주소 확인 제한 시간이 틀림 | 로그 위쪽의 안내대로 `.env`를 고친 뒤 `sh core-server.sh start`로 띄운다 |
 | `코어가 이미 있는데 token 파일이 없습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
 | `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 새 묶음 폴더의 `secrets/`에 token을 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |

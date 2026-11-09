@@ -61,12 +61,6 @@ env_value() {
   esac
 }
 
-valid_address() {
-  printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_.-]*:[0-9]{1,5}$' || return 1
-  port=${1##*:}
-  [ "$port" -ge 1 ] && [ "$port" -le 65535 ]
-}
-
 # Compose와 같이 상대 경로는 이 묶음 폴더 기준으로 푼다. 인자로 .env를 주면 그 파일을 이 묶음에 복사했을 때의 경로다.
 token_file() {
   dir=$(env_value CORE_SECRETS_DIR "${1:-}")
@@ -140,8 +134,9 @@ check_checksums() {
 
 check_env() {
   [ -f "$ENV_FILE" ] || fail "설정 파일(.env)이 없습니다. 먼저 sh core-server.sh install을 실행해 주세요."
+  load_settings
   address=$(env_value MONITORING_APP_ADDRESS)
-  valid_address "$address" \
+  core_valid_address "$address" \
     || fail "관리자 서버 주소가 올바르지 않습니다: '$address'. .env의 MONITORING_APP_ADDRESS를 컨테이너 이름:포트 형식(예: manager-api:8080)으로 고쳐 주세요."
 }
 
@@ -442,6 +437,7 @@ refuse_new_token() {
 
 cmd_install() {
   check_docker
+  load_settings
 
   env_from=""
   if [ -f "$ENV_FILE" ]; then
@@ -470,7 +466,7 @@ cmd_install() {
     fi
     printf '관리자 서버 주소(컨테이너 이름:포트, 예: manager-api:8080): '
     read -r address || address=""
-    valid_address "$address" \
+    core_valid_address "$address" \
       || fail "관리자 서버 주소가 올바르지 않습니다: '$address'. 컨테이너 이름:포트 형식(예: manager-api:8080)으로 다시 실행해 주세요."
   fi
 

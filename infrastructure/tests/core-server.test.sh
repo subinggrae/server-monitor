@@ -183,6 +183,13 @@ for address in '' 'http://manager-api:8080' 'manager-api' 'a;touch${IFS}x:80' 'm
     '[ $RC -ne 0 ] && contains "관리자 서버 주소" && ! called "^compose" && [ ! -e "$BUNDLE/x" ]'
 done
 
+setup; prepared
+OUT=$(cd "$BUNDLE" && env "MONITORING_APP_ADDRESS=x
+manager-api:8080" sh ./core-server.sh start 2>&1 < /dev/null)
+RC=$?
+check '셸 환경 변수의 관리자 서버 주소가 여러 줄이면 한 줄이 맞아도 거부한다' \
+  '[ $RC -ne 0 ] && contains "관리자 서버 주소" && ! called "^compose"'
+
 setup; prepared; printf 'MONITORING_APP_ADDRESS=manager-api:8080\n$(touch %s/injected)\n' "$T" > "$BUNDLE/.env"
 run start
 check '설정 파일의 셸 명령은 실행하지 않는다' '[ ! -e "$T/injected" ]'

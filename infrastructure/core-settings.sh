@@ -109,6 +109,24 @@ core_setting_check() {
   return 1
 }
 
+# 관리자 서버 주소(컨테이너 이름:포트)의 형식이 맞으면 0을 돌려준다. 운영 명령과 시작 스크립트가 같이 쓴다(요구사항 0013의 S16).
+# 이름은 영문자나 숫자로 시작하고 영문자, 숫자, _, ., -만 쓰며, 포트는 1~65535다.
+# 줄마다 맞춰 보는 grep 대신 case로 값 전체를 보고, locale에 따라 범위가 달라지지 않게 글자를 나열한다.
+core_valid_address() {
+  cs_host=${1%:*}
+  cs_port=${1##*:}
+  [ "$cs_host" != "$1" ] || return 1
+  case "$cs_host" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-]*) return 1 ;;
+    [!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789]*) return 1 ;;
+  esac
+  case "$cs_port" in
+    ''|*[!0123456789]*) return 1 ;;
+  esac
+  [ "${#cs_port}" -le 5 ] || return 1
+  { [ "$cs_port" -ge 1 ] && [ "$cs_port" -le 65535 ]; } 2> /dev/null
+}
+
 # 검사를 통과한 값으로 Prometheus 실행 인자 하나를 쓴다. 그 값이 실행 인자가 아니거나 비어 있으면 아무것도 쓰지 않는다.
 # 보관 용량이 비면 인자를 넣지 않아 Prometheus 기본값(제한 없음)이 된다. Prometheus의 GB는 1024 기준이다.
 core_setting_arg() {
