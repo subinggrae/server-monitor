@@ -192,7 +192,13 @@ Alert마다 들어오는 label과 annotation은 다음과 같다. 규칙은 `inf
 
 SD label의 `check_name`, `environment`는 Alert에 들어가지 않는다. Prometheus와 Alertmanager는 label 집합으로 Alert를 구분하므로, 사용자가 바꾸는 값이 label에 있으면 장애 중에 값을 바꿀 때 장애가 복구로 끝나고 새 장애로 다시 생긴다([ADR 0010](decisions/0010-alert-labels-without-editable-values.md)).
 
-Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 5분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`이 4분이지만 묶음을 다시 살피는 간격(`group_interval`)이 5분이라, 결과는 5분마다다. 복구 Alert(`status: resolved`)도 보낸다. 대상이 다시 정상으로 동작하면 그 성공한 확인 결과를 받은 다음 규칙 평가(15초 안)에서 바로 복구된다. 아래의 5분은 기다리지 않는다. 장애 중인 감시 항목이나 주소를 지우거나 끄면, 주소나 확인 방식을 바꾸면 옛 값의 장애가, Blackbox Exporter가 멈춰 확인 결과가 오지 않으면 마지막 확인 결과가 실패였던 장애가, 그 결과가 5분 지날 때까지 이어지다 복구된다. 그 5분 안에 다시 켠 감시 항목이 여전히 실패하면 같은 장애로 이어진다. 대상 확인이 실패하기 시작해 webhook이 오기까지는 1분(규칙의 지속 시간)에 규칙 평가 간격(15초)과 30초를 더한 정도가 걸린다.
+Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 5분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`이 4분이지만 묶음을 다시 살피는 간격(`group_interval`)이 5분이라, 결과는 5분마다다. 복구 Alert(`status: resolved`)도 보낸다. 대상이 다시 정상으로 동작하면 그 성공한 확인 결과를 받은 다음 규칙 평가(15초 안)에서 바로 복구된다. 확인 결과가 더 오지 않는 장애만 마지막 실패 결과가 5분 지날 때까지 이어지다 복구된다. 다음 세 경우다.
+
+- 장애 중인 감시 항목이나 주소를 지우거나 끈다. 5분 안에 다시 켠 감시 항목이 여전히 실패하면 같은 장애로 이어진다.
+- 주소나 확인 방식을 바꾼다. 옛 값의 장애가 5분 동안 남아, 그동안 새 값의 장애와 함께 이어질 수 있다.
+- Blackbox Exporter가 멈춰 확인 결과가 오지 않는다.
+
+대상 확인이 실패하기 시작해 webhook이 오기까지는 1분(규칙의 지속 시간)에 규칙 평가 간격(15초)과 30초를 더한 정도가 걸린다.
 
 ## 코어가 제공할 것
 

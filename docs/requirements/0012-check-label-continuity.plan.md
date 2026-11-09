@@ -18,8 +18,8 @@
 바꾼 뒤
   SD label(그대로)
     → probe_success / up series(그대로. 이름·환경이 바뀌면 새 series로 시작하는 것도 그대로)
-    → 지금 값이 있으면 max without (check_name, environment) (...) == 0
-      지금 값이 없으면(수집 틈, 삭제, 끄기) 최근 5분 안의 마지막 값(last_over_time)으로 같은 판단
+    → max without (check_name, environment) (지금 값) == 0
+      or max without (check_name, environment) (최근 5분 안의 마지막 값, last_over_time) == 0
     → Alert label = check_id, check_target_id, check_type, module, instance, job, alertname, severity
     → group_by [alertname, check_id]
     → Manager: 이름과 환경 모두 DB(환경 label이 없으면 지금 코드도 DB 값을 쓴다)
@@ -101,7 +101,7 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
 - 이 저장소의 Manager와 함께 쓸 때: Manager는 고치지 않는다. 지금 Manager는 이름을 DB에서 읽고, `environment` label이 없으면 환경도 DB 값을 쓴다(`AlertEventService.environmentOf`를 읽어 확인). 그래서 알림은 동작하고, 장애 목록과 최근 장애 표의 내용 칸에서 이름만 빠진다(위 장애 내용 문구).
 - `max without`이 다른 대상의 series를 합침: 남는 label에 `check_target_id`와 `instance`가 있어 대상이 다르면 합쳐지지 않는다. 규칙 테스트에 한 감시 항목의 대상 두 개가 각각 Alert가 되는 경우를 넣는다.
 - 바깥 앱이나 사용자 Grafana가 webhook·`ALERTS`의 `check_name`, `environment`를 읽음: 이 저장소 밖이라 확인할 수 없다. INTEGRATION.md에 바뀐 label을 적고, 커밋을 `BREAKING CHANGE`로 표시해 갱신하는 쪽이 알 수 있게 한다.
-- 되돌리기: 코어는 [운영 가이드의 이전 버전으로 되돌리기](../OPERATIONS.md#운영-작업)대로 이전 묶음 폴더에서 띄운다. 되돌리는 시점에 이어지는 장애가 있으면 label 집합이 바뀌어 배포 때와 같은 영향이 생긴다. 데이터 이동은 없다.
+- 되돌리기: 코어는 [운영 가이드의 이전 버전으로 되돌리기](../OPERATIONS.md#운영-작업)대로 이전 묶음 폴더에서 띄운다. 되돌리는 시점에 이어지는 장애가 있으면 label 집합이 바뀌어 배포 때와 같은 영향이 생긴다. 다만 운영에 배포한 코어가 아직 없어 운영에는 이 변경 전 묶음이 없으므로, 이 변경 전으로 되돌릴 일은 없다(사람 확인: 2026-11-09의 사실에서 판단). 데이터 이동은 없다.
 
 ### 0013 계획과 겹치는 부분
 
@@ -112,7 +112,7 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
 | `monitoring-checks.yml` | `expr`, annotation | 바꾸지 않음(`for: 1m`을 열지 않음) | 0013의 바뀌지 않는 것에 "장애 메시지 문구"가 있다. 0012가 summary를 바꾸므로 나중에 병합하는 쪽이 0013 문서의 이 줄을 확인한다 |
 | `alertmanager.yml` | `group_by` | 바꾸지 않음 | 없음 |
 | `scripts/build-core-bundle.mjs` | 바꾸지 않음(새 테스트 파일은 지금 반복이 읽음) | 여러 값으로 펼친 설정 검사를 더함 | 0013이 규칙 테스트 반복을 바꾸면 새 `monitoring-checks.test.yml`도 도는지 병합 뒤 `core-dev.bat check` 출력으로 확인한다 |
-| `docs/OPERATIONS.md` | 운영 작업의 새 버전으로 갱신 | 언제 무엇을 바꾸나, 운영 작업, 문제 해결 | 운영 작업 목록의 같은 줄 근처를 둘 다 고칠 수 있어 텍스트 충돌이 날 수 있다 |
+| `docs/OPERATIONS.md` | 언제 무엇을 바꾸나의 관리자 서버 화면에서 바꾸는 값(복구 시점 문단) | 언제 무엇을 바꾸나, 운영 작업, 문제 해결 | 언제 무엇을 바꾸나 절을 둘 다 고쳐 텍스트 충돌이 날 수 있다 |
 | `docs/ARCHITECTURE.md` | 지켜야 할 경계 한 줄 | 지켜야 할 경계(새 값) | 같은 목록이라 충돌할 수 있다 |
 | `docs/decisions/` | ADR 0010 | ADR을 쓰면 같은 번호를 고를 수 있음 | 나중에 병합하는 쪽이 번호를 다음 번호로 바꾸고 링크를 고친다 |
 
