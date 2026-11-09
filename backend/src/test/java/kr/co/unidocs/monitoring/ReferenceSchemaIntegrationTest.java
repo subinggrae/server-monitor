@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 다른 앱이 참고하는 리소스 임계값과 알림 메시지 틀 DDL(docs/reference-schema/)이 기준 migration 위에 적용되는지 확인합니다.
+ * 다른 앱이 참고하는 리소스 임계값과 알림 메시지 템플릿 DDL(docs/reference-schema/)이 기준 migration 위에 적용되는지 확인합니다.
  * 이 앱은 그 테이블을 쓰지 않으므로 앱을 띄우지 않고 Flyway와 SQL 실행만 합니다.
  *
  * 컨테이너를 매개변수로 받는 테스트는 autoCloseArguments를 끕니다. 켜 두면 JUnit이 테스트마다 컨테이너를 닫습니다.
@@ -165,7 +165,7 @@ class ReferenceSchemaIntegrationTest {
 
 	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
 	@MethodSource("databases")
-	@DisplayName("같은 종류의 메시지 틀을 두 번 넣지 못한다")
+	@DisplayName("같은 종류의 메시지 템플릿을 두 번 넣지 못한다")
 	void rejectsDuplicateTemplateType(JdbcDatabaseContainer<?> database) {
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource(database));
 		insertTemplate(jdbc, "CHECK_FIRING", "[{상태}] {감시항목}");
@@ -176,7 +176,7 @@ class ReferenceSchemaIntegrationTest {
 
 	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
 	@MethodSource("databases")
-	@DisplayName("한글과 이모지로 1000자(code point)인 메시지 틀을 그대로 저장한다")
+	@DisplayName("한글과 이모지로 1000자(code point)인 메시지 템플릿을 그대로 저장한다")
 	void storesThousandCodePointTemplate(JdbcDatabaseContainer<?> database) {
 		JdbcTemplate jdbc = new JdbcTemplate(dataSource(database));
 		// 이모지는 UTF-16으로 두 char라서 String.length()는 1001입니다. DB는 code point로 세므로 1000자로 받아야 합니다.
