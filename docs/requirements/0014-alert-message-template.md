@@ -1,6 +1,6 @@
 # 0014. 관리자 서버에서 정하는 알림 메시지 템플릿
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-09
 - 관련: [#9](https://github.com/subinggrae/server-monitor/issues/9), [#24](https://github.com/subinggrae/server-monitor/issues/24), [#5](https://github.com/subinggrae/server-monitor/issues/5), [0009](0009-resource-threshold-schema.md), 요구사항 0012(브랜치 `feature/check-label-continuity`), [관리자 서버 만들기](../ADMIN-SERVER.md), [통합 계약](../INTEGRATION.md)
 
@@ -231,11 +231,11 @@ https://example.com/health 확인에 실패했습니다.
 
 ## 완료 기준
 
-- [ ] C1. 기준 migration을 적용한 빈 MariaDB와 PostgreSQL에 메시지 템플릿의 참고용 DDL을 적용하면, 네 종류의 템플릿을 종류마다 0~1행으로 담는 테이블이 생기고 두 DB의 논리 schema가 같다. (S2, S6) — 확인: 참고용 DDL을 두 DB에 적용하는 통합 테스트(`ReferenceSchemaIntegrationTest`와 같은 방식)
-- [ ] C2. [관리자 서버 만들기](../ADMIN-SERVER.md)가 템플릿의 종류, 종류별 변수 목록과 값의 출처, 저장할 때의 검사, 기본 템플릿, 메시지 만드는 규칙(S1~S15)을 설명하고, 저장할 데이터 표와 화면과 설정 기능 표에 메시지 템플릿이 있다. [통합 계약](../INTEGRATION.md)은 그 절로 링크한다. — 확인: 문서 리뷰
-- [ ] C3. 기본 템플릿 네 개에 `RESOLVED`, `CRITICAL`, `firing`, `resolved`, `Alert` 같은 영어·기술 표기와 이모지가 없고, TERMS.md의 화면 글 용어를 쓰며, 변수 바로 뒤에 받침에 따라 바뀌는 조사가 없다(사람 확인: 2026-11-09). — 확인: 문서 리뷰
-- [ ] C4. 이 변경에 `infrastructure/`, `compose.yml`, `backend/src/main/`의 diff가 없다. (바뀌지 않는 것) — 확인: `git diff main -- infrastructure/ compose.yml backend/src/main/`
-- [ ] C5. 문서 검사와 기존 백엔드·화면 테스트가 통과한다. (바뀌지 않는 것) — 확인: `node scripts/check-docs.mjs`, 전체 검증
+- [x] C1. 기준 migration을 적용한 빈 MariaDB와 PostgreSQL에 메시지 템플릿의 참고용 DDL을 적용하면, 네 종류의 템플릿을 종류마다 0~1행으로 담는 테이블이 생기고 두 DB의 논리 schema가 같다. (S2, S6) — 확인: 참고용 DDL을 두 DB에 적용하는 통합 테스트(`ReferenceSchemaIntegrationTest`와 같은 방식)
+- [x] C2. [관리자 서버 만들기](../ADMIN-SERVER.md)가 템플릿의 종류, 종류별 변수 목록과 값의 출처, 저장할 때의 검사, 기본 템플릿, 메시지 만드는 규칙(S1~S15)을 설명하고, 저장할 데이터 표와 화면과 설정 기능 표에 메시지 템플릿이 있다. [통합 계약](../INTEGRATION.md)은 그 절로 링크한다. — 확인: 문서 리뷰
+- [x] C3. 기본 템플릿 네 개에 `RESOLVED`, `CRITICAL`, `firing`, `resolved`, `Alert` 같은 영어·기술 표기와 이모지가 없고, TERMS.md의 화면 글 용어를 쓰며, 변수 바로 뒤에 받침에 따라 바뀌는 조사가 없다(사람 확인: 2026-11-09). — 확인: 문서 리뷰
+- [x] C4. 이 변경에 `infrastructure/`, `compose.yml`, `backend/src/main/`의 diff가 없다. (바뀌지 않는 것) — 확인: `git diff main -- infrastructure/ compose.yml backend/src/main/`
+- [x] C5. 문서 검사와 기존 백엔드·화면 테스트가 통과한다. (바뀌지 않는 것) — 확인: `node scripts/check-docs.mjs`, 전체 검증
 
 ## 확인 필요
 
