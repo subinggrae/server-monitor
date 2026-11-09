@@ -1,6 +1,6 @@
 # 0015. 셸 없는 최소 코어 이미지
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-11-09
 - 관련: [0010](0010-core-image-bundle.md), [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md)(이 요구사항은 0013을 구현한 [PR #42](https://github.com/subinggrae/server-monitor/pull/42) 위에서 시작함), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0009](../decisions/0009-core-config-in-image.md), [ADR 0011](../decisions/0011-core-address-format-check.md), [#44](https://github.com/subinggrae/server-monitor/issues/44)
 
