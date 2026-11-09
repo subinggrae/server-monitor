@@ -374,6 +374,25 @@ wait_healthy() {
   exit 1
 }
 
+# Docker가 컨테이너를 띄우지 못하면(예: 다른 프로그램이 그 호스트 포트를 씀) Compose의 오류 뒤에 정상이 아닌 컨테이너와 고치는 방법을 보인다.
+# 코어 서버에 포트를 보는 도구가 있다고 보장할 수 없어, 띄우기 전에 포트가 쓰이는지 미리 보지 않는다(요구사항 0013의 S13).
+compose_up() {
+  if (cd "$BUNDLE_DIR" && docker compose up -d "$@"); then
+    return 0
+  fi
+  {
+    say "Docker가 코어를 띄우지 못했습니다. 위 Docker 오류를 확인해 주세요."
+    say "오류에 port is already allocated나 address already in use가 있으면 코어 서버의 다른 프로그램이 그 포트를 씁니다. .env의 CORE_PROMETHEUS_PORT, CORE_ALERTMANAGER_PORT, CORE_BLACKBOX_PORT 가운데 그 포트를 비어 있는 포트로 바꾼 뒤 다시 실행해 주세요."
+    for name in $CONTAINERS; do
+      state=$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null) || state="없음"
+      if [ "$state" != running ]; then
+        say "  $name: $state. 로그: docker logs $name"
+      fi
+    done
+  } >&2
+  exit 1
+}
+
 # 재시작 정책(unless-stopped)은 Docker가 켜져 있어야 동작한다. docker.socket만 켜져 있으면 서버가 켜질 때 Docker가 뜨지 않는다.
 check_autostart() {
   if ! command -v systemctl > /dev/null 2>&1; then
@@ -470,7 +489,7 @@ cmd_start() {
   load_images
   confirm_version
   confirm_retention
-  (cd "$BUNDLE_DIR" && docker compose up -d)
+  compose_up
   wait_healthy $CONTAINERS
   check_autostart
   show_settings
@@ -495,7 +514,7 @@ cmd_rotate_token() {
   say "token을 새 값으로 바꿨습니다: $(real_path "$file")"
   if core_running; then
     # 파일만 바꾸면 Alertmanager가 붙잡은 옛 파일을 계속 읽을 수 있어 컨테이너를 다시 만든다.
-    (cd "$BUNDLE_DIR" && docker compose up -d --force-recreate alertmanager)
+    compose_up --force-recreate alertmanager
     wait_healthy alertmanager
   else
     say "코어가 떠 있지 않습니다. 다음 start부터 새 token을 씁니다."

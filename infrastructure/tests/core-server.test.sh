@@ -55,6 +55,12 @@ case "$1" in
     case " $* " in
       *" up "*)
         touch "$FAKE/running"; printf 'v2\n' > "$FAKE/running_version"; printf '%s\n' "$PWD" > "$FAKE/running_workdir"
+        # 다른 프로그램이 쓰는 포트: Docker처럼 그 컨테이너만 만들어 두고 띄우지 못한다.
+        if [ -f "$FAKE/port_taken" ]; then
+          printf 'created\n' > "$FAKE/status.prometheus"
+          echo 'Error response from daemon: Bind for 127.0.0.1:9090 failed: port is already allocated' >&2
+          exit 1
+        fi
         # Compose처럼 셸 환경 변수의 값을 컨테이너 환경 변수와 호스트 포트로 남긴다. 이 가짜는 .env를 읽지 않는다.
         printf 'PATH=/bin\nCORE_RETENTION_DAYS=%s\nCORE_RETENTION_SIZE_GB=%s\n' "${CORE_RETENTION_DAYS:-}" "${CORE_RETENTION_SIZE_GB:-}" > "$FAKE/env.prometheus"
         printf 'CORE_PROBE_TIMEOUT_SECONDS=%s\n' "${CORE_PROBE_TIMEOUT_SECONDS:-}" > "$FAKE/env.blackbox-exporter"
@@ -79,6 +85,7 @@ case "$1" in
       *image.version*) cat "$FAKE/running_version" ;;
       *image.revision*) echo "abc1234" ;;
       *Health*) cat "$FAKE/health" ;;
+      *State.Status*) cat "$FAKE/status.$container" 2>/dev/null || echo running ;;
       *.Image*) echo "running-image" ;;
       *State.Running*) if [ -f "$FAKE/stopped" ]; then echo false; else echo true; fi ;;
       *) echo "running" ;;
@@ -517,6 +524,11 @@ setup; prepared; running_other v2 1761600000 "$BUNDLE"; with_settings CORE_BLACK
 run rotate-token
 check 'token을 바꿀 때도 틀린 설정 값이면 token을 바꾸지 않고 Alertmanager를 다시 만들지 않는다' \
   '[ $RC -ne 0 ] && contains "CORE_BLACKBOX_PORT" && [ "$(cat "$TOKEN")" = "$before" ] && ! called "^compose"'
+
+setup; prepared; touch "$FAKE/port_taken"
+run start
+check '다른 프로그램이 쓰는 포트라 띄우지 못하면 포트를 바꾸는 방법, 정상이 아닌 컨테이너, 로그 명령을 보인다' \
+  '[ $RC -ne 0 ] && contains "port is already allocated" && contains "CORE_PROMETHEUS_PORT" && contains "prometheus: created" && contains "docker logs prometheus" && ! contains "docker logs alertmanager"'
 
 # --- 기록 보관 값을 줄일 때의 확인 ---
 
