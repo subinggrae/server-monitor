@@ -90,3 +90,258 @@ tests:
             value: 0
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",instance="10.0.0.5:8080"}'
             value: 0
+
+  # 아래 그룹은 입력을 5초 간격으로 넣어 수집 시점과 규칙 평가 시점(15초마다)을 따로 둡니다.
+  # 값 위치 n의 시각은 n×5초입니다. '0x24 stale'은 0~120초에 0을 넣고 125초에 stale 표시를 남깁니다.
+
+  # 수집 틈: 이름·환경을 바꾸면 옛 series는 바로 stale로 끝나고, 새 series는 새 target의 첫 수집 때 시작합니다.
+  # 대상 31은 틈이 15초(125~140초, 평가 135초가 걸림), 대상 32는 4분(125~365초)입니다.
+  # 틈 동안에도 Alert와 처음 활성화된 시각(0초)이 그대로여야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '0x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '_x28 0x60'
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="32",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.32:8080"}'
+        values: '0x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="32",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP",instance="10.0.1.32:8080"}'
+        values: '_x73 0x20'
+      - series: 'up{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '0x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '_x28 0x60'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 2m15s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '3'
+              check_target_id: '31'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.31:8080'
+            exp_annotations:
+              summary: '10.0.1.31:8080 확인에 실패했습니다'
+              description: '10.0.1.31:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '3'
+              check_target_id: '32'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.32:8080'
+            exp_annotations:
+              summary: '10.0.1.32:8080 확인에 실패했습니다'
+              description: '10.0.1.32:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 2m15s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '3'
+              check_target_id: '31'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.31:8080'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '10.0.1.31:8080의 probe 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckDown
+        eval_time: 6m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '3'
+              check_target_id: '31'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.31:8080'
+            exp_annotations:
+              summary: '10.0.1.31:8080 확인에 실패했습니다'
+              description: '10.0.1.31:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '3'
+              check_target_id: '32'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.32:8080'
+            exp_annotations:
+              summary: '10.0.1.32:8080 확인에 실패했습니다'
+              description: '10.0.1.32:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+    promql_expr_test:
+      - expr: ALERTS_FOR_STATE
+        eval_time: 6m
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",instance="10.0.1.31:8080"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",job="manager-blackbox",check_id="3",check_target_id="32",check_type="TCP",module="tcp_connect",instance="10.0.1.32:8080"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",instance="10.0.1.31:8080"}'
+            value: 0
+
+  # 지우거나 끈 대상: series가 stale로 끝나고 새 series가 없습니다.
+  # 마지막 실패 값(120초)이 5분 창 안에 있는 동안 Alert가 이어지고, 420초 평가부터 없어야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="5",check_target_id="51",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.51:8080"}'
+        values: '0x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="5",check_target_id="51",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.51:8080"}'
+        values: '0x24 stale'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 4m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '5'
+              check_target_id: '51'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.51:8080'
+            exp_annotations:
+              summary: '10.0.1.51:8080 확인에 실패했습니다'
+              description: '10.0.1.51:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 4m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '5'
+              check_target_id: '51'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.51:8080'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '10.0.1.51:8080의 probe 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckDown
+        eval_time: 6m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '5'
+              check_target_id: '51'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.51:8080'
+            exp_annotations:
+              summary: '10.0.1.51:8080 확인에 실패했습니다'
+              description: '10.0.1.51:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 6m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '5'
+              check_target_id: '51'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.51:8080'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '10.0.1.51:8080의 probe 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckDown
+        eval_time: 7m
+        exp_alerts: []
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 7m
+        exp_alerts: []
+
+  # 살아난 대상: 대상 41은 180초부터 성공합니다. 대상 42는 이름을 바꾼 새 series가 125초부터 성공합니다.
+  # 옛 series의 마지막 실패 값이 5분 창 안에 남아 있어도, 지금 값이 있으면 그 값으로 판단해 바로 복구되어야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="41",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.41:8080"}'
+        values: '0x35 1x20'
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="42",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.42:8080"}'
+        values: '0x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="42",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.42:8080"}'
+        values: '_x25 1x30'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 2m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '4'
+              check_target_id: '41'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.41:8080'
+            exp_annotations:
+              summary: '10.0.1.41:8080 확인에 실패했습니다'
+              description: '10.0.1.41:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '4'
+              check_target_id: '42'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.42:8080'
+            exp_annotations:
+              summary: '10.0.1.42:8080 확인에 실패했습니다'
+              description: '10.0.1.42:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+      - alertname: MonitoringCheckDown
+        eval_time: 2m15s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '4'
+              check_target_id: '41'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.41:8080'
+            exp_annotations:
+              summary: '10.0.1.41:8080 확인에 실패했습니다'
+              description: '10.0.1.41:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+      - alertname: MonitoringCheckDown
+        eval_time: 3m
+        exp_alerts: []
+
+  # 성공 중에 이름을 바꾸고 바로 실패: 옛 series의 마지막 성공 값(120초)이 5분 창 안에 남아 있어도
+  # 새 series가 125~140초에 성공하고 145초부터 실패하면, 첫 실패 평가(150초)의 1분 뒤(210초) firing이어야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="6",check_target_id="61",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.61:8080"}'
+        values: '1x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="6",check_target_id="61",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.61:8080"}'
+        values: '_x25 1x3 0x40'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 3m15s
+        exp_alerts: []
+      - alertname: MonitoringCheckDown
+        eval_time: 3m30s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '6'
+              check_target_id: '61'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.1.61:8080'
+            exp_annotations:
+              summary: '10.0.1.61:8080 확인에 실패했습니다'
+              description: '10.0.1.61:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+    promql_expr_test:
+      - expr: ALERTS_FOR_STATE
+        eval_time: 3m30s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",job="manager-blackbox",check_id="6",check_target_id="61",check_type="TCP",module="tcp_connect",instance="10.0.1.61:8080"}'
+            value: 150

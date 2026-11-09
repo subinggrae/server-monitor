@@ -161,8 +161,8 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
 - [x] INTEGRATION.md, ADMIN-SERVER.md, OPERATIONS.md, ARCHITECTURE.md, TESTING.md를 고치고 문서 검사를 통과시킨다(C6, C11)
 - [x] 개발 환경에서 C1, C2, C5의 수동 확인을 하고 결과와 코어 변경 뒤 Manager의 장애 기록·알림 모습을 진행 중 발견에 적는다
 - [x] 이름·환경을 바꿀 때 생기는 수집 틈을 메우는 방법을 사람이 정한다(2026-11-09, 접근 방법의 수집 틈)
-- [ ] 틈, 삭제, 복구, 성공 중 이름 변경의 규칙 테스트를 더하고 지금 규칙에서 실패하는지 본다(C12)
-- [ ] 두 규칙의 식을 바꾸고 `core-dev.bat check`를 통과시킨다. INTEGRATION.md, OPERATIONS.md에 바뀐 복구 시점을 적는다(C12, C13)
+- [x] 틈, 삭제, 복구, 성공 중 이름 변경의 규칙 테스트를 더하고 지금 규칙에서 실패하는지 본다(C12)
+- [x] 두 규칙의 식을 바꾸고 `core-dev.bat check`를 통과시킨다. INTEGRATION.md, OPERATIONS.md에 바뀐 복구 시점을 적는다(C12, C13)
 - [ ] 개발 환경에서 C1, C2를 다시 확인한다. 수집 주기 30초 이상을 포함해 환경을 여러 번 바꾼다
 - [ ] 전체 검증(`cd frontend && npm run check`, `cd backend && ./gradlew build`, `core-dev.bat check`)과 새 세션의 리뷰
 
