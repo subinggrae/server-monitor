@@ -1,7 +1,7 @@
 # 0013. 서버에서 바꾸는 코어 설정 값 구현 계획
 
 - 요구사항: [0013. 서버에서 바꾸는 코어 설정 값](0013-core-env-settings.md)
-- 상태: 승인
+- 상태: 진행 중
 
 ## 접근 방법
 
@@ -180,9 +180,9 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 
 ## 작업 순서
 
-- [ ] 1. 사전 확인: Prometheus v3.14.0의 `--storage.tsdb.retention.size` 단위(`GB`가 1024 기준인지)와 WAL 포함 여부, Blackbox Exporter v0.28.0의 `--config.check`, Blackbox 이미지의 `/bin/sh`와 `/tmp` 쓰기, Compose가 `127.0.0.1:${VAR}:9090`에 이상한 값(`0.0.0.0:9090`, `9090-9100`, `[::]:9090`)을 넣었을 때의 결과, `environment` 안의 `<<:` merge. 결과와 근거를 진행 중 발견에 쓰고, 바인딩이 바뀌는 값이 있으면 멈추고 묻는다.
-- [ ] 2. 운영 명령 시험 먼저: `core-server.test.sh`에 C4, C6과 표시 시험을 더하고, 가짜 `docker`에 환경 변수와 `port` 응답을 더한다. 지금 `core-server.sh`로 새 시험이 실패하는지 본다.
-- [ ] 3. `core-settings.sh`를 쓰고, `core-server.sh`에 `check_settings`, `confirm_retention`, 표시를 더한다. 빌드 스크립트가 묶음에 `core-settings.sh`를 싣게 한다. 2의 시험이 통과하고, 검사를 지운 사본마다 시험이 실패하는지 본다.
+- [x] 1. 사전 확인: Prometheus v3.14.0의 `--storage.tsdb.retention.size` 단위(`GB`가 1024 기준인지)와 WAL 포함 여부, Blackbox Exporter v0.28.0의 `--config.check`, Blackbox 이미지의 `/bin/sh`와 `/tmp` 쓰기, Compose가 `127.0.0.1:${VAR}:9090`에 이상한 값(`0.0.0.0:9090`, `9090-9100`, `[::]:9090`)을 넣었을 때의 결과, `environment` 안의 `<<:` merge. 결과와 근거를 진행 중 발견에 쓰고, 바인딩이 바뀌는 값이 있으면 멈추고 묻는다.
+- [x] 2. 운영 명령 시험 먼저: `core-server.test.sh`에 C4, C6과 표시 시험을 더하고, 가짜 `docker`에 환경 변수와 `port` 응답을 더한다. 지금 `core-server.sh`로 새 시험이 실패하는지 본다.
+- [x] 3. `core-settings.sh`를 쓰고, `core-server.sh`에 `check_settings`, `confirm_retention`, 표시를 더한다. 빌드 스크립트가 묶음에 `core-settings.sh`를 싣게 한다. 2의 시험이 통과하고, 검사를 지운 사본마다 시험이 실패하는지 본다.
 - [ ] 4. 빌드 검사 먼저: `build-core-bundle.mjs`에 값 세 벌의 설정 검사, Blackbox 검사, 시작 스크립트의 펼친 결과와 범위 밖 값 거부, 약속 검사, 포트 바인딩 확인을 더한다. 지금 이미지로 실패하는지 본다.
 - [ ] 5. `render-config.sh`, 세 Dockerfile, `blackbox.yml` 템플릿, `compose.yml`을 바꾼다. 4의 검사가 통과하고, C7의 망가뜨려 확인을 한다.
 - [ ] 6. `.env.example`, `OPERATIONS.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md``INTEGRATION.md`를 고친다. `node scripts/check-docs.mjs`를 통과시킨다.
@@ -191,7 +191,39 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 
 ## 진행 중 발견
 
-없음
+작업 1(사전 확인, 2026-11-09)에서 확인한 사실은 다음과 같다. 바인딩 주소가 바뀌는 값은 없어 멈추지 않았다.
+
+- **Prometheus 보관 용량의 단위와 범위**: v3.14.0 이미지의 `prometheus --help`가 `--storage.tsdb.retention.size`를 "Based on powers-of-2, so 1KB is 1024B"로 설명한다. [v3.14.0 `docs/storage.md`](https://github.com/prometheus/prometheus/blob/v3.14.0/docs/storage.md)는 지우는 것은 블록뿐이지만 WAL과 m-mapped chunk도 크기에 센다고 하고, 디스크 크기가 잠시 이 값을 넘을 수 있으며, 이 값을 디스크의 80~85% 이하로 두라고 권한다. `.env.example`과 운영 가이드에 이 세 가지를 쓴다.
+- **Prometheus 보관 인자는 deprecated**: 같은 `--help`가 `--storage.tsdb.retention.time`과 `--storage.tsdb.retention.size`를 `[DEPRECATED]`로 표시하고, 설정 파일의 `storage.tsdb.retention` 항목을 쓰라고 한다. 지금 `Dockerfile`도 이미 deprecated인 `retention.time` 인자를 쓰고, 고정한 v3.14.0에서는 두 인자가 동작하며, 완료 기준 C1·C2가 flags API로 값을 확인하므로 계획대로 실행 인자로 펼친다. Prometheus를 올려 인자가 없어지면 Prometheus가 시작하지 못하므로, 그때 설정 파일 항목으로 옮긴다.
+- **Blackbox Exporter v0.28.0**: `--config.check`가 있다. 이미지에 BusyBox `/bin/sh`가 있고, 이미지 사용자가 root(`User` 빈 값)이며 `/tmp`에 쓸 수 있다.
+- **Compose v5.1.0의 포트 변수**: `"127.0.0.1:${CORE_PROMETHEUS_PORT:-9090}:9090"`에 `0.0.0.0:9090`, `[::]:9090`, `9090:9091`, `1:2:3`을 넣으면 `invalid IP address`로, `abc`, `-1`, `65536`, ` 9090`, `9090/udp`를 넣으면 `invalid hostPort`로 거부한다. `9090-9100`(범위), `80`, `0`, `015`(15로 읽음)는 받아들인다. 어느 값이든 `host_ip`는 `127.0.0.1`로 남는다. 받아들이는 값은 운영 명령 없이 띄울 때만 들어온다(요구사항 S11에서 받아들인 위험).
+- **`environment` 안의 `<<:` merge**: `environment:` 아래에 `<<: *앱 주소 anchor`를 두고 다른 변수를 더하면 두 쪽이 모두 남는다(`docker compose config`로 확인).
+
+구현하면서 계획과 다르게 고른 것은 다음과 같다. 요구사항은 바뀌지 않는다.
+
+- **검사한 값을 Compose에 넘김**: 운영 명령은 검사를 통과한 값(빈 값은 기본값)을 `export`한 뒤 `docker compose up`을 실행한다. 운영 명령의 `.env` 읽기(`env_value`)가 Compose와 조금이라도 다르면 검사한 값과 띄우는 값이 어긋날 수 있기 때문이다. 셸 환경 변수가 `.env`를 덮는 순서는 그대로다.
+- **포트 표시를 `docker port` 대신 `docker inspect`의 `HostConfig.PortBindings`로 읽음**: `docker port`는 멈춘 컨테이너의 포트를 보이지 않아, `status`가 멈춘 코어의 바꾼 포트를 보이지 못하기 때문이다.
+- **token 바꾸기도 값을 검사함**: `rotate-token`은 Alertmanager를 `docker compose up`으로 다시 만들어 그때 `.env`의 호스트 포트를 쓴다. 그래서 `start`와 같은 값 검사(`check_settings`)를 거친다. 틀린 값이 있으면 token을 바꾸지 않는다.
+- **표시하는 범위 문구**: 보관 용량의 허용 범위는 `1 이상 999999999 이하(GB)`로 보인다.
+
+작업 3의 검사를 지운 사본(C4)마다 운영 명령 시험의 실패 수는 다음과 같다. 모두 실패했다.
+
+| 지운 검사 | 실패한 시험 수(전체 100) |
+|---|---|
+| 형식 검사(숫자가 아님, 앞에 0) | 10 |
+| 앞에 0이 붙은 값 검사만 | 1 |
+| 자릿수 상한 | 1 |
+| 범위 검사 | 8 |
+| 앞뒤 공백 지우기 | 1 |
+| 띄우기의 값 검사 호출 | 56 |
+| token 바꾸기의 값 검사 호출 | 1 |
+| 포트 겹침 검사 | 4 |
+| 검사한 값 `export` | 42 |
+| 줄임 확인 호출 | 7 |
+| 제한 없던 용량을 처음 정할 때의 확인 | 1 |
+| 줄임 확인의 터미널 검사 | 5 |
+| 띄운 뒤 설정 값 표시 | 4 |
+| 표시의 기본값 비교 | 3 |
 
 ## 남길 결정
 

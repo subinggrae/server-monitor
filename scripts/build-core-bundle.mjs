@@ -309,6 +309,8 @@ async function buildCoreBundle(core) {
   // token은 core-server.sh install이 설치 폴더에 만들므로 묶음에는 token 예시를 싣지 않는다.
   writeText(path.join(out, 'core-server.sh'), fs.readFileSync(path.join(CORE_DIR, 'core-server.sh'), 'utf8'));
   fs.chmodSync(path.join(out, 'core-server.sh'), 0o755);
+  // core-server.sh가 . 으로 읽는 값 검사 규칙이다. 이미지 안의 render-config.sh도 같은 파일을 읽는다.
+  writeText(path.join(out, 'core-settings.sh'), fs.readFileSync(path.join(CORE_DIR, 'core-settings.sh'), 'utf8'));
   await addLicensesAndSources(out, images);
 
   assertNoSecrets(out, secrets);

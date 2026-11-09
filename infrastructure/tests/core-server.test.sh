@@ -8,6 +8,8 @@
 set -u
 
 SCRIPT=$1
+# 묶음에서 core-server.sh 옆에 있는 공용 검사 파일이다.
+SETTINGS="$(dirname "$SCRIPT")/core-settings.sh"
 FAILED=0
 PASSED=0
 
@@ -20,6 +22,7 @@ setup() {
   TOKEN="$INSTALL/secrets/alertmanager_webhook_token"
   mkdir -p "$BUNDLE" "$FAKE" "$T/bin"
   cp "$SCRIPT" "$BUNDLE/core-server.sh"
+  cp "$SETTINGS" "$BUNDLE/core-settings.sh"
   cat > "$BUNDLE/compose.yml" <<'EOF'
 services:
   prometheus:
@@ -31,7 +34,7 @@ services:
 EOF
   printf '# 예시\nMONITORING_APP_ADDRESS=manager-api:8080\n' > "$BUNDLE/.env.example"
   printf 'images' > "$BUNDLE/core-images.tar"
-  (cd "$BUNDLE" && sha256sum compose.yml .env.example core-images.tar core-server.sh > SHA256SUMS)
+  (cd "$BUNDLE" && sha256sum compose.yml .env.example core-images.tar core-server.sh core-settings.sh > SHA256SUMS)
   printf 'enabled\n' > "$FAKE/systemctl"
   printf 'healthy\n' > "$FAKE/health"
   printf '1761600000\n' > "$FAKE/bundle_time"
@@ -50,7 +53,15 @@ case "$1" in
   load) touch "$FAKE/images_loaded" ;;
   compose)
     case " $* " in
-      *" up "*) touch "$FAKE/running"; printf 'v2\n' > "$FAKE/running_version"; printf '%s\n' "$PWD" > "$FAKE/running_workdir" ;;
+      *" up "*)
+        touch "$FAKE/running"; printf 'v2\n' > "$FAKE/running_version"; printf '%s\n' "$PWD" > "$FAKE/running_workdir"
+        # Compose처럼 셸 환경 변수의 값을 컨테이너 환경 변수와 호스트 포트로 남긴다. 이 가짜는 .env를 읽지 않는다.
+        printf 'PATH=/bin\nCORE_RETENTION_DAYS=%s\nCORE_RETENTION_SIZE_GB=%s\n' "${CORE_RETENTION_DAYS:-}" "${CORE_RETENTION_SIZE_GB:-}" > "$FAKE/env.prometheus"
+        printf 'CORE_PROBE_TIMEOUT_SECONDS=%s\n' "${CORE_PROBE_TIMEOUT_SECONDS:-}" > "$FAKE/env.blackbox-exporter"
+        printf '{"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_PROMETHEUS_PORT:-9090}" > "$FAKE/ports.prometheus"
+        printf '{"9093/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_ALERTMANAGER_PORT:-9093}" > "$FAKE/ports.alertmanager"
+        printf '{"9115/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_BLACKBOX_PORT:-9115}" > "$FAKE/ports.blackbox-exporter"
+        ;;
     esac ;;
   image)
     [ -f "$FAKE/images_loaded" ] || exit 1
@@ -60,7 +71,10 @@ case "$1" in
     esac ;;
   inspect)
     [ -f "$FAKE/running" ] || { echo "Error: No such object" >&2; exit 1; }
+    for container; do :; done
     case "$*" in
+      *Config.Env*) cat "$FAKE/env.$container" 2>/dev/null ;;
+      *PortBindings*) cat "$FAKE/ports.$container" 2>/dev/null || echo '{}' ;;
       *working_dir*) cat "$FAKE/running_workdir" ;;
       *image.version*) cat "$FAKE/running_version" ;;
       *image.revision*) echo "abc1234" ;;
@@ -380,6 +394,180 @@ setup; prepared; running_other v2 1761600000 "$BUNDLE"; printf 'starting\n' > "$
 run rotate-token
 check 'token을 바꾼 뒤 Alertmanager가 정상이 되지 않으면 로그 명령을 보인다' \
   '[ $RC -ne 0 ] && contains "docker logs alertmanager"'
+
+# --- 서버에서 바꾸는 코어 설정 값(요구사항 0013) ---
+
+# 설정 파일에 줄을 더한다. 인자 하나가 한 줄이다.
+with_settings() {
+  for line in "$@"; do
+    printf '%s\n' "$line" >> "$BUNDLE/.env"
+  done
+}
+
+# 셸 환경 변수 하나를 더해 실행한다. 값에 줄바꿈도 넣을 수 있다.
+run_with_env() {
+  assignment=$1
+  shift
+  OUT=$(cd "$BUNDLE" && env "$assignment" sh ./core-server.sh "$@" 2>&1 < /dev/null)
+  RC=$?
+}
+
+# 떠 있는 코어의 prometheus 컨테이너가 받은 보관 값. 빈 인자는 그 변수가 없는 것이다(이 기능 전의 컨테이너).
+running_retention() {
+  printf 'PATH=/bin\n' > "$FAKE/env.prometheus"
+  [ -z "$1" ] || printf 'CORE_RETENTION_DAYS=%s\n' "$1" >> "$FAKE/env.prometheus"
+  [ -z "$2" ] || printf 'CORE_RETENTION_SIZE_GB=%s\n' "$2" >> "$FAKE/env.prometheus"
+}
+
+# 틀린 값이 보이고, 불러오거나 띄우지 않았는지 본다. 조건은 check가 그 자리에서 eval한다.
+REJECTED='[ $RC -ne 0 ] && contains "$name" && contains "$value" && contains "$range" && contains ".env의 $name" && contains "$extra" && ! called load && ! called "^compose"'
+
+# 이름, 값, 허용 범위, 함께 보여야 할 글
+reject_in_env_file() {
+  name=$1 value=$2 range=$3 extra=${4:-}
+  setup; prepared; with_settings "$name=$value"
+  run start
+  check "설정 파일의 $name 값이 '$value'이면 이름, 값, 허용 범위, 고치는 방법을 보이고 띄우지 않는다" "$REJECTED"
+}
+
+for value in 15d abc -1 7.5 015 '1 5' '15 --web.enable-admin-api'; do
+  reject_in_env_file CORE_RETENTION_DAYS "$value" '1~365' '앞에 0을 붙이지'
+done
+reject_in_env_file CORE_RETENTION_DAYS 0 '1~365'
+reject_in_env_file CORE_RETENTION_DAYS 366 '1~365'
+reject_in_env_file CORE_RETENTION_SIZE_GB 50GB '1 이상'
+reject_in_env_file CORE_RETENTION_SIZE_GB 0 '1 이상'
+reject_in_env_file CORE_RETENTION_SIZE_GB 1000000000 '999999999'
+for value in 5s '5|g' '5&' 'prober:'; do
+  reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS "$value" '1~9'
+done
+reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 0 '1~9' '수집 제한 시간'
+reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 10 '1~9' '수집 제한 시간'
+reject_in_env_file CORE_PROMETHEUS_PORT 65536 '1024~65535'
+reject_in_env_file CORE_ALERTMANAGER_PORT 80 '1024~65535'
+reject_in_env_file CORE_BLACKBOX_PORT 1023 '1024~65535'
+reject_in_env_file CORE_PROMETHEUS_PORT '0.0.0.0:9090' '1024~65535'
+reject_in_env_file CORE_BLACKBOX_PORT '9115-9120' '1024~65535'
+
+setup; prepared; with_settings 'CORE_RETENTION_DAYS=$(touch '"$T"'/injected)' 'CORE_PROBE_TIMEOUT_SECONDS=`touch '"$T"'/injected`'
+run start
+check '설정 값에 든 셸 명령은 실행하지 않고 형식 오류로 거부한다' \
+  '[ $RC -ne 0 ] && [ ! -e "$T/injected" ] && contains "CORE_RETENTION_DAYS" && contains "CORE_PROBE_TIMEOUT_SECONDS" && ! called "^compose"'
+
+name=CORE_PROBE_TIMEOUT_SECONDS value='prober: tcp' range='1~9' extra=''
+setup; prepared
+run_with_env "CORE_PROBE_TIMEOUT_SECONDS=5
+prober: tcp" start
+check '셸 환경 변수의 값에 줄바꿈과 YAML을 넣으면 거부한다' "$REJECTED"
+
+setup; prepared; with_settings CORE_RETENTION_DAYS=30
+name=CORE_RETENTION_DAYS value=abc range='1~365' extra=''
+run_with_env CORE_RETENTION_DAYS=abc start
+check '셸 환경 변수가 설정 파일 값을 덮으면 셸 환경 변수의 값을 검사한다' "$REJECTED"
+
+setup; prepared; with_settings CORE_RETENTION_DAYS=abc
+run_with_env CORE_RETENTION_DAYS=30 start
+check '셸 환경 변수의 값이 맞으면 설정 파일의 틀린 값과 관계없이 그 값으로 띄운다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && grep -q "^CORE_RETENTION_DAYS=30$" "$FAKE/env.prometheus"'
+
+setup; prepared; with_settings 'CORE_RETENTION_DAYS=abc' 'CORE_PROBE_TIMEOUT_SECONDS=10'
+run start
+check '틀린 값이 여럿이면 모두 한 번에 보인다' \
+  '[ $RC -ne 0 ] && contains "CORE_RETENTION_DAYS" && contains "CORE_PROBE_TIMEOUT_SECONDS" && ! called "^compose"'
+
+# 호스트 포트 겹침: 겹친 포트와 그 포트를 쓰는 구성 요소를 보인다.
+for pair in 'CORE_ALERTMANAGER_PORT=9090 Prometheus Alertmanager 9090' \
+            'CORE_BLACKBOX_PORT=9090 Prometheus Blackbox 9090' \
+            'CORE_ALERTMANAGER_PORT=9115 Alertmanager Blackbox 9115'; do
+  set -- $pair
+  setup; prepared; with_settings "$1"
+  run start
+  first=$2 second=$3 port=$4
+  check "호스트 포트가 겹치면($1) 겹친 포트와 두 구성 요소를 보이고 띄우지 않는다" \
+    '[ $RC -ne 0 ] && contains "$port" && contains "$first" && contains "$second" && ! called load && ! called "^compose"'
+done
+setup; prepared; with_settings CORE_PROMETHEUS_PORT=19000 CORE_ALERTMANAGER_PORT=19000 CORE_BLACKBOX_PORT=19000
+run start
+check '세 호스트 포트가 모두 같으면 세 구성 요소를 보이고 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "19000" && contains "Prometheus" && contains "Alertmanager" && contains "Blackbox" && ! called "^compose"'
+
+setup; prepared; with_settings CORE_RETENTION_DAYS= CORE_RETENTION_SIZE_GB= CORE_PROBE_TIMEOUT_SECONDS= \
+  CORE_PROMETHEUS_PORT= CORE_ALERTMANAGER_PORT= CORE_BLACKBOX_PORT=
+run start
+check '값이 모두 비어 있으면 기본값으로 띄우고 모두 기본값이라고 보인다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && contains "모두 기본값"'
+
+setup; prepared
+run start
+check '이 기능 전의 설정 파일로 띄우면 모두 기본값이라고 보인다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && contains "모두 기본값" && ! contains "기본값과 다른"'
+
+setup; prepared; with_settings 'CORE_RETENTION_DAYS=" 30 "' CORE_PROMETHEUS_PORT=19090
+run start
+check '허용 범위 안의 값이면 앞뒤 공백을 지운 값으로 띄우고 기본값과 다른 값만 보인다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && contains "30일" && contains "19090" && ! contains "확인 제한 시간" && ! contains "모두 기본값"'
+
+setup; prepared; with_settings CORE_RETENTION_DAYS=365 CORE_RETENTION_SIZE_GB=999999999 CORE_PROBE_TIMEOUT_SECONDS=9 \
+  CORE_PROMETHEUS_PORT=65535 CORE_ALERTMANAGER_PORT=1024 CORE_BLACKBOX_PORT=1025
+run start
+check '허용 범위 양 끝의 값이면 띄운다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && contains "365일" && contains "999999999GB" && contains "9초" && contains "65535"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; with_settings CORE_BLACKBOX_PORT=80; before=$(cat "$TOKEN")
+run rotate-token
+check 'token을 바꿀 때도 틀린 설정 값이면 token을 바꾸지 않고 Alertmanager를 다시 만들지 않는다' \
+  '[ $RC -ne 0 ] && contains "CORE_BLACKBOX_PORT" && [ "$(cat "$TOKEN")" = "$before" ] && ! called "^compose"'
+
+# --- 기록 보관 값을 줄일 때의 확인 ---
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings CORE_RETENTION_DAYS=15 CORE_RETENTION_SIZE_GB=100
+run start
+check '보관 기간을 줄이는데 터미널이 아니면 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "30일" && contains "15일" && contains "되돌릴 수 없습니다" && ! called "^compose"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50
+run start
+check '보관 용량을 줄이는데 터미널이 아니면 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "100GB" && contains "50GB" && ! called "^compose"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50
+run start
+check '제한이 없던 보관 용량을 처음 정하면 줄임으로 보고 터미널이 아니면 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "제한 없음" && contains "50GB" && ! called "^compose"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings CORE_RETENTION_DAYS=10
+run start
+check '보관 값이 없는 예전 컨테이너는 15일로 보고, 그보다 줄이면 터미널이 아니면 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "15일" && contains "10일" && ! called "^compose"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings CORE_RETENTION_DAYS=30
+run start
+check '보관 값이 없는 예전 컨테이너에서 보관 기간을 늘리면 묻지 않고 띄운다' \
+  '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=100
+run start
+check '보관 값이 떠 있는 코어와 같으면 묻지 않고 띄운다' \
+  '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 50; with_settings CORE_RETENTION_DAYS=30
+run start
+check '보관 용량 제한을 없애면 줄임이 아니므로 묻지 않고 띄운다' \
+  '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''; touch "$FAKE/stopped"
+run start
+check '멈춘 코어의 보관 기간보다 줄여도 확인을 묻는다' '[ $RC -ne 0 ] && contains "되돌릴 수 없습니다" && ! called "^compose"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
+run_in_terminal n start
+check '보관 기간을 줄일지 물었을 때 n이면 띄우지 않고 정상 종료한다' \
+  '[ $RC -eq 0 ] && contains "계속할까요" && contains "코어는 바꾸지 않았습니다" && ! called "^compose"'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
+run_in_terminal y start
+check '보관 기간을 줄일지 물었을 때 y이면 띄운다' \
+  '[ $RC -eq 0 ] && contains "계속할까요" && called "^compose.* up"'
 
 # --- 상태 보기 ---
 

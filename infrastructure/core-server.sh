@@ -4,9 +4,10 @@
 #   sh core-server.sh install        token과 설정 파일(.env)을 만들거나 떠 있는 버전의 폴더에서 가져온다
 #   sh core-server.sh start          확인한 뒤 이미지를 불러와 띄우고 정상 상태까지 기다린다
 #   sh core-server.sh rotate-token   token을 새 값으로 바꾸고 Alertmanager를 다시 만든다
-#   sh core-server.sh status         떠 있는 버전과 컨테이너 상태를 보인다
+#   sh core-server.sh status         떠 있는 버전, 컨테이너 상태, 기본값과 다른 설정 값을 보인다
 #
 # 묶음 폴더들은 한 설치 폴더에 나란히 두고, token은 설치 폴더의 secrets/에 둔다(요구사항 0011).
+# .env에서 바꾸는 코어 값(보관 기간·용량, 확인 제한 시간, 호스트 포트)의 규칙은 같은 폴더의 core-settings.sh에 있다(요구사항 0013).
 # 코어 서버에는 Node와 bash가 없을 수 있어 POSIX sh로 쓰고, GNU coreutils와 BusyBox가 함께 지원하는 옵션만 쓴다.
 # 설치 방법은 docs/OPERATIONS.md에 있다.
 set -eu
@@ -142,6 +143,135 @@ check_env() {
   address=$(env_value MONITORING_APP_ADDRESS)
   valid_address "$address" \
     || fail "관리자 서버 주소가 올바르지 않습니다: '$address'. .env의 MONITORING_APP_ADDRESS를 컨테이너 이름:포트 형식(예: manager-api:8080)으로 고쳐 주세요."
+}
+
+load_settings() {
+  [ -f "$BUNDLE_DIR/core-settings.sh" ] \
+    || fail "묶음 파일 core-settings.sh가 없습니다. 묶음 폴더를 다시 옮겨 주세요."
+  . "$BUNDLE_DIR/core-settings.sh"
+}
+
+# .env에서 바꾸는 코어 값을 모두 검사하고, 틀린 값은 한 번에 모두 보인 뒤 아무것도 바꾸지 않고 멈춘다.
+# 검사한 값은 export해 Compose가 .env를 다시 읽지 않고 그 값을 그대로 쓰게 한다.
+# env_value의 .env 읽기가 Compose와 조금이라도 다르면 검사한 값과 띄우는 값이 어긋날 수 있기 때문이다.
+check_settings() {
+  load_settings
+  settings_ok=yes
+  for setting in $CORE_SETTING_NAMES; do
+    if printenv "$setting" > /dev/null; then
+      hint="이 값은 셸 환경 변수 $setting에서 왔고, 셸 환경 변수는 .env의 $setting 값보다 먼저 쓰입니다. 셸에서 unset $setting을 실행하거나 값을 고친 뒤 다시 실행해 주세요."
+    else
+      hint=".env의 $setting 값을 고친 뒤 다시 실행해 주세요."
+    fi
+    if core_setting_check "$setting" "$(env_value "$setting")" "$hint"; then
+      export "$setting=$core_value"
+    else
+      settings_ok=no
+    fi
+  done
+  [ "$settings_ok" = yes ] || fail "설정 값이 올바르지 않아 아무것도 바꾸지 않았습니다. 떠 있던 코어는 그대로 돕니다."
+  check_port_overlap
+}
+
+# 호스트 포트 범위는 Compose가 검사하지 않으므로 여기서만 본다. 겹치면 그 포트를 쓰는 구성 요소를 모두 보인다.
+check_port_overlap() {
+  ports="CORE_PROMETHEUS_PORT CORE_ALERTMANAGER_PORT CORE_BLACKBOX_PORT"
+  seen=""
+  overlapped=no
+  for setting in $ports; do
+    port=$(printenv "$setting")
+    case " $seen " in
+      *" $port "*) continue ;;
+    esac
+    seen="$seen $port"
+    owners=""
+    count=0
+    for other in $ports; do
+      if [ "$(printenv "$other")" = "$port" ]; then
+        core_setting_spec "$other"
+        owners="${owners:+$owners, }$spec_label($other)"
+        count=$((count + 1))
+      fi
+    done
+    if [ "$count" -ge 2 ]; then
+      printf '호스트 포트가 겹칩니다(%s): %s\n' "$port" "$owners" >&2
+      overlapped=yes
+    fi
+  done
+  [ "$overlapped" = no ] \
+    || fail "세 호스트 포트를 .env에서 서로 다른 값으로 고친 뒤 다시 실행해 주세요. 아무것도 바꾸지 않았습니다."
+}
+
+# 컨테이너가 받은 값을 검사해 쓸 값으로 돌려준다. 변수가 없거나 틀리면 기본값을 돌려준다.
+# 이 기능 전의 컨테이너에는 변수가 없고, 그 코어는 늘 기본값(15일, 제한 없음, 5초)으로 돌았다.
+running_setting() {
+  raw=$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$1" 2>/dev/null | sed -n "s/^$2=//p" | head -n 1)
+  if core_setting_check "$2" "$raw" "" 2> /dev/null; then
+    printf '%s' "$core_value"
+  else
+    core_setting_spec "$2"
+    printf '%s' "$spec_default"
+  fi
+}
+
+# 컨테이너 안 포트(두 번째 인자)에 묶인 호스트 주소:포트. 멈춘 컨테이너도 읽을 수 있게 HostConfig에서 읽는다.
+host_binding() {
+  docker inspect -f '{{json .HostConfig.PortBindings}}' "$1" 2>/dev/null \
+    | sed -n "s/.*\"$2\/tcp\":\[{\"HostIp\":\"\([^\"]*\)\",\"HostPort\":\"\([0-9]*\)\".*/\1:\2/p"
+}
+
+# 떠 있는(멈춘 것도 포함) 코어보다 보관 기간이나 용량을 줄이면 오래된 기록이 지워져 되돌릴 수 없으므로 확인을 받는다.
+# 제한이 없던 용량을 처음 정하는 것도 줄임으로 본다(요구사항 0013의 S12). 묻는 방식은 confirm_version과 같다.
+confirm_retention() {
+  core_exists || return 0
+  current_days=$(running_setting prometheus CORE_RETENTION_DAYS)
+  current_size=$(running_setting prometheus CORE_RETENTION_SIZE_GB)
+  changes=""
+  if [ "$CORE_RETENTION_DAYS" -lt "$current_days" ]; then
+    changes="보관 기간 ${current_days}일 → ${CORE_RETENTION_DAYS}일"
+  fi
+  if [ -n "$CORE_RETENTION_SIZE_GB" ]; then
+    if [ -z "$current_size" ]; then
+      changes="${changes:+$changes, }보관 용량 제한 없음 → ${CORE_RETENTION_SIZE_GB}GB"
+    elif [ "$CORE_RETENTION_SIZE_GB" -lt "$current_size" ]; then
+      changes="${changes:+$changes, }보관 용량 ${current_size}GB → ${CORE_RETENTION_SIZE_GB}GB"
+    fi
+  fi
+  [ -n "$changes" ] || return 0
+  say "기록 보관 값을 줄입니다: $changes"
+  say "띄우면 새 값을 넘는 오래된 기록이 지워지고, 지운 기록은 되돌릴 수 없습니다."
+  if [ ! -t 0 ]; then
+    fail "기록 보관 값을 줄이려면 터미널에서 실행해 확인해 주세요. 코어는 바꾸지 않았습니다."
+  fi
+  printf '계속할까요? [y/N] '
+  read -r answer || answer=""
+  case "$answer" in
+    y|Y|yes) ;;
+    *) say "코어는 바꾸지 않았습니다."; exit 0 ;;
+  esac
+}
+
+# 컨테이너가 실제로 받은 값에서 기본값과 다른 것만 보인다. 셸 환경 변수가 .env를 덮을 수 있어 .env가 아니라 컨테이너에서 읽는다.
+show_settings() {
+  differs=""
+  for setting in $CORE_SETTING_NAMES; do
+    case "$setting" in
+      CORE_RETENTION_*) shown=$(running_setting prometheus "$setting") ;;
+      CORE_PROBE_TIMEOUT_SECONDS) shown=$(running_setting blackbox-exporter "$setting") ;;
+      CORE_PROMETHEUS_PORT) shown=$(host_binding prometheus 9090) ;;
+      CORE_ALERTMANAGER_PORT) shown=$(host_binding alertmanager 9093) ;;
+      CORE_BLACKBOX_PORT) shown=$(host_binding blackbox-exporter 9115) ;;
+    esac
+    core_setting_spec "$setting"
+    if [ -n "$shown" ] && [ "${shown##*:}" != "$spec_default" ]; then
+      differs="${differs:+$differs, }$spec_label $shown$spec_unit"
+    fi
+  done
+  if [ -n "$differs" ]; then
+    say "기본값과 다른 설정 값: $differs"
+  else
+    say "설정 값: 모두 기본값입니다."
+  fi
 }
 
 # Docker는 token 파일이 없으면 그 자리에 빈 폴더를 만들고 컨테이너를 띄운다. 그래서 띄우기 전에 확인한다.
@@ -335,18 +465,23 @@ cmd_start() {
   check_docker
   check_checksums
   check_env
+  check_settings
   check_token
   load_images
   confirm_version
+  confirm_retention
   (cd "$BUNDLE_DIR" && docker compose up -d)
   wait_healthy $CONTAINERS
   check_autostart
+  show_settings
   say "코어가 떠 있습니다: 버전 $(running_label org.opencontainers.image.version), 커밋 $(running_label org.opencontainers.image.revision)"
 }
 
 cmd_rotate_token() {
   check_docker
   check_env
+  # Alertmanager를 다시 만들 때 Compose가 .env의 호스트 포트를 쓰므로 같은 검사를 거친다.
+  check_settings
   check_token
   # 다른 버전 폴더의 compose로 Alertmanager를 다시 만들면 그 컨테이너만 다른 버전이 된다.
   if core_exists; then
@@ -385,6 +520,8 @@ cmd_status() {
     state=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name" 2>/dev/null) || state="없음"
     say "  $name: $state"
   done
+  load_settings
+  show_settings
   if [ "$current" != "$new" ]; then
     say "이 묶음의 버전($new)은 코어의 버전($current)과 다릅니다."
   fi
