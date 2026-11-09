@@ -63,7 +63,7 @@ s|@$name@|$(core_setting_text "$name" "$core_value")|g"
   used="$used $name=$core_value"
 done
 if [ "$settings_ok" = no ]; then
-  echo "코어 설정 값이 올바르지 않아 시작하지 않습니다. 위 안내대로 고친 뒤 다시 띄워 주세요. (docs/OPERATIONS.md)" >&2
+  echo "설정 값이 올바르지 않아 시작하지 않습니다. 위 안내대로 고친 뒤 다시 띄워 주세요. (docs/OPERATIONS.md)" >&2
   exit 1
 fi
 

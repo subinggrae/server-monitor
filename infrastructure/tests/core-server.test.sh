@@ -63,6 +63,7 @@ case "$1" in
         fi
         # Compose처럼 셸 환경 변수의 값을 컨테이너 환경 변수와 호스트 포트로 남긴다. 이 가짜는 .env를 읽지 않는다.
         printf 'PATH=/bin\nCORE_RETENTION_DAYS=%s\nCORE_RETENTION_SIZE_GB=%s\n' "${CORE_RETENTION_DAYS:-}" "${CORE_RETENTION_SIZE_GB:-}" > "$FAKE/env.prometheus"
+        printf '%s' "${MONITORING_APP_ADDRESS:-}" > "$FAKE/compose_address"
         printf 'CORE_PROBE_TIMEOUT_SECONDS=%s\n' "${CORE_PROBE_TIMEOUT_SECONDS:-}" > "$FAKE/env.blackbox-exporter"
         printf '{"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_PROMETHEUS_PORT:-9090}" > "$FAKE/ports.prometheus"
         printf '{"9093/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_ALERTMANAGER_PORT:-9093}" > "$FAKE/ports.alertmanager"
@@ -189,6 +190,18 @@ manager-api:8080" sh ./core-server.sh start 2>&1 < /dev/null)
 RC=$?
 check '셸 환경 변수의 관리자 서버 주소가 여러 줄이면 한 줄이 맞아도 거부한다' \
   '[ $RC -ne 0 ] && contains "관리자 서버 주소" && ! called "^compose"'
+
+setup; prepared
+OUT=$(cd "$BUNDLE" && env "MONITORING_APP_ADDRESS=manager-api:8080
+" sh ./core-server.sh start 2>&1 < /dev/null)
+RC=$?
+check '셸 환경 변수의 관리자 서버 주소 끝에 줄바꿈이 있으면 검사한 값 그대로 Compose에 넘긴다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && [ "$(cat "$FAKE/compose_address"; printf x)" = "manager-api:8080x" ]'
+
+setup; prepared; printf "MONITORING_APP_ADDRESS='manager-api:8080' # 관리자 서버\n" > "$BUNDLE/.env"
+run start
+check '설정 파일의 관리자 서버 주소는 따옴표와 주석을 뺀 값으로 Compose에 넘긴다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_address")" = "manager-api:8080" ]'
 
 setup; prepared; printf 'MONITORING_APP_ADDRESS=manager-api:8080\n$(touch %s/injected)\n' "$T" > "$BUNDLE/.env"
 run start

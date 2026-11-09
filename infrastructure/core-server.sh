@@ -138,6 +138,8 @@ check_env() {
   address=$(env_value MONITORING_APP_ADDRESS)
   core_valid_address "$address" \
     || fail "관리자 서버 주소가 올바르지 않습니다: '$address'. .env의 MONITORING_APP_ADDRESS를 컨테이너 이름:포트 형식(예: manager-api:8080)으로 고쳐 주세요."
+  # 코어 값과 같이, Compose가 .env나 셸 환경 변수를 다시 읽지 않고 검사한 값을 그대로 쓰게 한다.
+  export MONITORING_APP_ADDRESS="$address"
 }
 
 load_settings() {
