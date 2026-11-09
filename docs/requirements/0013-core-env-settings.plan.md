@@ -5,7 +5,7 @@
 
 ## 접근 방법
 
-여는 값 여섯 개는 코어 설정 파일(`.env`)의 변수로 받는다. 이 변수를 Compose가 컨테이너 환경 변수와 `ports`에 넘기고, 이미지의 시작 스크립트 `render-config.sh`가 값을 검사한 뒤 설정 템플릿과 실행 인자에 펼친다. 앱 주소(`MONITORING_APP_ADDRESS`)를 펼치는 지금 방식([ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0009](../decisions/0009-core-config-in-image.md))에 값을 더하고, YAML 전체나 Alert 규칙은 열지 않는다.
+여는 값 여섯 개는 코어 설정 파일(`.env`)의 변수로 받는다. 이 변수를 Compose가 컨테이너 환경 변수와 `ports`에 넘기고, 이미지의 시작 스크립트 `render-config.sh`가 값을 검사한 뒤 설정 템플릿에 펼친다(2026-11-09에 바꿈, 보관 값을 설정 파일로). 앱 주소(`MONITORING_APP_ADDRESS`)를 펼치는 지금 방식([ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0009](../decisions/0009-core-config-in-image.md))에 값을 더하고, YAML 전체나 Alert 규칙은 열지 않는다.
 
 | 값 | 변수 | 받는 곳 | 펼치는 곳 |
 |---|---|---|---|
@@ -55,7 +55,7 @@
 `scripts/build-core-bundle.mjs`의 `checkCoreImages`를 다음처럼 넓힌다.
 
 - 값 세 벌(모두 비움, 허용 범위 아래 끝, 위 끝)마다 Prometheus 설정 검사(`promtool check config`), Alertmanager 설정 검사(`amtool check-config`), Blackbox 설정 검사(`blackbox_exporter --config.check`)를 실행한다. Blackbox 검사는 지금 없다. 아래 끝과 위 끝 값은 이미지 안의 `core-settings.sh`에서 읽는다. 보관 용량은 상한이 없으므로 위 끝에 형식 상한(9자리) 값을 쓴다.
-- 같은 세 벌로 시작 스크립트를 실행 명령 대신 `printf`로 끝나게 돌려, Prometheus 보관 인자와 펼친 Blackbox 설정이 기대한 값인지 본다.
+- 같은 세 벌로 시작 스크립트를 돌려, Prometheus 실행 인자가 이미지의 `CMD` 그대로인지와 펼친 `prometheus.yml`의 보관 항목, 펼친 Blackbox 설정이 기대한 값인지 본다(2026-11-09에 바꿈, 보관 값을 설정 파일로).
 - 범위 밖 값 하나씩으로 Prometheus·Blackbox 이미지의 시작 스크립트를 돌려, 실패 종료 코드와 안내 문구를 확인하고 원래 프로세스가 실행되지 않았는지 본다(C5).
 - 약속 검사: 확인 제한 시간 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값보다 작은지, 보관 기간 하한(일)이 규칙 파일들의 가장 긴 범위(지금 `[10m]`)보다 긴지, 포트 범위가 1024~65535 안이고 세 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모르므로 따로 본다.
 - 묶음을 만들 때 실행용 compose 파일을 기본값과 양 끝 포트로 `docker compose config`에 넣어, 모든 `ports`의 `host_ip`가 `127.0.0.1`인지 본다.
@@ -95,8 +95,8 @@
 
 | 위치 | 변경 |
 |---|---|
-| `infrastructure/core-settings.sh` | 새 파일: 여섯 값의 기본값, 허용 범위, 이유, 형식·범위 검사와 안내, Prometheus 보관 인자 만들기, 빌드 검사가 읽을 범위 목록 출력 |
-| `infrastructure/render-config.sh` | `core-settings.sh`로 `CORE_SETTINGS`의 값을 검사해 템플릿의 자리표시와 Prometheus 보관 인자를 펼치고, 앱 주소는 템플릿에 자리표시가 있을 때만 요구 |
+| `infrastructure/core-settings.sh` | 새 파일: 여섯 값의 기본값, 허용 범위, 이유, 형식·범위 검사와 안내, 템플릿에 넣을 글자(`core_setting_text`)(2026-11-09에 바꿈, 보관 값을 설정 파일로), 빌드 검사가 읽을 범위 목록 출력 |
+| `infrastructure/render-config.sh` | `core-settings.sh`로 `CORE_SETTINGS`의 값을 검사해 템플릿의 자리표시에 펼치고(2026-11-09에 바꿈, 보관 값을 설정 파일로), 앱 주소는 템플릿에 자리표시가 있을 때만 요구 |
 | `infrastructure/prometheus/Dockerfile` | `core-settings.sh` 복사, `ENV CORE_SETTINGS="CORE_RETENTION_DAYS CORE_RETENTION_SIZE_GB"`, `CMD`에서 보관 인자를 뺌 |
 | `infrastructure/blackbox/Dockerfile` | `render-config.sh`, `core-settings.sh`, 템플릿 복사, `ENV CORE_SETTINGS="CORE_PROBE_TIMEOUT_SECONDS"`, 새 `ENTRYPOINT`와 `CMD` |
 | `infrastructure/alertmanager/Dockerfile` | `render-config.sh`가 읽는 `core-settings.sh` 복사(펼칠 값은 없음) |
@@ -136,9 +136,9 @@
                                            CORE_ALERTMANAGER_PORT      (비면 9093)
                                            CORE_BLACKBOX_PORT          (비면 9115)
 
-prometheus 실행 인자                      prometheus 실행 인자
-  --storage.tsdb.retention.time=15d        --storage.tsdb.retention.time=<값>d
-                                           [--storage.tsdb.retention.size=<값>GB]
+prometheus 실행 인자                      prometheus.yml 템플릿(2026-11-09에 바꿈)
+  --storage.tsdb.retention.time=15d        storage.tsdb.retention.time: <값>d
+                                           storage.tsdb.retention.size: <값>GB 또는 0B
 blackbox: /etc/blackbox_exporter/        blackbox: 템플릿을 /tmp/blackbox.yml로 펼침
   config.yml(timeout: 5s 고정)             (timeout: <값>s)
 ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
@@ -166,12 +166,12 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 
 ### 보안 위협
 
-- 바뀌는 신뢰 경계와 데이터 흐름: 운영자가 쓰는 `.env`와 셸 환경 변수의 새 값이 운영 명령(`core-server.sh`), Compose `ports`, 컨테이너 환경 변수를 거쳐 시작 스크립트(`render-config.sh`)에서 YAML 설정과 Prometheus 실행 인자로 펼쳐진다. 이 값을 쓸 수 있는 사람은 묶음 폴더에 쓸 수 있는 운영자뿐이지만, 복사해 붙인 값, 다른 문서의 예시, 셸에 남은 환경 변수처럼 운영자가 의도하지 않은 값이 들어올 수 있다. [ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계)에 서버에서 여는 값과 검사 규칙을 더한다.
+- 바뀌는 신뢰 경계와 데이터 흐름: 운영자가 쓰는 `.env`와 셸 환경 변수의 새 값이 운영 명령(`core-server.sh`), Compose `ports`, 컨테이너 환경 변수를 거쳐 시작 스크립트(`render-config.sh`)에서 YAML 설정으로 펼쳐진다(2026-11-09에 바꿈, 보관 값을 설정 파일로). 이 값을 쓸 수 있는 사람은 묶음 폴더에 쓸 수 있는 운영자뿐이지만, 복사해 붙인 값, 다른 문서의 예시, 셸에 남은 환경 변수처럼 운영자가 의도하지 않은 값이 들어올 수 있다. [ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계)에 서버에서 여는 값과 검사 규칙을 더한다.
 - 잘못될 수 있는 것과 막는 방법:
   - 설정을 바깥 값이 정함(CWE-15), 형식·범위를 검사하지 않음(CWE-20): 운영 명령과 시작 스크립트가 같은 `core-settings.sh`로 형식과 범위를 검사하고, 틀리면 아무것도 바꾸지 않거나 시작하지 않는다. 시험: C4, C5, C7의 범위 밖 값.
   - 값에 넣은 줄바꿈이나 YAML 문법으로 Blackbox 설정의 다른 항목을 바꿈(CWE-74): 검사를 통과한 숫자만 `sed`의 바꿀 글자로 쓴다. `sed` 구분자(`|`), `&`, 줄바꿈, `prober:` 같은 YAML을 넣은 값이 거부되는지 시험한다.
   - (범위 추가) 관리자 서버 주소에 넣은 줄바꿈이나 `sed`·YAML 문법으로 Prometheus·Alertmanager 설정의 다른 항목을 바꿈(CWE-74): 운영 명령 없이 띄울 때는 지금 검사가 없다. 시작 스크립트도 운영 명령과 같은 `core_valid_address`를 통과한 값만 `sed`에 넣는다. 형식에 맞지 않는 여러 종류의 주소(빈 값, 포트 없음, 줄바꿈, `sed` 구분자, 셸 문자, YAML 문법, 포트 범위 밖)를 빌드 검사가 거부로 확인하고, 운영 명령 시험은 줄바꿈이 든 셸 환경 변수 값을 거부로 확인한다.
-  - 값에 공백을 넣어 Prometheus 실행 인자를 더함(CWE-88). 예: 보관 기간에 `15 --web.enable-admin-api`. 숫자만 받고, 인자를 따옴표로 감싼 낱말 하나로 만든다. 그런 값이 거부되고, 펼친 인자 목록에 다른 인자가 없는지 시험한다.
+  - 값에 공백과 다른 실행 인자를 넣어 Prometheus 실행 인자를 더함(CWE-88): 숫자만 받고, 시작 스크립트는 실행 인자를 더하지 않는다(2026-11-09에 바꿈, 보관 값을 설정 파일로). 그런 값이 거부되고, 빌드 검사가 실행 인자가 이미지의 `CMD` 그대로인지 본다.
   - 운영 명령이 값을 셸로 해석함(CWE-78): `.env`를 `.`로 실행하지 않는 지금 방식(`env_value`)을 유지하고, 값을 `eval`이나 따옴표 없는 확장에 넣지 않는다. `$(…)`와 백틱을 넣은 값이 실행되지 않고 형식 오류가 되는지 시험한다.
   - 포트 값으로 코어 포트가 `127.0.0.1` 밖에 열림(CWE-1327): `compose.yml`의 `127.0.0.1:`을 글자 그대로 두고, 운영 명령은 숫자 포트만 받는다. 빌드 검사가 실행용 compose 파일의 모든 `host_ip`가 `127.0.0.1`인지 보고, 작업 1에서 운영 명령 없이 띄울 때의 이상한 값도 확인한다.
 - 받아들이는 위험: 운영 명령 없이 Compose로 띄울 때 포트의 허용 범위와 겹침은 검사하지 않는다. 요구사항 S11에서 사람이 승인했다. 이 기능 전 버전으로 되돌릴 때의 기록 손실은 사람이 받아들였다(요구사항 S15, 사람 확인: 2026-10-29).
@@ -195,7 +195,7 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 
 기준마다 확인하는 내용은 다음과 같다.
 
-- **C1**: 빌드 검사에서 값을 모두 비우면 보관 인자가 `--storage.tsdb.retention.time=15d` 하나이고 `retention.size`가 없으며, 펼친 Blackbox 설정에 `timeout: 5s`가 세 개, 실행용 compose의 포트가 `127.0.0.1:9090:9090` 등이다. 운영 명령 시험은 새 변수가 없는 `.env`와 빈 값만 있는 `.env`로 띄우기가 진행되는지 본다. 수동으로는 이 기능 전 `.env`로 띄워 `curl -s http://127.0.0.1:9090/api/v1/status/flags`의 `storage.tsdb.retention.time`이 `15d`, `storage.tsdb.retention.size`가 `0B`, `curl -s http://127.0.0.1:9115/config`의 `timeout`이 `5s`이고, `sh core-server.sh status`가 모두 기본값이라고 보이는지 본다.
+- **C1**: 빌드 검사에서 값을 모두 비우면 펼친 `prometheus.yml`의 보관 항목이 `time: 15d`, `size: 0B`이고 실행 인자가 `CMD` 그대로이며(2026-11-09에 바꿈, 보관 값을 설정 파일로), 펼친 Blackbox 설정에 `timeout: 5s`가 세 개, 실행용 compose의 포트가 `127.0.0.1:9090:9090` 등이다. 운영 명령 시험은 새 변수가 없는 `.env`와 빈 값만 있는 `.env`로 띄우기가 진행되는지 본다. 수동으로는 이 기능 전 `.env`로 띄워 `curl -s http://127.0.0.1:9090/api/v1/status/flags`의 `storage.tsdb.retention.time`이 `15d`, `storage.tsdb.retention.size`가 `0B`, `curl -s http://127.0.0.1:9115/config`의 `timeout`이 `5s`이고, `sh core-server.sh status`가 모두 기본값이라고 보이는지 본다.
 - **C2**: `.env`에 30, 50, 8, 19090, 19093, 19115를 적고 `core-dev.bat start`로 띄운다. flags API에서 `30d`와 `50GB`(Prometheus 표기는 작업 1에서 확인), `http://127.0.0.1:19115/config`에서 세 `timeout: 8s`, `docker port`에서 바뀐 포트, `docker compose ps`에서 세 컨테이너 healthy를 본다. `http://127.0.0.1:19090/targets`에서 Alertmanager와 `blackbox-exporter:9115` 대상이 그대로인지도 본다. 느린 대상은 닿지 않는 주소(예: `10.255.255.1:80`)를 `http://127.0.0.1:19115/probe?module=tcp_connect&target=…`로 확인해, `probe_duration_seconds`가 약 8초이고 값을 5로 되돌리면 약 5초인지 본다.
 - **C3**: 버전이 다른 묶음 v1(보관 30일)과 v2를 한 설치 폴더에 두고 v2에서 `install`, `start`를 실행한다. v2의 `.env`에 30이 이어지고, flags API가 `30d`이며, `/api/v1/status/tsdb`의 `minTime`이 갱신 전과 같은지 본다. 15일에서 30일로 늘려 띄운 뒤에도 `minTime`이 같은지 본다.
 - **C4**: 형식 오류(`15d`, `5s`, `abc`, `-1`, `7.5`, `015`, 공백, 줄바꿈, `$(…)`, 10자리 용량), 범위 오류(보관 0·366, 용량 0, 제한 시간 0·10, 포트 80·1023·65536), 포트 겹침(세 쌍과 셋 모두), 셸 환경 변수가 `.env`를 덮는 경우를 만든다. 경우마다 종료 코드가 0이 아니고, 출력에 변수 이름·적힌 값·허용 범위·고치는 방법이 있으며, 가짜 `docker`에 `compose`와 `load` 호출이 없어야 한다. 제한 시간이면 수집 제한 시간(10초) 이유가, 겹침이면 겹친 포트와 구성 요소 이름이 있어야 한다. 검사를 하나씩 지운 사본마다 시험이 실패하는지 보고 결과를 진행 중 발견에 쓴다.
@@ -287,6 +287,11 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
   | 시작 스크립트가 보관 실행 인자를 붙임 | 시작 스크립트로 실행한 명령이 실패했다(약속 검사의 `cat`) |
 
 - **보관 값을 옮긴 뒤 다시 한 수동 확인(작업 14, `a578b4c`)**: 앞과 같은 방식(프로젝트 `issue33-impl2`, 이름 앞 `issue33-impl2-`, 포트 29090·29093·29115)으로 C1·C2·C3·C5와 S16을 다시 봤다. C3의 이 기능 전 이미지는 `548839c`의 `infrastructure/`로 새로 빌드했다. 결과는 요구사항의 완료 기준에 썼다.
+- **리뷰 반영(추가분, 새 하위 에이전트, `89e8c5d` 기준)**: 차단 문제는 없었고, 요구사항이 보이는 동작도 바뀌지 않았다. 리뷰어는 20일 전 블록을 만들어, 설정 파일의 보관 기간이 TSDB를 열 때부터 쓰이는 것(15일이면 지워지고 30일이면 남음)도 확인했다. 다음을 고쳤다.
+  - 운영 명령은 명령 치환으로 셸 환경 변수 주소 끝의 줄바꿈을 지운 값을 검사하는데, Compose는 원래 값을 넘겨 컨테이너가 거부했다. `check_env`가 검사한 주소를 `export`해 Compose가 그 값을 그대로 쓰게 하고, 그 경우와 설정 파일의 따옴표·주석을 뺀 값이 넘어가는지 보는 시험 두 개를 더했다(구현 전 실패 확인).
+  - 시작 스크립트의 마지막 로그 문구를 주소 오류도 가리키도록 `설정 값이 올바르지 않아 시작하지 않습니다`로 넓히고, 운영 가이드 문제 해결 표의 로그 문구를 값마다 나오는 줄로 바꿨다.
+  - 이 계획에서 실행 인자 방식으로 설명하던 곳(접근 방법 첫 문단, 빌드 검사, 바뀌는 부분 두 행, 계약 변경 그림, 신뢰 경계, CWE-88, C1)에 바뀐 날짜를 표시하고 지금 방식으로 고쳤다. CWE-88의 구체적인 예시 값은 일반적인 표현으로 바꿨다.
+  - 남은 것: ADR 0007의 "형식을 검사하지 않는다" 문장의 처리는 아직 사람이 정하지 않았다(위험과 되돌리기).
 - **`.env` 이름의 시험 파일**: 이 PC의 에이전트 권한 설정이 `.env`를 고치는 명령을 막아, C5부터는 임시 폴더의 `test.env`를 `docker compose --env-file`로 넘겼다.
 
 작업 3의 검사를 지운 사본(C4)마다 운영 명령 시험의 실패 수는 다음과 같다. 모두 실패했다.
