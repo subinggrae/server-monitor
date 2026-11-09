@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 작성일: 2026-10-29
-- 관련: [#33](https://github.com/subinggrae/server-monitor/issues/33), [0011](0011-core-ops-script.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0002](../decisions/0002-scrape-interval-via-http-sd.md), [ADR 0004](../decisions/0004-os-exporter-collection.md), [ADR 0005](../decisions/0005-common-resource-recording-rules.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0009](../decisions/0009-core-config-in-image.md), [#5](https://github.com/subinggrae/server-monitor/issues/5), [#22](https://github.com/subinggrae/server-monitor/issues/22)
+- 관련: [#33](https://github.com/subinggrae/server-monitor/issues/33), [0011](0011-core-ops-script.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0002](../decisions/0002-scrape-interval-via-http-sd.md), [ADR 0004](../decisions/0004-os-exporter-collection.md), [ADR 0005](../decisions/0005-common-resource-recording-rules.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0009](../decisions/0009-core-config-in-image.md), [ADR 0011](../decisions/0011-core-address-format-check.md), [#5](https://github.com/subinggrae/server-monitor/issues/5), [#22](https://github.com/subinggrae/server-monitor/issues/22)
 
 ## 배경
 
@@ -25,7 +25,7 @@ YAML을 열지 않는 이유는 두 가지다. 첫째, 빌드할 때 돌리는 P
 
 장애 판단 기준에는 그 뒤에 정한 경계가 있다. 감시 항목의 장애 판단 규칙은 코어의 Alert 규칙에 두고, 바꾸려면 코어를 다시 빌드하기로 했다(사람 확인: 2026-10-29, [ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계), [#5](https://github.com/subinggrae/server-monitor/issues/5)). 그래서 이 값은 서버에서 열지 않는다(사람 확인: 2026-10-29).
 
-관리자 서버 주소(`MONITORING_APP_ADDRESS`)의 형식 검사도 이 요구사항에서 함께 다룬다(사람 확인: 2026-11-09). 운영 명령은 이 값을 `컨테이너 이름:포트` 형식으로 검사하지만, 운영 명령 없이 Compose로 띄우면 이미지의 시작 스크립트가 검사하지 않고 Prometheus와 Alertmanager 설정에 그대로 펼친다. 이 값도 새 값처럼 설정 파일에 펼쳐지므로, 시작 스크립트도 운영 명령과 같은 규칙으로 검사한다. 2026-11-09의 구현 리뷰에서 찾았다.
+관리자 서버 주소(`MONITORING_APP_ADDRESS`)의 형식 검사도 이 요구사항에서 함께 다룬다(사람 확인: 2026-11-09). 운영 명령은 이 값을 `컨테이너 이름:포트` 형식으로 검사하지만, 운영 명령 없이 Compose로 띄우면 이미지의 시작 스크립트가 검사하지 않고 Prometheus와 Alertmanager 설정에 그대로 펼친다. 이 값도 새 값처럼 설정 파일에 펼쳐지므로, 시작 스크립트도 운영 명령과 같은 규칙으로 검사한다. 2026-11-09의 구현 리뷰에서 찾았다. 이 결정은 [ADR 0011](../decisions/0011-core-address-format-check.md)에 있고, [ADR 0007](../decisions/0007-core-app-contract.md)의 형식을 검사하지 않는다는 문장만 대신한다.
 
 기록 보관 기간과 용량은 Prometheus 실행 인자(`--storage.tsdb.retention.time`, `--storage.tsdb.retention.size`)가 아니라 Prometheus 설정 파일의 보관 항목(`storage.tsdb.retention.time`, `size`)으로 넘긴다(사람 확인: 2026-11-09). v3.14.0에서 두 실행 인자가 deprecated로 표시되어 있어, Prometheus를 올릴 때 인자가 없어지면 코어가 시작하지 못하기 때문이다. 이 요구사항이 정한 값, 허용 범위, 기본값, 줄임 확인, 표시는 바뀌지 않는다.
 
