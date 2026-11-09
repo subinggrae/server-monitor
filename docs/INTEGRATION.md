@@ -126,7 +126,7 @@ SD 응답은 다음을 지킨다.
 
 - label 값은 모두 JSON 문자열로 보낸다. id를 숫자로 보내면 Prometheus가 응답 전체를 거부한다.
 - label 이름을 더하거나 지우거나 바꾸지 않는다. id 값도 대상마다 바뀌지 않게 둔다. label과 id가 time series의 이름표라서 바뀌면 쌓아 온 series가 끊긴다.
-- 이름과 환경 값(`check_name`, `server_name`, `environment`)은 사용자가 바꾸면 그대로 바꿔 보낸다. 그 대상의 원래 series(`probe_success`, `up`)는 새로 시작된다. 감시 항목의 Alert는 이름과 환경을 뺀 label로 만들고 새 대상이 처음 수집되기 전까지는 최근 5분 안의 마지막 값으로 판단해서 진행 중인 장애가 끊기지 않고(수집 주기가 150초를 넘으면 끊길 수 있다), 서버 사용률의 recording rule은 이름과 환경을 label로 남기지 않아 이어진다([ADR 0010](decisions/0010-alert-labels-without-editable-values.md)).
+- 이름과 환경 값(`check_name`, `server_name`, `environment`)은 사용자가 바꾸면 그대로 바꿔 보낸다. 그 대상의 원래 series(`probe_success`, `up`)는 새로 시작된다. 감시 항목의 Alert는 이름과 환경을 뺀 label로 만들고 새 대상이 처음 수집되기 전까지는 최근 5분 안의 마지막 값으로 판단해서 진행 중인 장애가 끊기지 않고(수집 주기가 150초를 넘으면 끊길 수 있다. 사람 확인: 2026-11-09), 서버 사용률의 recording rule은 이름과 환경을 label로 남기지 않아 이어진다([ADR 0010](decisions/0010-alert-labels-without-editable-values.md)).
 - `__scrape_interval__`은 10초보다 짧게 두지 않는다. 코어의 수집 제한 시간(`scrape_timeout`)이 10초라서, 주기가 그보다 짧으면 Prometheus가 그 대상을 수집하지 않는다.
 - 목록을 만들지 못하면(DB 오류 등) 빈 배열 `[]` 대신 `5xx`를 돌려준다. `[]`을 받으면 Prometheus가 모든 대상의 감시를 멈추지만, 오류를 받으면 마지막 목록을 유지한다.
 - label에 알림 대상(chat id 등)이나 긴 설명을 넣지 않는다. label 값은 Prometheus에 그대로 저장된다.
@@ -192,7 +192,7 @@ Alert마다 들어오는 label과 annotation은 다음과 같다. 규칙은 `inf
 
 SD label의 `check_name`, `environment`는 Alert에 들어가지 않는다. Prometheus와 Alertmanager는 label 집합으로 Alert를 구분하므로, 사용자가 바꾸는 값이 label에 있으면 장애 중에 값을 바꿀 때 장애가 복구로 끝나고 새 장애로 다시 생긴다([ADR 0010](decisions/0010-alert-labels-without-editable-values.md)).
 
-Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 5분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`이 4분이지만 묶음을 다시 살피는 간격(`group_interval`)이 5분이라, 결과는 5분마다다. 복구 Alert(`status: resolved`)도 보낸다. 대상이 다시 성공하면 다음 규칙 평가(15초 안)에서 복구된다. 장애 중인 감시 항목이나 주소를 지우거나 끄면, 주소나 확인 방식을 바꾸면 옛 값의 장애가, Blackbox Exporter가 멈춰 확인 결과가 오지 않으면 마지막 확인 결과가 실패였던 장애가, 그 결과가 5분 지날 때까지 이어지다 복구된다. 그 5분 안에 다시 켠 감시 항목이 여전히 실패하면 같은 장애로 이어진다. 대상 확인이 실패하기 시작해 webhook이 오기까지는 1분(규칙의 지속 시간)에 규칙 평가 간격(15초)과 30초를 더한 정도가 걸린다.
+Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 5분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`이 4분이지만 묶음을 다시 살피는 간격(`group_interval`)이 5분이라, 결과는 5분마다다. 복구 Alert(`status: resolved`)도 보낸다. 대상이 다시 정상으로 동작하면 그 성공한 확인 결과를 받은 다음 규칙 평가(15초 안)에서 바로 복구된다. 아래의 5분은 기다리지 않는다. 장애 중인 감시 항목이나 주소를 지우거나 끄면, 주소나 확인 방식을 바꾸면 옛 값의 장애가, Blackbox Exporter가 멈춰 확인 결과가 오지 않으면 마지막 확인 결과가 실패였던 장애가, 그 결과가 5분 지날 때까지 이어지다 복구된다. 그 5분 안에 다시 켠 감시 항목이 여전히 실패하면 같은 장애로 이어진다. 대상 확인이 실패하기 시작해 webhook이 오기까지는 1분(규칙의 지속 시간)에 규칙 평가 간격(15초)과 30초를 더한 정도가 걸린다.
 
 ## 코어가 제공할 것
 
