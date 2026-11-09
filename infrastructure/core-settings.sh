@@ -82,8 +82,9 @@ core_setting_check() {
     core_value=$spec_default
     return 0
   fi
+  # [0-9] 같은 범위는 locale에 따라 전각 숫자에도 맞으므로 글자를 나열한다.
   case "$core_value" in
-    *[!0-9]*|0?*)
+    *[!0123456789]*|0?*)
       core_setting_error "$1" "$2" "숫자 형식이 아닙니다. 단위 없이 숫자만 적고, 앞에 0을 붙이지 않습니다(예: ${spec_default:-50})."
       return 1 ;;
   esac
@@ -100,10 +101,12 @@ core_setting_check() {
     fi
     return 1
   fi
-  if [ "$core_value" -lt "$spec_min" ] || { [ -n "$spec_max" ] && [ "$core_value" -gt "$spec_max" ]; }; then
-    core_setting_error "$1" "$2" '허용 범위를 벗어났습니다.' "$spec_reason"
-    return 1
+  # 비교가 오류로 끝나도 받아들이지 않도록, 범위 안임을 확인했을 때만 통과시킨다.
+  if { [ "$core_value" -ge "$spec_min" ] && { [ -z "$spec_max" ] || [ "$core_value" -le "$spec_max" ]; }; } 2> /dev/null; then
+    return 0
   fi
+  core_setting_error "$1" "$2" '허용 범위를 벗어났습니다.' "$spec_reason"
+  return 1
 }
 
 # 검사를 통과한 값으로 Prometheus 실행 인자 하나를 쓴다. 그 값이 실행 인자가 아니거나 비어 있으면 아무것도 쓰지 않는다.

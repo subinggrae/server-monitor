@@ -437,7 +437,7 @@ reject_in_env_file() {
   check "설정 파일의 $name 값이 '$value'이면 이름, 값, 허용 범위, 고치는 방법을 보이고 띄우지 않는다" "$REJECTED"
 }
 
-for value in 15d abc -1 7.5 015 '1 5' '15 --web.enable-admin-api'; do
+for value in 15d abc -1 7.5 015 '1 5' '15 --web.enable-admin-api' '３０'; do
   reject_in_env_file CORE_RETENTION_DAYS "$value" '1~365' '앞에 0을 붙이지'
 done
 reject_in_env_file CORE_RETENTION_DAYS 0 '1~365'
@@ -595,6 +595,26 @@ check '코어가 멈춰 있으면 떠 있다고 보이지 않는다' 'contains "
 setup
 run status
 check '코어가 없으면 없다고 보인다' '[ $RC -eq 0 ] && contains "코어가 없습니다"'
+
+setup; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
+printf '{"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":"19090"}]}\n' > "$FAKE/ports.prometheus"
+run status
+check '상태를 보면 컨테이너가 받은 값 가운데 기본값과 다른 것만 보인다' \
+  '[ $RC -eq 0 ] && contains "기본값과 다른 설정 값" && contains "30일" && contains "127.0.0.1:19090" && ! contains "확인 제한 시간"'
+
+setup; running_other v2 1761600000 "$BUNDLE"; touch "$FAKE/stopped"
+printf '{"9115/tcp":[{"HostIp":"127.0.0.1","HostPort":"19115"}]}\n' > "$FAKE/ports.blackbox-exporter"
+run status
+check '코어가 멈춰 있어도 바꾼 포트를 보인다' '[ $RC -eq 0 ] && contains "멈춰 있습니다" && contains "127.0.0.1:19115"'
+
+setup; running_other v2 1761600000 "$BUNDLE"
+run status
+check '상태를 보면 값이 모두 기본값일 때 기본값이라고 보인다' '[ $RC -eq 0 ] && contains "모두 기본값"'
+
+setup; running_other v2 1761600000 "$BUNDLE"; printf 'CORE_PROBE_TIMEOUT_SECONDS=10\n' > "$FAKE/env.blackbox-exporter"
+run status
+check '컨테이너가 받은 값이 틀리면 기본값이라고 하지 않고 그 값을 올바르지 않다고 보인다' \
+  '[ $RC -eq 0 ] && contains "확인 제한 시간 '"'"'10'"'"'(올바르지 않음)" && ! contains "모두 기본값"'
 
 printf '\n통과 %s, 실패 %s\n' "$PASSED" "$FAILED"
 [ "$FAILED" -eq 0 ]

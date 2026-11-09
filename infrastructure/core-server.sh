@@ -37,7 +37,7 @@ usage() {
   install        token과 설정 파일(.env)을 준비합니다
   start          확인한 뒤 코어를 띄웁니다
   rotate-token   token을 새 값으로 바꿉니다
-  status         떠 있는 버전과 상태를 보입니다
+  status         떠 있는 버전, 상태, 기본값과 다른 설정 값을 보입니다
 EOF
 }
 
@@ -202,10 +202,16 @@ check_port_overlap() {
     || fail "세 호스트 포트를 .env에서 서로 다른 값으로 고친 뒤 다시 실행해 주세요. 아무것도 바꾸지 않았습니다."
 }
 
+# 컨테이너(첫 번째 인자)가 받은 환경 변수(두 번째 인자)의 값. 없으면 빈 값이다.
+container_env() {
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$1" 2>/dev/null | sed -n "s/^$2=//p" | head -n 1
+}
+
 # 컨테이너가 받은 값을 검사해 쓸 값으로 돌려준다. 변수가 없거나 틀리면 기본값을 돌려준다.
 # 이 기능 전의 컨테이너에는 변수가 없고, 그 코어는 늘 기본값(15일, 제한 없음, 5초)으로 돌았다.
+# 틀린 값을 받은 컨테이너는 시작하지 못하므로, 지난 기록은 기본값이나 그 전의 값으로 남아 있다.
 running_setting() {
-  raw=$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$1" 2>/dev/null | sed -n "s/^$2=//p" | head -n 1)
+  raw=$(container_env "$1" "$2")
   if core_setting_check "$2" "$raw" "" 2> /dev/null; then
     printf '%s' "$core_value"
   else
@@ -252,9 +258,20 @@ confirm_retention() {
 }
 
 # 컨테이너가 실제로 받은 값에서 기본값과 다른 것만 보인다. 셸 환경 변수가 .env를 덮을 수 있어 .env가 아니라 컨테이너에서 읽는다.
+# 틀린 값(운영 명령 없이 띄운 경우)은 기본값으로 바꾸지 않고 그대로 올바르지 않다고 보인다.
 show_settings() {
   differs=""
   for setting in $CORE_SETTING_NAMES; do
+    case "$setting" in
+      CORE_RETENTION_*) container=prometheus ;;
+      CORE_PROBE_TIMEOUT_SECONDS) container=blackbox-exporter ;;
+      *) container="" ;;
+    esac
+    if [ -n "$container" ] && ! core_setting_check "$setting" "$(container_env "$container" "$setting")" "" 2> /dev/null; then
+      core_setting_spec "$setting"
+      differs="${differs:+$differs, }$spec_label '$(container_env "$container" "$setting")'(올바르지 않음)"
+      continue
+    fi
     case "$setting" in
       CORE_RETENTION_*) shown=$(running_setting prometheus "$setting") ;;
       CORE_PROBE_TIMEOUT_SECONDS) shown=$(running_setting blackbox-exporter "$setting") ;;
