@@ -278,7 +278,7 @@ docker compose -f infrastructure/compose.yml ps
 - **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
 - **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
 - **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
-  - 감시 항목 이름·환경을 Alert label에서 뺀 버전([요구사항 0012](requirements/0012-check-label-continuity.md))으로 처음 갱신할 때와 그 전 버전으로 되돌릴 때는 Alert의 label이 한 번 바뀐다. 그래서 이어지던 장애가 한 번 복구로 끝나고, 실패가 이어지면 약 1분 반 뒤 새 장애로 다시 생긴다. 관리자 서버는 복구와 새 장애를 받고, 알림 받을 곳에는 복구 알림과 새 장애 알림이 간다. 쌓은 기록은 이어진다. 장애가 적은 시간에 갱신한다.
+  - 감시 항목 이름·환경을 Alert label에서 뺀 버전([요구사항 0012](requirements/0012-check-label-continuity.md))으로 처음 갱신할 때와 그 전 버전으로 되돌릴 때는 Alert의 label이 한 번 바뀐다. 그래서 실패가 이어지던 장애는 약 2분 뒤 새 장애로 다시 생기고, 알림 받을 곳에는 새 장애 알림이 간다. 갱신하면서 Alertmanager가 이어지던 장애를 잊으므로 옛 장애의 복구는 관리자 서버에 오지 않는다. 그래서 관리자 서버의 옛 장애 기록은 장애 중으로 남고 복구 알림도 가지 않는다. 쌓은 기록은 이어진다. 장애가 적은 시간에 갱신한다.
 - **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 `install`을 실행하면 새 token을 만들지 않고 멈춘다. 새 token을 만들면 관리자 서버의 token과 어긋나기 때문이다. 다음 순서로 옮긴다.
   1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다. 이전 묶음 폴더도 같은 설치 폴더에 있으면 `install`이 그 폴더의 `.env`를 가져온다.
   2. token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). `install`이 멈출 때 보인 옛 token 경로를 쓴다. 이전 `.env`에 `CORE_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
