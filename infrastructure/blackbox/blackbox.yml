@@ -1,4 +1,4 @@
-# Blackbox Exporter module 정의입니다.
+# Blackbox Exporter module 정의 템플릿입니다.
 #
 # module은 배포용 설정입니다.
 # 사용자가 UI에서 Check를 추가해도 이 파일은 수정하지 않습니다.
@@ -9,12 +9,14 @@
 #
 # timeout은 module 단위 설정입니다. Check마다 다르게 줄 수 없습니다.
 # Blackbox는 probe 요청의 query parameter로 timeout이나 status 조건을 받지 않습니다.
+# @CORE_PROBE_TIMEOUT_SECONDS@는 컨테이너가 시작할 때 코어 설정(infrastructure/.env)의 확인 제한 시간
+# (기본 5초, 1~9초)으로 바뀝니다. 세 module이 같은 값을 씁니다. 펼치는 방법은 infrastructure/render-config.sh에 있습니다.
 
 modules:
 
   icmp:
     prober: icmp
-    timeout: 5s
+    timeout: @CORE_PROBE_TIMEOUT_SECONDS@s
 
     icmp:
       preferred_ip_protocol: ip4
@@ -23,7 +25,7 @@ modules:
   # 연결만 확인합니다. 연결 후 주고받는 내용은 확인하지 않습니다.
   tcp_connect:
     prober: tcp
-    timeout: 5s
+    timeout: @CORE_PROBE_TIMEOUT_SECONDS@s
 
     tcp:
       preferred_ip_protocol: ip4
@@ -32,7 +34,7 @@ modules:
   # HTTPS는 별도 module 없이 URL scheme으로 구분됩니다.
   http_2xx:
     prober: http
-    timeout: 5s
+    timeout: @CORE_PROBE_TIMEOUT_SECONDS@s
 
     http:
       method: GET

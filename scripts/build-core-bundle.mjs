@@ -136,15 +136,206 @@ function imageName(name, core) {
   return `monitoring-core-${name}:${core.describe}`;
 }
 
+// 코어 서버의 .env에서 바꾸는 값이다(요구사항 0013). 허용 범위는 이미지 안의 core-settings.sh에서 읽는다.
+const CORE_SETTING_NAMES = ['CORE_RETENTION_DAYS', 'CORE_RETENTION_SIZE_GB', 'CORE_PROBE_TIMEOUT_SECONDS',
+  'CORE_PROMETHEUS_PORT', 'CORE_ALERTMANAGER_PORT', 'CORE_BLACKBOX_PORT'];
+// 호스트 포트 값마다 그 포트가 묶이는 컨테이너 안 포트다. 컨테이너 안 포트는 바뀌지 않는다.
+const HOST_PORT_TARGETS = { CORE_PROMETHEUS_PORT: 9090, CORE_ALERTMANAGER_PORT: 9093, CORE_BLACKBOX_PORT: 9115 };
+// Blackbox는 module의 timeout과 scrape_timeout에서 이 값(--timeout-offset 기본값)을 뺀 값 가운데 짧은 쪽으로 확인한다.
+const BLACKBOX_TIMEOUT_OFFSET_SECONDS = 0.5;
+// 포트 번호의 범위다. 1024 아래는 시스템이 쓰는 포트다.
+const PORT_RANGE = { min: 1024, max: 65535 };
+
+const TEMPLATES = {
+  prometheus: ['/etc/prometheus/prometheus.yml.template', '/tmp/prometheus.yml'],
+  alertmanager: ['/etc/alertmanager/alertmanager.yml.template', '/tmp/alertmanager.yml'],
+  'blackbox-exporter': ['/etc/blackbox_exporter/config.yml.template', '/tmp/blackbox.yml'],
+};
+
+// 실패해도 멈추지 않고 결과를 돌려준다. 거부해야 하는 경우를 확인할 때 쓴다.
+function runResult(command, args, { env = {} } = {}) {
+  const result = spawnSync(command, args, { cwd: ROOT, env: { ...process.env, ...env }, encoding: 'utf8' });
+  if (result.error) {
+    fail(`${command}를 실행하지 못했다: ${result.error.message}`);
+  }
+  return result;
+}
+
+// 이미지의 시작 스크립트로 템플릿을 펼친 뒤 명령을 실행한다. 설정 검사에는 token이 필요 없으므로
+// 시작할 때의 비밀값 파일 확인(CORE_REQUIRED_FILES)을 끈다.
+function renderArgs(image, name, values, command) {
+  const env = Object.entries({ MONITORING_APP_ADDRESS: CHECK_APP_ADDRESS, CORE_REQUIRED_FILES: '', ...values })
+    .flatMap(([key, value]) => ['-e', `${key}=${value}`]);
+  return ['run', '--rm', ...env, '--entrypoint', '/bin/sh', image, '/etc/core/render-config.sh', ...TEMPLATES[name], ...command];
+}
+
+function readSettingRanges(image) {
+  const out = run('docker', ['run', '--rm', '--entrypoint', '/bin/sh', image, '-c',
+    '. /etc/core/core-settings.sh && core_settings_ranges'], { capture: true });
+  const ranges = out.split(/\r?\n/).map((line) => {
+    const [name, defaultValue, min, max] = line.split('|');
+    return { name, defaultValue, min: Number(min), max: Number(max) };
+  });
+  const names = ranges.map((range) => range.name).sort();
+  if (names.join() !== [...CORE_SETTING_NAMES].sort().join()) {
+    fail(`core-settings.sh의 값 목록(${names.join(', ')})이 이 스크립트의 CORE_SETTING_NAMES와 다르다. 두 곳을 함께 고친다.`);
+  }
+  return ranges;
+}
+
+// 기본값, 허용 범위 아래 끝, 위 끝의 세 벌이다. 상한이 없는 보관 용량은 받는 가장 큰 값(9자리)을 위 끝으로 쓴다.
+function settingSets(ranges) {
+  const pick = (choose) => Object.fromEntries(ranges.map((range) => [range.name, choose(range)]));
+  return [
+    { label: '값을 모두 비움', values: pick(() => '') },
+    { label: '허용 범위 아래 끝', values: pick((range) => String(range.min)) },
+    { label: '허용 범위 위 끝', values: pick((range) => String(range.max)) },
+  ];
+}
+
+function effective(ranges, values, name) {
+  return values[name] === '' ? ranges.find((range) => range.name === name).defaultValue : values[name];
+}
+
+// Prometheus 기간 표기(예: 10s, 1m30s, 15d)를 초로 바꾼다.
+function durationSeconds(text) {
+  const units = { ms: 0.001, s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31536000 };
+  const parts = [...text.matchAll(/(\d+)(ms|s|m|h|d|w|y)/g)];
+  if (parts.length === 0 || parts.map((part) => part[0]).join('') !== text) {
+    fail(`기간 표기를 읽지 못했다: ${text}`);
+  }
+  return parts.reduce((sum, [, amount, unit]) => sum + Number(amount) * units[unit], 0);
+}
+
+// 시작 스크립트가 붙인 Prometheus 실행 인자가 이미지의 CMD 뒤에 보관 인자만 더한 것인지 본다.
+function checkPrometheusArgs(prometheus, ranges, set) {
+  const cmd = JSON.parse(run('docker', ['image', 'inspect', '-f', '{{json .Config.Cmd}}', prometheus], { capture: true }));
+  const out = run('docker', renderArgs(prometheus, 'prometheus', set.values, ['printf', 'arg:%s\\n', ...cmd]), { capture: true });
+  const args = out.split(/\r?\n/).filter((line) => line.startsWith('arg:')).map((line) => line.slice(4));
+  const size = effective(ranges, set.values, 'CORE_RETENTION_SIZE_GB');
+  const expected = [...cmd, `--storage.tsdb.retention.time=${effective(ranges, set.values, 'CORE_RETENTION_DAYS')}d`,
+    ...(size === '' ? [] : [`--storage.tsdb.retention.size=${size}GB`])];
+  if (JSON.stringify(args) !== JSON.stringify(expected)) {
+    fail(`${set.label}: Prometheus 실행 인자가 기대와 다르다. 받은 값: ${JSON.stringify(args)}, 기대: ${JSON.stringify(expected)}`);
+  }
+}
+
+// 펼친 Blackbox 설정의 module마다 timeout이 확인 제한 시간이고 자리표시가 남지 않았는지 본다.
+function checkBlackboxConfig(blackbox, ranges, set) {
+  const text = run('docker', renderArgs(blackbox, 'blackbox-exporter', set.values, ['cat', '/tmp/blackbox.yml']), { capture: true });
+  const modules = (text.match(/^\s+prober:/gm) ?? []).length;
+  const timeouts = [...text.matchAll(/^\s+timeout:\s*(\S+)\s*$/gm)].map((match) => match[1]);
+  const expected = `${effective(ranges, set.values, 'CORE_PROBE_TIMEOUT_SECONDS')}s`;
+  if (modules === 0 || timeouts.length !== modules || timeouts.some((timeout) => timeout !== expected)) {
+    fail(`${set.label}: 펼친 Blackbox 설정의 timeout이 module마다 ${expected}가 아니다. 받은 값: ${timeouts.join(', ')}`);
+  }
+  if (/@[A-Z_]+@/.test(text)) {
+    fail(`${set.label}: 펼친 Blackbox 설정에 자리표시가 남았다.`);
+  }
+}
+
+// 범위 밖이나 형식이 틀린 값이면 시작 스크립트가 원래 프로세스를 실행하지 않고, 이름과 허용 범위를 남기고 실패하는지 본다.
+function checkRejectedSettings(images) {
+  const cases = [
+    ['prometheus', 'CORE_RETENTION_DAYS', '0'],
+    ['prometheus', 'CORE_RETENTION_DAYS', '15 --web.enable-admin-api'],
+    ['prometheus', 'CORE_RETENTION_SIZE_GB', 'abc'],
+    ['blackbox-exporter', 'CORE_PROBE_TIMEOUT_SECONDS', '10'],
+    ['blackbox-exporter', 'CORE_PROBE_TIMEOUT_SECONDS', '5|g'],
+    ['blackbox-exporter', 'CORE_PROBE_TIMEOUT_SECONDS', '5&'],
+    ['blackbox-exporter', 'CORE_PROBE_TIMEOUT_SECONDS', '5\nprober: tcp'],
+  ];
+  for (const [name, setting, value] of cases) {
+    const result = runResult('docker', renderArgs(images[name], name, { [setting]: value }, ['/bin/sh', '-c', 'echo CORE_STARTED']));
+    if (result.status === 0 || result.stdout.includes('CORE_STARTED')
+      || !result.stderr.includes(setting) || !result.stderr.includes('허용 범위')) {
+      fail(`${name}의 시작 스크립트가 ${setting}=${JSON.stringify(value)}을 거부하지 않았다. 종료 코드 ${result.status}, 오류 출력: ${result.stderr.trim()}`);
+    }
+  }
+}
+
+// promtool과 amtool이 모르는 약속을 본다. 허용 범위가 이 약속을 깨면 코어가 검사를 통과한 채로 잘못 돈다.
+function checkSettingContracts(images, ranges) {
+  const range = (name) => ranges.find((item) => item.name === name);
+  const prometheusYml = run('docker', renderArgs(images.prometheus, 'prometheus', { CORE_SETTINGS: '' }, ['cat', '/tmp/prometheus.yml']),
+    { capture: true });
+  const scrapeTimeout = /^global:\s*$[\s\S]*?^\s+scrape_timeout:\s*(\S+)/m.exec(prometheusYml);
+  if (!scrapeTimeout) {
+    fail('펼친 prometheus.yml에서 전역 scrape_timeout을 찾지 못했다.');
+  }
+  const probeLimit = durationSeconds(scrapeTimeout[1]) - BLACKBOX_TIMEOUT_OFFSET_SECONDS;
+  if (range('CORE_PROBE_TIMEOUT_SECONDS').max > probeLimit) {
+    fail(`확인 제한 시간의 상한(${range('CORE_PROBE_TIMEOUT_SECONDS').max}초)이 scrape_timeout(${scrapeTimeout[1]})에서 ${BLACKBOX_TIMEOUT_OFFSET_SECONDS}초를 뺀 ${probeLimit}초보다 길다.`);
+  }
+  const rules = run('docker', ['run', '--rm', '--entrypoint', '/bin/sh', images.prometheus, '-c', 'cat /etc/prometheus/rules/*.yml'],
+    { capture: true });
+  const longestRange = Math.max(0, ...[...rules.matchAll(/\[((?:\d+(?:ms|s|m|h|d|w|y))+)(?::[^\]]*)?\]/g)].map((match) => durationSeconds(match[1])));
+  if (range('CORE_RETENTION_DAYS').min * 86400 <= longestRange) {
+    fail(`보관 기간의 하한(${range('CORE_RETENTION_DAYS').min}일)이 규칙이 읽는 가장 긴 범위(${longestRange}초)보다 길지 않다.`);
+  }
+  const ports = ranges.filter((item) => HOST_PORT_TARGETS[item.name]);
+  for (const port of ports) {
+    if (port.min < PORT_RANGE.min || port.max > PORT_RANGE.max) {
+      fail(`${port.name}의 허용 범위(${port.min}~${port.max})가 ${PORT_RANGE.min}~${PORT_RANGE.max} 밖이다.`);
+    }
+  }
+  if (new Set(ports.map((port) => port.defaultValue)).size !== ports.length) {
+    fail('세 호스트 포트의 기본값이 서로 다르지 않다.');
+  }
+}
+
+// Compose가 펼친 모든 ports의 host_ip가 127.0.0.1이고 호스트 포트가 설정 값인지 본다.
+// 운영 명령 없이 띄울 때는 포트 범위를 검사하지 않으므로(요구사항 0013의 S11) 바인딩 주소만은 파일이 지킨다.
+function checkPortBindings(composeFile, projectDir, ranges) {
+  const portRanges = ranges.filter((range) => HOST_PORT_TARGETS[range.name]);
+  for (const set of settingSets(portRanges)) {
+    const result = runResult('docker', ['compose', '--project-directory', projectDir, '-f', composeFile, 'config', '--format', 'json'],
+      { env: { MONITORING_APP_ADDRESS: CHECK_APP_ADDRESS, ...set.values } });
+    if (result.status !== 0) {
+      fail(`${set.label}: ${composeFile}을 Compose가 읽지 못했다: ${result.stderr.trim()}`);
+    }
+    const ports = Object.values(JSON.parse(result.stdout).services).flatMap((service) => service.ports ?? []);
+    const expected = Object.fromEntries(portRanges.map((range) =>
+      [HOST_PORT_TARGETS[range.name], effective(portRanges, set.values, range.name)]));
+    const published = Object.fromEntries(ports.map((port) => [port.target, String(port.published)]));
+    if (ports.some((port) => port.host_ip !== '127.0.0.1')) {
+      fail(`${set.label}: ${composeFile}에 127.0.0.1이 아닌 주소에 여는 포트가 있다: ${JSON.stringify(ports)}`);
+    }
+    if (ports.length !== portRanges.length || JSON.stringify(published, Object.keys(expected).sort())
+      !== JSON.stringify(expected, Object.keys(expected).sort())) {
+      fail(`${set.label}: ${composeFile}의 호스트 포트가 기대와 다르다. 받은 값: ${JSON.stringify(published)}, 기대: ${JSON.stringify(expected)}`);
+    }
+  }
+}
+
 function checkCoreImages(core) {
-  const prometheus = imageName('prometheus', core);
-  const alertmanager = imageName('alertmanager', core);
-  // 설정 검사에는 token이 필요 없으므로 시작할 때의 비밀값 파일 확인(CORE_REQUIRED_FILES)을 끈다.
-  const env = ['-e', `MONITORING_APP_ADDRESS=${CHECK_APP_ADDRESS}`, '-e', 'CORE_REQUIRED_FILES='];
-  console.log('빌드한 이미지로 Prometheus 설정을 검사한다.');
-  run('docker', ['run', '--rm', ...env, '--entrypoint', '/bin/sh', prometheus,
-    '/etc/core/render-config.sh', '/etc/prometheus/prometheus.yml.template', '/tmp/prometheus.yml',
-    'promtool', 'check', 'config', '/tmp/prometheus.yml']);
+  const images = Object.fromEntries(CORE_IMAGES.map((name) => [name, imageName(name, core)]));
+  const { prometheus, alertmanager } = images;
+  const ranges = readSettingRanges(prometheus);
+  // 세 이미지의 시작 스크립트는 같은 core-settings.sh를 읽어야 한다.
+  for (const name of ['alertmanager', 'blackbox-exporter']) {
+    if (JSON.stringify(readSettingRanges(images[name])) !== JSON.stringify(ranges)) {
+      fail(`${images[name]}의 core-settings.sh가 Prometheus 이미지의 것과 다르다.`);
+    }
+  }
+  console.log('설정 값의 허용 범위가 코어의 약속(확인 제한 시간, 규칙의 범위, 포트)을 지키는지 확인한다.');
+  checkSettingContracts(images, ranges);
+  for (const set of settingSets(ranges)) {
+    console.log(`빌드한 이미지로 설정을 검사한다(${set.label}): ${Object.entries(set.values).map(([key, value]) => `${key}=${value}`).join(' ')}`);
+    // 보관 값은 설정 파일이 아니라 실행 인자로 붙고 promtool은 그 인자를 받지 않으므로, 설정 파일 검사에서는 펼치지 않는다.
+    // 실행 인자는 checkPrometheusArgs가 따로 본다.
+    run('docker', renderArgs(prometheus, 'prometheus', { ...set.values, CORE_SETTINGS: '' },
+      ['promtool', 'check', 'config', '/tmp/prometheus.yml']));
+    checkPrometheusArgs(prometheus, ranges, set);
+    run('docker', renderArgs(alertmanager, 'alertmanager', set.values, ['amtool', 'check-config', '/tmp/alertmanager.yml']));
+    run('docker', renderArgs(images['blackbox-exporter'], 'blackbox-exporter', set.values,
+      ['/bin/blackbox_exporter', '--config.file=/tmp/blackbox.yml', '--config.check']));
+    checkBlackboxConfig(images['blackbox-exporter'], ranges, set);
+  }
+  console.log('범위 밖이나 형식이 틀린 설정 값을 시작 스크립트가 거부하는지 확인한다.');
+  checkRejectedSettings(images);
+  console.log('compose.yml의 포트가 127.0.0.1에만 열리는지 확인한다.');
+  checkPortBindings(CORE_COMPOSE, CORE_DIR, ranges);
   // 테스트 파일은 ../rules/를 읽으므로 이미지 안의 규칙 바로 옆에 붙여, 이미지에 들어간 규칙을 그대로 시험한다.
   console.log('빌드한 이미지의 규칙으로 규칙 테스트를 실행한다.');
   const tests = path.join(CORE_DIR, 'prometheus', 'tests');
@@ -152,15 +343,12 @@ function checkCoreImages(core) {
     run('docker', ['run', '--rm', '-v', `${tests}:/etc/prometheus/tests:ro`, '-w', '/etc/prometheus/tests',
       '--entrypoint', 'promtool', prometheus, 'test', 'rules', testFile]);
   }
-  console.log('빌드한 이미지로 Alertmanager 설정을 검사한다.');
-  run('docker', ['run', '--rm', ...env, '--entrypoint', '/bin/sh', alertmanager,
-    '/etc/core/render-config.sh', '/etc/alertmanager/alertmanager.yml.template', '/tmp/alertmanager.yml',
-    'amtool', 'check-config', '/tmp/alertmanager.yml']);
   // 코어 서버의 sh가 BusyBox일 수도 있어, 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
   // 확인 질문 시험이 가상 터미널을 여는데, 이미지의 기본 사용자(nobody)는 열 수 없어 root로 실행한다.
   console.log('코어 서버 운영 명령(core-server.sh)의 자동 시험을 실행한다.');
   run('docker', ['run', '--rm', '--user', '0', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', prometheus,
     '/src/tests/core-server.test.sh', '/src/core-server.sh']);
+  return ranges;
 }
 
 // 저장소에서는 infrastructure/secrets/를 쓰고, 묶음은 버전 폴더가 바뀌어도 같은 token을 쓰도록 설치 폴더의 secrets/를 쓴다(요구사항 0011).
@@ -226,10 +414,12 @@ function runtimeCompose(core) {
   return text;
 }
 
-// 만든 실행용 compose 파일을 Compose가 실제로 읽을 수 있는지 확인한다. 깨진 파일이 내부망 서버에서야 드러나지 않게 한다.
-function validateRuntimeCompose(dir) {
+// 만든 실행용 compose 파일을 Compose가 실제로 읽을 수 있는지, 포트가 127.0.0.1에만 열리는지 확인한다.
+// 깨진 파일이 내부망 서버에서야 드러나지 않게 한다.
+function validateRuntimeCompose(dir, ranges) {
   run('docker', ['compose', '--project-directory', dir, '-f', path.join(dir, 'compose.yml'), 'config', '--quiet'],
     { env: { MONITORING_APP_ADDRESS: CHECK_APP_ADDRESS } });
+  checkPortBindings(path.join(dir, 'compose.yml'), dir, ranges);
 }
 
 // infrastructure/secrets/의 실제 비밀값이다. Docker가 없는 secret 자리에 만든 폴더는 건너뛴다. 값은 출력하지 않는다.
@@ -295,7 +485,7 @@ async function buildCoreBundle(core) {
 
   console.log(`코어 이미지를 빌드한다(버전 ${core.describe}, ${PLATFORM}).`);
   run('docker', ['compose', '-f', CORE_COMPOSE, 'build', '--pull'], { env: composeEnv(core) });
-  checkCoreImages(core);
+  const ranges = checkCoreImages(core);
   const images = CORE_IMAGES.map((name) => imageName(name, core));
   const secrets = localSecretValues();
   assertImagesHaveNoSecrets(images, secrets);
@@ -304,7 +494,7 @@ async function buildCoreBundle(core) {
   run('docker', ['save', '-o', path.join(out, 'core-images.tar'), ...images]);
 
   writeText(path.join(out, 'compose.yml'), runtimeCompose(core));
-  validateRuntimeCompose(out);
+  validateRuntimeCompose(out, ranges);
   writeText(path.join(out, '.env.example'), forBundle(fs.readFileSync(path.join(CORE_DIR, '.env.example'), 'utf8')));
   // token은 core-server.sh install이 설치 폴더에 만들므로 묶음에는 token 예시를 싣지 않는다.
   writeText(path.join(out, 'core-server.sh'), fs.readFileSync(path.join(CORE_DIR, 'core-server.sh'), 'utf8'));

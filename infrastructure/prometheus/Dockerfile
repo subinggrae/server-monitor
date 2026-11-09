@@ -2,6 +2,7 @@
 #
 # 빌드 context는 infrastructure/입니다. 비밀값은 .dockerignore로 빠집니다.
 # 앱 주소(MONITORING_APP_ADDRESS)는 컨테이너가 시작할 때 받아 render-config.sh가 설정에 펼칩니다.
+# 기록 보관 기간과 용량도 코어 서버의 .env에서 받아, render-config.sh가 검사한 뒤 실행 인자로 덧붙입니다. (요구사항 0013)
 # 바탕 이미지는 태그와 digest로 고정합니다. 버전을 올릴 때 둘을 함께 바꿉니다.
 FROM quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
 
@@ -15,9 +16,12 @@ LABEL org.opencontainers.image.title="monitoring-core-prometheus" \
       monitoring-core.commit-time="${CORE_COMMIT_TIME}" \
       org.opencontainers.image.source="https://github.com/subinggrae/server-monitor"
 
-COPY render-config.sh /etc/core/render-config.sh
+# render-config.sh가 검사해 펼칠 코어 설정 값의 이름입니다. 값은 이미지에 넣지 않고 컨테이너 환경 변수로 받습니다.
+ENV CORE_SETTINGS="CORE_RETENTION_DAYS CORE_RETENTION_SIZE_GB"
+
+COPY render-config.sh core-settings.sh /etc/core/
 COPY prometheus/prometheus.yml /etc/prometheus/prometheus.yml.template
 COPY prometheus/rules/ /etc/prometheus/rules/
 
 ENTRYPOINT ["/bin/sh", "/etc/core/render-config.sh", "/etc/prometheus/prometheus.yml.template", "/tmp/prometheus.yml", "/bin/prometheus"]
-CMD ["--config.file=/tmp/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=15d"]
+CMD ["--config.file=/tmp/prometheus.yml", "--storage.tsdb.path=/prometheus"]

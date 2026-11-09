@@ -4,6 +4,8 @@
 #   core-dev.bat start      (Windows. 직접 실행하면 docker compose -f infrastructure/compose.yml up -d --build)
 #
 # 설정과 규칙은 이미지에 들어 있습니다. 바꾸면 이미지를 다시 빌드해 띄웁니다. (docs/decisions/0009)
+# 기록 보관 기간·용량, 확인 제한 시간, 호스트 포트는 다시 빌드하지 않고 .env에서 바꿉니다. 이름과 허용 범위는 .env.example에 있습니다.
+# 호스트 포트는 바꿔도 127.0.0.1에만 열리고, 컨테이너 안 포트(관리자 서버와 코어끼리 부르는 포트)는 바뀌지 않습니다.
 # 내부망 서버용 실행 파일은 scripts/build-core-bundle.mjs가 이 파일에서 build 항목과 token 폴더 기본값만 바꿔 만듭니다.
 #
 # 앱 없이 띄우면 감시 대상 없이 떠 있다가, 앱이 뜨면 다음 HTTP SD 갱신 때 대상을 받습니다.
@@ -11,10 +13,10 @@
 
 name: monitoring-core
 
-x-render-config: &render-config
-  # 이미지의 render-config.sh가 이 주소를 설정 템플릿에 펼친 뒤 원래 프로세스를 실행합니다.
-  environment:
-    MONITORING_APP_ADDRESS: ${MONITORING_APP_ADDRESS:?MONITORING_APP_ADDRESS가 필요합니다. infrastructure/.env.example을 참고해 주세요.}
+# 이미지의 render-config.sh가 컨테이너 환경 변수를 검사해 설정 템플릿과 실행 인자에 펼친 뒤 원래 프로세스를 실행합니다.
+# 서비스의 environment 안에서 <<:로 합치고, 그 서비스만 쓰는 값을 더합니다.
+x-app-address: &app-address
+  MONITORING_APP_ADDRESS: ${MONITORING_APP_ADDRESS:?MONITORING_APP_ADDRESS가 필요합니다. infrastructure/.env.example을 참고해 주세요.}
 
 x-core-build-args: &core-build-args
   CORE_VERSION: ${CORE_VERSION:-dev}
@@ -32,8 +34,11 @@ services:
     container_name: blackbox-exporter
     restart: unless-stopped
 
+    environment:
+      CORE_PROBE_TIMEOUT_SECONDS: ${CORE_PROBE_TIMEOUT_SECONDS:-}
+
     ports:
-      - "127.0.0.1:9115:9115"
+      - "127.0.0.1:${CORE_BLACKBOX_PORT:-9115}:9115"
 
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9115/-/healthy"]
@@ -45,7 +50,6 @@ services:
       - monitoring
 
   prometheus:
-    <<: *render-config
     build:
       context: .
       dockerfile: prometheus/Dockerfile
@@ -54,8 +58,13 @@ services:
     container_name: prometheus
     restart: unless-stopped
 
+    environment:
+      <<: *app-address
+      CORE_RETENTION_DAYS: ${CORE_RETENTION_DAYS:-}
+      CORE_RETENTION_SIZE_GB: ${CORE_RETENTION_SIZE_GB:-}
+
     ports:
-      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:${CORE_PROMETHEUS_PORT:-9090}:9090"
 
     volumes:
       - prometheus-data:/prometheus
@@ -70,7 +79,6 @@ services:
       - monitoring
 
   alertmanager:
-    <<: *render-config
     build:
       context: .
       dockerfile: alertmanager/Dockerfile
@@ -79,8 +87,11 @@ services:
     container_name: alertmanager
     restart: unless-stopped
 
+    environment:
+      <<: *app-address
+
     ports:
-      - "127.0.0.1:9093:9093"
+      - "127.0.0.1:${CORE_ALERTMANAGER_PORT:-9093}:9093"
 
     volumes:
       - alertmanager-data:/alertmanager
