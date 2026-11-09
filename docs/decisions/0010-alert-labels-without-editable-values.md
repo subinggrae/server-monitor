@@ -32,4 +32,4 @@ Alert 규칙과 Alertmanager `group_by`에서만 이름과 환경을 뺀다. 장
 
 - `infrastructure/prometheus/tests/monitoring-checks.test.yml`(`promtool test rules`): 이름과 환경이 바뀌어도 Alert가 이어지고, Alert label에 두 label이 없다.
 - `amtool check-config`와 리뷰에서 확인: `group_by`에 사용자가 바꾸는 label이 없다.
-- `AlertEventServiceTest`: 알림의 환경은 webhook label이 아니라 DB 값이다.
+- 리뷰에서 확인: [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에 알림의 이름과 환경을 webhook label이 아니라 DB 값으로 채우라고 적혀 있다. 이 저장소의 Manager를 고치지 않기로 해 `AlertEventServiceTest`는 쓰지 않는다(사람 확인: 2026-11-09).

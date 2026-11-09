@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 작성일: 2026-10-29
-- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md)
+- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md)
 
 ## 배경
 
@@ -31,9 +31,8 @@
 ## 목표
 
 - 대상이 계속 실패하는 동안 사용자가 감시 항목의 이름이나 환경을 바꿔도 장애는 하나로 이어진다. 복구 알림과 새 장애 알림이 가지 않고, 장애 기록도 하나로 남는다.
-- 알림 메시지의 감시 항목 이름과 환경은 알림을 보내는 시점의 Manager Database 값이다.
-- `BlackboxServiceDiscoveryService`의 주석과 [INTEGRATION.md](../INTEGRATION.md)의 label 설명이 실제 동작과 맞는다.
-- 장애 목록 화면에는 장애마다 감시 항목 이름이 Manager Database의 지금 값으로 보인다. Alert에서 이름을 빼도 목록에서 어느 감시 항목의 장애인지 알 수 있다(사람 확인: 2026-10-29).
+- 관리자 서버를 만드는 개발자가 알림의 감시 항목 이름과 환경을 Alert label이 아니라 알림을 보내는 시점의 자기 DB 값으로 채워야 한다는 것을 [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에서 알 수 있다.
+- [INTEGRATION.md](../INTEGRATION.md)의 label 설명이 실제 동작과 맞는다.
 
 ## 하지 않는 것
 
@@ -43,15 +42,20 @@
 - 장애 판단 규칙(`for: 1m` 등)을 바꾸는 것. 장애 판단은 코어가 정한다([ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계)).
 - OS exporter SD의 `server_name`, `environment`를 바꾸는 것. OS exporter에는 Alert 규칙이 없고, 앱이 읽는 recording rule은 id만 쓰며, Grafana에서 서버를 이름으로 보려면 이 label이 필요하다(사람 확인: 2026-10-29).
 - 대시보드와 감시 항목 상세가 함께 쓰는 최근 장애 표(`RecentAlertTable`)에 이름을 보이는 것. 이 변경 뒤에는 이 표의 장애 내용에서 이름이 빠진다. 화면 목록을 다시 정할 예정이라 이번에는 고치지 않는다(사람 확인: 2026-10-29).
+- 이 저장소의 Manager(`backend/`, `frontend/`)를 고치는 것. 관리자 서버의 API와 웹은 다른 웹에서 만든다(사람 확인: 2026-11-09). 그래서 다음은 이번에 하지 않는다. 이 저장소의 Manager는 참고용 앱으로 남는다.
+  - S6~S8. 장애 목록 화면의 내용 칸에 감시 항목 이름을 Manager Database의 지금 값으로 먼저 보이고(상세 화면 링크), 그 아래에 장애 내용을 보이는 것. 이름을 찾을 수 없으면 `찾을 수 없는 감시 항목`을 링크 없이 보이는 것. 이 변경 뒤에는 Manager의 장애 목록 내용 칸에서도 이름이 빠진다.
+  - C3. Telegram 메시지의 이름과 환경이 알림을 보낼 때의 Manager Database 값인지 `AlertEventService`, `AlertMessageFormatter` 단위 테스트로 확인하는 것. 관리자 서버가 지켜야 할 동작은 C11의 문서로 알린다.
+  - C7. 지운 감시 항목의 복구 Alert가 기록만 남는지 새 `AlertEventService` 단위 테스트로 확인하는 것
+  - C8. `GET /api/alerts`의 항목마다 Manager Database의 지금 감시 항목 이름(`checkName`)을 주는 것
+  - C9, C10. C8의 이름을 장애 목록 화면에 보이는 컴포넌트 테스트와 기준 폭의 화면 검사
+  - `BlackboxServiceDiscoveryService`의 label 주석을 실제 동작에 맞추는 것
 
 ## 사용자 경험
 
-1. 사용자가 장애가 이어지는 감시 항목의 상세 화면에서 이름이나 환경을 고쳐 저장한다.
+1. 사용자가 관리자 서버에서 장애가 이어지는 감시 항목의 이름이나 환경을 고쳐 저장한다.
 2. 받는 그룹에는 복구 알림이나 새 장애 알림이 가지 않는다.
-3. 재발송 주기가 지나 다시 가는 장애 알림에는 새 이름과 새 환경이 보인다.
-4. 장애 목록에는 그 장애가 처음 시작한 시각의 장애 하나로 보인다. 내용 칸에는 감시 항목의 새 이름이 보인다.
-5. 사용자가 장애 목록을 열면 장애마다 감시 항목 이름을 먼저 읽고, 그 아래의 장애 내용(예: `https://example.com/health 확인에 실패했습니다`)으로 어느 주소가 실패했는지 본다. 이름을 누르면 그 감시 항목의 상세 화면으로 간다.
-6. 지운 감시 항목의 장애는 이름 대신 `찾을 수 없는 감시 항목`이 보이고, 누를 수 없다.
+3. 재발송 주기가 지나 다시 가는 장애 알림에는 새 이름과 새 환경이 보인다. 관리자 서버가 이름과 환경을 자기 DB에서 채우기 때문이다.
+4. 관리자 서버의 장애 기록에는 그 장애가 처음 시작한 시각의 장애 하나로 남는다.
 
 ## 동작
 
@@ -74,30 +78,17 @@
   - 행동: 이 변경을 배포한다.
   - 결과: Alert의 label 집합이 한 번 바뀌므로 이어지던 장애가 한 번 복구됐다가 새 장애로 다시 생긴다. SD label은 바뀌지 않으므로 쌓인 time series는 이어진다. 이 영향은 피할 수 없어 받아들이고, 운영 가이드에 이 영향과 장애가 적은 시간에 배포하라는 안내를 적는다(사람 확인: 2026-10-29).
 
-- **S6. 장애 목록에서 감시 항목 이름 보기**
-  - 상황: 장애 기록이 있는 감시 항목이 Manager Database에 있다.
-  - 행동: 사용자가 장애 목록 화면을 연다.
-  - 결과: 장애마다 내용 칸에 감시 항목 이름이 먼저 보이고, 그 아래에 장애 내용(summary, 없으면 규칙 이름)이 흐린 글자로 보인다. 이름은 그 감시 항목의 상세 화면으로 가는 링크다. 이름이 길면 줄을 바꿔 모두 보인다.
-- **S7. 이름을 바꾼 뒤 장애 목록 보기**
-  - 상황: 사용자가 감시 항목의 이름을 바꿨다. 그 감시 항목에는 이름을 바꾸기 전에 시작한 장애 기록이 있다.
-  - 행동: 사용자가 장애 목록 화면을 연다.
-  - 결과: 바꾸기 전에 시작한 기록과 이어지는 기록 모두 새 이름으로 보인다. 이름은 기록에 저장하지 않고 목록을 줄 때 Manager Database에서 읽는다.
-
 ### 예외 동작
 
 - **S5. 지운 감시 항목의 장애**
   - 상황: 장애가 이어지는 감시 항목을 지운다.
   - 행동: Alertmanager가 그 감시 항목의 복구 Alert를 보낸다.
-  - 결과: 지금처럼 기록만 남기고 알리지 않는다.
-- **S8. 이름을 찾을 수 없는 장애**
-  - 상황: 장애 기록의 감시 항목을 지웠거나, Alert에 `check_id`가 없어 기록에 감시 항목이 없다.
-  - 행동: 사용자가 장애 목록 화면을 연다.
-  - 결과: 장애 목록 응답의 감시 항목 이름은 비어 있다. 화면은 이름 자리에 `찾을 수 없는 감시 항목`을 흐린 글자로 보이고 링크를 걸지 않는다. 장애 내용은 S6과 같게 보인다. 지금은 지운 감시 항목의 장애도 상세 화면으로 링크해, 누르면 없는 화면이 열린다.
+  - 결과: 지금처럼 기록만 남기고 알리지 않는다. 이 동작은 [INTEGRATION.md](../INTEGRATION.md)의 처리 순서에 이미 있고, 이 변경은 Alert의 `check_id` label을 바꾸지 않는다.
 
 ### 보안
 
-- 접근 권한: 바뀌지 않는다. 화면용 API에는 인증이 없고 포트를 `127.0.0.1`에만 묶는다. Alertmanager webhook은 Bearer token으로 확인한다.
-- 외부 입력: 바뀌지 않는다. Alertmanager webhook 요청의 label 값이 줄어들 뿐이다. 장애 목록 화면에 보이는 이름은 사용자가 입력한 값이라, 지금 화면의 다른 값처럼 React의 기본 escape로 보인다.
+- 접근 권한: 바뀌지 않는다. Alertmanager webhook은 Bearer token으로 확인한다.
+- 외부 입력: 바뀌지 않는다. Alertmanager webhook 요청의 label 값이 줄어들 뿐이다.
 - 민감한 정보: 없음
 - 남길 보안 이벤트: 없음
 
@@ -108,20 +99,16 @@
 - Alertmanager의 `group_wait`, `group_interval`, `repeat_interval`, 복구 Alert 전송
 - 장애를 `fingerprint`와 `startsAt`으로 구분하는 방식과 재발송 판단([ADR 0001](../decisions/0001-alert-repeat-in-manager.md))
 - 한 감시 항목의 여러 대상 Alert가 한 webhook 요청으로 묶여 오는 것
-- 장애 목록의 상태 필터, 정렬, 다른 열, `GET /api/alerts`의 기존 필드
+- 이 저장소의 Manager 코드(`backend/`, `frontend/`)
 
 ## 완료 기준
 
 - [ ] C1. 장애가 이어지는 감시 항목의 이름을 바꿔도 Alertmanager의 그 Alert fingerprint와 `startsAt`이 그대로이고, Manager에 복구 webhook이 오지 않는다. (S1) — 확인: 개발 환경에서 이번 배경과 같은 절차로 수동 확인
 - [ ] C2. 장애가 이어지는 감시 항목의 환경을 바꿔도 C1과 같다. (S2) — 확인: C1과 같은 수동 확인
-- [ ] C3. Telegram 메시지의 감시 항목 이름과 환경은 알림을 보낼 때의 Manager Database 값이다. (S1, S2, S3) — 확인: `AlertEventService`와 `AlertMessageFormatter` 단위 테스트
 - [ ] C4. Alert 규칙 파일의 label과 annotation이 바뀐 계약대로이고, `promtool test rules`가 통과한다. (S1, S2) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트
 - [ ] C5. `alertmanager.yml`의 `group_by`가 이름과 환경을 쓰지 않고, 한 감시 항목의 여러 대상 Alert가 여전히 한 요청으로 묶인다. (S1, S2) — 확인: `amtool check-config`와 수동 확인
-- [ ] C6. `BlackboxServiceDiscoveryService`의 주석, [INTEGRATION.md](../INTEGRATION.md)의 SD label 표와 Alert label 표, [OPERATIONS.md](../OPERATIONS.md)의 예시가 실제 label과 맞고, 배포 때의 1회성 영향이 운영 가이드에 있다. (S4) — 확인: 리뷰
-- [ ] C7. 지운 감시 항목의 복구 Alert는 기록만 남고 알림이 가지 않는다. (S5) — 확인: 새로 쓰는 `AlertEventService` 단위 테스트(지금은 이 클래스의 테스트가 없다)
-- [ ] C8. `GET /api/alerts`의 항목마다 `checkName`이 기록의 `check_id`로 찾은 Manager Database의 지금 이름이고, 감시 항목을 찾을 수 없으면 `null`이다. 이름을 바꾸면 이미 있는 기록에도 새 이름이 온다. (S6, S7, S8) — 확인: `AlertEventService` 단위 테스트
-- [ ] C9. 장애 목록 화면의 내용 칸에 이름이 링크로 먼저 보이고 그 아래에 장애 내용이 보이며, 이름이 없으면 `찾을 수 없는 감시 항목`이 링크 없이 보인다. (S6, S8) — 확인: `AlertListPage` 컴포넌트 테스트
-- [ ] C10. 장애 목록 화면이 기준 폭(1280×800, 1920×1080)과 밝은·다크 모드에서 접근성 위반과 가로 넘침이 없고, 100자 이름에서도 깨지지 않는다. (S6, S8) — 확인: `npm run test:screen`과 [REVIEW.md의 화면 점검](../design/REVIEW.md#화면-점검)
+- [ ] C6. [INTEGRATION.md](../INTEGRATION.md)의 SD label 표와 Alert label 표, webhook 예시, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 예시가 실제 label과 맞고, 배포 때의 1회성 영향이 [운영 가이드](../OPERATIONS.md)에 있다. (S4) — 확인: 리뷰
+- [ ] C11. [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에 관리자 서버가 알림의 감시 항목 이름과 환경을 Alert label이 아니라 `check_id`로 찾은 자기 DB 값으로 채워야 한다고 적혀 있다. (S1, S2, S3) — 확인: 리뷰
 
 ## 확인 필요
 
