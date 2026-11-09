@@ -16,7 +16,7 @@ modules:
 
   icmp:
     prober: icmp
-    timeout: @CORE_PROBE_TIMEOUT_SECONDS@s
+    timeout: @CORE_PROBE_TIMEOUT_SECONDS@
 
     icmp:
       preferred_ip_protocol: ip4
@@ -25,7 +25,7 @@ modules:
   # 연결만 확인합니다. 연결 후 주고받는 내용은 확인하지 않습니다.
   tcp_connect:
     prober: tcp
-    timeout: @CORE_PROBE_TIMEOUT_SECONDS@s
+    timeout: @CORE_PROBE_TIMEOUT_SECONDS@
 
     tcp:
       preferred_ip_protocol: ip4
@@ -34,7 +34,7 @@ modules:
   # HTTPS는 별도 module 없이 URL scheme으로 구분됩니다.
   http_2xx:
     prober: http
-    timeout: @CORE_PROBE_TIMEOUT_SECONDS@s
+    timeout: @CORE_PROBE_TIMEOUT_SECONDS@
 
     http:
       method: GET

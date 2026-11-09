@@ -52,10 +52,11 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 
 - 서버에서 바꾸는 코어 값의 약속 검사. 이미지 안의 `infrastructure/core-settings.sh`에서 허용 범위를 읽어, 확인 제한 시간의 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값 이하인지, 보관 기간의 하한이 규칙이 읽는 가장 긴 범위보다 긴지, 포트 범위가 1024~65535 안이고 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모른다
 - 값 세 벌(모두 비움, 허용 범위 아래 끝, 위 끝)마다 다음 검사
-  - 앱 주소를 펼친 Prometheus 설정 검사(`promtool check config`)와, 시작 스크립트가 만든 Prometheus 실행 인자가 이미지의 `CMD`에 보관 인자만 더한 것인지 확인
+  - 앱 주소를 펼친 Prometheus 설정 검사(`promtool check config`)와, 시작 스크립트가 Prometheus 실행 인자를 이미지의 `CMD` 그대로 두는지, 펼친 `prometheus.yml`의 보관 항목이 보관 기간·용량인지 확인
   - 앱 주소를 펼친 Alertmanager 설정 검사(`amtool check-config`)
   - 펼친 Blackbox 설정 검사(`blackbox_exporter --config.check`)와, module마다 `timeout`이 확인 제한 시간인지 확인
 - 범위 밖이거나 형식이 틀린 값(`0`, `abc`, `10`, 줄바꿈, `|`, `&`, 공백과 다른 인자)을 시작 스크립트가 거부하고 원래 프로세스를 실행하지 않는지 확인
+- 형식(`컨테이너 이름:포트`)에 맞지 않는 관리자 서버 주소를 Prometheus와 Alertmanager의 시작 스크립트가 거부하고 원래 프로세스를 실행하지 않는지 확인
 - `infrastructure/compose.yml`의 모든 포트가 값 세 벌에서 `127.0.0.1`에만 열리는지 확인. 묶음을 만들 때는 실행용 `compose.yml`도 같은 확인을 한다
 - 이미지에 든 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
 - 코어 서버 운영 명령(`infrastructure/core-server.sh`)의 자동 시험(`infrastructure/tests/core-server.test.sh`). 이미지에 든 BusyBox `sh`에서 가짜 `docker`, `systemctl`로 실행한다

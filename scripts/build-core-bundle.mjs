@@ -207,16 +207,27 @@ function durationSeconds(text) {
   return parts.reduce((sum, [, amount, unit]) => sum + Number(amount) * units[unit], 0);
 }
 
-// 시작 스크립트가 붙인 Prometheus 실행 인자가 이미지의 CMD 뒤에 보관 인자만 더한 것인지 본다.
-function checkPrometheusArgs(prometheus, ranges, set) {
+// 시작 스크립트가 Prometheus 실행 인자를 더하지 않고 이미지의 CMD 그대로 실행하는지 본다. 값이 인자를 더할 길이 없게 하기 위해서다.
+function checkPrometheusArgs(prometheus, set) {
   const cmd = JSON.parse(run('docker', ['image', 'inspect', '-f', '{{json .Config.Cmd}}', prometheus], { capture: true }));
   const out = run('docker', renderArgs(prometheus, 'prometheus', set.values, ['printf', 'arg:%s\\n', ...cmd]), { capture: true });
   const args = out.split(/\r?\n/).filter((line) => line.startsWith('arg:')).map((line) => line.slice(4));
+  if (JSON.stringify(args) !== JSON.stringify(cmd)) {
+    fail(`${set.label}: Prometheus 실행 인자가 이미지의 CMD와 다르다. 받은 값: ${JSON.stringify(args)}, 기대: ${JSON.stringify(cmd)}`);
+  }
+}
+
+// 펼친 prometheus.yml의 보관 항목(storage.tsdb.retention)이 보관 기간과 용량인지 본다. 용량이 비면 0B(제한 없음)다.
+function checkPrometheusRetention(prometheus, ranges, set) {
+  const text = run('docker', renderArgs(prometheus, 'prometheus', set.values, ['cat', '/tmp/prometheus.yml']), { capture: true });
   const size = effective(ranges, set.values, 'CORE_RETENTION_SIZE_GB');
-  const expected = [...cmd, `--storage.tsdb.retention.time=${effective(ranges, set.values, 'CORE_RETENTION_DAYS')}d`,
-    ...(size === '' ? [] : [`--storage.tsdb.retention.size=${size}GB`])];
-  if (JSON.stringify(args) !== JSON.stringify(expected)) {
-    fail(`${set.label}: Prometheus 실행 인자가 기대와 다르다. 받은 값: ${JSON.stringify(args)}, 기대: ${JSON.stringify(expected)}`);
+  const expected = { time: `${effective(ranges, set.values, 'CORE_RETENTION_DAYS')}d`, size: size === '' ? '0B' : `${size}GB` };
+  const found = /^storage:\s*\n\s+tsdb:\s*\n\s+retention:\s*\n\s+time:\s*(\S+)\s*\n\s+size:\s*(\S+)\s*$/m.exec(text);
+  if (!found || (text.match(/^\s+retention:/gm) ?? []).length !== 1 || found[1] !== expected.time || found[2] !== expected.size) {
+    fail(`${set.label}: 펼친 prometheus.yml의 보관 항목이 time ${expected.time}, size ${expected.size}가 아니다. 받은 값: ${found ? `${found[1]}, ${found[2]}` : '찾지 못함'}`);
+  }
+  if (/@[A-Z_]+@/.test(text)) {
+    fail(`${set.label}: 펼친 prometheus.yml에 자리표시가 남았다.`);
   }
 }
 
@@ -275,8 +286,7 @@ function checkRejectedAddresses(images) {
 // promtool과 amtool이 모르는 약속을 본다. 허용 범위가 이 약속을 깨면 코어가 검사를 통과한 채로 잘못 돈다.
 function checkSettingContracts(images, ranges) {
   const range = (name) => ranges.find((item) => item.name === name);
-  const prometheusYml = run('docker', renderArgs(images.prometheus, 'prometheus', { CORE_SETTINGS: '' }, ['cat', '/tmp/prometheus.yml']),
-    { capture: true });
+  const prometheusYml = run('docker', renderArgs(images.prometheus, 'prometheus', {}, ['cat', '/tmp/prometheus.yml']), { capture: true });
   const scrapeTimeout = /^global:\s*$[\s\S]*?^\s+scrape_timeout:\s*(\S+)/m.exec(prometheusYml);
   if (!scrapeTimeout) {
     fail('펼친 prometheus.yml에서 전역 scrape_timeout을 찾지 못했다.');
@@ -340,11 +350,9 @@ function checkCoreImages(core) {
   checkSettingContracts(images, ranges);
   for (const set of settingSets(ranges)) {
     console.log(`빌드한 이미지로 설정을 검사한다(${set.label}): ${Object.entries(set.values).map(([key, value]) => `${key}=${value}`).join(' ')}`);
-    // 보관 값은 설정 파일이 아니라 실행 인자로 붙고 promtool은 그 인자를 받지 않으므로, 설정 파일 검사에서는 펼치지 않는다.
-    // 실행 인자는 checkPrometheusArgs가 따로 본다.
-    run('docker', renderArgs(prometheus, 'prometheus', { ...set.values, CORE_SETTINGS: '' },
-      ['promtool', 'check', 'config', '/tmp/prometheus.yml']));
-    checkPrometheusArgs(prometheus, ranges, set);
+    run('docker', renderArgs(prometheus, 'prometheus', set.values, ['promtool', 'check', 'config', '/tmp/prometheus.yml']));
+    checkPrometheusArgs(prometheus, set);
+    checkPrometheusRetention(prometheus, ranges, set);
     run('docker', renderArgs(alertmanager, 'alertmanager', set.values, ['amtool', 'check-config', '/tmp/alertmanager.yml']));
     run('docker', renderArgs(images['blackbox-exporter'], 'blackbox-exporter', set.values,
       ['/bin/blackbox_exporter', '--config.file=/tmp/blackbox.yml', '--config.check']));

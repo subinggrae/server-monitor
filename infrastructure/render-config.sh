@@ -8,8 +8,8 @@
 # - @MONITORING_APP_ADDRESS@: 앱 주소입니다. 템플릿에 이 자리표시가 있을 때만 값을 요구하고,
 #   운영 명령과 같은 규칙(core-settings.sh의 core_valid_address)으로 형식을 검사한 뒤 펼칩니다.
 # - 이미지의 CORE_SETTINGS에 적은 코어 설정 값(같은 폴더의 core-settings.sh, 요구사항 0013)입니다.
-#   값마다 형식과 허용 범위를 검사하고, 검사를 통과한 숫자만 템플릿의 @이름@ 자리에 펼칩니다.
-#   기록 보관 값은 템플릿이 아니라 Prometheus 실행 인자로 명령 끝에 덧붙입니다.
+#   값마다 형식과 허용 범위를 검사하고, 검사를 통과한 숫자에 단위를 붙인 글자(core_setting_text)만
+#   템플릿의 @이름@ 자리에 펼칩니다. 실행 인자는 더하지 않습니다.
 #   값이 틀리면 원래 프로세스를 실행하지 않고 로그에 안내를 남긴 채 실패합니다.
 #
 # 비밀값은 펼치지 않습니다. webhook token은 설정의 credentials_file로 따로 읽습니다.
@@ -37,7 +37,7 @@ for file in ${CORE_REQUIRED_FILES:-}; do
 done
 
 # 틀린 값을 모두 로그에 남긴 뒤 멈춥니다. 검사를 통과한 앱 주소에는 sed와 YAML이 특별하게 읽는 글자가 없고,
-# 코어 설정 값은 숫자이거나 빈 값(보관 용량 제한 없음)뿐입니다.
+# 코어 설정 값은 숫자에 단위를 붙인 글자뿐입니다.
 settings_ok=yes
 script=""
 uses_address=no
@@ -59,11 +59,7 @@ for name in ${CORE_SETTINGS:-}; do
     continue
   fi
   script="$script
-s|@$name@|$core_value|g"
-  arg=$(core_setting_arg "$name" "$core_value")
-  if [ -n "$arg" ]; then
-    set -- "$@" "$arg"
-  fi
+s|@$name@|$(core_setting_text "$name" "$core_value")|g"
   used="$used $name=$core_value"
 done
 if [ "$settings_ok" = no ]; then

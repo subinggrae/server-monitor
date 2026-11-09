@@ -2,7 +2,7 @@
 #
 # 빌드 context는 infrastructure/입니다. 비밀값은 .dockerignore로 빠집니다.
 # 앱 주소(MONITORING_APP_ADDRESS)는 컨테이너가 시작할 때 받아 render-config.sh가 설정에 펼칩니다.
-# 기록 보관 기간과 용량도 코어 서버의 .env에서 받아, render-config.sh가 검사한 뒤 실행 인자로 덧붙입니다. (요구사항 0013)
+# 기록 보관 기간과 용량도 코어 서버의 .env에서 받아, render-config.sh가 검사한 뒤 설정의 보관 항목에 펼칩니다. (요구사항 0013)
 # 바탕 이미지는 태그와 digest로 고정합니다. 버전을 올릴 때 둘을 함께 바꿉니다.
 FROM quay.io/prometheus/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
 

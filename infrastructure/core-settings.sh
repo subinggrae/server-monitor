@@ -127,12 +127,15 @@ core_valid_address() {
   { [ "$cs_port" -ge 1 ] && [ "$cs_port" -le 65535 ]; } 2> /dev/null
 }
 
-# 검사를 통과한 값으로 Prometheus 실행 인자 하나를 쓴다. 그 값이 실행 인자가 아니거나 비어 있으면 아무것도 쓰지 않는다.
-# 보관 용량이 비면 인자를 넣지 않아 Prometheus 기본값(제한 없음)이 된다. Prometheus의 GB는 1024 기준이다.
-core_setting_arg() {
+# 검사를 통과한 값에 단위를 붙여 설정 템플릿의 @이름@ 자리에 넣을 글자를 쓴다. 포트는 템플릿에 펼치지 않는다.
+# 보관 기간과 용량은 prometheus.yml의 storage.tsdb.retention에 들어간다. 용량이 비면 0B이고 Prometheus는 이를 제한 없음으로 읽는다.
+# Prometheus의 GB는 1024 기준이다.
+core_setting_text() {
   case "$1" in
-    CORE_RETENTION_DAYS) printf -- '--storage.tsdb.retention.time=%sd' "$2" ;;
-    CORE_RETENTION_SIZE_GB) if [ -n "$2" ]; then printf -- '--storage.tsdb.retention.size=%sGB' "$2"; fi ;;
+    CORE_RETENTION_DAYS) printf '%sd' "$2" ;;
+    CORE_RETENTION_SIZE_GB) if [ -n "$2" ]; then printf '%sGB' "$2"; else printf '0B'; fi ;;
+    CORE_PROBE_TIMEOUT_SECONDS) printf '%ss' "$2" ;;
+    *) printf '%s' "$2" ;;
   esac
 }
 

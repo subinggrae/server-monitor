@@ -15,6 +15,15 @@ global:
   scrape_timeout: 10s
   evaluation_interval: 15s
 
+# 기록 보관 기간과 용량입니다. 컨테이너가 시작할 때 코어 설정 파일(.env)의 CORE_RETENTION_DAYS(기본 15일)와
+# CORE_RETENTION_SIZE_GB(기본 제한 없음, 0B)로 바뀝니다. 둘 다 정하면 먼저 닿는 쪽에 맞춰 오래된 기록부터 지웁니다.
+# 실행 인자(--storage.tsdb.retention.*)는 deprecated라 쓰지 않습니다. (요구사항 0013)
+storage:
+  tsdb:
+    retention:
+      time: @CORE_RETENTION_DAYS@
+      size: @CORE_RETENTION_SIZE_GB@
+
 rule_files:
   - /etc/prometheus/rules/*.yml
 
