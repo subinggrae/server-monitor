@@ -9,8 +9,8 @@
 
 | 값 | 변수 | 받는 곳 | 펼치는 곳 |
 |---|---|---|---|
-| 기록 보관 기간 | `CORE_RETENTION_DAYS` | `prometheus` 컨테이너 환경 변수 | Prometheus 실행 인자 `--storage.tsdb.retention.time=<값>d` |
-| 기록 보관 용량 | `CORE_RETENTION_SIZE_GB` | `prometheus` 컨테이너 환경 변수 | 값이 있을 때만 실행 인자 `--storage.tsdb.retention.size=<값>GB` |
+| 기록 보관 기간 | `CORE_RETENTION_DAYS` | `prometheus` 컨테이너 환경 변수 | `prometheus.yml` 템플릿의 `storage.tsdb.retention.time: <값>d`(2026-11-09에 실행 인자에서 바꿈, 아래 보관 값을 설정 파일로) |
+| 기록 보관 용량 | `CORE_RETENTION_SIZE_GB` | `prometheus` 컨테이너 환경 변수 | `prometheus.yml` 템플릿의 `storage.tsdb.retention.size: <값>GB`, 비면 `0B`(제한 없음) |
 | 확인 제한 시간 | `CORE_PROBE_TIMEOUT_SECONDS` | `blackbox-exporter` 컨테이너 환경 변수 | `blackbox.yml` 템플릿의 세 module `timeout: <값>s` |
 | Prometheus 호스트 포트 | `CORE_PROMETHEUS_PORT` | Compose 변수 | `ports`의 `127.0.0.1:<값>:9090` |
 | Alertmanager 호스트 포트 | `CORE_ALERTMANAGER_PORT` | Compose 변수 | `ports`의 `127.0.0.1:<값>:9093` |
@@ -37,7 +37,7 @@
 
 ### 실행 인자와 설정에 펼치는 방법
 
-- **Prometheus**: `Dockerfile`의 `CMD`에서 `--storage.tsdb.retention.time=15d`를 빼고, `render-config.sh`가 검사한 값으로 보관 인자를 만들어 `set --`로 실행 인자 끝에 덧붙인다. 인자는 따로 따옴표로 감싼 낱말 하나씩이라 값이 다른 인자로 갈라지지 않는다. 인자를 만드는 함수는 `core-settings.sh`에 둔다. 보관 용량이 비면 인자를 넣지 않아 Prometheus 기본값(제한 없음)이 된다.
+- **Prometheus**(2026-11-09에 아래 보관 값을 설정 파일로가 대신함): `Dockerfile`의 `CMD`에서 `--storage.tsdb.retention.time=15d`를 빼고, `render-config.sh`가 검사한 값으로 보관 인자를 만들어 `set --`로 실행 인자 끝에 덧붙인다. 인자는 따로 따옴표로 감싼 낱말 하나씩이라 값이 다른 인자로 갈라지지 않는다. 인자를 만드는 함수는 `core-settings.sh`에 둔다. 보관 용량이 비면 인자를 넣지 않아 Prometheus 기본값(제한 없음)이 된다.
   - 고르지 않은 방법: `CMD`에 `@CORE_RETENTION_DAYS@` 같은 자리표시를 두고 인자 안에서 바꾸는 방법. 보관 용량이 빌 때 인자 자체를 빼야 해서 규칙이 하나 더 생긴다.
 - **Blackbox Exporter**: `blackbox.yml`의 세 `timeout: 5s`를 `timeout: @CORE_PROBE_TIMEOUT_SECONDS@s`로 바꿔 템플릿으로 넣고, 지금 Prometheus·Alertmanager처럼 `render-config.sh`가 `/tmp/blackbox.yml`에 펼친 뒤 `/bin/blackbox_exporter --config.file=/tmp/blackbox.yml`을 실행한다. 지금 Blackbox 이미지는 시작 스크립트를 쓰지 않으므로 `ENTRYPOINT`와 `CMD`가 새로 생긴다.
 - **`render-config.sh`**: 이미지마다 `ENV CORE_SETTINGS="<이 이미지가 쓰는 변수 이름>"`을 두고, 그 변수만 검사해 펼친다. Alertmanager는 비워 둔다. Blackbox에는 앱 주소가 없으므로, 앱 주소는 템플릿에 `@MONITORING_APP_ADDRESS@`가 있을 때만 요구하고 펼친다. 펼치는 `sed`에는 검사를 통과한 숫자만 들어간다.
@@ -59,6 +59,16 @@
 - 범위 밖 값 하나씩으로 Prometheus·Blackbox 이미지의 시작 스크립트를 돌려, 실패 종료 코드와 안내 문구를 확인하고 원래 프로세스가 실행되지 않았는지 본다(C5).
 - 약속 검사: 확인 제한 시간 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값보다 작은지, 보관 기간 하한(일)이 규칙 파일들의 가장 긴 범위(지금 `[10m]`)보다 긴지, 포트 범위가 1024~65535 안이고 세 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모르므로 따로 본다.
 - 묶음을 만들 때 실행용 compose 파일을 기본값과 양 끝 포트로 `docker compose config`에 넣어, 모든 `ports`의 `host_ip`가 `127.0.0.1`인지 본다.
+
+### 보관 값을 설정 파일로(범위 추가)
+
+2026-11-09에 사람이 이 범위를 더했다. 보관 기간과 용량을 Prometheus 실행 인자 대신 `prometheus.yml` 템플릿의 `storage.tsdb.retention` 항목에 펼친다. v3.14.0이 두 실행 인자를 deprecated로 표시하기 때문이다. 요구사항이 보이는 동작은 바뀌지 않는다.
+
+- **템플릿**: `prometheus.yml`에 `storage.tsdb.retention.time: @CORE_RETENTION_DAYS@`와 `size: @CORE_RETENTION_SIZE_GB@`를 둔다.
+- **펼치는 글자**: `core-settings.sh`의 `core_setting_text`가 검사를 통과한 값에 단위를 붙인 글자를 돌려준다. 보관 기간은 `<값>d`, 보관 용량은 `<값>GB`이고 비면 `0B`, 확인 제한 시간은 `<값>s`다. 그래서 `blackbox.yml`의 자리표시도 `timeout: @CORE_PROBE_TIMEOUT_SECONDS@`로 단위를 뺀다. 펼치는 규칙이 값마다 한곳에 있게 하기 위해서다.
+- **실행 인자**: 시작 스크립트는 실행 인자를 더하지 않는다. `Dockerfile`의 `CMD`가 그대로 쓰인다.
+- **운영 명령**: 떠 있는 코어의 보관 값은 지금처럼 `prometheus` 컨테이너의 환경 변수에서 읽는다(`confirm_retention`, `show_settings`). 환경 변수가 펼친 설정의 출처이므로 바꾸지 않는다.
+- **고르지 않은 방법**: 보관 용량이 빌 때 `size` 줄을 빼는 방법. 템플릿에 조건이 생긴다. Prometheus는 `0B`를 제한 없음으로 읽는다.
 
 ### 관리자 서버 주소의 형식 검사(범위 추가)
 
@@ -103,6 +113,8 @@
 | (범위 추가) `infrastructure/core-settings.sh`, `core-server.sh`, `render-config.sh` | 관리자 서버 주소 형식 검사 `core_valid_address`를 공용 파일로 옮기고 시작 스크립트도 검사 |
 | (범위 추가) `infrastructure/tests/core-server.test.sh`, `scripts/build-core-bundle.mjs` | 줄바꿈이 든 셸 환경 변수 주소의 거부 시험, 시작 스크립트의 틀린 주소 거부 확인 |
 | (범위 추가) `docs/OPERATIONS.md`, `docs/ARCHITECTURE.md` | 운영 명령 없이 실행과 문제 해결의 새 안내, 경계의 앱 주소 검사 |
+| (범위 추가) `infrastructure/prometheus/prometheus.yml`, `blackbox/blackbox.yml`, `core-settings.sh`, `render-config.sh`, `prometheus/Dockerfile` | 보관 값을 설정 파일의 보관 항목으로 펼치고, 실행 인자를 더하지 않음 |
+| (범위 추가) `scripts/build-core-bundle.mjs`, `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT.md` | 실행 인자가 `CMD` 그대로인지, 펼친 보관 항목이 값과 같은지 보는 검사와 그 설명 |
 
 ### 데이터 모델 변경
 
@@ -210,7 +222,10 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 - [x] 9. (범위 추가) 요구사항 S16·C10과 이 계획에 범위를 적는다.
 - [x] 10. 빌드 검사의 틀린 주소 거부 확인과 운영 명령 시험을 먼저 더하고, 지금 코드에서 실패하는지 본다.
 - [ ] 11. `core_valid_address`를 `core-settings.sh`에 두고 `core-server.sh`와 `render-config.sh`가 쓰게 한다. 운영 가이드와 ARCHITECTURE.md를 고친다. 운영 명령 시험, 빌드 검사, 문서 검사를 통과시키고, 검사를 지운 사본에서 실패하는지 본다.
-- [ ] 12. 전체 검증과, 구현 대화를 이어받지 않은 새 하위 에이전트의 추가분 리뷰. 지적을 반영한다.
+- [x] 12. (범위 추가) 보관 값을 설정 파일로: Prometheus v3.14.0 문서와 promtool로 보관 항목을 확인하고, 요구사항과 이 계획에 범위를 적는다.
+- [ ] 13. 빌드 검사(C1, C5, C7, CWE-88)를 새 방식으로 먼저 고쳐 지금 이미지에서 실패하는지 본다.
+- [ ] 14. 템플릿, `core-settings.sh`, `render-config.sh`, `Dockerfile`과 문서를 고친다. 빌드 검사와 망가뜨려 확인(주소 검사 포함)을 하고, C1·C2·C3·C5의 보관 값 부분을 수동으로 다시 확인한다.
+- [ ] 15. 전체 검증과, 구현 대화를 이어받지 않은 새 하위 에이전트의 추가분(작업 9~14) 리뷰. 지적을 반영한다. 끝나면 `dist/`의 묶음 폴더를 모두 지운다(사람 확인: 2026-11-09).
 
 ## 진행 중 발견
 
@@ -256,6 +271,11 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
   - 형식 검사의 `[0-9]`는 locale에 따라 전각 숫자에도 맞는다(Git Bash의 bash 5.2에서 `５`가 통과, 이미지의 BusyBox와 dash, bash 5.3 `--posix`는 거부). 그래서 `0123456789`를 나열하고, 범위 비교가 오류로 끝나면 받아들이지 않게 바꿨다. 시험에 `３０`을 더했다.
   - 운영 명령 없이 틀린 값으로 띄운 컨테이너를 `status`가 모두 기본값이라고 보이던 것을, 그 값을 `(올바르지 않음)`과 함께 보이게 바꿨다. 줄임 확인은 그대로 기본값으로 비교한다.
   - `usage`와 운영 가이드의 상태 명령 설명, `blackbox.yml` 주석의 `.env` 경로를 고쳤다.
+- **보관 항목 확인(작업 12, 2026-11-09)**: [v3.14.0 `configuration.md`](https://github.com/prometheus/prometheus/blob/v3.14.0/docs/configuration/configuration.md)의 `<tsdb>` 절에 따르면 `retention.time`(`<duration>`)은 기간과 크기를 모두 정하지 않으면 15d이고, `retention.size`(`<size>`, 단위 필수, 2의 거듭제곱)는 0이거나 없으면 크기 제한이 없다. 두 항목은 deprecated인 실행 인자보다 우선하고, 실행 중에 다시 읽을 수 있다. v3.14.0 이미지로 확인한 동작은 다음과 같다.
+  - `promtool check config`는 `time: 15d`·`size: 0B`, `30d`·`50GB`, `365d`·`999999999GB`, `1d`·`1GB`를 받고, `size: GB`(값 없음)와 `size: 50`(단위 없음)을 거부한다.
+  - 띄운 Prometheus의 로그 `TSDB retention updated`, `/api/v1/status/runtimeinfo`의 `storageRetention`, flags API의 `storage.tsdb.retention.*`가 모두 설정 파일의 값을 보인다. 보관 항목이 없을 때와 `15d`·`0B`일 때 모두 `15d`, `0B`(runtimeinfo `15d`)로 같았다. `30d`·`50GB`는 `30d`, `50GiB`(runtimeinfo `30d or 50GiB`)였다.
+  - 설정 파일의 `30d`와 실행 인자 `--storage.tsdb.retention.time=5d`를 함께 주면 `30d`가 쓰였다.
+  - 그래서 C1·C2의 flags API 확인은 그대로 쓸 수 있다. 앞의 "Prometheus 보관 인자는 deprecated" 발견에서 미룬 일을 이 범위가 한다.
 - **`.env` 이름의 시험 파일**: 이 PC의 에이전트 권한 설정이 `.env`를 고치는 명령을 막아, C5부터는 임시 폴더의 `test.env`를 `docker compose --env-file`로 넘겼다.
 
 작업 3의 검사를 지운 사본(C4)마다 운영 명령 시험의 실패 수는 다음과 같다. 모두 실패했다.
