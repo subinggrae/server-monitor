@@ -280,6 +280,10 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
 
 - [x] 1. [남길 결정](#남길-결정)의 질문에 사람의 답을 받아 이 계획과 ADR 0012에 반영한다.
 - [ ] 2. 운영 명령 시험을 먼저 쓴다: `render`의 성공과 실패(S8, S12~S14, S16, S17), CA 찾기(C5), 준비 확인과 도구 없음(C8), 링크·권한·token 노출(보안 위협). 지금 `core-server.sh`에서 실패하는지 본다.
+  - 2026-11-09에 계획과 ADR 0012를 승인한 뒤 멈췄다. 구현은 시작하지 않았고, 저장소의 코드와 설정은 PR #42의 상태 그대로다. 다음 세션은 이 작업부터 시작한다.
+  - 시험 구조: `infrastructure/tests/core-server.test.sh`는 가짜 `docker`, `systemctl`을 `$T/bin`에 두고 `check`로 조건을 본다. 가짜 `docker compose up`은 지금 셸 환경 변수를 컨테이너 환경 변수로 기록하므로, `rendered/core.env`가 없으면 실패하고 있으면 그 내용을 `env.prometheus`, `env.blackbox-exporter`로 기록하게 바꾼다. 관리자 서버 주소를 보던 시험(`compose_address`)은 `rendered/`의 펼친 설정을 보게 바꾼다. 가짜 `curl`과 `wget`도 `$T/bin`에 두고, 준비 여부와 부른 주소를 `$FAKE`에 남긴다.
+  - 시험이 두 도구가 없는 서버를 만들려면, 빌드 PC가 시험을 돌리는 BusyBox 이미지에 `wget`이 있으므로 PATH로는 숨길 수 없다. 그래서 `CORE_WAIT_SECONDS`처럼 시험에서 쓸 도구 목록을 바꾸는 환경 변수(예: `CORE_READY_TOOLS`, 기본 `curl wget`)를 두고, CA 파일 위치도 가짜 루트 아래에서 찾게 하는 변수(예: `CORE_CA_ROOT`)를 둔다.
+  - `status` 시험의 `prometheus: healthy` 기대는 새 표시(상태와 준비 여부)로 바꾼다. 시험을 느슨하게 바꾸지 않고, 같은 결함을 잡는 새 조건으로 바꾼다.
 - [ ] 3. `core-server.sh`에 펼치기 함수, `render` 작업, CA 찾기, 준비 확인을 넣고 `start`, `rotate-token`, `status`를 바꾼다. 2의 시험을 통과시킨다.
 - [ ] 4. 빌드 검사에 이미지 파일 목록과 이미지 설정 검사를 먼저 더하고, 지금 이미지에서 실패하는지 본다.
 - [ ] 5. 세 Dockerfile을 최소 이미지로 바꾸고 `render-config.sh`를 지운다. `compose.yml`, `.dockerignore`, `.gitignore`, `.env.example`을 고친다.
@@ -304,6 +308,8 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
 - 최소 node_exporter와 공식 node_exporter의 `/metrics`가 같은 지표 이름 306개를 냈다.
 - 이미지 크기는 Prometheus 202MB(지금 372MB), Alertmanager 74.7MB(124MB), Blackbox Exporter 50.1MB(57MB), node_exporter 36.2MB였다. 세 코어 이미지의 `docker save` 파일은 약 100MB, node_exporter는 약 12MB였다. 규칙은 넣었지만 label은 넣지 않은 이미지라 실제 값은 구현한 뒤 다시 잰다.
 - Docker Desktop(Compose v5.1.0)에서 없는 파일을 bind mount(`create_host_path: false`)하거나 `configs.file`로 붙이면, Docker가 그 자리에 빈 폴더를 만들고 Blackbox가 `is a directory`로 멈췄다. 반면 `env_file`에 `required: true`로 없는 파일을 두면, Compose가 컨테이너를 만들기 전에 `env file … not found`로 멈췄다. Linux Docker Engine에서는 확인하지 않았다.
+- `env_file`에 `required: true`로 없는 파일을 두면 `docker compose config`도 실패하지만, `docker compose build`는 성공한다(2026-11-09, Docker Desktop). 그래서 빌드 스크립트의 포트 바인딩 검사(`checkPortBindings`, `validateRuntimeCompose`)는 compose 파일을 임시 폴더에 복사하고 빈 `rendered/core.env`를 둔 뒤 `config`를 실행해야 한다. 이미지 빌드는 바꾸지 않아도 된다.
+- 저장소에서 펼치기를 실행하면 `core-server.sh`가 묶음이 아닌 저장소 배치를 다뤄야 한다. 템플릿은 `infrastructure/<구성 요소>/`에 있고, token 폴더의 기본값은 `./secrets`(묶음은 `../secrets`)다. 그래서 `templates/`가 없고 `prometheus/prometheus.yml`이 있으면 저장소 배치로 보도록 계획한다. 개발용 띄우기(`core-dev.bat start`)가 쓰는 공식 Prometheus 이미지의 digest는 Dockerfile의 `FROM`과 같아야 하므로, 빌드 검사가 두 값이 같은지 본다.
 
 ## 남길 결정
 
