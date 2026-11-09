@@ -187,7 +187,7 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 - [x] 5. `render-config.sh`, 세 Dockerfile, `blackbox.yml` 템플릿, `compose.yml`을 바꾼다. 4의 검사가 통과하고, C7의 망가뜨려 확인을 한다.
 - [x] 6. `.env.example`, `OPERATIONS.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md``INTEGRATION.md`를 고친다. `node scripts/check-docs.mjs`를 통과시킨다.
 - [x] 7. 수동 확인: C1, C2, C5의 운영 명령 없이 띄우기, C3의 묶음 두 개. 결과를 요구사항의 완료 기준에 쓴다. 띄운 개발용 코어와 시험용 컨테이너는 끝나면 멈춘다.
-- [ ] 8. 전체 검증(DEVELOPMENT.md의 전체 검증 행과 `core-dev.bat check`)과 새 세션의 리뷰. 리뷰어에게 완료 기준, 이 계획, diff, 검증한 커밋 SHA와 결과, 위 보안 위협의 CWE를 준다.
+- [x] 8. 전체 검증(DEVELOPMENT.md의 전체 검증 행과 `core-dev.bat check`)과 새 세션의 리뷰. 리뷰어에게 완료 기준, 이 계획, diff, 검증한 커밋 SHA와 결과, 위 보안 위협의 CWE를 준다.
 
 ## 진행 중 발견
 
