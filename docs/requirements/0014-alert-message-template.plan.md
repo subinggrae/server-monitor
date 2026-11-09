@@ -1,7 +1,7 @@
 # 0014. 관리자 서버에서 정하는 알림 메시지 틀 구현 계획
 
 - 요구사항: [0014. 관리자 서버에서 정하는 알림 메시지 틀](0014-alert-message-template.md)
-- 상태: 검토 중
+- 상태: 승인
 
 ## 접근 방법
 
@@ -60,9 +60,10 @@ alert_message_templates   종류마다 0~1행, 행이 없으면 관리자 서버
   updated_at     DATETIME(6) / TIMESTAMP(6)  NOT NULL  UTC
 ```
 
+- 테이블 이름과 종류 값은 이 초안(`alert_message_templates`, `CHECK_FIRING` 등)대로 둔다(사람 확인: 2026-11-09).
 - 종류를 기본 키로 두어 종류마다 행이 하나를 넘지 않게 한다. 0009의 `server_resource_alert_settings`가 `server_id`를 기본 키로 둔 것과 같은 방식이다.
 - 다른 테이블을 외래 키로 가리키지 않는다. 모든 감시 항목과 서버가 함께 쓰기 때문이다. 그래서 기준 migration의 이름을 바꿔도 이 DDL은 고치지 않는다.
-- 종류 값과 1000자 한도는 0009와 같이 앱의 요청 검증에서 확인하고 DB `CHECK` 제약을 두지 않는다. `VARCHAR(1000)`은 두 DB 모두 byte가 아니라 글자 수(code point)로 센다. 그래서 관리자 서버 만들기에는 1000자를 code point로 센다고 쓴다. Java `String.length()`는 이모지 한 글자를 2로 세기 때문이다.
+- 종류 값과 1000자 한도는 0009와 같이 앱의 요청 검증에서 확인하고 DB `CHECK` 제약을 두지 않는다. `VARCHAR(1000)`은 두 DB 모두 byte가 아니라 글자 수(code point)로 센다. 그래서 1000자는 code point로 세고, 그 기준을 관리자 서버 만들기와 DDL 주석에 쓴다(사람 확인: 2026-11-09). Java `String.length()`는 이모지 한 글자를 2로 세기 때문이다.
 - MariaDB는 `ENGINE = InnoDB DEFAULT CHARSET = utf8mb4`, PostgreSQL은 `TIMESTAMP(6)`처럼 기존 `resource-thresholds.sql`의 작성 규칙과 머리 주석 형식을 따른다.
 
 ### 계약 변경
