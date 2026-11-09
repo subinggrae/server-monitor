@@ -18,7 +18,8 @@
 바꾼 뒤
   SD label(그대로)
     → probe_success / up series(그대로. 이름·환경이 바뀌면 새 series로 시작하는 것도 그대로)
-    → max without (check_name, environment) (...) == 0
+    → 지금 값이 있으면 max without (check_name, environment) (...) == 0
+      지금 값이 없으면(수집 틈, 삭제, 끄기) 최근 5분 안의 마지막 값(last_over_time)으로 같은 판단
     → Alert label = check_id, check_target_id, check_type, module, instance, job, alertname, severity
     → group_by [alertname, check_id]
     → Manager: 이름과 환경 모두 DB(환경 label이 없으면 지금 코드도 DB 값을 쓴다)
@@ -29,6 +30,26 @@
 - 이름·환경을 바꾸는 순간 Prometheus는 옛 target을 지우며 옛 series에 stale 표시를 남기고, 새 label 집합의 series를 시작한다. stale series는 instant vector에서 빠지므로, 두 label을 뺀 결과는 같은 label 집합의 값 하나로 끊김 없이 이어진다. 이 동작은 요구사항 배경의 시험 규칙으로 개발 환경에서 확인했다(fingerprint와 `startsAt` 유지, `ALERTS` series에 빈 구간 없음).
 - 같은 평가 시점에 옛 series와 새 series가 함께 남는 경우가 생겨도 `max`가 하나로 합친다. 두 series는 같은 대상의 같은 확인이라 값이 같다. `max`이므로 둘 다 0일 때만 장애로 본다.
 - `without`이라 남는 label(`check_id`, `check_target_id`, `check_type`, `module`, `instance`, `job`)은 지금과 같다. Manager가 쓰는 `check_id`, `check_target_id`, `instance`가 그대로 온다.
+
+### 수집 틈(2026-11-09에 더함)
+
+위 첫째 이유는 틀렸다. 옛 series는 SD에서 빠지는 순간 stale로 끝나지만, 새 series는 새 target의 첫 수집 때 시작한다. 첫 수집 시점은 target마다 수집 주기 안에서 정해져, 그 사이에 평가가 있으면 `max without`의 결과가 비고 Alert가 끊긴다(진행 중 발견의 2026-11-09 C2). 그래서 두 규칙의 식을 다음처럼 바꾼다(사람 확인: 2026-11-09, 요구사항 S9~S11).
+
+```promql
+max without (check_name, environment) (probe_success{job="manager-blackbox"}) == 0
+or
+(
+  max without (check_name, environment) (last_over_time(probe_success{job="manager-blackbox"}[5m])) == 0
+  unless
+  max without (check_name, environment) (probe_success{job="manager-blackbox"})
+)
+```
+
+- 지금 값이 있는 대상은 첫 줄로 지금처럼 판단한다. `unless`가 그 대상을 둘째 묶음에서 빼므로, 대상이 살아나면 다음 평가에서 복구된다.
+- 지금 값이 없는 대상만 둘째 묶음으로 최근 5분 안의 마지막 값을 본다. range vector는 stale 표시를 건너뛰므로 옛 series의 마지막 실패 값이 남는다. 그래서 수집 틈 동안 Alert와 `for`의 시작 시각이 이어진다.
+- 사람이 정한 `max without (...) (last_over_time(...[5m])) == 0` 하나만 쓰면, 장애가 없을 때 이름·환경을 바꾼 뒤 5분 동안 옛 series의 마지막 성공 값(1)이 남아, 새 series가 실패해도 `max`가 1이 되어 장애가 늦게 잡힌다(요구사항 S3과 어긋남). 그래서 지금 값이 없는 대상에만 쓴다. 사람이 받아들인 영향(지우거나 끈 대상의 복구가 최대 5분 늦어짐) 밖의 지연을 만들지 않으려는 구현 방법의 선택이다.
+- W는 5분이다(사람 확인: 2026-11-09). 감시 항목·주소를 지우거나 끄면, 주소를 바꾸면 옛 주소의 Alert가, Blackbox Exporter가 멈추면 마지막 값이 실패였던 `MonitoringCheckDown`이, 마지막 실패 값이 5분 창에서 빠질 때 복구로 끝난다(요구사항 S10).
+- 남는 위험: 틈은 옛 target의 마지막 수집부터 새 target의 첫 수집까지라 수집 주기 두 개(최대 480초)까지 길어질 수 있다. 두 주기의 합이 5분을 넘는 감시 항목(수집 주기 150초 초과)은 드물게 끊길 수 있다.
 
 검토했지만 고르지 않은 방법은 다음과 같다.
 
@@ -60,8 +81,8 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
 
 | 항목 | 지금 | 바꾼 뒤 |
 |---|---|---|
-| `MonitoringCheckDown` `expr` | `probe_success{job="manager-blackbox"} == 0` | `max without (check_name, environment) (probe_success{job="manager-blackbox"}) == 0` |
-| `MonitoringCheckProbeFailed` `expr` | `up{job="manager-blackbox"} == 0` | `max without (check_name, environment) (up{job="manager-blackbox"}) == 0` |
+| `MonitoringCheckDown` `expr` | `probe_success{job="manager-blackbox"} == 0` | 위 수집 틈의 식 |
+| `MonitoringCheckProbeFailed` `expr` | `up{job="manager-blackbox"} == 0` | 위 수집 틈의 식에서 `probe_success`를 `up`으로 바꾼 식 |
 | `MonitoringCheckDown` summary | (`check_name`) 확인에 실패했습니다 | (`instance`) 확인에 실패했습니다 |
 | `MonitoringCheckDown` description 끝의 괄호 | (`check_type` / `environment`) | (`check_type`) |
 | `group_by` | `alertname`, `check_id`, `environment` | `alertname`, `check_id` |
@@ -118,10 +139,15 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
 - **C4** `infrastructure/prometheus/tests/monitoring-checks.test.yml`
   - 경우: 실패가 이어지는 대상의 `check_name`, `environment`가 중간에 바뀌어도 바뀐 30초 뒤 Alert가 firing이다. Alert label에 두 label이 없고 annotation이 바뀐 문구다. 한 감시 항목의 대상 두 개는 Alert 두 개다. 성공 값이 오면 Alert가 없다. `MonitoringCheckProbeFailed`도 같다.
   - 명령: `core-dev.bat check` 통과. 규칙을 바꾸기 전에는 바뀐 30초 뒤 firing 경우가 실패한다(새 series가 pending이라).
+- **C12** `monitoring-checks.test.yml`
+  - 경우: 5초 간격 입력으로 옛 series를 stale로 끝내고 15초 넘게 뒤에 새 series를 시작한다(틈 15초와 4분). 두 경우 모두 Alert가 firing이고 `ALERTS_FOR_STATE`가 0이다. stale로 끝나고 새 series가 없는 대상은 4분 뒤 firing, 5분 넘어 Alert 없음. 실패하다 성공한 대상은 성공 값의 평가에서 Alert 없음. 성공 중에 이름을 바꾸고 바로 실패한 대상은 1분 뒤 firing. `MonitoringCheckProbeFailed`도 틈과 삭제 경우를 넣는다.
+  - 명령: `core-dev.bat check` 통과. 지금 규칙에서는 틈과 삭제 경우가 실패한다. 둘째 묶음만 쓰는 식에서는 성공 중 이름 변경 경우가 실패한다.
 - **C5** `amtool check-config`(`core-dev.bat check`에 포함)와 수동 확인
   - 기대 결과: 검사가 통과한다. 대상 두 개가 모두 실패하는 감시 항목에서 Manager가 받은 한 요청에 Alert 두 개가 있다.
 - **C6** 리뷰와 문서 검사
   - 기대 결과: `node scripts/check-docs.mjs`에 오류가 없다. 리뷰어가 문서의 label 표와 예시를 규칙 파일, SD 코드와 맞춰 본다.
+- **C13** 리뷰와 문서 검사
+  - 기대 결과: INTEGRATION.md와 OPERATIONS.md에 지우거나 끈 감시 항목·주소의 장애가 최대 5분 뒤 복구된다고 적혀 있다.
 - **C11** 리뷰와 문서 검사
   - 기대 결과: `node scripts/check-docs.mjs`에 오류가 없다. ADMIN-SERVER.md와 INTEGRATION.md의 장애 수신 설명에 이름·환경을 `check_id`로 찾은 DB 값으로 채우라는 문장이 있다.
 - **바뀌지 않는 것** 기존 `BlackboxServiceDiscoveryServiceTest`가 SD label을 그대로 확인한다: 전체 검증의 `cd backend && ./gradlew build` 통과. `backend/`를 바꾸지 않으므로 `./gradlew integrationTest`는 실행하지 않는다.
@@ -134,7 +160,10 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
 - [x] `monitoring-checks.yml`의 식·annotation·머리 주석과 `alertmanager.yml`의 `group_by`·주석을 바꾼다. `core-dev.bat check` 통과(C4, C5). 커밋은 `fix!`와 `BREAKING CHANGE:`
 - [x] INTEGRATION.md, ADMIN-SERVER.md, OPERATIONS.md, ARCHITECTURE.md, TESTING.md를 고치고 문서 검사를 통과시킨다(C6, C11)
 - [x] 개발 환경에서 C1, C2, C5의 수동 확인을 하고 결과와 코어 변경 뒤 Manager의 장애 기록·알림 모습을 진행 중 발견에 적는다
-- [ ] 이름·환경을 바꿀 때 생기는 수집 틈을 메우는 방법을 사람이 정하고, 틈을 흉내 낸 규칙 테스트를 더한 뒤 규칙을 고친다(진행 중 발견의 2026-11-09 C2)
+- [x] 이름·환경을 바꿀 때 생기는 수집 틈을 메우는 방법을 사람이 정한다(2026-11-09, 접근 방법의 수집 틈)
+- [ ] 틈, 삭제, 복구, 성공 중 이름 변경의 규칙 테스트를 더하고 지금 규칙에서 실패하는지 본다(C12)
+- [ ] 두 규칙의 식을 바꾸고 `core-dev.bat check`를 통과시킨다. INTEGRATION.md, OPERATIONS.md에 바뀐 복구 시점을 적는다(C12, C13)
+- [ ] 개발 환경에서 C1, C2를 다시 확인한다. 수집 주기 30초 이상을 포함해 환경을 여러 번 바꾼다
 - [ ] 전체 검증(`cd frontend && npm run check`, `cd backend && ./gradlew build`, `core-dev.bat check`)과 새 세션의 리뷰
 
 ## 진행 중 발견
@@ -146,7 +175,7 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
   - C1(02:08:36 UTC에 이름을 바꿈): 원래 `probe_success` series는 02:08:44에 끊기고 새 이름의 series가 시작했다. 두 Alert의 fingerprint(`0ec192097c1b3195`, `7838356f964841d3`)와 `startsAt`이 그대로였고 `ALERTS_FOR_STATE`에 빈 구간이 없었다. 02:13:16 webhook은 firing 두 건뿐이었고 장애 기록도 두 건 그대로였다. 이때 간 재발송 메시지 제목은 새 이름이었다.
   - C2(02:14:00 UTC에 환경을 바꿈): 대상 1은 이어졌지만 대상 2는 끊겼다. 대상 2의 옛 series 마지막 sample은 02:14:05.785, 새 series 첫 sample은 02:14:17.335였고, 그 사이 02:14:16.731의 규칙 평가에 값이 없어 Alert가 한 번 사라졌다. 다음 평가부터 `for: 1m`을 다시 세어 `startsAt`이 02:15:31로 새로 잡혔다(fingerprint는 같음). 그 사이에 Alertmanager의 전송 시점이 없어 Manager에 복구 webhook은 오지 않았지만, 02:18:16 webhook으로 Manager에 장애 기록 3번이 새로 생기고 옛 기록 2번은 FIRING으로 남았다. 재발송 메시지에는 새 이름과 `환경: Staging`이 보였다.
   - 원인: Prometheus는 SD에서 빠진 target의 series를 바로 stale로 끝내고, 새 label의 target은 자기 수집 주기 안의 정해진 시점에 처음 수집한다. 이 틈(최대 수집 주기 하나, 10~240초)에 규칙 평가(15초마다)가 있으면 `max without`의 결과가 비어 Alert가 끊긴다. 수집 주기가 길수록 거의 늘 끊긴다. 요구사항 배경의 시험 규칙이 이어진 것은 틈이 평가 시점에 걸리지 않았기 때문으로 보인다. 지금 `monitoring-checks.test.yml`은 새 series가 stale 표시와 같은 시점에 시작해 이 틈을 확인하지 않는다. 5초 간격 입력으로 옛 series를 2m5s에 stale로, 새 series를 2m20s부터 넣은 임시 테스트는 지금 규칙에서 실패했다.
-  - 고칠 방법 후보(사람이 정할 것): 규칙에 `keep_firing_for`를 두어 틈 동안 Alert를 유지함(복구와 감시 항목 삭제 때 복구가 그만큼 늦어짐), 식을 `last_over_time(...[W])`로 바꿔 stale 표시를 건넘(삭제·주소 변경 때 W만큼 늦게 복구됨), 틈은 받아들이고 문서에 적음. 셋 다 요구사항의 하지 않는 것(장애 판단 규칙을 바꾸지 않음)이나 목표와 부딪쳐 이번 계획에서 고르지 않았다.
+  - 고칠 방법 후보: 규칙에 `keep_firing_for`를 두어 틈 동안 Alert를 유지함(모든 복구가 그만큼 늦어짐), 식을 `last_over_time(...[W])`로 바꿔 stale 표시를 건넘(삭제·주소 변경 때 W만큼 늦게 복구됨), 틈은 받아들이고 문서에 적음. 사람이 둘째(W 5분)를 골랐다(2026-11-09). 정한 식은 접근 방법의 수집 틈에 있다.
 
 ## 남길 결정
 
