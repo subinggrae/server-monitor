@@ -96,8 +96,8 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 | `check_target_id` | 감시 항목 안의 주소 하나의 id | 숫자 문자열 |
 | `check_type` | 확인 방식 | `ICMP`, `TCP`, `HTTP`, `HTTPS` |
 | `module` | Blackbox module | `icmp`, `tcp_connect`, `http_2xx`(`infrastructure/blackbox/blackbox.yml`에 있는 이름) |
-| `environment` | 환경 이름 | 자유 문자열 |
-| `check_name` | 감시 항목 이름(Alert 요약에 들어감) | 자유 문자열 |
+| `environment` | 환경 이름(Grafana에서 환경으로 거를 때 씀) | 자유 문자열 |
+| `check_name` | 감시 항목 이름(Grafana에서 이름으로 볼 때 씀) | 자유 문자열 |
 | `__scrape_interval__` | 수집 주기(time series label로 남지 않음) | `10s`~`240s` |
 
 확인 방식마다 `targets`에 넣는 값, `module` 값, 성공으로 보는 조건은 다음과 같다. 확인마다 5초 안에 응답이 없으면 실패다.
@@ -126,7 +126,7 @@ SD 응답은 다음을 지킨다.
 
 - label 값은 모두 JSON 문자열로 보낸다. id를 숫자로 보내면 Prometheus가 응답 전체를 거부한다.
 - label 이름을 더하거나 지우거나 바꾸지 않는다. id 값도 대상마다 바뀌지 않게 둔다. label과 id가 time series의 이름표라서 바뀌면 쌓아 온 series가 끊긴다.
-- 이름과 환경 값(`check_name`, `server_name`, `environment`)은 사용자가 바꾸면 그대로 바꿔 보낸다. 다만 그 대상의 series가 새로 시작되고, 진행 중인 Alert가 복구됐다가 다시 생길 수 있다([#22](https://github.com/subinggrae/server-monitor/issues/22)에서 확인한다).
+- 이름과 환경 값(`check_name`, `server_name`, `environment`)은 사용자가 바꾸면 그대로 바꿔 보낸다. 그 대상의 원래 series(`probe_success`, `up`)는 새로 시작된다. 감시 항목의 Alert는 이름과 환경을 뺀 label로 만들어서 진행 중인 장애가 끊기지 않고, 서버 사용률의 recording rule은 이름과 환경을 label로 남기지 않아 이어진다([ADR 0010](decisions/0010-alert-labels-without-editable-values.md)).
 - `__scrape_interval__`은 10초보다 짧게 두지 않는다. 코어의 수집 제한 시간(`scrape_timeout`)이 10초라서, 주기가 그보다 짧으면 Prometheus가 그 대상을 수집하지 않는다.
 - 목록을 만들지 못하면(DB 오류 등) 빈 배열 `[]` 대신 `5xx`를 돌려준다. `[]`을 받으면 Prometheus가 모든 대상의 감시를 멈추지만, 오류를 받으면 마지막 목록을 유지한다.
 - label에 알림 대상(chat id 등)이나 긴 설명을 넣지 않는다. label 값은 Prometheus에 그대로 저장된다.
@@ -148,14 +148,12 @@ Alertmanager가 [webhook payload](https://prometheus.io/docs/alerting/latest/con
         "severity": "critical",
         "check_id": "12",
         "check_target_id": "31",
-        "check_name": "전자결재 Health",
         "check_type": "HTTPS",
-        "environment": "Production",
         "instance": "https://example.com/health"
       },
       "annotations": {
-        "summary": "전자결재 Health 확인에 실패했습니다",
-        "description": "https://example.com/health 확인이 1분 넘게 실패하고 있습니다. (HTTPS / Production)"
+        "summary": "https://example.com/health 확인에 실패했습니다",
+        "description": "https://example.com/health 확인이 1분 넘게 실패하고 있습니다. (HTTPS)"
       },
       "startsAt": "2026-10-21T01:02:03.000Z",
       "endsAt": "0001-01-01T00:00:00Z",
@@ -167,7 +165,7 @@ Alertmanager가 [webhook payload](https://prometheus.io/docs/alerting/latest/con
 
 앱은 `alerts`의 항목마다 다음 순서로 처리한다.
 
-1. `labels.check_id`로 앱의 감시 항목을 찾는다. 지운 감시 항목이면 기록만 남기고 알리지 않는다.
+1. `labels.check_id`로 앱의 감시 항목을 찾는다. 지운 감시 항목이면 기록만 남기고 알리지 않는다. 알림과 화면에 보일 감시 항목 이름과 환경은 Alert에 없으므로 찾은 감시 항목의 DB 값으로 채운다. 그래서 사용자가 이름이나 환경을 바꾸면 다음 알림부터 바뀐 값이 보인다.
 2. `fingerprint`와 `startsAt`으로 장애 한 번을 구분한다. 같은 값이 다시 오면 같은 장애가 이어진다. 복구된 뒤 다시 실패하면 `startsAt`이 새로 온다.
 3. `status`가 `firing`이면 장애, `resolved`면 복구다. 복구 시각은 `endsAt`이다. 장애 중에는 `endsAt`이 `0001-01-01`이라 복구 시각으로 쓰지 않는다.
 4. 같은 장애가 다시 오면, 마지막으로 알림을 보낸 뒤 그 감시 항목의 재발송 주기가 지났을 때만 다시 보낸다. 이 저장소의 앱은 재발송 주기를 5~1440분으로 받고, 정하지 않은 감시 항목은 60분으로 본다. Alertmanager는 이어지는 Alert를 5분마다 보내므로, 재발송 주기를 5분보다 짧게 두지 않는다([ADR 0001](decisions/0001-alert-repeat-in-manager.md)).
@@ -187,11 +185,14 @@ Alert마다 들어오는 label과 annotation은 다음과 같다. 규칙은 `inf
 |---|---|---|
 | `alertname` | label | `MonitoringCheckDown`(확인 실패), `MonitoringCheckProbeFailed`(probe 결과를 가져오지 못함) |
 | `severity` | label | `critical` |
-| `check_id`, `check_target_id`, `check_name`, `check_type`, `environment` | label | 앱이 SD로 준 값 |
+| `check_id`, `check_target_id`, `check_type`, `module` | label | 앱이 SD로 준 값 |
 | `instance` | label | 확인하던 주소 |
-| `summary`, `description` | annotation | 사람이 읽는 문장 |
+| `job` | label | `manager-blackbox` |
+| `summary`, `description` | annotation | 확인하던 주소를 넣은 사람이 읽는 문장 |
 
-Alertmanager는 `alertname`, `check_id`, `environment`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 5분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`이 4분이지만 묶음을 다시 살피는 간격(`group_interval`)이 5분이라, 결과는 5분마다다. 복구 Alert(`status: resolved`)도 보낸다. 대상 확인이 실패하기 시작해 webhook이 오기까지는 1분(규칙의 지속 시간)에 규칙 평가 간격(15초)과 30초를 더한 정도가 걸린다.
+SD label의 `check_name`, `environment`는 Alert에 들어가지 않는다. Prometheus와 Alertmanager는 label 집합으로 Alert를 구분하므로, 사용자가 바꾸는 값이 label에 있으면 장애 중에 값을 바꿀 때 장애가 복구로 끝나고 새 장애로 다시 생긴다([ADR 0010](decisions/0010-alert-labels-without-editable-values.md)).
+
+Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 5분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`이 4분이지만 묶음을 다시 살피는 간격(`group_interval`)이 5분이라, 결과는 5분마다다. 복구 Alert(`status: resolved`)도 보낸다. 대상 확인이 실패하기 시작해 webhook이 오기까지는 1분(규칙의 지속 시간)에 규칙 평가 간격(15초)과 30초를 더한 정도가 걸린다.
 
 ## 코어가 제공할 것
 
