@@ -159,7 +159,7 @@ check_settings() {
   settings_ok=yes
   for setting in $CORE_SETTING_NAMES; do
     if printenv "$setting" > /dev/null; then
-      hint="이 값은 셸 환경 변수 $setting에서 왔고, 셸 환경 변수는 .env의 $setting 값보다 먼저 쓰입니다. 셸에서 unset $setting을 실행하거나 값을 고친 뒤 다시 실행해 주세요."
+      hint="이 값은 셸 환경 변수 $setting에서 왔고, 셸 환경 변수는 .env의 $setting 값보다 먼저 쓰입니다. 셸에서 unset $setting 명령으로 지우거나 값을 고친 뒤 다시 실행해 주세요."
     else
       hint=".env의 $setting 값을 고친 뒤 다시 실행해 주세요."
     fi
