@@ -14,9 +14,10 @@
 # 바꾸는 동안 옛 series와 새 series가 함께 남아도 max가 대상마다 하나로 합칩니다.
 #
 # 값을 바꾸면 옛 series는 바로 stale로 끝나고, 새 series는 새 target의 첫 수집 때 시작합니다.
-# 그 사이에 지금 값이 없는 대상은 최근 5분 안의 마지막 값으로 판단해 Alert가 끊기지 않게 합니다.
-# 지금 값이 있는 대상은 unless로 빼서 지금 값으로만 판단합니다. 그래야 살아난 대상이 바로 복구됩니다.
+# 그 사이에도 Alert가 끊기지 않게, or 뒤의 식이 stale 표시를 건너뛰는 최근 5분 안의 마지막 값으로 판단합니다.
 # 그래서 지우거나 끈 대상의 Alert는 마지막 실패 값이 5분 창에서 빠질 때 복구됩니다.
+# 지금 값이 있는 대상은 그 값이 두 식에 같이 들어가고, max라서 지금 값이 1이면 어느 쪽도 장애가 아닙니다.
+# 그래서 살아난 대상은 바로 복구됩니다. 성공 중에 값을 바꾼 뒤 실패하면 or 앞의 식이 장애로 봅니다.
 #
 # 알림 대상은 Manager Database가 정합니다.
 # Telegram chat id 같은 라우팅 정보를 이 파일이나 label에 넣지 않습니다.
@@ -28,11 +29,7 @@ groups:
         expr: |
           max without (check_name, environment) (probe_success{job="manager-blackbox"}) == 0
           or
-          (
-            max without (check_name, environment) (last_over_time(probe_success{job="manager-blackbox"}[5m])) == 0
-            unless
-            max without (check_name, environment) (probe_success{job="manager-blackbox"})
-          )
+          max without (check_name, environment) (last_over_time(probe_success{job="manager-blackbox"}[5m])) == 0
         for: 1m
         labels:
           severity: critical
@@ -45,11 +42,7 @@ groups:
         expr: |
           max without (check_name, environment) (up{job="manager-blackbox"}) == 0
           or
-          (
-            max without (check_name, environment) (last_over_time(up{job="manager-blackbox"}[5m])) == 0
-            unless
-            max without (check_name, environment) (up{job="manager-blackbox"})
-          )
+          max without (check_name, environment) (last_over_time(up{job="manager-blackbox"}[5m])) == 0
         for: 1m
         labels:
           severity: critical
