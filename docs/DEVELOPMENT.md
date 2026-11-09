@@ -32,7 +32,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
 | 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, 참고용 DDL, webhook을 바꿨을 때, 전체 검증을 실행할 때 함께(Docker가 필요해 전체 검증 명령에는 넣지 않음) |
-| 규칙 테스트와 코어 설정 검사 | `core-dev.bat check`(아래 [코어 검사와 묶음](#코어-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, `core-server.sh`를 바꿨을 때 |
+| 규칙 테스트와 코어 설정 검사 | `core-dev.bat check`(아래 [코어 검사와 묶음](#코어-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, `render-config.sh`, `core-settings.sh`, `core-server.sh`를 바꿨을 때 |
 | 코어 묶음 | `core-dev.bat build` | 내부망 서버에 옮길 코어와 node_exporter를 만들 때 |
 | E2E | `cd frontend && npm run test:e2e` | 전체 실행 환경을 띄운 뒤, 핵심 흐름이 걸린 변경을 마쳤을 때 |
 | 화면 검사 | `cd frontend && npm run test:screen` | 전체 실행 환경을 띄운 뒤, 화면을 바꿨을 때 |
@@ -48,11 +48,16 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 
 ### 코어 검사와 묶음
 
-코어의 설정과 규칙은 코어 이미지 안에 들어 있다([ADR 0009](decisions/0009-core-config-in-image.md)). 그래서 검사도 빌드한 이미지로 한다. `core-dev.bat check`(`node scripts/build-core-bundle.mjs --check`와 같다)는 코어 이미지를 빌드한 뒤 다음 네 가지를 실행하고, 하나라도 실패하면 종료 코드 1로 멈춘다.
+코어의 설정과 규칙은 코어 이미지 안에 들어 있다([ADR 0009](decisions/0009-core-config-in-image.md)). 그래서 검사도 빌드한 이미지로 한다. `core-dev.bat check`(`node scripts/build-core-bundle.mjs --check`와 같다)는 코어 이미지를 빌드한 뒤 다음을 실행하고, 하나라도 실패하면 종료 코드 1로 멈춘다.
 
-- 앱 주소를 펼친 Prometheus 설정 검사(`promtool check config`)
+- 서버에서 바꾸는 코어 값의 약속 검사. 이미지 안의 `infrastructure/core-settings.sh`에서 허용 범위를 읽어, 확인 제한 시간의 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값 이하인지, 보관 기간의 하한이 규칙이 읽는 가장 긴 범위보다 긴지, 포트 범위가 1024~65535 안이고 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모른다
+- 값 세 벌(모두 비움, 허용 범위 아래 끝, 위 끝)마다 다음 검사
+  - 앱 주소를 펼친 Prometheus 설정 검사(`promtool check config`)와, 시작 스크립트가 만든 Prometheus 실행 인자가 이미지의 `CMD`에 보관 인자만 더한 것인지 확인
+  - 앱 주소를 펼친 Alertmanager 설정 검사(`amtool check-config`)
+  - 펼친 Blackbox 설정 검사(`blackbox_exporter --config.check`)와, module마다 `timeout`이 확인 제한 시간인지 확인
+- 범위 밖이거나 형식이 틀린 값(`0`, `abc`, `10`, 줄바꿈, `|`, `&`, 공백과 다른 인자)을 시작 스크립트가 거부하고 원래 프로세스를 실행하지 않는지 확인
+- `infrastructure/compose.yml`의 모든 포트가 값 세 벌에서 `127.0.0.1`에만 열리는지 확인. 묶음을 만들 때는 실행용 `compose.yml`도 같은 확인을 한다
 - 이미지에 든 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
-- 앱 주소를 펼친 Alertmanager 설정 검사(`amtool check-config`)
 - 코어 서버 운영 명령(`infrastructure/core-server.sh`)의 자동 시험(`infrastructure/tests/core-server.test.sh`). 이미지에 든 BusyBox `sh`에서 가짜 `docker`, `systemctl`로 실행한다
 
 `core-dev.bat build`(`node scripts/build-core-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `core-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 처음 따라 하기](OPERATIONS.md#처음-따라-하기)에 있다. 바탕 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/compose.yml`과 `scripts/build-core-bundle.mjs`의 버전·digest·체크섬을 함께 바꾼다.

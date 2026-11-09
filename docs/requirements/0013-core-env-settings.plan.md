@@ -183,10 +183,10 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 - [x] 1. 사전 확인: Prometheus v3.14.0의 `--storage.tsdb.retention.size` 단위(`GB`가 1024 기준인지)와 WAL 포함 여부, Blackbox Exporter v0.28.0의 `--config.check`, Blackbox 이미지의 `/bin/sh`와 `/tmp` 쓰기, Compose가 `127.0.0.1:${VAR}:9090`에 이상한 값(`0.0.0.0:9090`, `9090-9100`, `[::]:9090`)을 넣었을 때의 결과, `environment` 안의 `<<:` merge. 결과와 근거를 진행 중 발견에 쓰고, 바인딩이 바뀌는 값이 있으면 멈추고 묻는다.
 - [x] 2. 운영 명령 시험 먼저: `core-server.test.sh`에 C4, C6과 표시 시험을 더하고, 가짜 `docker`에 환경 변수와 `port` 응답을 더한다. 지금 `core-server.sh`로 새 시험이 실패하는지 본다.
 - [x] 3. `core-settings.sh`를 쓰고, `core-server.sh`에 `check_settings`, `confirm_retention`, 표시를 더한다. 빌드 스크립트가 묶음에 `core-settings.sh`를 싣게 한다. 2의 시험이 통과하고, 검사를 지운 사본마다 시험이 실패하는지 본다.
-- [ ] 4. 빌드 검사 먼저: `build-core-bundle.mjs`에 값 세 벌의 설정 검사, Blackbox 검사, 시작 스크립트의 펼친 결과와 범위 밖 값 거부, 약속 검사, 포트 바인딩 확인을 더한다. 지금 이미지로 실패하는지 본다.
-- [ ] 5. `render-config.sh`, 세 Dockerfile, `blackbox.yml` 템플릿, `compose.yml`을 바꾼다. 4의 검사가 통과하고, C7의 망가뜨려 확인을 한다.
-- [ ] 6. `.env.example`, `OPERATIONS.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md``INTEGRATION.md`를 고친다. `node scripts/check-docs.mjs`를 통과시킨다.
-- [ ] 7. 수동 확인: C1, C2, C5의 운영 명령 없이 띄우기, C3의 묶음 두 개. 결과를 요구사항의 완료 기준에 쓴다. 띄운 개발용 코어와 시험용 컨테이너는 끝나면 멈춘다.
+- [x] 4. 빌드 검사 먼저: `build-core-bundle.mjs`에 값 세 벌의 설정 검사, Blackbox 검사, 시작 스크립트의 펼친 결과와 범위 밖 값 거부, 약속 검사, 포트 바인딩 확인을 더한다. 지금 이미지로 실패하는지 본다.
+- [x] 5. `render-config.sh`, 세 Dockerfile, `blackbox.yml` 템플릿, `compose.yml`을 바꾼다. 4의 검사가 통과하고, C7의 망가뜨려 확인을 한다.
+- [x] 6. `.env.example`, `OPERATIONS.md`, `ARCHITECTURE.md`, `DEVELOPMENT.md``INTEGRATION.md`를 고친다. `node scripts/check-docs.mjs`를 통과시킨다.
+- [x] 7. 수동 확인: C1, C2, C5의 운영 명령 없이 띄우기, C3의 묶음 두 개. 결과를 요구사항의 완료 기준에 쓴다. 띄운 개발용 코어와 시험용 컨테이너는 끝나면 멈춘다.
 - [ ] 8. 전체 검증(DEVELOPMENT.md의 전체 검증 행과 `core-dev.bat check`)과 새 세션의 리뷰. 리뷰어에게 완료 기준, 이 계획, diff, 검증한 커밋 SHA와 결과, 위 보안 위협의 CWE를 준다.
 
 ## 진행 중 발견
@@ -205,6 +205,30 @@ ports: 127.0.0.1:9090:9090 등 고정        ports: 127.0.0.1:<값>:9090 등
 - **포트 표시를 `docker port` 대신 `docker inspect`의 `HostConfig.PortBindings`로 읽음**: `docker port`는 멈춘 컨테이너의 포트를 보이지 않아, `status`가 멈춘 코어의 바꾼 포트를 보이지 못하기 때문이다.
 - **token 바꾸기도 값을 검사함**: `rotate-token`은 Alertmanager를 `docker compose up`으로 다시 만들어 그때 `.env`의 호스트 포트를 쓴다. 그래서 `start`와 같은 값 검사(`check_settings`)를 거친다. 틀린 값이 있으면 token을 바꾸지 않는다.
 - **표시하는 범위 문구**: 보관 용량의 허용 범위는 `1 이상 999999999 이하(GB)`로 보인다.
+- **설정 파일 검사에서는 보관 인자를 펼치지 않음**: 시작 스크립트는 보관 인자를 받은 명령 끝에 붙이므로, 빌드 검사가 `promtool check config`와 `cat`을 시작 스크립트로 실행하면 그 명령에도 붙어 실패했다. 그래서 이 두 실행에서만 `CORE_SETTINGS`를 비우고, 실행 인자는 `printf`로 따로 본다(`checkPrometheusArgs`). 보관 값은 설정 파일에 들어가지 않으므로 promtool의 결과는 바뀌지 않는다.
+- **약속 검사를 값 세 벌의 검사보다 먼저 실행함**: 확인 제한 시간 상한을 10으로 바꾸면 범위 밖 값 거부 검사(`10`을 거부하는지)도 실패하는데, 약속 검사를 먼저 돌려야 원인이 약속이라는 안내가 먼저 보이기 때문이다.
+- **띄우지 못했을 때의 안내를 더함**: 요구사항 S13은 Docker가 포트 때문에 컨테이너를 띄우지 못하면 운영 명령이 정상이 아닌 컨테이너와 로그 명령을 보인다고 한다. 지금 운영 명령은 `docker compose up`이 실패하면 `set -e`로 Docker 오류만 남기고 끝나, 그 안내가 없었다. `compose_up`이 실패하면 바꿀 포트 변수, 정상이 아닌 컨테이너, `docker logs` 명령을 보이게 했다. 실제로 29093을 다른 컨테이너가 쓰게 했을 때 Docker 오류는 `Bind for 127.0.0.1:29093 failed: port is already allocated`였다.
+- **Prometheus의 GB 표기**: 보관 용량 50을 넣고 띄운 Prometheus의 flags API는 `storage.tsdb.retention.size`를 `50GiB`로 보인다. 1024 기준이라는 작업 1의 확인과 같다.
+
+작업 4에서 새 빌드 검사를 이 기능 전 이미지로 돌리면 `/etc/core/core-settings.sh`가 없어 멈췄고, Dockerfile에 그 파일 복사만 더한 이미지로 돌리면 `값을 모두 비움: Prometheus 실행 인자가 기대와 다르다`로 멈췄다.
+
+작업 5의 빌드 검사를 망가뜨려 확인(C7)한 결과는 다음과 같다. 모두 `core-dev.bat check`(`node scripts/build-core-bundle.mjs --check`)가 종료 코드 1로 멈췄고, 되돌린 뒤 통과했다.
+
+| 망가뜨린 것 | 빌드 검사가 보인 실패 |
+|---|---|
+| `core-settings.sh`의 확인 제한 시간 상한 9 → 10 | 확인 제한 시간의 상한(10초)이 scrape_timeout(10s)에서 0.5초를 뺀 9.5초보다 길다 |
+| 보관 기간 하한 1 → 0 | 보관 기간의 하한(0일)이 규칙이 읽는 가장 긴 범위(600초)보다 길지 않다 |
+| `render-config.sh`가 보관 인자를 붙이지 않음 | 값을 모두 비움: Prometheus 실행 인자가 기대와 다르다 |
+| `render-config.sh`가 틀린 값이어도 시작 | prometheus의 시작 스크립트가 `CORE_RETENTION_DAYS="0"`을 거부하지 않았다 |
+| `blackbox.yml`의 module 하나를 `timeout: 5s`로 고정 | 허용 범위 아래 끝: module마다 1s가 아니다(5s, 1s, 1s) |
+| `compose.yml`의 Prometheus 포트에서 `127.0.0.1:`을 뺌 | 127.0.0.1이 아닌 주소에 여는 포트가 있다 |
+| `compose.yml`의 Blackbox 포트를 `127.0.0.1:9115:9115`로 고정 | 허용 범위 아래 끝: 호스트 포트가 기대와 다르다 |
+
+작업 7의 수동 확인(2026-11-09)은 다른 작업과 겹치지 않게 OS 임시 폴더의 별도 compose로 했다. 프로젝트 `issue33-impl`, 컨테이너·네트워크·volume 이름 앞에 `issue33-impl-`를 붙였고, 호스트 포트는 `127.0.0.1`의 29090·29093·29115를 썼다. 그래서 기본 포트(9090·9093·9115)로 열리는지는 빌드 검사의 compose 확인으로만 봤다. token은 시험용 임의 값을 새로 만들었다. 결과는 요구사항의 완료 기준에 썼다.
+
+- **C3을 묶음 두 개 대신 이미지 두 개로 확인함**: `core-server.sh`는 컨테이너 이름(`prometheus` 등)이 고정이라, 같은 PC에서 다른 작업이 코어를 띄우는 동안 그 이름을 쓸 수 없었다. 그래서 이 기능 전 이미지(`60f8a86-dirty`, 보관 15일 고정)로 기록을 쌓은 뒤 같은 volume에서 이 기능의 이미지로 바꾸고 보관 기간을 30일로 늘렸다. 갱신할 때 이전 폴더의 `.env`를 가져오는 것은 운영 명령 시험 `갱신할 때 떠 있는 버전의 폴더에서 설정을 가져온다`가 본다(`.env`를 통째로 복사한다).
+- **느린 대상**: Docker Desktop에서는 `10.255.255.1:80`이 바로 연결돼(`probe_success 1`, 0.01초) 느린 대상이 되지 못했다. 대신 응답하지 않는 `192.0.2.1:9`(TCP), `192.0.2.1`(ping), `http://192.0.2.1:9/`(웹 주소)를 썼다.
+- **`.env` 이름의 시험 파일**: 이 PC의 에이전트 권한 설정이 `.env`를 고치는 명령을 막아, C5부터는 임시 폴더의 `test.env`를 `docker compose --env-file`로 넘겼다.
 
 작업 3의 검사를 지운 사본(C4)마다 운영 명령 시험의 실패 수는 다음과 같다. 모두 실패했다.
 
