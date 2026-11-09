@@ -1,6 +1,6 @@
 # 0012. 코어 설정은 운영 명령이 컨테이너 밖에서 펼치고, 코어 이미지에는 실행 파일과 규칙만 둔다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-11-09
 - 관련: [요구사항 0015](../requirements/0015-core-minimal-image.md), [계획](../requirements/0015-core-minimal-image.plan.md), [ADR 0007](0007-core-app-contract.md), [ADR 0009](0009-core-config-in-image.md), [ADR 0011](0011-core-address-format-check.md)(이 ADR이 세 ADR의 일부 결정만 대신함), [PR #45](https://github.com/subinggrae/server-monitor/pull/45), [#44](https://github.com/subinggrae/server-monitor/issues/44)
 
@@ -22,11 +22,11 @@
 
 마지막 선택지를 고른다(사람 확인: 2026-11-09, 요구사항 0015의 S8).
 
-- 코어 이미지는 공식 이미지에서 실행 파일만 옮겨 담은 빈 이미지(`scratch`)로 빌드한다. Prometheus 이미지에는 Alert 규칙도 넣는다. 공식 이미지는 지금처럼 태그와 digest로 고정한다. node_exporter 이미지도 같은 방법으로 빌드한다.
+- 코어 이미지는 공식 이미지에서 실행 파일만 옮겨 담은 빈 이미지(`scratch`)로 빌드한다. Prometheus 이미지에는 Alert 규칙도 넣는다. 공식 이미지는 지금처럼 태그와 digest로 고정한다. node_exporter 이미지도 같은 방법으로 빌드하고, 저장소의 node_exporter `compose.yml`도 이 이미지를 빌드해 쓴다(사람 확인: 2026-11-09).
 - 설정 템플릿은 묶음 폴더에 싣고, 이미지와 같은 커밋에서 만든다. 묶음의 체크섬이 둘을 함께 지킨다.
-- 코어 서버의 운영 명령이 설정 펼치기 작업에서 값을 `core-settings.sh`로 검사하고, token과 CA 인증서 파일을 확인한 뒤 템플릿을 펼친다. 띄우기 작업도 이 작업을 거친다. compose 파일은 펼친 설정을 읽기 전용으로 붙이고, 펼친 설정이 없으면 Compose가 컨테이너를 만들지 않는다.
-- Blackbox Exporter의 HTTPS 확인은 코어 서버 OS의 CA 인증서 파일을 쓴다. 운영 명령이 Go가 찾는 알려진 위치에서 찾고, Blackbox Exporter 컨테이너에만 붙인다(사람 확인: 2026-11-09).
-- 정상 확인은 컨테이너 healthcheck 대신 운영 명령이 코어 서버에서 `127.0.0.1`의 호스트 포트로 준비 확인 주소를 불러 한다(사람 확인: 2026-11-09).
+- 코어 서버의 운영 명령이 설정 펼치기 작업(`render`, 사람 확인: 2026-11-09)에서 값을 `core-settings.sh`로 검사하고, token과 CA 인증서 파일을 확인한 뒤 템플릿을 펼친다. 띄우기 작업도 이 작업을 거친다. compose 파일은 펼친 설정을 읽기 전용으로 붙이고, 펼친 설정이 없으면 Compose가 컨테이너를 만들지 않는다.
+- Blackbox Exporter의 HTTPS 확인은 코어 서버 OS의 CA 인증서 파일을 쓴다. 운영 명령이 Go가 찾는 알려진 위치에서 찾아 띄울 때마다 펼친 설정과 같은 곳에 복사하고, 그 복사본을 Blackbox Exporter 컨테이너에만 읽기 전용으로 붙인다(사람 확인: 2026-11-09).
+- 정상 확인은 컨테이너 healthcheck 대신 운영 명령이 코어 서버에서 `127.0.0.1`의 호스트 포트로 준비 확인 주소를 불러 한다(사람 확인: 2026-11-09). `curl`과 `wget`이 모두 없으면 컨테이너가 실행 중이고 다시 시작이 늘지 않는지로 대신 보고, 준비 확인을 하지 못했다고 경고한다. 띄우기는 막지 않는다(사람 확인: 2026-11-09).
 - 설정 검사와 규칙 테스트는 빌드 PC에서 공식 이미지의 `promtool`, `amtool`로 하고, 운영 이미지에 든 규칙을 꺼내 검사한다.
 
 이 ADR이 대신하는 것은 다음 문장뿐이다. ADR 템플릿에는 일부만 대체하는 것을 표시하는 상태 값이 없어서 세 ADR은 고치지 않고, 이 ADR에서 가리킨다.
@@ -49,7 +49,7 @@ ADR 0009의 "설정의 출처가 이미지 태그로 정해진다"는 뜻은, �
   - 정상 확인에 코어 서버의 `curl`이나 `wget`이 필요하다.
   - `docker compose ps`에 `healthy`가 보이지 않고, `docker exec`로 컨테이너 안을 살펴볼 수 없다.
   - 개발용 띄우기는 빌드 PC에서 셸이 있는 공식 이미지를 빌려 펼친다.
-  - 직접 실행 경로에서 펼친 뒤 token을 지우면 Alertmanager가 token 없이 뜬다. 받아들일지는 [계획](../requirements/0015-core-minimal-image.plan.md)의 남길 결정에서 사람이 정한다.
+  - 직접 실행 경로에서 펼친 뒤 token을 지우면 Alertmanager가 token 없이 뜬다. 이 위험은 받아들인다(사람 확인: 2026-11-09).
 - 다시 볼 신호: 시간대를 쓰는 설정(Alertmanager `time_intervals`의 `location` 등)이 필요해질 때, 세 프로그램이 설정 파일 안에서 환경 변수를 펼칠 수 있게 될 때, 코어 서버에 HTTP 도구를 둘 수 없을 때
 
 ## 확인 방법
