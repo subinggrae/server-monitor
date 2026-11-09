@@ -1,8 +1,8 @@
 # 0012. 감시 항목 이름·환경을 바꿔도 이어지는 장애
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-10-29
-- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md)
+- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0010](../decisions/0010-alert-labels-without-editable-values.md), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(구현 계획과 확인 기록 포함)
 
 ## 배경
 
@@ -119,14 +119,14 @@
 
 ## 완료 기준
 
-- [ ] C1. 장애가 이어지는 감시 항목의 이름을 바꿔도 Alertmanager의 그 Alert fingerprint와 `startsAt`이 그대로이고, Manager에 복구 webhook이 오지 않는다. (S1, S9) — 확인: 개발 환경에서 이번 배경과 같은 절차로 수동 확인. 수집 주기 30초 이상을 포함해 여러 번 바꾼다
-- [ ] C2. 장애가 이어지는 감시 항목의 환경을 바꿔도 C1과 같다. (S2, S9) — 확인: C1과 같은 수동 확인
-- [ ] C4. Alert 규칙 파일의 label과 annotation이 바뀐 계약대로이고, `promtool test rules`가 통과한다. (S1, S2) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트
-- [ ] C5. `alertmanager.yml`의 `group_by`가 이름과 환경을 쓰지 않고, 한 감시 항목의 여러 대상 Alert가 여전히 한 요청으로 묶인다. (S1, S2) — 확인: `amtool check-config`와 수동 확인
-- [ ] C6. [INTEGRATION.md](../INTEGRATION.md)의 SD label 표와 Alert label 표, webhook 예시, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 예시가 실제 label과 맞는다. — 확인: 리뷰
-- [ ] C11. [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에 관리자 서버가 알림의 감시 항목 이름과 환경을 Alert label이 아니라 `check_id`로 찾은 자기 DB 값으로 채워야 한다고 적혀 있다. (S1, S2, S3) — 확인: 리뷰
-- [ ] C12. 두 Alert 규칙에서 옛 기록의 stale 표시와 새 기록의 첫 수집 사이에 평가가 있어도 장애가 이어지고 시작 시각이 그대로다. 지우거나 끈 대상의 장애는 5분 동안 이어진 뒤 끝나고, 살아난 대상의 장애는 다음 평가에서 끝난다. 장애가 없을 때 이름·환경을 바꾼 직후 실패하면 1분 뒤 장애가 된다. (S3, S9, S10, S11) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트
-- [ ] C13. [INTEGRATION.md](../INTEGRATION.md)와 [운영 가이드](../OPERATIONS.md)에 지우거나 끈 감시 항목·주소의 장애가 최대 5분 뒤 복구로 끝난다고 적혀 있다. (S10) — 확인: 리뷰
+- [x] C1. 장애가 이어지는 감시 항목의 이름을 바꿔도 Alertmanager의 그 Alert fingerprint와 `startsAt`이 그대로이고, Manager에 복구 webhook이 오지 않는다. (S1, S9) — 확인: 개발 환경에서 이번 배경과 같은 절차로 수동 확인. 수집 주기 30초 이상을 포함해 여러 번 바꾼다(2026-11-09, 수집 주기 10초·60초 감시 항목에서 이름·환경을 네 번 바꾸는 동안 네 Alert의 fingerprint와 `startsAt`이 그대로였고 복구 webhook 0건, 기록은 PR #43의 계획 참고)
+- [x] C2. 장애가 이어지는 감시 항목의 환경을 바꿔도 C1과 같다. (S2, S9) — 확인: C1과 같은 수동 확인(2026-11-09, C1과 같은 확인. 수집 틈이 평가에 세 번 걸렸지만 이어짐)
+- [x] C4. Alert 규칙 파일의 label과 annotation이 바뀐 계약대로이고, `promtool test rules`가 통과한다. (S1, S2) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트(2026-11-09, `core-dev.bat check` 통과)
+- [x] C5. `alertmanager.yml`의 `group_by`가 이름과 환경을 쓰지 않고, 한 감시 항목의 여러 대상 Alert가 여전히 한 요청으로 묶인다. (S1, S2) — 확인: `amtool check-config`와 수동 확인(2026-11-09, `amtool check-config` 통과, 주소 두 개의 Alert가 한 요청 `count=2`로 옴)
+- [x] C6. [INTEGRATION.md](../INTEGRATION.md)의 SD label 표와 Alert label 표, webhook 예시, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 예시가 실제 label과 맞는다. — 확인: 리뷰(2026-11-09, 리뷰 두 번)
+- [x] C11. [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에 관리자 서버가 알림의 감시 항목 이름과 환경을 Alert label이 아니라 `check_id`로 찾은 자기 DB 값으로 채워야 한다고 적혀 있다. (S1, S2, S3) — 확인: 리뷰(2026-11-09, 리뷰)
+- [x] C12. 두 Alert 규칙에서 옛 기록의 stale 표시와 새 기록의 첫 수집 사이에 평가가 있어도 장애가 이어지고 시작 시각이 그대로다. 지우거나 끈 대상의 장애는 5분 동안 이어진 뒤 끝나고, 살아난 대상의 장애는 다음 평가에서 끝난다. 장애가 없을 때 이름·환경을 바꾼 직후 실패하면 1분 뒤 장애가 된다. (S3, S9, S10, S11) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트(2026-11-09, `core-dev.bat check` 통과. 바꾸기 전 규칙과 `last_over_time` 쪽만 쓰는 식에서 실패함을 확인)
+- [x] C13. [INTEGRATION.md](../INTEGRATION.md)와 [운영 가이드](../OPERATIONS.md)에 지우거나 끈 감시 항목·주소의 장애가 최대 5분 뒤 복구로 끝난다고 적혀 있다. (S10) — 확인: 리뷰(2026-11-09, 리뷰. 끈 주소가 마지막 확인 결과의 5분 뒤 복구됨을 수동 확인)
 
 ## 확인 필요
 

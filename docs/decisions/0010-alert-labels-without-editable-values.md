@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-10-29
-- 관련: [요구사항 0012](../requirements/0012-check-label-continuity.md), [#22](https://github.com/subinggrae/server-monitor/issues/22), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0007](0007-core-app-contract.md)
+- 관련: [요구사항 0012](../requirements/0012-check-label-continuity.md), [#22](https://github.com/subinggrae/server-monitor/issues/22), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0007](0007-core-app-contract.md), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(구현 계획과 확인 기록 포함)
 
 ## 배경과 문제
 
