@@ -130,16 +130,23 @@ Alert 규칙의 전후는 다음과 같다. `for: 1m`, `severity`, 규칙 이름
 
 ## 작업 순서
 
-- [ ] `monitoring-checks.test.yml`을 쓰고 지금 규칙으로 `core-dev.bat check`가 실패하는지 본다(C4)
-- [ ] `monitoring-checks.yml`의 식·annotation·머리 주석과 `alertmanager.yml`의 `group_by`·주석을 바꾼다. `core-dev.bat check` 통과(C4, C5). 커밋은 `fix!`와 `BREAKING CHANGE:`
-- [ ] INTEGRATION.md, ADMIN-SERVER.md, OPERATIONS.md, ARCHITECTURE.md, TESTING.md를 고치고 문서 검사를 통과시킨다(C6, C11)
-- [ ] 개발 환경에서 C1, C2, C5의 수동 확인을 하고 결과와 코어 변경 뒤 Manager의 장애 기록·알림 모습을 진행 중 발견에 적는다
+- [x] `monitoring-checks.test.yml`을 쓰고 지금 규칙으로 `core-dev.bat check`가 실패하는지 본다(C4)
+- [x] `monitoring-checks.yml`의 식·annotation·머리 주석과 `alertmanager.yml`의 `group_by`·주석을 바꾼다. `core-dev.bat check` 통과(C4, C5). 커밋은 `fix!`와 `BREAKING CHANGE:`
+- [x] INTEGRATION.md, ADMIN-SERVER.md, OPERATIONS.md, ARCHITECTURE.md, TESTING.md를 고치고 문서 검사를 통과시킨다(C6, C11)
+- [x] 개발 환경에서 C1, C2, C5의 수동 확인을 하고 결과와 코어 변경 뒤 Manager의 장애 기록·알림 모습을 진행 중 발견에 적는다
+- [ ] 이름·환경을 바꿀 때 생기는 수집 틈을 메우는 방법을 사람이 정하고, 틈을 흉내 낸 규칙 테스트를 더한 뒤 규칙을 고친다(진행 중 발견의 2026-11-09 C2)
 - [ ] 전체 검증(`cd frontend && npm run check`, `cd backend && ./gradlew build`, `core-dev.bat check`)과 새 세션의 리뷰
 
 ## 진행 중 발견
 
 - 2026-10-29 기준으로 `AlertEventService`와 `AlertMessageFormatter`의 테스트는 없다. webhook 통합 테스트(`AlertmanagerWebhookIntegrationTest`)는 token 확인과 기록만 본다. 2026-11-09에 Manager를 고치지 않기로 해 C3, C7의 테스트도 쓰지 않는다.
 - `infrastructure/prometheus/tests/`에는 recording rule 테스트(`server-resources.test.yml`)만 있고 Alert 규칙 테스트는 없다(요구사항 0008의 C1에도 적혀 있다). C4의 테스트는 새 파일이다.
+- 2026-11-09 수동 확인. 이 브랜치의 코어와 Manager 이미지를 따로 띄우고, 닫힌 포트 두 개(`manager-db:1`, `manager-db:2`)를 확인하는 TCP 감시 항목을 수집 주기 10초, 재발송 주기 5분으로 만들었다. 가짜 Telegram 서버로 실제 메시지를 받았다.
+  - C5: Manager 로그에 `group_key={}:{alertname="MonitoringCheckDown", check_id="1"} status=firing count=2`로 두 대상의 Alert가 한 요청에 왔다. Alert label에 `check_name`, `environment`가 없고 summary는 `manager-db:1 확인에 실패했습니다`였다.
+  - C1(02:08:36 UTC에 이름을 바꿈): 원래 `probe_success` series는 02:08:44에 끊기고 새 이름의 series가 시작했다. 두 Alert의 fingerprint(`0ec192097c1b3195`, `7838356f964841d3`)와 `startsAt`이 그대로였고 `ALERTS_FOR_STATE`에 빈 구간이 없었다. 02:13:16 webhook은 firing 두 건뿐이었고 장애 기록도 두 건 그대로였다. 이때 간 재발송 메시지 제목은 새 이름이었다.
+  - C2(02:14:00 UTC에 환경을 바꿈): 대상 1은 이어졌지만 대상 2는 끊겼다. 대상 2의 옛 series 마지막 sample은 02:14:05.785, 새 series 첫 sample은 02:14:17.335였고, 그 사이 02:14:16.731의 규칙 평가에 값이 없어 Alert가 한 번 사라졌다. 다음 평가부터 `for: 1m`을 다시 세어 `startsAt`이 02:15:31로 새로 잡혔다(fingerprint는 같음). 그 사이에 Alertmanager의 전송 시점이 없어 Manager에 복구 webhook은 오지 않았지만, 02:18:16 webhook으로 Manager에 장애 기록 3번이 새로 생기고 옛 기록 2번은 FIRING으로 남았다. 재발송 메시지에는 새 이름과 `환경: Staging`이 보였다.
+  - 원인: Prometheus는 SD에서 빠진 target의 series를 바로 stale로 끝내고, 새 label의 target은 자기 수집 주기 안의 정해진 시점에 처음 수집한다. 이 틈(최대 수집 주기 하나, 10~240초)에 규칙 평가(15초마다)가 있으면 `max without`의 결과가 비어 Alert가 끊긴다. 수집 주기가 길수록 거의 늘 끊긴다. 요구사항 배경의 시험 규칙이 이어진 것은 틈이 평가 시점에 걸리지 않았기 때문으로 보인다. 지금 `monitoring-checks.test.yml`은 새 series가 stale 표시와 같은 시점에 시작해 이 틈을 확인하지 않는다. 5초 간격 입력으로 옛 series를 2m5s에 stale로, 새 series를 2m20s부터 넣은 임시 테스트는 지금 규칙에서 실패했다.
+  - 고칠 방법 후보(사람이 정할 것): 규칙에 `keep_firing_for`를 두어 틈 동안 Alert를 유지함(복구와 감시 항목 삭제 때 복구가 그만큼 늦어짐), 식을 `last_over_time(...[W])`로 바꿔 stale 표시를 건넘(삭제·주소 변경 때 W만큼 늦게 복구됨), 틈은 받아들이고 문서에 적음. 셋 다 요구사항의 하지 않는 것(장애 판단 규칙을 바꾸지 않음)이나 목표와 부딪쳐 이번 계획에서 고르지 않았다.
 
 ## 남길 결정
 
