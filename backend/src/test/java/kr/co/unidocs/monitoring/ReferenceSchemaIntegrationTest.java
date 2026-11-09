@@ -28,19 +28,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 다른 앱이 참고하는 리소스 임계값 DDL(docs/reference-schema/)이 기준 migration 위에 적용되는지 확인합니다.
+ * 다른 앱이 참고하는 리소스 임계값과 알림 메시지 틀 DDL(docs/reference-schema/)이 기준 migration 위에 적용되는지 확인합니다.
  * 이 앱은 그 테이블을 쓰지 않으므로 앱을 띄우지 않고 Flyway와 SQL 실행만 합니다.
  *
  * 컨테이너를 매개변수로 받는 테스트는 autoCloseArguments를 끕니다. 켜 두면 JUnit이 테스트마다 컨테이너를 닫습니다.
  */
 @Tag("integration")
-@DisplayName("참고용 리소스 임계값 DDL")
+@DisplayName("참고용 DDL")
 class ReferenceSchemaIntegrationTest {
 
 	private static final Path REFERENCE_SCHEMA = Path.of("../docs/reference-schema");
 
+	private static final List<String> SCHEMA_FILES = List.of("resource-thresholds.sql", "alert-message-templates.sql");
+
 	private static final Set<String> TABLES = Set.of("resource_thresholds", "server_resource_alert_settings",
-			"resource_alert_states", "resource_alert_events");
+			"resource_alert_states", "resource_alert_events", "alert_message_templates");
 
 	private static final MariaDBContainer MARIADB = new MariaDBContainer("mariadb:11.4");
 
@@ -56,9 +58,9 @@ class ReferenceSchemaIntegrationTest {
 				.locations("classpath:db/migration/" + vendor)
 				.load()
 				.migrate();
-			new ResourceDatabasePopulator(
-					new FileSystemResource(REFERENCE_SCHEMA.resolve(vendor).resolve("resource-thresholds.sql")))
-				.execute(dataSource(database));
+			SCHEMA_FILES.forEach(file -> new ResourceDatabasePopulator(
+					new FileSystemResource(REFERENCE_SCHEMA.resolve(vendor).resolve(file)))
+				.execute(dataSource(database)));
 		});
 	}
 
@@ -73,7 +75,7 @@ class ReferenceSchemaIntegrationTest {
 
 	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
 	@MethodSource("databases")
-	@DisplayName("기준 migration 위에 적용하면 네 테이블이 생긴다")
+	@DisplayName("기준 migration 위에 적용하면 참고용 테이블이 모두 생긴다")
 	void createsTables(JdbcDatabaseContainer<?> database) {
 		Set<String> tables = columns(database).stream()
 			.map(column -> column.substring(0, column.indexOf('.')))
@@ -159,6 +161,37 @@ class ReferenceSchemaIntegrationTest {
 				INSERT INTO resource_alert_states (monitored_resource_id, severity, exceeded_since, updated_at)
 				VALUES (?, 'CRITICAL', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 				""", resourceId)).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
+	@MethodSource("databases")
+	@DisplayName("같은 종류의 메시지 틀을 두 번 넣지 못한다")
+	void rejectsDuplicateTemplateType(JdbcDatabaseContainer<?> database) {
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource(database));
+		insertTemplate(jdbc, "CHECK_FIRING", "[{상태}] {감시항목}");
+
+		assertThatThrownBy(() -> insertTemplate(jdbc, "CHECK_FIRING", "{대상} 확인에 실패했습니다."))
+			.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@ParameterizedTest(name = "{0}", autoCloseArguments = false)
+	@MethodSource("databases")
+	@DisplayName("한글과 이모지로 1000자(code point)인 메시지 틀을 그대로 저장한다")
+	void storesThousandCodePointTemplate(JdbcDatabaseContainer<?> database) {
+		JdbcTemplate jdbc = new JdbcTemplate(dataSource(database));
+		// 이모지는 UTF-16으로 두 char라서 String.length()는 1001입니다. DB는 code point로 세므로 1000자로 받아야 합니다.
+		String body = "가".repeat(999) + "🚨";
+		insertTemplate(jdbc, "CHECK_RESOLVED", body);
+
+		assertThat(jdbc.queryForObject("SELECT body FROM alert_message_templates WHERE template_type = ?", String.class,
+				"CHECK_RESOLVED")).isEqualTo(body);
+	}
+
+	private static void insertTemplate(JdbcTemplate jdbc, String templateType, String body) {
+		jdbc.update("""
+				INSERT INTO alert_message_templates (template_type, body, created_at, updated_at)
+				VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				""", templateType, body);
 	}
 
 	private static long insertServer(JdbcTemplate jdbc, String name) {
