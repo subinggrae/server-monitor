@@ -1,7 +1,7 @@
 # 0014. 관리자 서버에서 정하는 알림 메시지 틀 구현 계획
 
 - 요구사항: [0014. 관리자 서버에서 정하는 알림 메시지 틀](0014-alert-message-template.md)
-- 상태: 승인
+- 상태: 진행 중
 
 ## 접근 방법
 
@@ -107,12 +107,14 @@ alert_message_templates   종류마다 0~1행, 행이 없으면 관리자 서버
 
 ## 작업 순서
 
-- [ ] `ReferenceSchemaIntegrationTest`의 테이블 목록과 적용할 파일에 메시지 틀을 더하고 새 테스트 두 개를 쓴다. 실행해 실패를 확인한다.
-- [ ] MariaDB와 PostgreSQL의 `alert-message-templates.sql`을 쓰고 통합 테스트가 통과하는지 확인한다.
-- [ ] `docs/ADMIN-SERVER.md`에 알림 메시지 틀 절을 쓰고 세 표를 고친다.
-- [ ] `docs/INTEGRATION.md`의 두 곳과 `docs/ARCHITECTURE.md`의 코드 지도를 고친다.
-- [ ] 문서 검사, C3의 검색, C4의 diff 확인, 전체 검증을 실행한다.
+- [x] `ReferenceSchemaIntegrationTest`의 테이블 목록과 적용할 파일에 메시지 틀을 더하고 새 테스트 두 개를 쓴다. 실행해 실패를 확인한다.
+- [x] MariaDB와 PostgreSQL의 `alert-message-templates.sql`을 쓰고 통합 테스트가 통과하는지 확인한다.
+- [x] `docs/ADMIN-SERVER.md`에 알림 메시지 틀 절을 쓰고 세 표를 고친다.
+- [x] `docs/INTEGRATION.md`의 두 곳과 `docs/ARCHITECTURE.md`의 코드 지도를 고친다.
+- [x] 문서 검사, C3의 검색, C4의 diff 확인, 전체 검증을 실행한다.
 - [ ] 새 세션이나 하위 에이전트에 리뷰를 맡기고 반영한다.
+  - 멈춘 지점: 리뷰를 받아 종류 값 검사, 화면의 기본 틀과 재료 목록, code point 경계에서 자르기를 반영했다. 남은 지적(재료 값의 표기, `{서버}의`와 조사 규칙, 공백만 남은 틀과 중첩 중괄호, `{사용률}` 반올림, 길이 초과 문구, TERMS.md의 틀·재료)은 사람이 정한다.
+  - 다음에 할 일: 사람의 답을 요구사항과 관리자 서버 만들기에 반영하고 문서 검사를 다시 실행한다.
 - [ ] 요구사항을 구현됨으로 바꾸고 이 계획을 지운다.
 
 ## 진행 중 발견
