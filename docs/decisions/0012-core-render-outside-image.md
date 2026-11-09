@@ -1,0 +1,59 @@
+# 0012. 코어 설정은 운영 명령이 컨테이너 밖에서 펼치고, 코어 이미지에는 실행 파일과 규칙만 둔다
+
+- 상태: 제안
+- 날짜: 2026-11-09
+- 관련: [요구사항 0015](../requirements/0015-core-minimal-image.md), [계획](../requirements/0015-core-minimal-image.plan.md), [ADR 0007](0007-core-app-contract.md), [ADR 0009](0009-core-config-in-image.md), [ADR 0011](0011-core-address-format-check.md)(이 ADR이 세 ADR의 일부 결정만 대신함), [PR #45](https://github.com/subinggrae/server-monitor/pull/45), [#44](https://github.com/subinggrae/server-monitor/issues/44)
+
+## 배경과 문제
+
+코어 묶음은 Prometheus, Alertmanager, Blackbox Exporter 세 프로그램(Apache-2.0)만 건네고, 그 밖의 라이선스를 더하지 않기로 했다(사람 확인: 2026-11-09, [요구사항 0015](../requirements/0015-core-minimal-image.md)). 지금 코어 이미지는 공식 이미지 위에 만들어 BusyBox(GPL-2.0), CA 인증서 묶음, 시간대 자료가 함께 들어간다. 그래서 셸이 없는 최소 이미지로 바꾼다.
+
+그런데 지금 구조는 컨테이너 안의 셸에 기댄다. 컨테이너가 시작할 때 `render-config.sh`가 서버마다 다른 값(관리자 서버 주소, 보관 기간·용량, 확인 제한 시간)을 검사해 설정 템플릿에 펼친다([ADR 0007](0007-core-app-contract.md), [ADR 0009](0009-core-config-in-image.md), [ADR 0011](0011-core-address-format-check.md)). 세 프로그램은 설정 파일 안에서 환경 변수를 펼치지 못하므로, 셸이 없으면 이미지 안에서 펼칠 곳이 없다. 컨테이너 정상 확인도 BusyBox `wget`을 쓴다.
+
+## 검토한 선택지
+
+- **이미지에 셸을 두고 지금처럼 펼침**: 바꿀 것이 없다 / BusyBox가 남아 라이선스 목표와 맞지 않는다.
+- **셸이 있는 이미지로 한 번만 도는 준비 컨테이너가 펼침**: 직접 실행 경로가 그대로다 / 그 이미지의 셸이 묶음에 다시 들어간다.
+- **Compose 변수로 설정 내용을 펼침(`configs.content`)**: 스크립트가 없다 / 값의 형식을 검사할 수 없어 ADR 0011과 맞지 않고, ADR 0007이 이미 버린 방법이다.
+- **펼치기와 정상 확인을 하는 작은 프로그램을 이미지에 넣음**: 직접 실행 경로가 그대로다 / 세 프로그램 밖의 코드와 Go 런타임 라이선스가 이미지에 들어간다.
+- **코어 서버의 운영 명령이 띄우기 전에 펼침**: 이미지에 실행 파일과 규칙만 남고, 검사 규칙이 한곳(`core-settings.sh`)에 남는다 / 운영 명령 없이 Compose만으로는 띄울 수 없어, 직접 실행할 때도 운영 명령의 펼치기 작업을 먼저 실행해야 한다.
+
+## 결정
+
+마지막 선택지를 고른다(사람 확인: 2026-11-09, 요구사항 0015의 S8).
+
+- 코어 이미지는 공식 이미지에서 실행 파일만 옮겨 담은 빈 이미지(`scratch`)로 빌드한다. Prometheus 이미지에는 Alert 규칙도 넣는다. 공식 이미지는 지금처럼 태그와 digest로 고정한다. node_exporter 이미지도 같은 방법으로 빌드한다.
+- 설정 템플릿은 묶음 폴더에 싣고, 이미지와 같은 커밋에서 만든다. 묶음의 체크섬이 둘을 함께 지킨다.
+- 코어 서버의 운영 명령이 설정 펼치기 작업에서 값을 `core-settings.sh`로 검사하고, token과 CA 인증서 파일을 확인한 뒤 템플릿을 펼친다. 띄우기 작업도 이 작업을 거친다. compose 파일은 펼친 설정을 읽기 전용으로 붙이고, 펼친 설정이 없으면 Compose가 컨테이너를 만들지 않는다.
+- Blackbox Exporter의 HTTPS 확인은 코어 서버 OS의 CA 인증서 파일을 쓴다. 운영 명령이 Go가 찾는 알려진 위치에서 찾고, Blackbox Exporter 컨테이너에만 붙인다(사람 확인: 2026-11-09).
+- 정상 확인은 컨테이너 healthcheck 대신 운영 명령이 코어 서버에서 `127.0.0.1`의 호스트 포트로 준비 확인 주소를 불러 한다(사람 확인: 2026-11-09).
+- 설정 검사와 규칙 테스트는 빌드 PC에서 공식 이미지의 `promtool`, `amtool`로 하고, 운영 이미지에 든 규칙을 꺼내 검사한다.
+
+이 ADR이 대신하는 것은 다음 문장뿐이다. ADR 템플릿에는 일부만 대체하는 것을 표시하는 상태 값이 없어서 세 ADR은 고치지 않고, 이 ADR에서 가리킨다.
+
+- **[ADR 0007](0007-core-app-contract.md)**: "Prometheus와 Alertmanager가 시작할 때 `render-config.sh`가 설정 템플릿에 펼친다"를 대신한다. 앱 주소를 `MONITORING_APP_ADDRESS` 하나로 받는 것과 코어와 앱을 통합 계약으로 나누는 것은 그대로다.
+- **[ADR 0009](0009-core-config-in-image.md)**: "공개 이미지를 바탕으로 설정 템플릿과 `render-config.sh`를 넣은 이미지를 빌드한다"를 대신한다. 확인 방법의 "`compose.yml`이 코어 설정 파일을 volume으로 붙이지 않는다"와 "빌드한 이미지로 설정을 검사한다"도 이 ADR의 확인 방법으로 바뀐다. Alert 규칙을 이미지에 넣는 것, 서버마다 다르거나 비밀인 값을 실행할 때 받는 것, 개발과 배포가 같은 빌드 정의를 쓰는 것은 그대로다.
+- **[ADR 0011](0011-core-address-format-check.md)**: "시작 스크립트도 관리자 서버 주소를 검사하고, 틀리면 원래 프로세스를 실행하지 않는다"를 대신한다. `core-settings.sh`의 `core_valid_address` 하나로 검사하는 것과 운영 명령이 검사한 값을 그대로 쓰는 것은 그대로다.
+
+ADR 0009의 "설정의 출처가 이미지 태그로 정해진다"는 뜻은, 펼친 설정을 띄울 때마다 같은 묶음의 템플릿에서 다시 만드는 것으로 지킨다. 서버에서 펼친 파일을 고쳐도 다음 띄우기 때 지워진다.
+
+## 결과
+
+- 좋아지는 점:
+  - 코어 묶음과 node_exporter 묶음에 세 프로그램과 node_exporter 밖의 라이선스가 없다. BusyBox 소스를 받아 싣는 빌드 단계가 없어진다.
+  - 이미지에 셸이 없어 컨테이너 안에서 실행할 수 있는 프로그램이 그 프로그램뿐이다.
+  - 사내 인증 기관을 코어 서버 OS에 등록하면 Blackbox Exporter도 믿는다.
+  - 운영 이미지에 `promtool`과 `amtool`이 없어 이미지가 작아진다.
+- 감수할 점:
+  - 운영 명령 없이 Compose로 띄우려면 먼저 운영 명령의 펼치기 작업을 실행해야 한다. 펼친 뒤 `.env`를 바꾸고 다시 펼치지 않으면 바꾼 값이 반영되지 않는다.
+  - 정상 확인에 코어 서버의 `curl`이나 `wget`이 필요하다.
+  - `docker compose ps`에 `healthy`가 보이지 않고, `docker exec`로 컨테이너 안을 살펴볼 수 없다.
+  - 개발용 띄우기는 빌드 PC에서 셸이 있는 공식 이미지를 빌려 펼친다.
+  - 직접 실행 경로에서 펼친 뒤 token을 지우면 Alertmanager가 token 없이 뜬다. 받아들일지는 [계획](../requirements/0015-core-minimal-image.plan.md)의 남길 결정에서 사람이 정한다.
+- 다시 볼 신호: 시간대를 쓰는 설정(Alertmanager `time_intervals`의 `location` 등)이 필요해질 때, 세 프로그램이 설정 파일 안에서 환경 변수를 펼칠 수 있게 될 때, 코어 서버에 HTTP 도구를 둘 수 없을 때
+
+## 확인 방법
+
+- 빌드 검사(`node scripts/build-core-bundle.mjs --check`): 이미지마다 파일 목록이 허용 목록과 같고, 실행 사용자·작업 폴더·포트·label이 기대값과 같은지 본다. 공식 이미지의 도구로 펼친 설정을 검사하고, 운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 한다.
+- 운영 명령 시험(`infrastructure/tests/core-server.test.sh`): 펼치기 작업이 틀린 값, token 문제, CA 파일 없음에서 펼치지 않는지 본다. 또 준비 확인으로 정상을 판단하는지 본다.
+- 리뷰에서 확인: compose 파일이 붙이는 설정 파일은 운영 명령이 펼친 것뿐이고, CA 파일은 Blackbox Exporter에만 붙는지 본다.
