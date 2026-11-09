@@ -1,0 +1,92 @@
+# rules/monitoring-checks.yml의 promtool 테스트입니다.
+# Prometheus가 rules/*.yml을 모두 규칙 파일로 읽으므로 이 파일은 rules/ 밖에 둡니다.
+# 실행 명령은 docs/DEVELOPMENT.md에 있습니다.
+
+rule_files:
+  - ../rules/monitoring-checks.yml
+
+evaluation_interval: 15s
+
+tests:
+  # Check 1(대상 11, 12)은 처음부터 계속 실패하고, 2분쯤에 사용자가 이름과 환경을 함께 바꿉니다.
+  # SD label이 바뀌면 옛 series가 끝나고 새 series가 시작하지만, Alert는 끊기지 않아야 합니다.
+  # Check 2는 계속 성공하므로 Alert가 없어야 합니다.
+  - interval: 15s
+    input_series:
+      # 대상 11: 바꾼 시점(2m15s)에 옛 series에 stale 표시가 남고 새 series가 시작합니다.
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.5:8080"}'
+        values: '0x8 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP 새 이름",instance="10.0.0.5:8080"}'
+        values: '_x9 0x12'
+      # 대상 12: stale 표시 없이 옛 series와 새 series가 75초부터 함께 남아 있습니다.
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="12",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.6:8080"}'
+        values: '0x8'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="12",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP 새 이름",instance="10.0.0.6:8080"}'
+        values: '_x5 0x16'
+      - series: 'probe_success{job="manager-blackbox",check_id="2",check_target_id="21",check_type="HTTPS",module="http_2xx",environment="Production",check_name="포털",instance="https://example.com/health"}'
+        values: '1x21'
+
+      # 대상 11의 probe 결과를 가져오지 못하는 동안 이름과 환경이 바뀝니다.
+      - series: 'up{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.5:8080"}'
+        values: '0x8 stale'
+      - series: 'up{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP 새 이름",instance="10.0.0.5:8080"}'
+        values: '_x9 0x12'
+      - series: 'up{job="manager-blackbox",check_id="2",check_target_id="21",check_type="HTTPS",module="http_2xx",environment="Production",check_name="포털",instance="https://example.com/health"}'
+        values: '1x21'
+
+    alert_rule_test:
+      # 바꾼 30초 뒤에도 firing입니다. 새 series만 보고 판단하면 아직 pending입니다.
+      # label에 check_name, environment가 없어 대상마다 Alert가 하나씩입니다.
+      - alertname: MonitoringCheckDown
+        eval_time: 2m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '1'
+              check_target_id: '11'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.0.5:8080'
+            exp_annotations:
+              summary: '10.0.0.5:8080 확인에 실패했습니다'
+              description: '10.0.0.5:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '1'
+              check_target_id: '12'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.0.6:8080'
+            exp_annotations:
+              summary: '10.0.0.6:8080 확인에 실패했습니다'
+              description: '10.0.0.6:8080 확인이 1분 넘게 실패하고 있습니다. (TCP)'
+
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 2m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: manager-blackbox
+              check_id: '1'
+              check_target_id: '11'
+              check_type: TCP
+              module: tcp_connect
+              instance: '10.0.0.5:8080'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '10.0.0.5:8080의 probe 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+
+    promql_expr_test:
+      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # 바꾸기 전 처음 실패한 0초 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
+      - expr: ALERTS_FOR_STATE
+        eval_time: 2m45s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",instance="10.0.0.5:8080"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",job="manager-blackbox",check_id="1",check_target_id="12",check_type="TCP",module="tcp_connect",instance="10.0.0.6:8080"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",instance="10.0.0.5:8080"}'
+            value: 0
