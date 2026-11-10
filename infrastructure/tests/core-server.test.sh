@@ -103,11 +103,6 @@ case "$1" in
       *working_dir*) cat "$FAKE/running_workdir" ;;
       *image.version*) cat "$FAKE/running_version" ;;
       *image.revision*) echo "abc1234" ;;
-      # 계속 다시 시작하는 컨테이너는 볼 때마다 횟수가 는다.
-      *RestartCount*)
-        count=$(cat "$FAKE/restarts.$container" 2>/dev/null || echo 0)
-        if [ -f "$FAKE/crashing.$container" ]; then count=$((count + 1)); printf '%s\n' "$count" > "$FAKE/restarts.$container"; fi
-        echo "$count" ;;
       *State.Status*) cat "$FAKE/status.$container" 2>/dev/null || if [ -f "$FAKE/stopped" ]; then echo exited; else echo running; fi ;;
       *.Image*) echo "running-image" ;;
       *State.Running*) if [ -f "$FAKE/stopped" ]; then echo false; else echo true; fi ;;
@@ -206,8 +201,13 @@ ORIGINAL_PATH=$PATH
 
 setup
 run deploy
-check '알 수 없는 작업이면 쓸 수 있는 작업을 보이고 실패한다' \
-  '[ $RC -ne 0 ] && contains "install" && contains "rotate-token" && ! called "^compose"'
+check '알 수 없는 작업이면 쓸 수 있는 네 작업을 보이고 실패한다' \
+  '[ $RC -ne 0 ] && contains "install" && contains "render" && contains "start" && contains "status" && ! contains "rotate-token" && ! called "^compose"'
+
+setup; prepared; started; before=$(cat "$TOKEN")
+run rotate-token
+check 'token 바꾸기 작업은 없고, 운영 명령이 token을 바꾸거나 컨테이너를 다시 만들지 않는다' \
+  '[ $RC -ne 0 ] && contains "사용법" && [ "$(cat "$TOKEN")" = "$before" ] && ! called "^compose"'
 
 setup; prepared; touch "$FAKE/docker_down"
 run start
@@ -295,11 +295,6 @@ run start
 check 'find가 없는 서버에서도 다른 사용자가 읽을 수 없는 token이면 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && ! called "^compose"'
 
-setup; prepared; rm -r "$INSTALL/secrets"; mkdir "$BUNDLE/secrets"; printf 'old\n' > "$BUNDLE/secrets/alertmanager_webhook_token"
-run start
-check '묶음 폴더 안에 token이 있으면 설치 폴더로 옮기라고 안내한다' \
-  '[ $RC -ne 0 ] && contains "묶음 폴더 안에 token이 있습니다" && ! called "^compose"'
-
 setup; prepared; mkdir "$T/custom"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/custom/"
 printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/custom" > "$BUNDLE/.env"
 run start
@@ -321,35 +316,14 @@ run start
 check '정해진 시간 안에 준비되지 않으면 그 컨테이너와 로그 명령만 보인다' \
   '[ $RC -ne 0 ] && contains "정상 상태가 되지 않았습니다" && contains "docker logs prometheus" && ! contains "docker logs alertmanager"'
 
-setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
-run start
-check '이전 버전으로 바꾸는데 터미널이 아니면 바꾸지 않는다' \
-  '[ $RC -ne 0 ] && contains "v3" && ! called "^compose.* up"'
-
-setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
-run_in_terminal n start
-check '이전 버전으로 바꿀지 물었을 때 n이면 바꾸지 않는다' \
-  'contains "계속할까요" && contains "코어는 바꾸지 않았습니다" && ! called "^compose.* up"'
-
-setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
-run_in_terminal y start
-check '이전 버전으로 바꿀지 물었을 때 y이면 바꾼다' \
-  '[ $RC -eq 0 ] && contains "계속할까요" && called "^compose.* up"'
-
-setup; prepared; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
-run start
-check '새 버전으로 바꿀 때는 묻지 않고 떠 있는 버전과 새 버전을 보인다' \
-  '[ $RC -eq 0 ] && contains "v1" && ! contains "계속할까요" && called "^compose.* up"'
-
-setup; prepared; running_other v0 '<no value>' "$INSTALL/monitoring-core-v0"
-run start
-check '떠 있는 이미지에 커밋 시각이 없으면 예전 버전으로 보고 묻지 않는다' \
-  '[ $RC -eq 0 ] && called "^compose.* up"'
-
-setup; prepared; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"; printf '<no value>\n' > "$FAKE/bundle_time"
-run start
-check '띄울 이미지에 커밋 시각이 없으면 이전 버전으로 보고 터미널이 아니면 바꾸지 않는다' \
-  '[ $RC -ne 0 ] && ! called "^compose.* up"'
+# 직전 버전으로 되돌리기(요구사항 0015의 S21): 버전의 앞뒤와 관계없이 묻지 않고 이 묶음의 버전으로 띄운다.
+for other in 'v3 1761700000' 'v1 1761500000'; do
+  set -- $other
+  setup; prepared; running_other "$1" "$2" "$INSTALL/monitoring-core-$1"
+  run start
+  check "다른 버전($1)이 떠 있어도 묻지 않고 이 묶음의 버전으로 띄운다" \
+    '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up" && contains "버전 v2"'
+done
 
 setup; prepared; printf 'disabled\n' > "$FAKE/systemctl"
 run start
@@ -380,26 +354,12 @@ check '설치 준비를 다시 하면 token과 설정 파일을 덮어쓰지 않
 
 setup; prepared; rm "$BUNDLE/.env"; mkdir "$INSTALL/monitoring-core-v1"
 printf 'MONITORING_APP_ADDRESS=old-admin:9000\n' > "$INSTALL/monitoring-core-v1/.env"
-running_other v1 '2026-10-27T00:00:00Z' "$INSTALL/monitoring-core-v1"
-run install
-check '갱신할 때 떠 있는 버전의 폴더에서 설정을 가져온다' \
-  '[ $RC -eq 0 ] && grep -q "old-admin:9000" "$BUNDLE/.env" && contains "monitoring-core-v1"'
-
-setup; prepared; rm "$BUNDLE/.env"; mkdir -p "$T/elsewhere"
-printf 'MONITORING_APP_ADDRESS=other:1\n' > "$T/elsewhere/.env"
-running_other v1 '2026-10-27T00:00:00Z' "$T/elsewhere"
+running_other v1 1761500000 "$INSTALL/monitoring-core-v1"; before=$(cat "$TOKEN")
 STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
 run install
 unset STDIN
-check '떠 있는 폴더가 설치 폴더 밖이면 가져오지 않고 주소를 묻는다' \
-  '[ $RC -eq 0 ] && contains "찾지 못했습니다" && grep -q "manager-api:8080" "$BUNDLE/.env"'
-
-setup; prepared; rm "$BUNDLE/.env"; before=$(cat "$INSTALL/secrets/alertmanager_webhook_token")
-STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
-run install
-unset STDIN
-check '떠 있는 코어가 없으면 주소를 묻고 token은 새로 만들지 않는다' \
-  '[ $RC -eq 0 ] && contains "찾지 못했습니다" && [ "$(cat "$INSTALL/secrets/alertmanager_webhook_token")" = "$before" ]'
+check '설치 준비는 떠 있는 버전의 폴더에서 설정을 가져오지 않고 주소를 물으며 token은 그대로 둔다' \
+  '[ $RC -eq 0 ] && grep -q "^MONITORING_APP_ADDRESS=manager-api:8080$" "$BUNDLE/.env" && ! grep -q "old-admin" "$BUNDLE/.env" && [ "$(cat "$TOKEN")" = "$before" ]'
 
 setup; STDIN="$T/answer"; printf 'bad address\n' > "$STDIN"
 run install
@@ -418,37 +378,6 @@ OUT=$(cd "$BUNDLE" && CORE_SECRETS_DIR="$T/fromshell" sh ./core-server.sh start 
 RC=$?
 check '셸 환경 변수에 token 폴더가 있으면 Compose처럼 그 값을 쓴다' '[ $RC -eq 0 ] && called "^compose.* up"'
 
-# --- 예전 방식(token이 묶음 폴더 안)으로 설치한 서버에서 갱신 ---
-
-old_bundle() {
-  mkdir -p "$INSTALL/monitoring-core-v1"
-  printf 'MONITORING_APP_ADDRESS=old-admin:9000\n%s' "${1:-}" > "$INSTALL/monitoring-core-v1/.env"
-  running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
-}
-
-setup; prepared; rm -r "$INSTALL/secrets"; rm "$BUNDLE/.env"; old_bundle
-mkdir "$INSTALL/monitoring-core-v1/secrets"; printf 'old\n' > "$INSTALL/monitoring-core-v1/secrets/alertmanager_webhook_token"
-run install
-check '이전 묶음 폴더 안에 token이 있으면 새 token을 만들지 않고 옮기라고 안내한다' \
-  '[ $RC -ne 0 ] && contains "monitoring-core-v1/secrets/alertmanager_webhook_token" && [ ! -e "$INSTALL/secrets" ] && [ ! -e "$BUNDLE/.env" ]'
-check 'token을 옮길 곳은 ../ 없이 설치 폴더의 실제 경로로 보인다' \
-  'contains "$(cd "$INSTALL" && pwd -P)/secrets/로 옮기고" && ! contains "/../"'
-
-setup; prepared; mkdir "$T/fixed"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/fixed/"; rm "$BUNDLE/.env"
-old_bundle "CORE_SECRETS_DIR=$T/fixed
-"
-run install
-check '가져온 설정에 token 폴더가 적혀 있으면 그 token을 쓰고 새로 만들지 않는다' \
-  '[ $RC -eq 0 ] && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ] && grep -q "old-admin" "$BUNDLE/.env"'
-
-setup; prepared; rm "$INSTALL/secrets/alertmanager_webhook_token" "$BUNDLE/.env"
-running_other v1 1761500000 "$T/elsewhere"; touch "$FAKE/stopped"
-STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
-run install
-unset STDIN
-check '멈춘 코어가 있어도 token이 없으면 새로 만들지 않는다' \
-  '[ $RC -ne 0 ] && contains "만들지 않았습니다" && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ]'
-
 setup; touch "$FAKE/docker_down"; STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
 run install
 unset STDIN
@@ -460,56 +389,6 @@ printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/shar
 run install
 check 'token을 이미 있는 폴더에 만들면 그 폴더의 권한을 바꾸지 않는다' \
   '[ $RC -eq 0 ] && [ "$(mode "$T/shared")" = drwxr-xr-x ] && [ -s "$T/shared/alertmanager_webhook_token" ]'
-
-# --- token 바꾸기 ---
-
-setup; prepared; started; before=$(cat "$TOKEN")
-run rotate-token
-check 'token을 바꾸면 새 값을 쓰고 출력하지 않는다' \
-  '[ $RC -eq 0 ] && [ "$(cat "$TOKEN")" != "$before" ] && grep -Eq "^[0-9a-f]{64}$" "$TOKEN" && ! contains "$(cat "$TOKEN")"'
-check 'token을 바꾸면 Alertmanager를 다시 만든다' 'called "^compose.*--force-recreate alertmanager"'
-
-setup; prepared; mkdir "$INSTALL/monitoring-core-v1"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"; before=$(cat "$TOKEN")
-run rotate-token
-check '코어를 띄운 폴더가 아니면 token을 바꾸지 않는다' \
-  '[ $RC -ne 0 ] && contains "monitoring-core-v1" && [ "$(cat "$TOKEN")" = "$before" ] && ! called "^compose"'
-
-setup; prepared; rm "$BUNDLE/.env"; before=$(cat "$TOKEN")
-run rotate-token
-check '사전 검사에 실패하면 token을 바꾸지 않는다' '[ $RC -ne 0 ] && [ "$(cat "$TOKEN")" = "$before" ]'
-
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; touch "$FAKE/stopped"; before=$(cat "$TOKEN")
-run rotate-token
-check '코어가 멈춰 있으면 token만 바꾸고 컨테이너를 띄우지 않는다' \
-  '[ $RC -eq 0 ] && [ "$(cat "$TOKEN")" != "$before" ] && ! called "^compose" && contains "다음 start"'
-
-setup; prepared; started; printf '9093\n' > "$FAKE/not_ready_ports"
-run rotate-token
-check 'token을 바꾼 뒤 Alertmanager가 준비되지 않으면 로그 명령을 보인다' \
-  '[ $RC -ne 0 ] && contains "docker logs alertmanager"'
-
-setup; prepared; started
-run rotate-token
-check 'token을 바꾸면 Alertmanager의 준비 확인 주소만 부른다' \
-  '[ $RC -eq 0 ] && ready_called "127.0.0.1:9093/-/ready" && ! ready_called ":9090/"'
-
-# Alertmanager만 다시 만드는데 다른 설정까지 바꾸면 Prometheus와 Blackbox Exporter가 다음 다시 시작 때 확인 없이 새 설정을 읽는다.
-setup; prepared; started; before=$(cat "$TOKEN")
-printf 'CORE_RETENTION_DAYS=30\n' >> "$BUNDLE/.env"; expected=$(cat "$RENDERED/prometheus.yml")
-run rotate-token
-check '지난 띄우기 뒤 설정 값을 바꿨으면 token을 바꾸지 않고 start를 먼저 안내한다' \
-  '[ $RC -ne 0 ] && contains "sh core-server.sh start" && [ "$(cat "$TOKEN")" = "$before" ] && [ "$(cat "$RENDERED/prometheus.yml")" = "$expected" ] && ! called "^compose"'
-
-setup; prepared; printf 'x' >> "$BUNDLE/templates/alertmanager.yml"; running_other v2 1761600000 "$BUNDLE"; before=$(cat "$TOKEN")
-run rotate-token
-check '묶음의 템플릿이 바뀌었으면 token을 바꾸지 않는다' \
-  '[ $RC -ne 0 ] && contains "체크섬" && [ "$(cat "$TOKEN")" = "$before" ]'
-
-setup; prepared
-OUT=$(cd "$BUNDLE" && http_proxy=http://proxy.invalid:3128 HTTP_PROXY=http://proxy.invalid:3128 sh ./core-server.sh start 2>&1 < /dev/null)
-RC=$?
-check '셸에 프록시가 있어도 준비 확인은 127.0.0.1을 프록시 없이 부른다' \
-  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/proxy_seen")" = "127.0.0.1 127.0.0.1" ]'
 
 # --- 서버에서 바꾸는 코어 설정 값(요구사항 0013) ---
 
@@ -591,22 +470,6 @@ run start
 check '틀린 값이 여럿이면 모두 한 번에 보인다' \
   '[ $RC -ne 0 ] && contains "CORE_RETENTION_DAYS" && contains "CORE_PROBE_TIMEOUT_SECONDS" && ! called "^compose"'
 
-# 호스트 포트 겹침: 겹친 포트와 그 포트를 쓰는 구성 요소를 보인다.
-for pair in 'CORE_ALERTMANAGER_PORT=9090 Prometheus Alertmanager 9090' \
-            'CORE_BLACKBOX_PORT=9090 Prometheus Blackbox 9090' \
-            'CORE_ALERTMANAGER_PORT=9115 Alertmanager Blackbox 9115'; do
-  set -- $pair
-  setup; prepared; with_settings "$1"
-  run start
-  first=$2 second=$3 port=$4
-  check "호스트 포트가 겹치면($1) 겹친 포트와 두 구성 요소를 보이고 띄우지 않는다" \
-    '[ $RC -ne 0 ] && contains "$port" && contains "$first" && contains "$second" && ! called load && ! called "^compose"'
-done
-setup; prepared; with_settings CORE_PROMETHEUS_PORT=19000 CORE_ALERTMANAGER_PORT=19000 CORE_BLACKBOX_PORT=19000
-run start
-check '세 호스트 포트가 모두 같으면 세 구성 요소를 보이고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "19000" && contains "Prometheus" && contains "Alertmanager" && contains "Blackbox" && ! called "^compose"'
-
 setup; prepared; with_settings CORE_RETENTION_DAYS= CORE_RETENTION_SIZE_GB= CORE_PROBE_TIMEOUT_SECONDS= \
   CORE_PROMETHEUS_PORT= CORE_ALERTMANAGER_PORT= CORE_BLACKBOX_PORT=
 run start
@@ -628,11 +491,6 @@ setup; prepared; with_settings CORE_RETENTION_DAYS=365 CORE_RETENTION_SIZE_GB=99
 run start
 check '허용 범위 양 끝의 값이면 띄운다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && contains "365일" && contains "999999999GB" && contains "9초" && contains "65535"'
-
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; with_settings CORE_BLACKBOX_PORT=80; before=$(cat "$TOKEN")
-run rotate-token
-check 'token을 바꿀 때도 틀린 설정 값이면 token을 바꾸지 않고 Alertmanager를 다시 만들지 않는다' \
-  '[ $RC -ne 0 ] && contains "CORE_BLACKBOX_PORT" && [ "$(cat "$TOKEN")" = "$before" ] && ! called "^compose"'
 
 setup; prepared; touch "$FAKE/port_taken"
 run start
@@ -834,10 +692,6 @@ run_with_env "CORE_PROBE_TIMEOUT_SECONDS=5
 prober: tcp" render
 check '설정 펼치기는 셸 환경 변수의 값에 줄바꿈과 YAML이 있으면 거부한다' \
   '[ $RC -ne 0 ] && contains "CORE_PROBE_TIMEOUT_SECONDS" && unchanged'
-setup; prepared; previously_rendered; with_settings CORE_ALERTMANAGER_PORT=9090
-run render
-check '설정 펼치기는 호스트 포트가 겹치면 거부한다' '[ $RC -ne 0 ] && contains "호스트 포트가 겹칩니다" && unchanged'
-
 # token: 운영 명령 없이 Compose로 띄울 때 token 없이 Alertmanager가 뜨지 않게 펼치기 전에 확인한다(요구사항 0015의 S14).
 setup; prepared; rm "$TOKEN"
 run render
@@ -946,10 +800,6 @@ run start
 check '펼친 설정이 그대로면 컨테이너를 강제로 다시 만들지 않는다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && ! called "force-recreate"'
 
-setup; prepared; previously_rendered; running_other v3 1761700000 "$INSTALL/monitoring-core-v3"
-run start
-check '이전 버전으로 바꾸지 않고 멈추면 펼친 설정을 바꾸지 않는다' '[ $RC -ne 0 ] && unchanged'
-
 setup; prepared; previously_rendered; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
 run start
 check '기록 보관 값 줄임을 확인하지 않고 멈추면 펼친 설정을 바꾸지 않는다' \
@@ -997,14 +847,8 @@ check 'wget으로 부른 준비 확인 주소가 실패하면 그 컨테이너�
 setup; prepared
 OUT=$(cd "$BUNDLE" && CORE_READY_TOOLS="" sh ./core-server.sh start 2>&1 < /dev/null)
 RC=$?
-check 'curl과 wget이 없으면 경고하고, 컨테이너가 실행 중이고 다시 시작하지 않으면 띄우기를 마친다' \
-  '[ $RC -eq 0 ] && contains "curl과 wget이 없어" && [ ! -f "$FAKE/ready_calls" ] && contains "코어가 떠 있습니다"'
-
-setup; prepared; touch "$FAKE/crashing.blackbox-exporter"
-OUT=$(cd "$BUNDLE" && CORE_READY_TOOLS="" sh ./core-server.sh start 2>&1 < /dev/null)
-RC=$?
-check 'curl과 wget이 없을 때 다시 시작하는 컨테이너가 있으면 그 컨테이너와 로그 명령을 보인다' \
-  '[ $RC -ne 0 ] && contains "docker logs blackbox-exporter" && ! contains "docker logs prometheus"'
+check 'curl과 wget이 없으면 curl을 설치하라고 안내하고 이미지를 불러오거나 컨테이너를 바꾸지 않는다' \
+  '[ $RC -ne 0 ] && contains "curl" && contains "설치" && ! called load && ! called "^compose" && [ ! -e "$RENDERED" ]'
 
 printf '\n통과 %s, 실패 %s\n' "$PASSED" "$FAILED"
 [ "$FAILED" -eq 0 ]
