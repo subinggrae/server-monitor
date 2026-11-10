@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-11-09
-- 관련: [요구사항 0015](../requirements/0015-core-minimal-image.md), [계획](../requirements/0015-core-minimal-image.plan.md), [ADR 0007](0007-core-app-contract.md), [ADR 0009](0009-core-config-in-image.md), [ADR 0011](0011-core-address-format-check.md)(이 ADR이 세 ADR의 일부 결정만 대신함), [PR #45](https://github.com/subinggrae/server-monitor/pull/45), [#44](https://github.com/subinggrae/server-monitor/issues/44)
+- 관련: [요구사항 0015](../requirements/0015-core-minimal-image.md), [PR #45](https://github.com/subinggrae/server-monitor/pull/45)(구현 계획 포함), [ADR 0007](0007-core-app-contract.md), [ADR 0009](0009-core-config-in-image.md), [ADR 0011](0011-core-address-format-check.md)(이 ADR이 세 ADR의 일부 결정만 대신함), [#44](https://github.com/subinggrae/server-monitor/issues/44)
 
 ## 배경과 문제
 
@@ -26,7 +26,7 @@
 - 설정 템플릿은 묶음 폴더에 싣고, 이미지와 같은 커밋에서 만든다. 묶음의 체크섬이 둘을 함께 지킨다.
 - 코어 서버의 운영 명령이 설정 펼치기 작업(`render`, 사람 확인: 2026-11-09)에서 값을 `core-settings.sh`로 검사하고, token과 CA 인증서 파일을 확인한 뒤 템플릿을 펼친다. 띄우기 작업도 이 작업을 거친다. compose 파일은 펼친 설정을 읽기 전용으로 붙이고, 펼친 설정이 없으면 Compose가 컨테이너를 만들지 않는다.
 - Blackbox Exporter의 HTTPS 확인은 코어 서버 OS의 CA 인증서 파일을 쓴다. 운영자가 운영 가이드대로 설치 폴더의 `certs/`에 복사하고, compose 파일이 그 파일을 Blackbox Exporter 컨테이너에만 읽기 전용으로 붙인다. 운영 명령은 파일이 있고 컨테이너가 읽을 수 있는지만 확인하고, OS의 파일을 찾거나 복사하지 않는다(사람 확인: 2026-11-10. 2026-11-09에는 운영 명령이 띄울 때마다 복사하기로 했으나, 시스템 파일을 다루는 일을 운영 명령에 두지 않기로 바꿨다).
-- 정상 확인은 컨테이너 healthcheck 대신 운영 명령이 코어 서버에서 `127.0.0.1`의 호스트 포트로 준비 확인 주소를 불러 한다(사람 확인: 2026-11-09). `curl`과 `wget`이 모두 없으면 컨테이너가 실행 중이고 다시 시작이 늘지 않는지로 대신 보고, 준비 확인을 하지 못했다고 경고한다. 띄우기는 막지 않는다(사람 확인: 2026-11-09).
+- 정상 확인은 컨테이너 healthcheck 대신 운영 명령이 코어 서버에서 `127.0.0.1`의 호스트 포트로 준비 확인 주소를 불러 한다(사람 확인: 2026-11-09). `curl`과 `wget`이 모두 없으면 띄우기가 코어를 바꾸기 전에 멈추고 `curl`을 설치하라고 안내한다(사람 확인: 2026-11-10. 2026-11-09에는 실행 상태로 대신 보고 경고만 하기로 했으나, 운영 명령을 최소 기능으로 줄이며 바꿨다).
 - 설정 검사와 규칙 테스트는 빌드 PC에서 공식 이미지의 `promtool`, `amtool`로 하고, 운영 이미지에 든 규칙을 꺼내 검사한다.
 
 이 ADR이 대신하는 것은 다음 문장뿐이다. ADR 템플릿에는 일부만 대체하는 것을 표시하는 상태 값이 없어서 세 ADR은 고치지 않고, 이 ADR에서 가리킨다.

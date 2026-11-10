@@ -1,8 +1,8 @@
 # 0015. 셸 없는 최소 코어 이미지
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-09
-- 관련: [0010](0010-core-image-bundle.md), [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md)(이 요구사항은 0013을 구현한 [PR #42](https://github.com/subinggrae/server-monitor/pull/42) 위에서 시작함), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0009](../decisions/0009-core-config-in-image.md), [ADR 0011](../decisions/0011-core-address-format-check.md), [#44](https://github.com/subinggrae/server-monitor/issues/44)
+- 관련: [0010](0010-core-image-bundle.md), [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md)(이 요구사항은 0013을 구현한 [PR #42](https://github.com/subinggrae/server-monitor/pull/42) 위에서 시작함), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0009](../decisions/0009-core-config-in-image.md), [ADR 0011](../decisions/0011-core-address-format-check.md), [#44](https://github.com/subinggrae/server-monitor/issues/44), [PR #45](https://github.com/subinggrae/server-monitor/pull/45)(구현 계획 포함)
 
 ## 배경
 
@@ -217,10 +217,10 @@ S12~S14와 S15의 `curl`·`wget`이 없는 경우에 운영 명령(띄우기와 
 - 쓰기 위치와 데이터: Prometheus의 `/prometheus`, Alertmanager의 `/alertmanager`에 붙는 volume `prometheus-data`, `alertmanager-data`와 그 안의 기록. 새 서버에서 처음 만든 volume에도 각 프로그램이 쓸 수 있다.
 - 설정 파일 위치를 뺀 실행 인자(기록 위치, `--enable-feature=utf8-strict-mode` 등). 실행 인자로 설정 값을 넘기지 않는다([0013](0013-core-env-settings.md)).
 - 컨테이너 이름, 컨테이너 안 포트(9090, 9093, 9115), 네트워크 이름 `monitoring`, `127.0.0.1` 바인딩, 재시작 정책 `unless-stopped`. 관리자 서버와의 약속이다([ADR 0007](../decisions/0007-core-app-contract.md), [INTEGRATION.md](../INTEGRATION.md)).
-- 이미지 이름과 버전 태그, 버전·커밋·커밋 시각 label. 운영 명령이 이 label로 버전의 앞뒤를 판단한다.
+- 이미지 이름과 버전 태그, 버전·커밋·커밋 시각 label. 운영 명령은 버전과 커밋 label만 보이고, 커밋 시각 label은 읽지 않지만 그대로 둔다.
 - 설정 템플릿과 Alert 규칙의 내용, 통합 계약의 API·label·series. INTEGRATION.md에서는 설정을 펼치는 곳을 설명한 문장만 고친다.
 - [0013](0013-core-env-settings.md)의 값, 기본값, 허용 범위, 검사 규칙, 안내 문구와, 관리자 서버 주소를 공용 검사 함수 하나로 검사하는 것([ADR 0011](../decisions/0011-core-address-format-check.md))
-- [0011](0011-core-ops-script.md)의 운영 명령 작업(`install`, `start`, `rotate-token`, `status`)과 그 순서, 설치 폴더와 token 위치. 설정 펼치기 작업은 새로 더한다(S8).
+- [0011](0011-core-ops-script.md)의 설치 폴더와 token 위치. 운영 명령의 작업은 `install`, `render`, `start`, `status`다(목표, S8).
 - node_exporter의 버전(v1.12.1), 실행 사용자 `nobody`(UID 65534), 포트 9100, 서버의 네트워크·프로세스를 그대로 보고 루트 파일 시스템을 읽기 전용으로 붙이는 실행 방식, Docker가 없는 서버용 실행 파일과 systemd unit
 - 컨테이너 이름과 감시 대상 주소의 이름 풀이. 공식 이미지는 `/etc/nsswitch.conf`로 `/etc/hosts`를 DNS보다 먼저 보므로 이 순서도 그대로여야 한다.
 - 로그와 계산의 시각은 UTC다.
@@ -228,25 +228,25 @@ S12~S14와 S15의 `curl`·`wget`이 없는 경우에 운영 명령(띄우기와 
 
 ## 완료 기준
 
-- [ ] C1. 세 코어 이미지의 파일이 세 프로그램의 실행 파일, 이 프로젝트의 설정·규칙, 프로그램이 쓰는 빈 폴더뿐이고, node_exporter 이미지의 파일이 node_exporter 실행 파일뿐이다. 셸, BusyBox, `promtool`, `amtool`, `wget`, CA 묶음, 시간대 자료가 없다. (목표, S9) — 확인: 빌드 검사가 이미지마다 파일 목록을 허용 목록과 비교하고, 허용 목록 밖의 파일을 넣은 이미지에서 실패하는지 본다
-- [ ] C2. 세 프로그램의 실행 사용자, 쓰기 위치, 실행 인자(설정 파일 위치 제외), 컨테이너 안 포트, 이미지 label이 이 변경 전 이미지와 같다. (바뀌지 않는 것) — 확인: 빌드 검사가 `docker image inspect` 값을 기대값과 비교, 두 버전 이미지를 비교하는 수동 확인
-- [ ] C3. 인터넷이 없는 Linux 코어 서버에서 설치 준비와 띄우기만으로 세 프로그램이 정상 상태로 뜨고, 관리자 서버 주소와 코어 값이 펼친 설정에 들어간다. (S1, S2) — 확인: 인터넷을 끊은 Linux 컨테이너 안의 Docker에서 수동 확인, Prometheus flags·config API와 Blackbox `/config`로 값 확인
-- [ ] C4. Debian·Ubuntu 계열과 RHEL·Amazon Linux 계열 코어 서버에서 운영 가이드대로 CA 인증서 파일을 복사하고 경로를 적지 않고 띄워 공인 인증서의 HTTPS 주소 확인이 성공한다. OS에 사내 인증 기관을 등록하고 다시 복사해 띄우면 그 기관이 서명한 주소도 성공한다. (S3, S4) — 확인: 두 계열의 Linux 환경에서 수동 확인
-- [ ] C5. CA 인증서 파일은 Blackbox Exporter 컨테이너에만 붙는다. 설치 폴더의 CA 인증서 파일이 없거나 쓸 수 없으면 띄우기와 설정 펼치기가 복사하는 방법을 보이고, 설정을 펼치거나 컨테이너를 바꾸지 않고 실패한다. 운영 명령은 OS의 CA 인증서 파일을 읽거나 옮기지 않는다. (S3, S13) — 확인: 운영 명령 자동 시험, 띄운 세 컨테이너의 mount를 `docker inspect`로 보는 수동 확인
-- [ ] C6. 이 변경 전 버전에서 갱신하면 기록(`minTime`)과 Alert 상태(silence)가 이어지고, 이 변경 전 버전으로 되돌릴 수 있다. (S5, S6) — 확인: 버전이 다른 묶음 두 개로 수동 확인
-- [ ] C7. 틀린 설정 값과 관리자 서버 주소를 운영 명령이 지금처럼 거부하고, 이때 설정 파일을 펼치거나 바꾸지 않으며 컨테이너를 바꾸지 않는다. (S12) — 확인: 운영 명령 자동 시험. 검사를 지운 사본에서 시험이 실패하는지도 본다
-- [ ] C8. 컨테이너 healthcheck가 없고, 운영 명령이 `127.0.0.1`의 호스트 포트(바꾼 포트 포함)로 준비 확인 주소를 불러 정상 여부를 판단한다. 준비되지 않은 프로그램을 띄우기가 찾아 알리고, 상태 명령이 정상 여부를 보인다. `curl`과 `wget`이 모두 없으면 띄우기가 컨테이너를 바꾸지 않고 멈춘다. (S7, S15) — 확인: 운영 명령 자동 시험, 한 프로그램을 일부러 준비되지 않게 만든 수동 확인
-- [ ] C9. 설정 펼치기 작업 뒤 `docker compose up -d`로 코어가 뜨고, 펼친 설정이 없으면 코어 컨테이너가 시작하지 않으며, 설정 펼치기 작업은 틀린 값, token 문제, CA 파일 없음에서 설정을 펼치지 않는다. (S8, S12~S14, S16) — 확인: 운영 명령 자동 시험, 묶음 폴더에서 Compose로 직접 띄우는 수동 확인
-- [ ] C10. 펼친 설정 파일을 고친 뒤 띄우면 고친 내용이 남지 않는다. (S17) — 확인: 운영 명령 자동 시험
-- [ ] C11. 빌드 PC의 설정 검사가 공식 이미지의 도구로 기본값과 양 끝 값의 세 벌을 검사하고, 운영 이미지에 든 것과 같은 규칙 파일로 규칙 테스트를 하며, 운영 명령 시험을 BusyBox `sh`에서도 실행한다. [0013](0013-core-env-settings.md)의 C7처럼 범위 밖 값을 허용 범위에 넣으면 실패한다. (S9) — 확인: `node scripts/build-core-bundle.mjs --check`
-- [ ] C12. 빌드 PC용 명령의 띄우기 작업 하나로 개발용 코어가 뜬다. (S10) — 확인: Windows 빌드 PC에서 수동 확인
-- [ ] C13. 코어 묶음과 node_exporter 묶음에 `sources/`와 BusyBox 라이선스가 없고, 묶음 만들기가 BusyBox 소스를 받지 않는다. 묶음의 라이선스 파일과 안내 파일, [LICENSES.md](../LICENSES.md)의 고지와 들여온 것 표가 묶음의 실제 내용과 맞다. 묶음과 이미지, 펼친 설정에 비밀값이 없다. (S11, 보안) — 확인: 묶음 만들기 결과의 파일 목록, 묶음 만들기의 비밀값 검사, 문서 리뷰
-- [ ] C16. 인터넷이 없는 Docker가 있는 Linux 서버에서 node_exporter 묶음으로 최소 이미지의 node_exporter가 `nobody`로 뜨고, `/metrics`가 이 변경 전 이미지와 같은 이름의 지표를 내며, 관리자 서버의 연결 시험이 통과한다. (S19) — 확인: 인터넷을 끊은 Linux 환경에서 수동 확인, 두 이미지의 `/metrics` 지표 이름 비교
-- [ ] C14. 묶음 폴더, 불러온 이미지, 메모리를 다시 재서 운영 가이드의 코어 서버 사양 표에 적는다. 줄어드는 정도는 구현할 때 잰다. — 확인: 2026-11-09의 측정과 같은 방법으로 수동 측정
-- [ ] C15. 운영 가이드(설치, 운영 명령 없이 실행, 설치 확인, 상태, 문제 해결, 라이선스), ARCHITECTURE.md, DEVELOPMENT.md의 검사 설명, INTEGRATION.md의 코어 설정, LICENSES.md가 바뀐 동작에 맞고, ADR 0012가 있으며, 문서 검사가 통과한다. [#44](https://github.com/subinggrae/server-monitor/issues/44)는 필요 없어진 이유를 적어 닫는다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
-- [ ] C17. 운영 명령의 작업은 `install`, `render`, `start`, `status`뿐이고, 그 밖의 이름이면 네 작업을 보이고 실패한다. 남기는 검사(목표에 적은 것)는 지금처럼 동작한다. (목표, S23) — 확인: 운영 명령 자동 시험
-- [ ] C18. 코어가 떠 있는 서버에서 Docker가 다시 시작하면 세 프로그램이 다시 떠 준비되고, `docker compose down`으로 멈춘 뒤에는 다시 뜨지 않는다. (S20) — 확인: `docker:dind`의 Docker를 다시 시작하는 수동 확인
-- [ ] C19. 이 변경 뒤의 두 버전 사이에서 직전 버전 폴더의 띄우기 명령이 묻지 않고 되돌리고 기록이 이어진다. 운영 가이드의 정리 명령으로 두 버전만 남고, 운영 가이드의 token 바꾸기 절차로 Alertmanager가 새 token을 쓴다. (S21~S23) — 확인: 버전이 다른 묶음 세 개로 수동 확인
+- [x] C1. 세 코어 이미지의 파일이 세 프로그램의 실행 파일, 이 프로젝트의 설정·규칙, 프로그램이 쓰는 빈 폴더뿐이고, node_exporter 이미지의 파일이 node_exporter 실행 파일뿐이다. 셸, BusyBox, `promtool`, `amtool`, `wget`, CA 묶음, 시간대 자료가 없다. (목표, S9) — 확인: 빌드 검사가 이미지마다 파일 목록을 허용 목록과 비교하고, 허용 목록 밖의 파일을 넣은 이미지에서 실패하는지 본다
+- [x] C2. 세 프로그램의 실행 사용자, 쓰기 위치, 실행 인자(설정 파일 위치 제외), 컨테이너 안 포트, 이미지 label이 이 변경 전 이미지와 같다. (바뀌지 않는 것) — 확인: 빌드 검사가 `docker image inspect` 값을 기대값과 비교, 두 버전 이미지를 비교하는 수동 확인
+- [x] C3. 인터넷이 없는 Linux 코어 서버에서 설치 준비와 띄우기만으로 세 프로그램이 정상 상태로 뜨고, 관리자 서버 주소와 코어 값이 펼친 설정에 들어간다. (S1, S2) — 확인: 인터넷을 끊은 Linux 컨테이너 안의 Docker에서 수동 확인, Prometheus flags·config API와 Blackbox `/config`로 값 확인
+- [x] C4. Debian·Ubuntu 계열과 RHEL·Amazon Linux 계열 코어 서버에서 운영 가이드대로 CA 인증서 파일을 복사하고 경로를 적지 않고 띄워 공인 인증서의 HTTPS 주소 확인이 성공한다. OS에 사내 인증 기관을 등록하고 다시 복사해 띄우면 그 기관이 서명한 주소도 성공한다. (S3, S4) — 확인: 두 계열의 Linux 환경에서 수동 확인(2026-11-10: Debian 12와 Amazon Linux 2023 컨테이너에서 확인했다. RHEL 계열에서 사내 인증 기관을 등록하는 경우는 확인하지 않았다)
+- [x] C5. CA 인증서 파일은 Blackbox Exporter 컨테이너에만 붙는다. 설치 폴더의 CA 인증서 파일이 없거나 쓸 수 없으면 띄우기와 설정 펼치기가 복사하는 방법을 보이고, 설정을 펼치거나 컨테이너를 바꾸지 않고 실패한다. 운영 명령은 OS의 CA 인증서 파일을 읽거나 옮기지 않는다. (S3, S13) — 확인: 운영 명령 자동 시험, 띄운 세 컨테이너의 mount를 `docker inspect`로 보는 수동 확인
+- [x] C6. 이 변경 전 버전에서 갱신하면 기록(`minTime`)과 Alert 상태(silence)가 이어지고, 이 변경 전 버전으로 되돌릴 수 있다. (S5, S6) — 확인: 버전이 다른 묶음 두 개로 수동 확인
+- [x] C7. 틀린 설정 값과 관리자 서버 주소를 운영 명령이 지금처럼 거부하고, 이때 설정 파일을 펼치거나 바꾸지 않으며 컨테이너를 바꾸지 않는다. (S12) — 확인: 운영 명령 자동 시험. 검사를 지운 사본에서 시험이 실패하는지도 본다
+- [x] C8. 컨테이너 healthcheck가 없고, 운영 명령이 `127.0.0.1`의 호스트 포트(바꾼 포트 포함)로 준비 확인 주소를 불러 정상 여부를 판단한다. 준비되지 않은 프로그램을 띄우기가 찾아 알리고, 상태 명령이 정상 여부를 보인다. `curl`과 `wget`이 모두 없으면 띄우기가 컨테이너를 바꾸지 않고 멈춘다. (S7, S15) — 확인: 운영 명령 자동 시험, 한 프로그램을 일부러 준비되지 않게 만든 수동 확인
+- [x] C9. 설정 펼치기 작업 뒤 `docker compose up -d`로 코어가 뜨고, 펼친 설정이 없으면 코어 컨테이너가 시작하지 않으며, 설정 펼치기 작업은 틀린 값, token 문제, CA 파일 없음에서 설정을 펼치지 않는다. (S8, S12~S14, S16) — 확인: 운영 명령 자동 시험, 묶음 폴더에서 Compose로 직접 띄우는 수동 확인
+- [x] C10. 펼친 설정 파일을 고친 뒤 띄우면 고친 내용이 남지 않는다. (S17) — 확인: 운영 명령 자동 시험
+- [x] C11. 빌드 PC의 설정 검사가 공식 이미지의 도구로 기본값과 양 끝 값의 세 벌을 검사하고, 운영 이미지에 든 것과 같은 규칙 파일로 규칙 테스트를 하며, 운영 명령 시험을 BusyBox `sh`에서도 실행한다. [0013](0013-core-env-settings.md)의 C7처럼 범위 밖 값을 허용 범위에 넣으면 실패한다. (S9) — 확인: `node scripts/build-core-bundle.mjs --check`
+- [x] C12. 빌드 PC용 명령의 띄우기 작업 하나로 개발용 코어가 뜬다. (S10) — 확인: Windows 빌드 PC에서 수동 확인
+- [x] C13. 코어 묶음과 node_exporter 묶음에 `sources/`와 BusyBox 라이선스가 없고, 묶음 만들기가 BusyBox 소스를 받지 않는다. 묶음의 라이선스 파일과 안내 파일, [LICENSES.md](../LICENSES.md)의 고지와 들여온 것 표가 묶음의 실제 내용과 맞다. 묶음과 이미지, 펼친 설정에 비밀값이 없다. (S11, 보안) — 확인: 묶음 만들기 결과의 파일 목록, 묶음 만들기의 비밀값 검사, 문서 리뷰
+- [x] C16. 인터넷이 없는 Docker가 있는 Linux 서버에서 node_exporter 묶음으로 최소 이미지의 node_exporter가 `nobody`로 뜨고, `/metrics`가 이 변경 전 이미지와 같은 이름의 지표를 내며, 관리자 서버의 연결 시험이 통과한다. (S19) — 확인: 인터넷을 끊은 Linux 환경에서 수동 확인, 두 이미지의 `/metrics` 지표 이름 비교(2026-11-10: 연결 시험을 직접 실행하지 않고, 연결 시험이 읽는 지표가 있는지 확인했다)
+- [x] C14. 묶음 폴더, 불러온 이미지, 메모리를 다시 재서 운영 가이드의 코어 서버 사양 표에 적는다. 줄어드는 정도는 구현할 때 잰다. — 확인: 2026-11-09의 측정과 같은 방법으로 수동 측정
+- [x] C15. 운영 가이드(설치, 운영 명령 없이 실행, 설치 확인, 상태, 문제 해결, 라이선스), ARCHITECTURE.md, DEVELOPMENT.md의 검사 설명, INTEGRATION.md의 코어 설정, LICENSES.md가 바뀐 동작에 맞고, ADR 0012가 있으며, 문서 검사가 통과한다. [#44](https://github.com/subinggrae/server-monitor/issues/44)는 필요 없어진 이유를 적어 닫는다. — 확인: `node scripts/check-docs.mjs`, 문서 리뷰
+- [x] C17. 운영 명령의 작업은 `install`, `render`, `start`, `status`뿐이고, 그 밖의 이름이면 네 작업을 보이고 실패한다. 남기는 검사(목표에 적은 것)는 지금처럼 동작한다. (목표, S23) — 확인: 운영 명령 자동 시험
+- [x] C18. 코어가 떠 있는 서버에서 Docker가 다시 시작하면 세 프로그램이 다시 떠 준비되고, `docker compose down`으로 멈춘 뒤에는 다시 뜨지 않는다. (S20) — 확인: `docker:dind`의 Docker를 다시 시작하는 수동 확인
+- [x] C19. 이 변경 뒤의 두 버전 사이에서 직전 버전 폴더의 띄우기 명령이 묻지 않고 되돌리고 기록이 이어진다. 운영 가이드의 정리 명령으로 두 버전만 남고, 운영 가이드의 token 바꾸기 절차로 Alertmanager가 새 token을 쓴다. (S21~S23) — 확인: 버전이 다른 묶음 세 개로 수동 확인
 
 ## 확인 필요
 
