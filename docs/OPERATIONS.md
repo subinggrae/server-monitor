@@ -97,7 +97,7 @@ sudo sh core-server.sh start
 
 - **CA 인증서 파일 복사**: Blackbox Exporter가 HTTPS 주소를 확인할 때 쓸 OS의 CA 인증서 파일을 설치 폴더의 `certs/`에 복사한다. 처음 한 번만 하고, 새 버전으로 갱신할 때는 다시 하지 않는다. 위 명령은 Ubuntu, Debian, Amazon Linux의 파일이다. RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`를 복사한다. 운영 명령은 이 파일을 찾거나 바꾸지 않고, 있는지만 확인한다.
 
-- **`install`**: 관리자 서버 주소를 묻는다. 이 저장소의 관리자 서버(Manager)를 쓰면 `manager-api:8080`을 넣는다. 다른 관리자 서버는 그 컨테이너의 `이름:포트`를 넣는다([관리자 서버 만들기의 관리자 서버 띄우기](ADMIN-SERVER.md#관리자-서버-띄우기)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
+- **`install`**: 관리자 서버 주소를 묻는다. 관리자 서버 컨테이너의 `이름:포트`(예: `manager-api:8080`)를 넣는다([관리자 서버 만들기의 코어와 연결하는 조건](ADMIN-SERVER.md#코어와-연결하는-조건)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
 - **`start`**: 파일이 온전한지 확인하고, 설정과 token, 복사한 CA 인증서 파일을 검사한다. 그다음 설정을 묶음 폴더의 `rendered/`에 펼치고 코어를 띄워, 세 프로그램이 준비됐다고 답할 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
 
 `sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`인지도 볼 수 있다. 운영 명령은 코어 서버에서 `curl`(없으면 `wget`)로 `127.0.0.1`의 세 포트를 불러 준비 여부를 본다. 두 도구가 모두 없으면 `start`가 코어를 바꾸지 않고 멈추므로, 코어 서버에 `curl`을 둔다. 코어 컨테이너에는 healthcheck가 없어 `docker ps`에는 `healthy`가 보이지 않는다.
@@ -121,7 +121,7 @@ sudo sh core-server.sh start
 
 코어는 관리자 서버 없이도 정상으로 뜨고, 감시 대상이 없는 상태로 기다린다. 이어서 다음을 한다.
 
-1. 관리자 서버를 띄운다. 코어가 만든 `monitoring` 네트워크에 붙으므로 코어 다음에 띄운다([관리자 서버 만들기의 관리자 서버 띄우기](ADMIN-SERVER.md#관리자-서버-띄우기)). 관리자 서버가 뜨면 코어가 15~30초 안에 감시 대상 목록을 받아 간다.
+1. 관리자 서버를 띄운다. 코어가 만든 `monitoring` 네트워크에 붙으므로 코어 다음에 띄운다([관리자 서버 만들기의 코어와 연결하는 조건](ADMIN-SERVER.md#코어와-연결하는-조건)). 관리자 서버가 뜨면 코어가 15~30초 안에 감시 대상 목록을 받아 간다.
 2. 감시 대상 서버에 OS exporter를 설치하고 방화벽을 연다([OS exporter 설치](#os-exporter-설치)).
 3. 관리자 서버에 감시 대상을 등록하고 [설치 확인](#설치-확인)대로 동작을 본다.
 
@@ -234,11 +234,9 @@ docker compose -f infrastructure/compose.yml up -d --build
 docker compose -f infrastructure/compose.yml ps
 ```
 
-이 저장소의 관리자 서버(Manager)를 쓰면 `MONITORING_APP_ADDRESS`는 기본값 `manager-api:8080` 그대로 두고, 저장소 폴더에서 `docker compose up -d --build`로 띄운다. 준비는 [개발 가이드의 준비](DEVELOPMENT.md#준비)에 있다.
-
 ## 관리자 서버 만들기
 
-관리자 서버가 만들 기능, DB에 둘 데이터, 띄우는 방법은 [관리자 서버 만들기](ADMIN-SERVER.md)에 있다.
+관리자 서버가 만들 API와 지킬 것은 [관리자 서버 만들기](ADMIN-SERVER.md)에 있다. 관리자 서버를 띄우는 방법은 환경마다 다르므로 이 문서에서 다루지 않는다.
 
 ## 설치 확인
 
@@ -341,7 +339,7 @@ docker compose -f infrastructure/compose.yml ps
 
 ## OS exporter 설치
 
-CPU, Memory, 디스크를 볼 감시 대상 서버마다 OS exporter를 설치한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(포트 9182, 공식 문서의 metric 이름 기준)다. Linux 서버는 x86-64에 Docker Compose v2나 systemd가 있고 9100 포트가 비어 있어야 한다. Windows 서버는 windows_exporter를 설치할 권한과 비어 있는 9182 포트가 필요하다. 설치하기 전에 [감시 대상 서버의 방화벽](#감시-대상-서버의-방화벽)을 먼저 설정하고, 설치한 뒤에는 관리자 서버에 그 서버를 등록해 사용량 수집을 켠다. 이 저장소의 Manager는 서버 상세에서 수집을 켜고 연결 시험을 누른다.
+CPU, Memory, 디스크를 볼 감시 대상 서버마다 OS exporter를 설치한다. Linux는 [node_exporter](https://github.com/prometheus/node_exporter)(포트 9100, v1.12.1에서 확인), Windows는 [windows_exporter](https://github.com/prometheus-community/windows_exporter)(포트 9182, 공식 문서의 metric 이름 기준)다. Linux 서버는 x86-64에 Docker Compose v2나 systemd가 있고 9100 포트가 비어 있어야 한다. Windows 서버는 windows_exporter를 설치할 권한과 비어 있는 9182 포트가 필요하다. 설치하기 전에 [감시 대상 서버의 방화벽](#감시-대상-서버의-방화벽)을 먼저 설정하고, 설치한 뒤에는 관리자 서버에 그 서버를 등록해 사용량 수집을 켠다.
 
 Linux 서버에 필요한 파일은 코어 묶음과 함께 생기는 `dist/node-exporter-<버전>/` 폴더에 모두 있다. 인터넷이 없는 서버에는 이 폴더를 옮기고, 먼저 `sha256sum -c SHA256SUMS`로 파일이 온전한지 확인한다.
 
@@ -408,17 +406,16 @@ curl -s http://10.0.0.21:9100/metrics | head
 | 9090 | Prometheus | 코어 서버의 `127.0.0.1` | 없음 | 코어 서버의 운영자, 같은 네트워크의 관리자 서버 |
 | 9093 | Alertmanager | 코어 서버의 `127.0.0.1` | 없음 | 코어 서버의 운영자 |
 | 9115 | Blackbox Exporter | 코어 서버의 `127.0.0.1` | 없음 | Prometheus(같은 네트워크) |
-| 8080 | 관리자 서버 API(이 저장소의 Manager) | 코어 서버의 `127.0.0.1` | 화면용 API는 없음, 장애 수신은 token | 코어(같은 네트워크), 화면 |
-| 8081 | 관리자 서버 화면(이 저장소의 Manager) | 코어 서버의 `127.0.0.1` | 없음 | 화면을 쓰는 사람 |
+| 관리자 서버가 정함 | 관리자 서버 | `monitoring` 네트워크, 화면은 코어 서버의 `127.0.0.1` 권장 | 장애 수신 API는 token | 코어(같은 네트워크), 화면을 쓰는 사람 |
 | 9100 | node_exporter | 감시 대상 Linux 서버의 모든 주소 | 없음 | 코어 서버 |
 | 9182 | windows_exporter | 감시 대상 Windows 서버의 모든 주소 | 없음 | 코어 서버 |
 
 코어의 세 포트(9090, 9093, 9115)는 기본값이다. 코어 서버에서 여는 포트는 `.env`에서 바꿀 수 있지만([서버에서 바꾸는 값](#서버에서-바꾸는-값)), `monitoring` 네트워크 안에서 부르는 포트는 바뀌지 않는다.
 
-코어 서버의 포트는 모두 `127.0.0.1`에 묶여 있어 다른 PC에서 접속할 수 없다. 코어 포트는 `.env`로 바꿔도 `127.0.0.1` 밖에 열 수 없다. 이 바인딩을 `0.0.0.0`으로 바꾸지 않는다. Prometheus, Alertmanager, 화면용 API에 인증이 없어서, 열면 누구나 설정과 감시 결과를 보고 바꿀 수 있기 때문이다. 다른 PC에서 화면을 보려면 SSH 터널을 쓴다. 다음은 운영자 PC에서 실행해 화면(8081)을 PC의 `http://localhost:8081`로 여는 예다.
+코어 서버의 포트는 모두 `127.0.0.1`에 묶여 있어 다른 PC에서 접속할 수 없다. 코어 포트는 `.env`로 바꿔도 `127.0.0.1` 밖에 열 수 없다. 이 바인딩을 `0.0.0.0`으로 바꾸지 않는다. Prometheus와 Alertmanager에 인증이 없어서, 열면 누구나 설정과 감시 결과를 보고 바꿀 수 있기 때문이다. 다른 PC에서 Prometheus나 관리자 서버 화면을 보려면 SSH 터널을 쓴다. 다음은 운영자 PC에서 실행해 Prometheus(9090)를 PC의 `http://localhost:9090`으로 여는 예다.
 
 ```sh
-ssh -L 8081:127.0.0.1:8081 운영자@코어서버
+ssh -L 9090:127.0.0.1:9090 운영자@코어서버
 ```
 
 여러 사람이 화면을 써야 해서 포트를 열어야 하면, 인증을 거는 리버스 프록시(사내 SSO 등)를 앞에 두고 프록시만 연다. 이 구성은 이 저장소가 제공하지 않는다.
@@ -429,7 +426,7 @@ ssh -L 8081:127.0.0.1:8081 운영자@코어서버
 
 - 감시할 주소: 확인 방식에 따라 ICMP(ping), 대상 TCP 포트, HTTP·HTTPS 포트
 - 감시 대상 서버의 exporter 포트: 기본 9100, 9182(관리자 서버에서 바꿨으면 그 포트)
-- 관리자 서버가 외부 메신저로 알리면 그 서비스(예: Telegram은 `api.telegram.org`의 443)
+- 관리자 서버가 외부 서비스(메신저 등)로 알리면 그 서비스
 
 ### 감시 대상 서버의 방화벽
 
@@ -453,25 +450,11 @@ curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 
 ### 비밀값
 
-코어에 필요한 비밀값은 장애 수신 token 하나다. 이 저장소의 관리자 서버(Manager)는 그 밖의 비밀값도 `infrastructure/secrets/`의 파일로 둔다.
-
-| 파일 | 하는 일 | 읽는 쪽 |
-|---|---|---|
-| `alertmanager_webhook_token` | 코어가 장애 수신 API를 부를 때 붙이는 Bearer token | 코어(Alertmanager), 관리자 서버 |
-| `manager_db_password` | Manager DB 비밀번호 | 이 저장소의 관리자 서버 |
-| `manager_db_root_password` | 개발용 DB의 root 비밀번호 | 개발용 DB(`local-db` profile) |
-| `telegram_bot_token` | Telegram Bot API token | 이 저장소의 관리자 서버 |
-| `telegram_webhook_secret` | Telegram이 관리자 서버의 webhook을 부를 때 확인하는 값 | 이 저장소의 관리자 서버 |
-
-비밀값은 다음처럼 다룬다.
+코어에 필요한 비밀값은 장애 수신 token(`alertmanager_webhook_token`) 하나다. 코어가 장애 수신 API를 부를 때 붙이는 Bearer token이고, 코어(Alertmanager)와 관리자 서버가 같은 파일을 읽는다. 다음처럼 다룬다.
 
 - 값은 `openssl rand -hex 32`처럼 길고 예측할 수 없게 만든다. `*.example` 파일의 값을 그대로 쓰지 않는다.
-- 이 파일들은 Git에 올리지 않고(`.gitignore`), 설정 파일, 문서, 로그, 메신저에 옮기지 않는다.
-- 값이 새어 나갔으면 새 값으로 바꾸고 그 값을 읽는 쪽을 모두 다시 띄운다. 장애 수신 token이면 코어와 관리자 서버를 함께 다시 띄운다.
-
-### 밖에서 들어오는 연결
-
-이 저장소의 관리자 서버(Manager)는 Telegram 그룹의 `/register` 명령을 받으려고 Telegram webhook을 쓸 수 있다. 이 기능을 쓰면 Telegram이 관리자 서버에 닿을 수 있는 HTTPS 주소(`TELEGRAM_WEBHOOK_PUBLIC_URL`)가 필요하다. 이 주소는 코어 서버 앞의 리버스 프록시에서 `/api/integrations/telegram/webhook` 경로 하나만 넘기고, 나머지 경로는 막는다. 이 기능을 쓰지 않으면 밖에서 들어오는 연결은 없다.
+- token 파일은 Git에 올리지 않고, 설정 파일, 문서, 로그, 메신저에 옮기지 않는다.
+- 값이 새어 나갔으면 [운영 작업의 token 바꾸기](#운영-작업)대로 새 값으로 바꾸고, 코어의 Alertmanager와 관리자 서버를 함께 다시 띄운다.
 
 ## 라이선스
 

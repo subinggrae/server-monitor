@@ -1,6 +1,6 @@
 # 통합 계약
 
-모니터링 코어와 그 코어에 붙는 앱 사이의 약속을 설명한다. 다른 앱의 개발자가 이 문서만 보고 코어에 붙을 수 있게 하는 것이 목적이다. 이 저장소의 백엔드, 화면, DB도 이 계약으로 코어에 붙는 앱 하나다. 이 저장소의 앱을 도입하면서 테이블과 열 이름을 바꾸는 절차도 함께 있다. 이렇게 나눈 결정과 이유는 [ADR 0007](decisions/0007-core-app-contract.md)에 있다.
+모니터링 코어와 그 코어에 붙는 앱 사이의 약속을 설명한다. 다른 앱의 개발자가 이 문서만 보고 코어에 붙을 수 있게 하는 것이 목적이다. 이렇게 나눈 결정과 이유는 [ADR 0007](decisions/0007-core-app-contract.md)에 있다.
 
 ## 코어와 앱
 
@@ -40,7 +40,7 @@
 
 - `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
 - `CORE_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 저장소에서는 `infrastructure/secrets/`를, 내부망 묶음에서는 설치 폴더(묶음 폴더의 상위 폴더)의 `secrets/`를 쓴다.
-- `alertmanager_webhook_token`: webhook에 붙는 Bearer token 파일이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 이 저장소의 앱은 루트 `compose.yml`의 `secrets`에서 이 파일을 설정 키 `monitoring-manager.notification.alertmanager-webhook-token`으로 받는다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
+- `alertmanager_webhook_token`: webhook에 붙는 Bearer token 파일이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
 
 Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 묶음의 `templates/`에 들어 있다. 코어를 띄우기 전에 운영 명령(`core-server.sh`)이 주소를 검사해 넣고, 펼친 설정을 컨테이너에 읽기 전용으로 붙인다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드](OPERATIONS.md#언제-무엇을-바꾸나)에 있다.
 
@@ -170,9 +170,9 @@ Alertmanager가 [webhook payload](https://prometheus.io/docs/alerting/latest/con
 1. `labels.check_id`로 앱의 감시 항목을 찾는다. 지운 감시 항목이면 기록만 남기고 알리지 않는다.
 2. `fingerprint`와 `startsAt`으로 장애 한 번을 구분한다. 같은 값이 다시 오면 같은 장애가 이어진다. 복구된 뒤 다시 실패하면 `startsAt`이 새로 온다.
 3. `status`가 `firing`이면 장애, `resolved`면 복구다. 복구 시각은 `endsAt`이다. 장애 중에는 `endsAt`이 `0001-01-01`이라 복구 시각으로 쓰지 않는다.
-4. 같은 장애가 다시 오면, 마지막으로 알림을 보낸 뒤 그 감시 항목의 재발송 주기가 지났을 때만 다시 보낸다. 이 저장소의 앱은 재발송 주기를 5~1440분으로 받고, 정하지 않은 감시 항목은 60분으로 본다. Alertmanager는 이어지는 Alert를 5분마다 보내므로, 재발송 주기를 5분보다 짧게 두지 않는다([ADR 0001](decisions/0001-alert-repeat-in-manager.md)).
+4. 같은 장애가 다시 오면, 마지막으로 알림을 보낸 뒤 그 감시 항목의 재발송 주기가 지났을 때만 다시 보낸다. 재발송 주기는 5~1440분으로 받고, 정하지 않은 감시 항목은 60분으로 보기를 권한다. Alertmanager는 이어지는 Alert를 5분마다 보내므로, 재발송 주기를 5분보다 짧게 두지 않는다([ADR 0001](decisions/0001-alert-repeat-in-manager.md)).
 
-`alertname`이 `MonitoringCheckProbeFailed`인 Alert는 대상이 아니라 코어 쪽 문제다. Blackbox Exporter가 멈췄거나 응답하지 않아 확인 결과를 받지 못한 상태다. label은 `MonitoringCheckDown`과 같아서 어느 감시 항목의 확인이 멈췄는지 알 수 있고, annotation 문구는 다르다. 이 저장소의 앱은 두 Alert를 같은 방식으로 기록하고 알린다.
+`alertname`이 `MonitoringCheckProbeFailed`인 Alert는 대상이 아니라 코어 쪽 문제다. Blackbox Exporter가 멈췄거나 응답하지 않아 확인 결과를 받지 못한 상태다. label은 `MonitoringCheckDown`과 같아서 어느 감시 항목의 확인이 멈췄는지 알 수 있고, annotation 문구는 다르다. 앱은 두 Alert를 같은 방식으로 기록하고 알려도 된다.
 
 앱은 다음도 지킨다.
 
@@ -220,7 +220,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 
 응답은 다음처럼 다룬다.
 
-- `status`가 `success`가 아니거나 연결이 실패하면 "알 수 없음"으로 본다. 예외로 화면이나 판단을 멈추지 않는다. 이 저장소의 앱은 `unavailable` 상태를 돌려준다.
+- `status`가 `success`가 아니거나 연결이 실패하면 "알 수 없음"으로 본다. 예외로 화면이나 판단을 멈추지 않는다.
 - 조건에 맞는 series가 없으면 `result`가 빈 배열이다. 대상을 아직 수집하지 않았거나 수집에 실패했다는 뜻이다.
 - 값이 `"NaN"`일 수 있다. 숫자로 바꿔 쓰기 전에 확인한다.
 - 수집이 멈춘 뒤에도 마지막 값이 몇 분 동안 나올 수 있다. CPU 사용률은 최근 10분 안의 수집 두 번으로 계산하므로 최대 10분이다. 값이 지금 것인지는 같은 서버의 수집 상태(`up{job="manager-os"}`)가 1인지로 판단한다.
@@ -250,7 +250,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 
 ## 리소스 임계값 판단
 
-코어에는 CPU, Memory, Storage의 임계값 Alert 규칙이 없다. 임계값은 사용자가 화면에서 바꾸는 설정이라서, 앱이 `manager:resource_usage_percent`를 읽어 임계값과 비교하고 직접 알린다. 그래서 리소스 알림은 Alertmanager webhook으로 오지 않는다. 이 결정과 이유는 [ADR 0008](decisions/0008-resource-threshold-in-app.md)에, 동작의 기준은 [요구사항 0009](requirements/0009-resource-threshold-schema.md)에 있다. 이 저장소의 앱은 리소스 임계값을 판단하지 않는다.
+코어에는 CPU, Memory, Storage의 임계값 Alert 규칙이 없다. 임계값은 사용자가 화면에서 바꾸는 설정이라서, 앱이 `manager:resource_usage_percent`를 읽어 임계값과 비교하고 직접 알린다. 그래서 리소스 알림은 Alertmanager webhook으로 오지 않는다. 이 결정과 이유는 [ADR 0008](decisions/0008-resource-threshold-in-app.md)에, 동작의 기준은 [요구사항 0009](requirements/0009-resource-threshold-schema.md)에 있다.
 
 ### 앱이 만들 것
 
@@ -266,7 +266,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 
 ### 서버와 Resource 등록
 
-판단하려면 먼저 서버와 그 서버에서 감시할 Resource가 앱의 DB에 있어야 한다. 이 저장소의 기준 migration(`V1__baseline.sql`)에서 다음 세 테이블을 옮겨 쓴다.
+판단하려면 먼저 서버와 그 서버에서 감시할 Resource가 앱의 DB에 있어야 한다. 아래 규칙과 [참고용 DDL](#참고용-ddl)은 이 데이터를 다음 테이블 이름으로 부른다. 앱의 이름이 다르면 맞게 바꿔 읽는다.
 
 | 테이블 | 담는 것 | 쓰는 곳 |
 |---|---|---|
@@ -278,7 +278,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 
 ### 참고용 DDL
 
-판단에 필요한 설정과 상태를 담는 테이블의 참고용 DDL은 [MariaDB용](reference-schema/mariadb/resource-thresholds.sql)과 [PostgreSQL용](reference-schema/postgresql/resource-thresholds.sql)이 있다. 이 저장소의 migration에는 들어 있지 않고, 기준 migration(`V1__baseline.sql`) 다음에 적용하면 만들어진다. 두 파일은 `server_targets`와 `monitored_resources`를 외래 키로 가리키므로 그 이름을 바꿨으면 함께 고친다. 테이블마다 담는 것은 다음과 같다.
+판단에 필요한 설정과 상태를 담는 테이블의 참고용 DDL은 [MariaDB용](reference-schema/mariadb/resource-thresholds.sql)과 [PostgreSQL용](reference-schema/postgresql/resource-thresholds.sql)이 있다. 두 파일은 `server_targets`와 `monitored_resources`를 외래 키로 가리키므로, 앱의 서버·Resource 테이블 이름에 맞게 고쳐 적용한다. 테이블마다 담는 것은 다음과 같다.
 
 | 테이블 | 담는 것 | Resource나 서버를 지우면 |
 |---|---|---|
@@ -312,26 +312,3 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 | 지속 시간 | 1~60분 정수 | 화면의 처음 값 5분 |
 | 재발송 주기 | 5~1440분 정수 | 60분 |
 
-## 테이블과 열 이름 바꾸기
-
-이 저장소의 앱을 도입하면서 Manager Database의 테이블과 열 이름을 자기 용어사전에 맞게 바꾸는 절차다. 이름은 다음 세 곳에만 있다. 다른 소스, 코어 설정, 이 계약은 고치지 않는다. [참고용 DDL](#참고용-ddl)을 쓰면 그 외래 키도 함께 고친다.
-
-- JPA Entity의 `@Table`, `@Column`, `@JoinColumn`(`backend/src/main/java/` 아래 Entity 10개)
-- `backend/src/main/resources/db/migration/mariadb/V1__baseline.sql`
-- `backend/src/main/resources/db/migration/postgresql/V1__baseline.sql`
-
-순서는 다음과 같다. 빈 DB에 처음 설치하기 전에 한다.
-
-1. 바꿀 이름을 Entity 어노테이션에서 고친다. Java 필드 이름은 그대로 둔다. JPQL은 필드 이름을 쓰므로 고치지 않는다.
-2. 같은 이름을 두 `V1__baseline.sql`에서 모두 고친다. 그 이름을 쓰는 외래 키, 인덱스의 열 목록도 함께 고친다. 제약과 인덱스 이름(`uk_`, `fk_`, `ix_`, `pk_`로 시작)은 바꾸지 않아도 동작한다.
-3. Docker가 있는 PC에서 테스트를 실행한다. `SchemaMigrationIntegrationTest`는 빈 MariaDB와 PostgreSQL에 migration을 적용하고, Entity와 맞지 않으면 실패한다. `DatabaseNameLocationTest`는 테이블 이름이 Entity와 migration 밖에 남았는지 본다.
-
-   ```sh
-   cd backend && ./gradlew test integrationTest
-   ```
-
-4. 빌드한 앱을 빈 DB에 설치한다.
-
-바꾼 이름은 HTTP SD 응답, webhook 처리, Prometheus series에 영향이 없다. 이 단계들은 네이티브 SQL이 없다는 전제에 기댄다. 네이티브 SQL을 더하면 이름이 다른 곳에도 생기므로 `DatabaseNameLocationTest`가 막는다.
-
-이미 설치한 DB의 이름을 바꾸는 것은 이 절차의 범위가 아니다. 그때는 `ALTER TABLE`을 담은 다음 version의 migration을 두 vendor 디렉터리에 함께 더한다.
