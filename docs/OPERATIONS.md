@@ -113,7 +113,7 @@ scp -r dist\monitoring-core-<버전> <계정>@<서버 주소>:/tmp/
 
 ### 5. 서버에서 설치하고 띄우기
 
-cmd에서 서버에 접속한 뒤, 서버에서 다음을 차례로 실행한다. `/opt/monitoring`이 설치 폴더다. `sudo`는 `/opt`에 쓰고 Docker를 쓰는 데 필요하다.
+cmd에서 서버에 접속한 뒤, 서버에서 다음을 차례로 실행한다. 아래 명령은 설치 폴더를 `/opt/monitoring`으로 두는 예다. 설치 폴더는 어느 폴더든 되고, 다른 폴더를 쓰면 명령의 `/opt/monitoring`만 그 폴더로 바꾼다. 운영 명령은 정해진 경로를 쓰지 않고, 묶음 폴더의 바로 위 폴더를 설치 폴더로 보고 그 안의 `secrets/`(token)와 `certs/`(CA 인증서 파일)를 쓴다. `sudo`는 설치 폴더에 쓰고 Docker를 쓰는 데 필요하다.
 
 ```bat
 ssh <계정>@<서버 주소>
@@ -136,10 +136,10 @@ sudo sh core-server.sh start
 
 `sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`인지도 볼 수 있다. 운영 명령은 코어 서버에서 `curl`(없으면 `wget`)로 `127.0.0.1`의 세 포트를 불러 준비 여부를 본다. 두 도구가 모두 없으면 `start`가 코어를 바꾸지 않고 멈추므로, 코어 서버에 `curl`을 둔다. 코어 컨테이너에는 healthcheck가 없어 `docker ps`에는 `healthy`가 보이지 않는다.
 
-설치를 마친 서버의 폴더는 다음 모양이다. 새 버전은 이 설치 폴더에 나란히 둔다.
+설치를 마친 서버의 폴더는 다음 모양이다. 새 버전도 같은 설치 폴더에 나란히 둔다. 그래야 새 버전이 같은 token과 CA 인증서 파일을 쓰고, 이전 버전 폴더로 되돌릴 수 있다.
 
 ```text
-/opt/monitoring/                         설치 폴더
+/opt/monitoring/                         설치 폴더(예, 어느 폴더든 됨)
 ├── secrets/alertmanager_webhook_token   코어와 관리자 서버가 함께 읽는 token
 ├── certs/ca-certificates.crt            OS에서 복사한 CA 인증서 파일
 ├── monitoring-core-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
@@ -171,7 +171,7 @@ sudo sh core-server.sh start
 
 | 바꾸고 싶은 것 | 바꾸는 곳 | 기본값 |
 |---|---|---|
-| 설치 폴더 위치 | 원하는 곳에 폴더를 만들고 묶음 폴더를 그 안에 둠 | 없음(어디든 됨) |
+| 설치 폴더 위치 | 원하는 곳에 폴더를 만들고 묶음 폴더를 그 안에 둠(묶음 폴더의 바로 위 폴더가 설치 폴더) | 없음(어디든 됨) |
 | 관리자 서버 이름·포트 | 묶음 폴더 `.env`의 `MONITORING_APP_ADDRESS` | 없음(`install`이 물음) |
 | token 폴더 위치 | 묶음 폴더 `.env`의 `CORE_SECRETS_DIR` | 설치 폴더의 `secrets/` |
 | token 값 | token 폴더의 `alertmanager_webhook_token` 파일 | 없음(`install`이 만듦) |
@@ -332,10 +332,10 @@ docker compose -f infrastructure/compose.yml ps
   4. 이전 폴더의 `.env`를 새 폴더에 복사하고 `sh core-server.sh start`를 실행한 뒤, 관리자 서버를 다시 띄운다.
 - **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 묻지 않고 바로 이전 버전으로 바뀌고, 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다. 묶음 폴더에 `templates/`가 없는 예전 묶음으로 되돌리면 그 묶음의 운영 명령이 이전 버전으로 바꿀지 물으므로 `y`를 넣는다. 이전 폴더의 `.env`를 쓰므로, 지금 폴더에서 바꾼 코어 값을 이어 쓰려면 이전 폴더의 `.env`에도 같게 적은 뒤 실행한다.
   - **주의(서버에서 코어 값을 바꿀 수 없던 버전으로 되돌릴 때)**: 그 버전은 `CORE_RETENTION_DAYS` 같은 값을 모르므로 기록 보관 15일, 용량 제한 없음, 주소 확인 제한 시간 5초, 포트 9090·9093·9115로 돈다. 보관 기간을 15일보다 늘려 두었으면 15일이 지난 기록이 확인 없이 지워지고 되돌릴 수 없다. 포트를 바꿔 두었으면 기본 포트로 돌아가므로 다른 프로그램과 겹칠 수 있다. 꼭 되돌려야 할 때만 한다.
-- **오래된 버전 정리**: 띄운 버전과 직전 버전, 두 묶음만 남기고 더 오래된 묶음 폴더와 그 버전의 이미지를 지운다. 운영 명령은 지우지 않는다. 지금 띄운 버전은 `sh core-server.sh status`로, 남아 있는 버전은 `ls /opt/monitoring`과 `docker image ls monitoring-core-prometheus`로 본다. 띄운 버전과 직전 버전은 지우지 않는다.
+- **오래된 버전 정리**: 띄운 버전과 직전 버전, 두 묶음만 남기고 더 오래된 묶음 폴더와 그 버전의 이미지를 지운다. 운영 명령은 지우지 않는다. 지금 띄운 버전은 `sh core-server.sh status`로, 남아 있는 버전은 `ls <설치 폴더>`와 `docker image ls monitoring-core-prometheus`로 본다. 띄운 버전과 직전 버전은 지우지 않는다.
 
   ```sh
-  sudo rm -rf /opt/monitoring/monitoring-core-<오래된 버전>
+  sudo rm -rf <설치 폴더>/monitoring-core-<오래된 버전>
   sudo docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-core-alertmanager:<오래된 버전> monitoring-core-blackbox-exporter:<오래된 버전>
   ```
 
