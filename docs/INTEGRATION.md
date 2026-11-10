@@ -42,7 +42,7 @@
 - `CORE_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 저장소에서는 `infrastructure/secrets/`를, 내부망 묶음에서는 설치 폴더(묶음 폴더의 상위 폴더)의 `secrets/`를 쓴다.
 - `alertmanager_webhook_token`: webhook에 붙는 Bearer token 파일이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 이 저장소의 앱은 루트 `compose.yml`의 `secrets`에서 이 파일을 설정 키 `monitoring-manager.notification.alertmanager-webhook-token`으로 받는다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
 
-Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 이미지 안에 들어 있다. 컨테이너가 시작할 때 이미지 안의 `render-config.sh`가 주소를 넣는다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드](OPERATIONS.md#언제-무엇을-바꾸나)에 있다.
+Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 묶음의 `templates/`에 들어 있다. 코어를 띄우기 전에 운영 명령(`core-server.sh`)이 주소를 검사해 넣고, 펼친 설정을 컨테이너에 읽기 전용으로 붙인다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드](OPERATIONS.md#언제-무엇을-바꾸나)에 있다.
 
 ### 경로와 주소 바꾸기
 

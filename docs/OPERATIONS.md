@@ -24,13 +24,13 @@
 
 ## 코어 서버 사양
 
-코어 서버는 x86-64 Linux이고 Docker Engine과 Compose가 있어야 한다. 코어가 쓰는 메모리와 CPU는 감시 대상이 늘수록 늘고, 디스크는 감시 대상 수와 보관 기간(기본 15일)에 따라 커진다. 다음 값은 2026-11-09에 개발 PC에서 감시 대상 없이 코어를 띄워 잰 값이다.
+코어 서버는 x86-64 Linux이고 Docker Engine과 Compose, 정상 확인에 쓸 `curl`(없으면 `wget`), OS의 CA 인증서 패키지(`ca-certificates`)가 있어야 한다. Ubuntu, Debian, Amazon Linux 2023의 서버 이미지에는 기본으로 들어 있다. 코어가 쓰는 메모리와 CPU는 감시 대상이 늘수록 늘고, 디스크는 감시 대상 수와 보관 기간(기본 15일)에 따라 커진다. 다음 값은 2026-11-10에 개발 PC의 인터넷을 끊은 Docker(`docker:dind`) 안에서 감시 대상 없이 코어를 띄워 잰 값이다.
 
 | 항목 | 잰 값 |
 |---|---|
-| 서버로 옮길 묶음 폴더 | 약 160MB |
-| 서버에 불러온 이미지 | 약 550MB(Prometheus 372MB, Alertmanager 124MB, Blackbox Exporter 57MB) |
-| 메모리 | 약 75MiB(Prometheus 56MiB, Alertmanager 13MiB, Blackbox Exporter 7MiB) |
+| 서버로 옮길 묶음 폴더 | 약 96MB |
+| 서버에 불러온 이미지 | 약 327MB(Prometheus 202MB, Alertmanager 75MB, Blackbox Exporter 50MB) |
+| 메모리 | 약 52MiB(Prometheus 32MiB, Alertmanager 12MiB, Blackbox Exporter 7MiB) |
 | CPU | 1% 미만 |
 
 운영할 규모에서의 메모리와 디스크는 아직 재지 않았다. 감시 대상을 등록한 뒤 다음 방법으로 재서 서버 크기를 정한다.
@@ -105,7 +105,7 @@ sudo systemctl enable --now docker
 
 ### 4. 묶음 폴더를 서버로 옮기기
 
-빌드 PC의 `dist\monitoring-core-<버전>` 폴더를 통째로 서버의 `/tmp/`로 옮긴다. 폴더 안의 `licenses`, `sources`도 함께 옮긴다([라이선스](#라이선스)). [WinSCP](https://winscp.net/) 같은 파일 전송 프로그램을 써도 되고, 저장소 폴더의 cmd에서 다음을 실행해도 된다. Windows 10 이상에는 `scp`가 들어 있다.
+빌드 PC의 `dist\monitoring-core-<버전>` 폴더를 통째로 서버의 `/tmp/`로 옮긴다. 폴더 안의 `licenses`도 함께 옮긴다([라이선스](#라이선스)). [WinSCP](https://winscp.net/) 같은 파일 전송 프로그램을 써도 되고, 저장소 폴더의 cmd에서 다음을 실행해도 된다. Windows 10 이상에는 `scp`가 들어 있다.
 
 ```bat
 scp -r dist\monitoring-core-<버전> <계정>@<서버 주소>:/tmp/
@@ -128,16 +128,23 @@ sudo sh core-server.sh start
 ```
 
 - **`install`**: 관리자 서버 주소를 묻는다. 이 저장소의 관리자 서버(Manager)를 쓰면 `manager-api:8080`을 넣는다. 다른 관리자 서버는 그 컨테이너의 `이름:포트`를 넣는다([관리자 서버 만들기의 관리자 서버 띄우기](ADMIN-SERVER.md#관리자-서버-띄우기)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
-- **`start`**: 파일이 온전한지 확인하고, 설정과 token을 검사한 뒤 코어를 띄워 정상 상태가 될 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
+- **`start`**: 파일이 온전한지 확인하고, 설정과 token을 검사하고, 코어 서버 OS의 CA 인증서 파일을 찾는다. 그다음 설정을 묶음 폴더의 `rendered/`에 펼치고 코어를 띄워, 세 프로그램이 준비됐다고 답할 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
 
-`sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running healthy`인지도 볼 수 있다. 설치를 마친 서버의 폴더는 다음 모양이다. 새 버전은 이 설치 폴더에 나란히 둔다.
+`sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`인지도 볼 수 있다. 운영 명령은 코어 서버에서 `curl`(없으면 `wget`)로 `127.0.0.1`의 세 포트를 불러 준비 여부를 본다. 두 도구가 모두 없으면 컨테이너가 실행 중이고 다시 시작하지 않는지만 보고 경고하므로, 코어 서버에 `curl`을 둔다. 코어 컨테이너에는 healthcheck가 없어 `docker ps`에는 `healthy`가 보이지 않는다.
+
+설치를 마친 서버의 폴더는 다음 모양이다. 새 버전은 이 설치 폴더에 나란히 둔다.
 
 ```text
 /opt/monitoring/                         설치 폴더
 ├── secrets/alertmanager_webhook_token   코어와 관리자 서버가 함께 읽는 token
 ├── monitoring-core-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
 └── monitoring-core-<새 버전>/
+    ├── .env                             서버에서 바꾸는 값
+    ├── templates/                       설정 템플릿(고치지 않는다)
+    └── rendered/                        운영 명령이 펼친 설정(띄울 때마다 다시 만든다)
 ```
+
+`rendered/`의 파일은 띄울 때마다 `.env`와 `templates/`에서 다시 만들므로 직접 고쳐도 남지 않는다. 바꿀 값은 `.env`에 적는다.
 
 ### 6. 다음 할 일
 
@@ -216,20 +223,22 @@ sudo sh core-server.sh start
 
 ### 운영 명령 없이 실행
 
-[처음 따라 하기](#처음-따라-하기)의 5번에서 `install`, `start` 대신 묶음 폴더에서 다음을 실행한다. token은 설치 폴더의 `secrets/`(`../secrets`)에서 읽는다. token 파일이 없는데 띄우면 Docker가 그 자리에 빈 폴더를 만들므로, token을 먼저 만든다.
+[처음 따라 하기](#처음-따라-하기)의 5번에서 `install`, `start` 대신 묶음 폴더에서 다음을 실행한다. token은 설치 폴더의 `secrets/`(`../secrets`)에서 읽는다. 코어 이미지에는 셸이 없어 컨테이너 안에서 설정을 펼칠 수 없으므로, Compose로 띄우기 전에 운영 명령의 설정 펼치기(`render`)를 반드시 실행한다.
 
 ```sh
 install -d -m 0700 ../secrets
 openssl rand -hex 32 > ../secrets/alertmanager_webhook_token
 chmod 0644 ../secrets/alertmanager_webhook_token
 cp .env.example .env              # MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
-sha256sum -c SHA256SUMS           # 모든 줄이 OK여야 한다
 docker load -i core-images.tar
+sh core-server.sh render          # 파일이 온전한지 보고, 값과 token, CA 인증서를 검사해 rendered/에 펼친다
 docker compose up -d
-docker compose ps                 # 세 컨테이너가 healthy여야 한다
+curl -fsS http://127.0.0.1:9090/-/ready   # Alertmanager는 9093/-/ready, Blackbox Exporter는 9115/-/healthy
 ```
 
-운영 명령 없이 띄우면 관리자 서버 주소와 [서버에서 바꾸는 값](#서버에서-바꾸는-값)을 띄우기 전에 검사하지 않는다. 관리자 서버 주소가 `컨테이너 이름:포트` 형식이 아니면 `prometheus`와 `alertmanager`가 시작하지 않고 다시 시작을 되풀이하며, 로그에 맞는 형식과 고치는 방법을 남긴다. 기록 보관 값이나 주소 확인 제한 시간이 틀리면 그 값을 쓰는 컨테이너(`prometheus`나 `blackbox-exporter`)가 시작하지 않고 다시 시작을 되풀이하며, `docker logs prometheus`(또는 `blackbox-exporter`)에 운영 명령과 같은 안내를 남긴다. `blackbox-exporter`가 뜨지 않는 동안에는 모든 주소 확인이 실패해 장애 알림이 한꺼번에 갈 수 있으므로, 값을 바꿀 때는 운영 명령을 쓴다. 포트는 Compose가 형식만 검사하므로 허용 범위와 겹침을 확인하지 않는다. 기록 보관 값을 줄일 때의 확인도 묻지 않는다.
+`render`는 `start`와 같은 규칙으로 관리자 서버 주소, [서버에서 바꾸는 값](#서버에서-바꾸는-값), token 파일, CA 인증서 파일을 검사하고, 하나라도 틀리면 안내를 보인 뒤 아무것도 펼치지 않는다. 컨테이너는 만들거나 바꾸지 않는다. 기록 보관 값을 줄일 때의 확인은 묻지 않는다.
+
+`.env`를 바꾸거나 OS의 CA 인증서를 바꾼 뒤에는 `render`를 다시 실행하고 `docker compose up -d`를 실행한다. 다시 펼치지 않으면 바꾼 값이 반영되지 않는다. 펼친 설정(`rendered/`) 없이 `docker compose up -d`를 실행하면 Compose가 `env file …/rendered/core.env not found`로 멈추고 아무것도 만들지 않는다. `render` 뒤 `docker compose up -d` 전에 token 파일을 지우면 Alertmanager가 token 없이 떠서 관리자 서버가 장애를 거부하므로, 그 사이에 token을 바꾸지 않는다.
 
 ### 저장소에서 실행
 
@@ -241,9 +250,10 @@ openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
 chmod 0644 infrastructure/secrets/alertmanager_webhook_token
 ```
 
-Windows에서는 `core-dev.bat start`로 띄우고 `core-dev.bat stop`으로 멈춘다. 다른 OS에서는 같은 일을 하는 다음 명령을 쓴다.
+Windows에서는 `core-dev.bat start`로 띄우고 `core-dev.bat stop`으로 멈춘다. `start`는 공식 Prometheus 이미지의 셸로 운영 명령의 `render`를 실행해 `infrastructure/rendered/`에 설정을 펼친 뒤 띄운다. 다른 OS에서는 같은 일을 하는 다음 명령을 쓴다. `render`는 그 PC의 CA 인증서 파일을 찾는다.
 
 ```sh
+sh infrastructure/core-server.sh render
 docker compose -f infrastructure/compose.yml up -d --build
 docker compose -f infrastructure/compose.yml ps
 ```
@@ -291,6 +301,7 @@ docker compose -f infrastructure/compose.yml ps
 - **관리자 서버 이름·포트 바꾸기**: `.env`의 `MONITORING_APP_ADDRESS`를 고친 뒤 `sh core-server.sh start`를 실행한다.
 - **기록 보관 기간·용량, 주소 확인 제한 시간, 포트 바꾸기**: `.env`의 값을 고친 뒤 `sh core-server.sh start`를 실행한다([서버에서 바꾸는 값](#서버에서-바꾸는-값)). 쌓은 기록과 장애 상태는 이어진다.
 - **기록 보관 값 줄이기**: 보관 기간을 줄이거나, 보관 용량을 줄이거나, 제한이 없던 용량을 처음 정하고 `start`를 실행하면 운영 명령이 `기록 보관 값을 줄입니다`와 함께 계속할지 묻는다. `y`를 넣어야 띄우고, 그 밖의 답이면 아무것도 바꾸지 않는다. 터미널이 아닌 곳(예: 다른 스크립트)에서 실행하면 물을 수 없으므로 띄우지 않는다. 운영 명령은 떠 있거나 멈춰 있는 코어의 값과 비교하므로, `docker compose down`으로 코어 컨테이너를 지운 뒤에는 묻지 않고 새 값으로 띄운다. 그때는 `.env`의 값을 먼저 확인한다.
+- **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 `sh core-server.sh start`를 실행한다. 운영 명령이 OS의 CA 인증서 파일을 다시 복사해 Blackbox Exporter를 다시 만든다. 다시 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
 - **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
 - **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
 - **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
@@ -301,10 +312,10 @@ docker compose -f infrastructure/compose.yml ps
   4. 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행하고, 관리자 서버를 다시 띄운다.
 - **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 이전 버전으로 바꿀지 물으면 `y`를 넣는다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다. 이전 폴더의 `.env`를 쓰므로, 지금 폴더에서 바꾼 코어 값을 이어 쓰려면 이전 폴더의 `.env`에도 같게 적은 뒤 실행한다.
   - **주의(서버에서 코어 값을 바꿀 수 없던 버전으로 되돌릴 때)**: 그 버전은 `CORE_RETENTION_DAYS` 같은 값을 모르므로 기록 보관 15일, 용량 제한 없음, 주소 확인 제한 시간 5초, 포트 9090·9093·9115로 돈다. 보관 기간을 15일보다 늘려 두었으면 15일이 지난 기록이 확인 없이 지워지고 되돌릴 수 없다. 포트를 바꿔 두었으면 기본 포트로 돌아가므로 다른 프로그램과 겹칠 수 있다. 꼭 되돌려야 할 때만 한다.
-- **띄운 버전 확인**: `sh core-server.sh status`를 실행한다. 떠 있는 버전, 그 버전을 빌드한 커밋, 세 컨테이너의 상태, 기본값과 다른 설정 값이 보인다. 운영 명령 없이 틀린 값으로 띄웠으면 그 값을 `(올바르지 않음)`과 함께 보인다.
+- **띄운 버전 확인**: `sh core-server.sh status`를 실행한다. 떠 있는 버전, 그 버전을 빌드한 커밋, 세 컨테이너의 상태와 준비 여부, 기본값과 다른 설정 값이 보인다. 준비 여부는 `127.0.0.1`의 호스트 포트(바꿨으면 바꾼 포트)로 세 프로그램의 준비 확인 주소를 부른 결과다.
 - **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남고, 서버가 재시작돼도 다시 뜨지 않는다. 다시 띄우려면 `sh core-server.sh start`를 실행한다.
 - **기록까지 지우기**: `docker compose down -v`를 실행한다. 되돌릴 수 없어 운영 명령에 넣지 않았다.
-- **로그 보기**: `docker logs -f prometheus`를 실행한다.
+- **로그 보기**: `docker logs -f prometheus`를 실행한다. 코어 컨테이너에는 셸이 없어 `docker exec`로 안에서 명령을 실행할 수 없다. 로그와 `127.0.0.1`의 HTTP API(예: `curl -s http://127.0.0.1:9090/api/v1/status/flags`)로 본다.
 
 ## 문제 해결
 
@@ -319,15 +330,17 @@ docker compose -f infrastructure/compose.yml ps
 | `호스트 포트가 겹칩니다` | 세 포트 가운데 둘 이상이 같음 | `.env`의 세 포트를 서로 다른 값으로 고친다 |
 | `기록 보관 값을 줄이려면 터미널에서 실행해 확인해 주세요` | 보관 기간이나 용량을 줄였는데, 입력을 받을 수 없는 방식으로 실행함 | 줄이려는 것이 맞으면 터미널에서 직접 실행해 `y`를 넣고, 아니면 `.env`의 값을 되돌린다 |
 | `port is already allocated` 또는 `address already in use` | 코어 서버의 다른 프로그램이나 컨테이너가 그 포트를 씀 | `.env`의 그 포트(`CORE_PROMETHEUS_PORT` 등)를 비어 있는 포트로 바꾸고 다시 `start`를 실행한다 |
-| `prometheus`와 `alertmanager`가 계속 다시 시작하고 로그에 `관리자 서버 주소가 올바르지 않습니다` | 운영 명령 없이 띄웠는데 `.env`의 `MONITORING_APP_ADDRESS`가 `컨테이너 이름:포트` 형식이 아님 | 로그의 맞는 형식대로 고친 뒤 `sh core-server.sh start`로 띄운다 |
-| `prometheus`나 `blackbox-exporter`가 계속 다시 시작하고 로그에 `설정 값이 올바르지 않습니다: CORE_…` | 운영 명령 없이 띄웠는데 기록 보관 값이나 주소 확인 제한 시간이 틀림 | 로그 위쪽의 안내대로 `.env`를 고친 뒤 `sh core-server.sh start`로 띄운다 |
+| `CA 인증서 파일을 찾지 못했습니다` | 코어 서버 OS에 CA 인증서 패키지가 없음 | OS에 `ca-certificates` 패키지를 설치하고 다시 실행한다 |
+| `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 파일 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
+| `펼친 설정 폴더가 심볼릭 링크입니다` 또는 `펼친 설정 파일이 심볼릭 링크입니다` | 묶음 폴더의 `rendered/`나 그 안의 파일이 다른 곳을 가리킴 | 링크를 지우고 다시 실행한다 |
+| `env file …/rendered/core.env not found` | `render`를 실행하지 않고 `docker compose up -d`를 실행함 | `sh core-server.sh render`를 실행한 뒤 다시 띄우거나, `sh core-server.sh start`로 띄운다 |
+| `curl과 wget이 없어 준비 확인 주소를 부르지 못했습니다` | 코어 서버에 `curl`과 `wget`이 모두 없음 | 코어 서버에 `curl`을 설치한다 |
+| `정상 상태가 되지 않았습니다` | 띄운 프로그램이 3분 안에 준비됐다고 답하지 않음 | 안내의 `docker logs <컨테이너>`로 로그를 본다 |
+| `exec: "sh": executable file not found` | `docker exec`로 코어 컨테이너 안의 셸을 열려 함 | 셸 대신 로그와 `127.0.0.1`의 HTTP API로 본다 |
 | `코어가 이미 있는데 token 파일이 없습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
 | `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 새 묶음 폴더의 `secrets/`에 token을 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
 | `token은 코어를 띄운 묶음 폴더에서 바꿔 주세요` | 다른 버전 폴더에서 `rotate-token`을 실행함 | 안내된 폴더에서 다시 실행한다 |
-| `MONITORING_APP_ADDRESS가 필요합니다` | 직접 실행했는데 `.env`가 없거나 관리자 서버 주소가 비어 있음 | `.env`를 만들고 관리자 서버 주소를 넣는다 |
-| `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 없음` | token 파일이 없거나 비어 있음 | 로그의 경로에 token 파일을 만든다 |
-| `alertmanager`가 계속 다시 시작하고 로그에 `필요한 파일 읽기 불가` | token 파일 권한이 0600 등이라 컨테이너 사용자가 읽지 못함 | 파일 권한을 0644로 바꾼다 |
-| `alertmanager_webhook_token`이 폴더임 | token 파일 없이 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
+| `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar`로 불러온다 |
 | `sha256sum`이 `FAILED` | 옮기는 중에 파일이 망가짐 | 묶음을 다시 옮긴다 |
 | 관리자 서버가 `network monitoring not found`로 뜨지 않음 | 코어보다 먼저 띄움 | 코어를 먼저 띄운 뒤 관리자 서버를 띄운다 |
@@ -346,12 +359,14 @@ Linux 서버에 필요한 파일은 코어 묶음과 함께 생기는 `dist/node
 
 ### Docker가 있는 Linux 서버
 
-node_exporter 묶음 폴더에서 이미지를 불러온 뒤 띄운다. 인터넷이 되는 서버면 이미지를 불러오지 않고 저장소의 [`infrastructure/node-exporter/compose.yml`](../infrastructure/node-exporter/compose.yml)만 복사해 띄워도 된다. 서버의 네트워크와 프로세스를 그대로 보고, 루트 파일 시스템은 읽기 전용으로 붙인다. 쓰기 권한과 privileged 권한은 주지 않는다.
+node_exporter 묶음 폴더에서 이미지를 불러온 뒤 띄운다. 이미지에는 node_exporter 실행 파일만 있고 셸이 없다. 서버의 네트워크와 프로세스를 그대로 보고, 루트 파일 시스템은 읽기 전용으로 붙인다. 쓰기 권한과 privileged 권한은 주지 않는다.
 
 ```sh
 docker load -i node-exporter-image.tar
 docker compose up -d
 ```
+
+이 이미지는 공개 저장소에 없다. 인터넷이 되는 서버에도 묶음 폴더를 옮겨 쓰거나, 저장소의 [`infrastructure/node-exporter/`](../infrastructure/node-exporter/) 폴더(`compose.yml`, `Dockerfile`)를 복사해 그 폴더에서 `docker compose up -d --build`로 빌드해 띄운다. 빌드할 때 공식 이미지를 받으므로 인터넷이 필요하다.
 
 ### Docker가 없는 Linux 서버
 
@@ -382,7 +397,7 @@ curl -s http://10.0.0.21:9100/metrics | head
 
 갱신하거나 멈추는 방법은 설치 방식마다 다르다. 멈춘 서버는 관리자 서버에서도 수집을 끈다. 끄지 않으면 수집 실패가 계속 기록된다.
 
-- **Docker 방식 갱신**: 새 node_exporter 묶음 폴더에서 `docker load -i node-exporter-image.tar` 뒤 `docker compose up -d`를 실행한다.
+- **Docker 방식 갱신**: 새 node_exporter 묶음 폴더에서 `docker load -i node-exporter-image.tar` 뒤 `docker compose up -d`를 실행한다. 이전 묶음의 컨테이너와 이름이 같아서 Compose가 컨테이너를 새 이미지로 바꾼다.
 - **Docker 방식 멈추기**: 묶음 폴더에서 `docker compose down`을 실행한다.
 - **systemd 방식 갱신**: 새 실행 파일을 같은 경로에 `sudo install`로 덮어쓴 뒤 `sudo systemctl restart node_exporter`를 실행한다.
 - **systemd 방식 멈추기**: `sudo systemctl disable --now node_exporter`를 실행한다.
@@ -481,4 +496,4 @@ curl -s -m 5 http://<대상 서버 주소>:9100/metrics | head -n 1
 
 ## 라이선스
 
-묶음 폴더의 `licenses/`와 `sources/`는 지우지 않고 묶음과 함께 옮긴다. 코어와 node_exporter 묶음을 다른 회사의 프로젝트에 줄 때 라이선스 조건을 지키는 데 필요하기 때문이다. `licenses/`에는 각 프로그램의 라이선스 전문과 고지가, `sources/`에는 이미지 안의 BusyBox(GPL-2.0) 소스가 있고, 무엇이 들었는지는 `licenses/README.txt`에 있다. 라이선스 기록은 [LICENSES.md](LICENSES.md)에 있다.
+묶음 폴더의 `licenses/`는 지우지 않고 묶음과 함께 옮긴다. 코어와 node_exporter 묶음을 다른 회사의 프로젝트에 줄 때 라이선스 조건을 지키는 데 필요하기 때문이다. `licenses/`에는 그 묶음에 든 프로그램(코어 묶음은 Prometheus, Alertmanager, Blackbox Exporter, node_exporter 묶음은 node_exporter)의 라이선스 전문과 고지가 있고, 무엇이 들었는지는 `licenses/README.txt`에 있다. 이미지에는 그 프로그램의 실행 파일만 있고 셸과 다른 프로그램은 없다. Blackbox Exporter가 쓰는 CA 인증서는 코어 서버 OS의 파일이라 묶음에 들어가지 않는다. 라이선스 기록은 [LICENSES.md](LICENSES.md)에 있다.
