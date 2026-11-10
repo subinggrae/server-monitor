@@ -29,6 +29,7 @@ Prometheus, Blackbox Exporter, Alertmanager는 모니터링 코어로 묶어 앱
 - 개발용 Manager Database는 `local-db` profile의 `manager-db`(MariaDB)다. 운영에서는 외부 MariaDB나 PostgreSQL을 쓴다.
 - 코어 이미지는 공개 이미지에 설정 템플릿, Alert 규칙, `render-config.sh`를 넣어 빌드한다. 개발과 내부망 배포가 같은 이미지를 쓴다([ADR 0009](decisions/0009-core-config-in-image.md)). 내부망 서버에는 Windows 빌드 PC에서 `core-dev.bat build`로 만든 묶음을 옮기고, 묶음 안의 `core-server.sh`로 설치하고 띄운다.
 - 코어가 부르는 앱 주소는 `infrastructure/.env`의 `MONITORING_APP_ADDRESS` 하나다. Prometheus와 Alertmanager가 시작할 때 이미지 안의 `render-config.sh`가 설정 템플릿에 펼친다.
+- 코어 서버에서 바꾸는 코어 값(기록 보관 기간·용량, 주소 확인 제한 시간, 호스트 포트 세 개)도 `.env`에서 받는다. Prometheus와 Blackbox Exporter가 시작할 때 `render-config.sh`가 `core-settings.sh`로 값을 검사해 Prometheus 설정 템플릿의 보관 항목(`storage.tsdb.retention`)과 Blackbox 설정 템플릿에 펼친다. 호스트 포트는 `compose.yml`의 `ports`가 받는다. 묶음의 `core-server.sh`는 같은 `core-settings.sh`로 띄우기 전에 여섯 값을 모두 검사한다.
 - OS exporter는 이 시스템이 띄우지 않는다. 감시 대상 서버에 사람이 설치하고, Prometheus가 HTTP SD로 받은 주소를 직접 수집한다. Linux 서버용 배포 묶음은 `infrastructure/node-exporter/compose.yml`이고, 설치 안내는 [운영 가이드의 OS exporter 설치](OPERATIONS.md#os-exporter-설치)에 있다.
 
 외부 시스템은 다음과 같다.
@@ -67,7 +68,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 | `frontend/src/lib` | API 호출과 query 정의(`api.ts`), 표시 형식(`format.ts`) |
 | `frontend/e2e` | 전체 실행 환경에 실행하는 E2E, 화면 검사, 성능 검사(Playwright) |
 | `docs/reference-schema/` | 다른 앱이 참고하는 리소스 임계값 DDL(이 앱의 migration이 아님, `ReferenceSchemaIntegrationTest`가 적용 확인) |
-| `infrastructure/` | 모니터링 코어(`compose.yml`, 구성 요소마다 `Dockerfile`, 설정을 펼치는 `render-config.sh`), Prometheus 설정 템플릿과 규칙(규칙 테스트는 `prometheus/tests/`), Alertmanager, Blackbox 설정, 묶음에 싣는 라이선스 파일(`licenses/`), node_exporter 배포 묶음(`node-exporter/`), 비밀값 예시 파일 |
+| `infrastructure/` | 모니터링 코어(`compose.yml`, 구성 요소마다 `Dockerfile`, 설정을 펼치는 `render-config.sh`, 서버에서 바꾸는 코어 값의 기본값과 검사 `core-settings.sh`), Prometheus 설정 템플릿과 규칙(규칙 테스트는 `prometheus/tests/`), Alertmanager, Blackbox 설정, 묶음에 싣는 라이선스 파일(`licenses/`), node_exporter 배포 묶음(`node-exporter/`), 비밀값 예시 파일 |
 | `scripts/build-core-bundle.mjs` | 코어 이미지 빌드와 검사, 내부망 서버로 옮길 코어·node_exporter 묶음 |
 | `core-dev.bat` | Windows 빌드 PC에서 묶음 만들기, 설정 검사, 개발용 코어 띄우기·멈추기 |
 | `infrastructure/core-server.sh` | 묶음에 들어가 코어 서버(Linux)에서 설치 준비, 띄우기, token 바꾸기, 상태 보기(시험은 `infrastructure/tests/`) |
@@ -92,7 +93,8 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 - 감시 항목의 장애 판단 규칙(실패가 얼마나 이어지면 장애인지 등)은 코어의 Alert 규칙(`infrastructure/prometheus/rules/monitoring-checks.yml`)에 두고, 바꾸려면 코어를 다시 빌드한다. 사용자가 Manager에서 정하는 것은 위의 수집 주기와 알림 재전송 주기뿐이다(사람 확인: 2026-10-29, [#5](https://github.com/subinggrae/server-monitor/issues/5)). 서버 리소스 임계값은 이 규칙의 예외로, 위대로 앱이 판단한다.
 - Manager Database는 MariaDB와 PostgreSQL을 함께 지원한다. Flyway migration은 두 vendor 디렉터리에 같은 version으로 둔다. 접속 URL이 vendor를 정하고, 지원하지 않는 DB면 기동에 실패한다.
 - 테이블과 열 이름은 JPA Entity 어노테이션과 기준 migration에만 둔다. 네이티브 SQL을 쓰지 않는다. 도입하는 쪽이 이름을 바꾸는 절차는 [INTEGRATION.md의 테이블과 열 이름 바꾸기](INTEGRATION.md#테이블과-열-이름-바꾸기)에 있고, `DatabaseNameLocationTest`가 지킨다.
-- 코어 설정 파일에 앱 주소를 직접 적지 않는다. 앱 주소는 `MONITORING_APP_ADDRESS`로만 받는다. 코어와 앱 사이에 오가는 것은 [INTEGRATION.md](INTEGRATION.md)에 적은 것뿐이다.
+- 코어 설정 파일에 앱 주소를 직접 적지 않는다. 앱 주소는 `MONITORING_APP_ADDRESS`로만 받고, 운영 명령과 시작 스크립트가 같은 `core-settings.sh`의 `core_valid_address`로 `컨테이너 이름:포트` 형식을 검사한 값만 펼친다. 결정과 이유는 [ADR 0011](decisions/0011-core-address-format-check.md)에 있다. 코어와 앱 사이에 오가는 것은 [INTEGRATION.md](INTEGRATION.md)에 적은 것뿐이다.
+- 코어 서버의 `.env`에서 바꾸는 코어 값은 기록 보관 기간(`CORE_RETENTION_DAYS`), 기록 보관 용량(`CORE_RETENTION_SIZE_GB`), 주소 확인 제한 시간(`CORE_PROBE_TIMEOUT_SECONDS`), 호스트 포트 세 개(`CORE_PROMETHEUS_PORT`, `CORE_ALERTMANAGER_PORT`, `CORE_BLACKBOX_PORT`)뿐이다(요구사항 [0013](requirements/0013-core-env-settings.md)). 운영 명령과 시작 스크립트는 같은 `infrastructure/core-settings.sh`로 형식(단위 없고 앞에 0이 없는 정수)과 허용 범위를 검사하고, 검사를 통과한 정수만 설정 템플릿에 펼치고 실행 인자는 더하지 않는다. YAML 전체, Alert 규칙과 장애 판단 기준, Alertmanager의 `group_*`·`repeat_interval`, Prometheus의 수집·평가 주기와 `scrape_timeout`, keep 규칙, 컨테이너 안 포트, `127.0.0.1` 바인딩은 서버에서 열지 않는다. 허용 범위는 위 경계의 약속(예: 확인 제한 시간은 `scrape_timeout`에서 0.5초를 뺀 값 이하)을 지키도록 정하고, `scripts/build-core-bundle.mjs`의 설정 검사가 그 약속을 다시 확인한다. 값을 더하거나 허용 범위를 바꾸면 두 곳을 함께 고친다.
 - API를 호출하는 쪽은 다음과 같다. 받던 입력을 거부하거나 응답을 바꾸는 변경이 호환성을 깨는지 이 범위로 판단한다.
   - 화면용 `/api/*`: 이 저장소의 화면만 호출한다.
   - `/api/prometheus/sd/blackbox`, `/api/prometheus/sd/os-exporter`: Prometheus가 호출한다(`infrastructure/prometheus/prometheus.yml`). 공개 API로 보고, 계약은 [INTEGRATION.md](INTEGRATION.md)에 있다.
@@ -100,6 +102,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
   - `/api/integrations/telegram/webhook`: Telegram이 호출한다. 공개 API로 본다.
 - 신뢰 경계는 다음과 같다.
   - 신뢰할 수 없는 입력은 화면용 REST API의 요청, 두 webhook의 요청, Prometheus와 Telegram의 응답, OS exporter의 `/metrics` 응답으로 들어온다. Manager는 `/metrics`를 경로를 고정해 `GET`으로만 읽고, 리다이렉트를 따르지 않으며, 크기와 시간에 한도를 둔다. 응답 본문은 화면과 로그에 넣지 않는다.
+  - 코어 서버의 `.env`와 셸 환경 변수는 묶음 폴더에 쓸 수 있는 운영자만 바꾸지만, 복사해 붙인 값이나 셸에 남은 환경 변수처럼 의도하지 않은 값이 들어올 수 있다. 그래서 운영 명령은 `.env`를 셸로 실행하지 않고 읽으며, 코어 값은 위 검사를 통과한 정수만 YAML 설정과 Compose `ports`에 넘긴다.
   - OS exporter는 인증 없이 열린다. 운영자가 대상 서버의 방화벽이나 AWS 보안 그룹에서 코어 서버(Prometheus와 Monitoring Manager)만 접근하게 한다. exporter 트래픽이 VPC나 사내망 밖을 지나거나 고객사가 암호화·인증을 요구하면 TLS와 인증을 건다([#15](https://github.com/subinggrae/server-monitor/issues/15), 사람 확인: 2026-10-29).
   - 두 webhook은 각각 Bearer token과 Telegram secret header로 호출하는 쪽을 확인한다.
   - 데이터가 외부로 나가는 곳은 Telegram Bot API(알림 메시지)다.

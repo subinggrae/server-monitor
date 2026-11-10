@@ -16,8 +16,10 @@ LABEL org.opencontainers.image.title="monitoring-core-alertmanager" \
 
 # token 파일이 없으면 webhook이 401로 거부되어 알림이 조용히 끊기므로, 시작할 때 확인합니다.
 ENV CORE_REQUIRED_FILES=/run/secrets/alertmanager_webhook_token
+# render-config.sh가 읽는 core-settings.sh는 함께 넣지만, Alertmanager에는 서버에서 바꾸는 코어 설정 값이 없습니다.
+ENV CORE_SETTINGS=""
 
-COPY render-config.sh /etc/core/render-config.sh
+COPY render-config.sh core-settings.sh /etc/core/
 COPY alertmanager/alertmanager.yml /etc/alertmanager/alertmanager.yml.template
 
 ENTRYPOINT ["/bin/sh", "/etc/core/render-config.sh", "/etc/alertmanager/alertmanager.yml.template", "/tmp/alertmanager.yml", "/bin/alertmanager"]

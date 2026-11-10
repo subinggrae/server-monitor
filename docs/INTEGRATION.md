@@ -100,7 +100,7 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 | `check_name` | 감시 항목 이름(Alert 요약에 들어감) | 자유 문자열 |
 | `__scrape_interval__` | 수집 주기(time series label로 남지 않음) | `10s`~`240s` |
 
-확인 방식마다 `targets`에 넣는 값, `module` 값, 성공으로 보는 조건은 다음과 같다. 확인마다 5초 안에 응답이 없으면 실패다.
+확인 방식마다 `targets`에 넣는 값, `module` 값, 성공으로 보는 조건은 다음과 같다. 확인마다 제한 시간(기본 5초, 코어 서버에서 1~9초) 안에 응답이 없으면 실패다.
 
 | `check_type` | `targets` 값 | `module` | 성공 조건 |
 |---|---|---|---|
