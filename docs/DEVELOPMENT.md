@@ -27,7 +27,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 |---|---|---|
 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 개발 서버 | `cd frontend && npm run dev`, `cd backend && ./gradlew bootRun` | 화면이나 API를 직접 확인할 때 |
-| 코어 실행과 멈춤 | `core-dev.bat start`, `core-dev.bat stop`(Windows가 아니면 `sh infrastructure/core-server.sh render` 뒤 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 앱보다 먼저, 코어 설정을 바꿨을 때 |
+| 코어 실행과 멈춤 | `core-dev.bat start`, `core-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `sh infrastructure/core-server.sh render` 뒤 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 앱보다 먼저, 코어 설정을 바꿨을 때 |
 | 전체 실행 | 코어 실행 뒤 `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
 | OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
 | 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |

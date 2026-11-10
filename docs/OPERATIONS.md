@@ -24,7 +24,7 @@
 
 ## 코어 서버 사양
 
-코어 서버는 x86-64 Linux이고 Docker Engine과 Compose, 정상 확인에 쓸 `curl`(없으면 `wget`), OS의 CA 인증서 패키지(`ca-certificates`)가 있어야 한다. Ubuntu, Debian, Amazon Linux 2023의 서버 이미지에는 기본으로 들어 있다. 코어가 쓰는 메모리와 CPU는 감시 대상이 늘수록 늘고, 디스크는 감시 대상 수와 보관 기간(기본 15일)에 따라 커진다. 다음 값은 2026-11-10에 개발 PC의 인터넷을 끊은 Docker(`docker:dind`) 안에서 감시 대상 없이 코어를 띄워 잰 값이다.
+코어 서버는 x86-64 Linux이고 Docker Engine과 Compose, 정상 확인에 쓸 `curl`(없으면 `wget`), OS의 CA 인증서 패키지(`ca-certificates`)가 있어야 한다. Blackbox Exporter가 HTTPS 주소를 확인할 때 이 패키지의 인증서 파일을 쓴다. Ubuntu, Debian, Amazon Linux 2023의 서버 이미지에는 기본으로 들어 있다. 코어가 쓰는 메모리와 CPU는 감시 대상이 늘수록 늘고, 디스크는 감시 대상 수와 보관 기간(기본 15일)에 따라 커진다. 다음 값은 2026-11-10에 개발 PC의 인터넷을 끊은 Docker(`docker:dind`) 안에서 감시 대상 없이 코어를 띄워 잰 값이다.
 
 | 항목 | 잰 값 |
 |---|---|
@@ -120,15 +120,19 @@ ssh <계정>@<서버 주소>
 ```
 
 ```sh
-sudo mkdir -p /opt/monitoring
+sudo mkdir -p /opt/monitoring/certs
+sudo cp -L /etc/ssl/certs/ca-certificates.crt /opt/monitoring/certs/ca-certificates.crt
+sudo chmod 0644 /opt/monitoring/certs/ca-certificates.crt
 sudo mv /tmp/monitoring-core-<버전> /opt/monitoring/
 cd /opt/monitoring/monitoring-core-<버전>
 sudo sh core-server.sh install
 sudo sh core-server.sh start
 ```
 
+- **CA 인증서 파일 복사**: Blackbox Exporter가 HTTPS 주소를 확인할 때 쓸 OS의 CA 인증서 파일을 설치 폴더의 `certs/`에 복사한다. 처음 한 번만 하고, 새 버전으로 갱신할 때는 다시 하지 않는다. 위 명령은 Ubuntu, Debian, Amazon Linux의 파일이다. RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`를 복사한다. 운영 명령은 이 파일을 찾거나 바꾸지 않고, 있는지만 확인한다.
+
 - **`install`**: 관리자 서버 주소를 묻는다. 이 저장소의 관리자 서버(Manager)를 쓰면 `manager-api:8080`을 넣는다. 다른 관리자 서버는 그 컨테이너의 `이름:포트`를 넣는다([관리자 서버 만들기의 관리자 서버 띄우기](ADMIN-SERVER.md#관리자-서버-띄우기)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
-- **`start`**: 파일이 온전한지 확인하고, 설정과 token을 검사하고, 코어 서버 OS의 CA 인증서 파일을 찾는다. 그다음 설정을 묶음 폴더의 `rendered/`에 펼치고 코어를 띄워, 세 프로그램이 준비됐다고 답할 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
+- **`start`**: 파일이 온전한지 확인하고, 설정과 token, 복사한 CA 인증서 파일을 검사한다. 그다음 설정을 묶음 폴더의 `rendered/`에 펼치고 코어를 띄워, 세 프로그램이 준비됐다고 답할 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
 
 `sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`인지도 볼 수 있다. 운영 명령은 코어 서버에서 `curl`(없으면 `wget`)로 `127.0.0.1`의 세 포트를 불러 준비 여부를 본다. 두 도구가 모두 없으면 컨테이너가 실행 중이고 다시 시작하지 않는지만 보고 경고하므로, 코어 서버에 `curl`을 둔다. 코어 컨테이너에는 healthcheck가 없어 `docker ps`에는 `healthy`가 보이지 않는다.
 
@@ -137,6 +141,7 @@ sudo sh core-server.sh start
 ```text
 /opt/monitoring/                         설치 폴더
 ├── secrets/alertmanager_webhook_token   코어와 관리자 서버가 함께 읽는 token
+├── certs/ca-certificates.crt            OS에서 복사한 CA 인증서 파일
 ├── monitoring-core-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
 └── monitoring-core-<새 버전>/
     ├── .env                             서버에서 바꾸는 값
@@ -229,16 +234,19 @@ sudo sh core-server.sh start
 install -d -m 0700 ../secrets
 openssl rand -hex 32 > ../secrets/alertmanager_webhook_token
 chmod 0644 ../secrets/alertmanager_webhook_token
+install -d -m 0755 ../certs
+cp -L /etc/ssl/certs/ca-certificates.crt ../certs/ca-certificates.crt   # RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt
+chmod 0644 ../certs/ca-certificates.crt
 cp .env.example .env              # MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
 docker load -i core-images.tar
-sh core-server.sh render          # 파일이 온전한지 보고, 값과 token, CA 인증서를 검사해 rendered/에 펼친다
+sh core-server.sh render          # 파일이 온전한지 보고, 값과 token, CA 인증서 파일을 검사해 rendered/에 펼친다
 docker compose up -d
 curl -fsS http://127.0.0.1:9090/-/ready   # Alertmanager는 9093/-/ready, Blackbox Exporter는 9115/-/healthy
 ```
 
 `render`는 `start`와 같은 규칙으로 관리자 서버 주소, [서버에서 바꾸는 값](#서버에서-바꾸는-값), token 파일, CA 인증서 파일을 검사하고, 하나라도 틀리면 안내를 보인 뒤 아무것도 펼치지 않는다. 컨테이너는 만들거나 바꾸지 않는다. 다만 떠 있는 컨테이너는 서버 재시작 등으로 다시 시작할 때 새로 펼친 설정을 읽을 수 있으므로, 떠 있는 코어보다 기록 보관 값을 줄이면 `start`처럼 계속할지 묻는다.
 
-`.env`를 바꾸거나 OS의 CA 인증서를 바꾼 뒤에는 `render`를 다시 실행하고 `docker compose up -d`를 실행한다. 다시 펼치지 않으면 바꾼 값이 반영되지 않는다. 펼친 설정(`rendered/`) 없이 `docker compose up -d`를 실행하면 Compose가 `env file …/rendered/core.env not found`로 멈추고 아무것도 만들지 않는다. `render` 뒤 `docker compose up -d` 전에 token 파일을 지우면 Alertmanager가 token 없이 떠서 관리자 서버가 장애를 거부하므로, 그 사이에 token을 바꾸지 않는다.
+`.env`를 바꾸거나 CA 인증서 파일을 다시 복사한 뒤에는 `render`를 다시 실행하고 `docker compose up -d`를 실행한다. 다시 펼치지 않으면 바꾼 값이 반영되지 않는다. 펼친 설정(`rendered/`) 없이 `docker compose up -d`를 실행하면 Compose가 `env file …/rendered/core.env not found`로 멈추고 아무것도 만들지 않는다. `render` 뒤 `docker compose up -d` 전에 token 파일을 지우면 Alertmanager가 token 없이 떠서 관리자 서버가 장애를 거부하므로, 그 사이에 token을 바꾸지 않는다.
 
 ### 저장소에서 실행
 
@@ -250,9 +258,11 @@ openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
 chmod 0644 infrastructure/secrets/alertmanager_webhook_token
 ```
 
-Windows에서는 `core-dev.bat start`로 띄우고 `core-dev.bat stop`으로 멈춘다. `start`는 공식 Prometheus 이미지의 셸로 운영 명령의 `render`를 실행해 `infrastructure/rendered/`에 설정을 펼친 뒤 띄운다. 다른 OS에서는 같은 일을 하는 다음 명령을 쓴다. `render`는 그 PC의 CA 인증서 파일을 찾는다.
+Windows에서는 `core-dev.bat start`로 띄우고 `core-dev.bat stop`으로 멈춘다. `start`는 공식 Prometheus 이미지의 셸로 운영 명령의 `render`를 실행해 `infrastructure/rendered/`에 설정을 펼친 뒤 띄운다. `infrastructure/certs/ca-certificates.crt`가 없으면 그 공식 이미지의 CA 인증서 파일을 꺼내 둔다. 다른 OS에서는 같은 일을 하는 다음 명령을 쓴다. 첫 두 줄은 그 PC의 CA 인증서 파일을 복사하고, 처음 한 번만 한다.
 
 ```sh
+mkdir -p infrastructure/certs
+cp -L /etc/ssl/certs/ca-certificates.crt infrastructure/certs/   # RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt, macOS는 /etc/ssl/cert.pem
 sh infrastructure/core-server.sh render
 docker compose -f infrastructure/compose.yml up -d --build
 docker compose -f infrastructure/compose.yml ps
@@ -301,8 +311,8 @@ docker compose -f infrastructure/compose.yml ps
 - **관리자 서버 이름·포트 바꾸기**: `.env`의 `MONITORING_APP_ADDRESS`를 고친 뒤 `sh core-server.sh start`를 실행한다.
 - **기록 보관 기간·용량, 주소 확인 제한 시간, 포트 바꾸기**: `.env`의 값을 고친 뒤 `sh core-server.sh start`를 실행한다([서버에서 바꾸는 값](#서버에서-바꾸는-값)). 쌓은 기록과 장애 상태는 이어진다.
 - **기록 보관 값 줄이기**: 보관 기간을 줄이거나, 보관 용량을 줄이거나, 제한이 없던 용량을 처음 정하고 `start`를 실행하면 운영 명령이 `기록 보관 값을 줄입니다`와 함께 계속할지 묻는다. `y`를 넣어야 띄우고, 그 밖의 답이면 아무것도 바꾸지 않는다. 터미널이 아닌 곳(예: 다른 스크립트)에서 실행하면 물을 수 없으므로 띄우지 않는다. 운영 명령은 떠 있거나 멈춰 있는 코어의 값과 비교하므로, `docker compose down`으로 코어 컨테이너를 지운 뒤에는 묻지 않고 새 값으로 띄운다. 그때는 `.env`의 값을 먼저 확인한다.
-- **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 `sh core-server.sh start`를 실행한다. 운영 명령이 OS의 CA 인증서 파일을 다시 복사해 Blackbox Exporter를 다시 만든다. 다시 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
-- **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 지난 `start` 뒤 `.env`나 OS의 CA 인증서를 바꿨으면 token을 바꾸지 않고 멈추므로, 먼저 `sh core-server.sh start`로 반영한다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
+- **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 [처음 따라 하기의 CA 인증서 파일 복사](#5-서버에서-설치하고-띄우기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh core-server.sh start`를 실행한다. 운영 명령이 바뀐 파일을 알아보고 Blackbox Exporter를 다시 만든다. 다시 복사하고 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
+- **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 지난 `start` 뒤 `.env`나 CA 인증서 파일을 바꿨으면 token을 바꾸지 않고 멈추므로, 먼저 `sh core-server.sh start`로 반영한다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
 - **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
 - **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
 - **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 `install`을 실행하면 새 token을 만들지 않고 멈춘다. 새 token을 만들면 관리자 서버의 token과 어긋나기 때문이다. 다음 순서로 옮긴다.
@@ -330,7 +340,9 @@ docker compose -f infrastructure/compose.yml ps
 | `호스트 포트가 겹칩니다` | 세 포트 가운데 둘 이상이 같음 | `.env`의 세 포트를 서로 다른 값으로 고친다 |
 | `기록 보관 값을 줄이려면 터미널에서 실행해 확인해 주세요` | 보관 기간이나 용량을 줄였는데, 입력을 받을 수 없는 방식으로 실행함 | 줄이려는 것이 맞으면 터미널에서 직접 실행해 `y`를 넣고, 아니면 `.env`의 값을 되돌린다 |
 | `port is already allocated` 또는 `address already in use` | 코어 서버의 다른 프로그램이나 컨테이너가 그 포트를 씀 | `.env`의 그 포트(`CORE_PROMETHEUS_PORT` 등)를 비어 있는 포트로 바꾸고 다시 `start`를 실행한다 |
-| `CA 인증서 파일을 찾지 못했습니다` | 코어 서버 OS에 CA 인증서 패키지가 없음 | OS에 `ca-certificates` 패키지를 설치하고 다시 실행한다 |
+| `CA 인증서 파일이 없습니다` 또는 `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 CA 인증서 파일을 복사하지 않음 | [처음 따라 하기](#5-서버에서-설치하고-띄우기)대로 복사한다 |
+| `CA 인증서 파일 자리에 폴더가 있습니다` | 파일을 복사하기 전에 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 파일을 복사한다 |
+| `컨테이너가 CA 인증서 파일을 읽을 수 없습니다` | 복사한 파일의 권한이 0600 등임 | 파일 권한을 0644로 바꾼다 |
 | `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 파일 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
 | `펼친 설정 폴더가 심볼릭 링크입니다` 또는 `펼친 설정 파일이 심볼릭 링크입니다` | 묶음 폴더의 `rendered/`나 그 안의 파일이 다른 곳을 가리킴 | 링크를 지우고 다시 실행한다 |
 | `env file …/rendered/core.env not found` | `render`를 실행하지 않고 `docker compose up -d`를 실행함 | `sh core-server.sh render`를 실행한 뒤 다시 띄우거나, `sh core-server.sh start`로 띄운다 |
@@ -339,7 +351,7 @@ docker compose -f infrastructure/compose.yml ps
 | `exec: "sh": executable file not found` | `docker exec`로 코어 컨테이너 안의 셸을 열려 함 | 셸 대신 로그와 `127.0.0.1`의 HTTP API로 본다 |
 | `코어가 이미 있는데 token 파일이 없습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
 | `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 새 묶음 폴더의 `secrets/`에 token을 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
-| `지난 띄우기 뒤 설정(.env, 템플릿, OS의 CA 인증서)이 바뀌었습니다` | `rotate-token` 전에 `.env`나 OS의 CA 인증서를 바꿈 | `sh core-server.sh start`로 반영한 뒤 다시 실행한다 |
+| `지난 띄우기 뒤 설정(.env, 템플릿, CA 인증서 파일)이 바뀌었습니다` | `rotate-token` 전에 `.env`나 CA 인증서 파일을 바꿈 | `sh core-server.sh start`로 반영한 뒤 다시 실행한다 |
 | `token은 코어를 띄운 묶음 폴더에서 바꿔 주세요` | 다른 버전 폴더에서 `rotate-token`을 실행함 | 안내된 폴더에서 다시 실행한다 |
 | `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar`로 불러온다 |

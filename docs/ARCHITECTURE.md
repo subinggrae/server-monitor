@@ -30,7 +30,7 @@ Prometheus, Blackbox Exporter, Alertmanager는 모니터링 코어로 묶어 앱
 - 코어 이미지는 공식 이미지에서 실행 파일만 빈 이미지(`scratch`)로 옮겨 빌드하고, Prometheus 이미지에는 Alert 규칙도 넣는다. 셸, BusyBox, `promtool`, `amtool`, CA 묶음, 시간대 자료는 없다. 개발과 내부망 배포가 같은 이미지를 쓴다([ADR 0009](decisions/0009-core-config-in-image.md), [ADR 0012](decisions/0012-core-render-outside-image.md)). node_exporter 이미지도 같은 방법으로 빌드한다. 내부망 서버에는 Windows 빌드 PC에서 `core-dev.bat build`로 만든 묶음을 옮기고, 묶음 안의 `core-server.sh`로 설치하고 띄운다.
 - 코어가 부르는 앱 주소는 `infrastructure/.env`의 `MONITORING_APP_ADDRESS` 하나다. 이미지에 셸이 없으므로, 띄우기 전에 운영 명령(`core-server.sh`의 `render`, `start`)이 컨테이너 밖에서 설정 템플릿에 펼쳐 `rendered/`에 쓰고, `compose.yml`이 펼친 설정을 읽기 전용으로 붙인다. 묶음에서는 템플릿이 묶음 폴더의 `templates/`에 있다.
 - 코어 서버에서 바꾸는 코어 값(기록 보관 기간·용량, 주소 확인 제한 시간, 호스트 포트 세 개)도 `.env`에서 받는다. 운영 명령이 `core-settings.sh`로 여섯 값을 모두 검사하고, 앞의 세 값을 Prometheus 설정 템플릿의 보관 항목(`storage.tsdb.retention`)과 Blackbox 설정 템플릿에 펼친다. 호스트 포트는 `compose.yml`의 `ports`가 받는다.
-- Blackbox Exporter의 HTTPS 확인은 코어 서버 OS의 CA 인증서 파일을 쓴다. 운영 명령이 Go가 찾는 위치에서 찾아 `rendered/`에 복사하고, `compose.yml`이 Blackbox Exporter에만 붙인다. 정상 확인은 컨테이너 healthcheck 대신 운영 명령이 코어 서버에서 `127.0.0.1`의 호스트 포트로 준비 확인 주소를 부른다.
+- Blackbox Exporter의 HTTPS 확인은 코어 서버 OS의 CA 인증서 파일을 쓴다. 운영자가 운영 가이드대로 설치 폴더의 `certs/`에 복사하고, `compose.yml`이 Blackbox Exporter에만 붙인다. 운영 명령은 파일이 있는지만 확인한다. 정상 확인은 컨테이너 healthcheck 대신 운영 명령이 코어 서버에서 `127.0.0.1`의 호스트 포트로 준비 확인 주소를 부른다.
 - OS exporter는 이 시스템이 띄우지 않는다. 감시 대상 서버에 사람이 설치하고, Prometheus가 HTTP SD로 받은 주소를 직접 수집한다. Linux 서버용 배포 묶음은 `infrastructure/node-exporter/compose.yml`이고, 설치 안내는 [운영 가이드의 OS exporter 설치](OPERATIONS.md#os-exporter-설치)에 있다.
 
 외부 시스템은 다음과 같다.

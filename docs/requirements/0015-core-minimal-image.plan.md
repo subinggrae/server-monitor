@@ -101,7 +101,7 @@
 
 1. `.env`가 있는지 보고, 관리자 서버 주소(`core_valid_address`)와 코어 값 여섯 개(`core_setting_check`)를 지금 `check_env`, `check_settings`와 같은 함수로 검사한다.
 2. token 파일을 지금 `check_token`과 같은 함수로 확인한다.
-3. CA 파일을 찾는다([CA 파일 찾기와 붙이기](#ca-파일-찾기와-붙이기)).
+3. 운영자가 복사해 둔 CA 파일을 확인한다([CA 파일 붙이기](#ca-파일-붙이기)).
 4. 묶음의 `templates/`에서 세 설정을 펼쳐 `rendered/`의 임시 파일에 쓴다. 펼치는 글자는 지금 `render-config.sh`처럼 `core_setting_text`의 결과와 검사를 통과한 주소뿐이다.
 5. 펼친 파일에 자리표시(`@…@`)가 남지 않았는지 본다.
 6. `rendered/core.env`에 검사를 통과한 코어 값(`CORE_RETENTION_DAYS` 등)을 쓴다. compose 파일은 이 파일을 `env_file`로 컨테이너에 넘긴다. 프로그램은 이 값을 읽지 않지만, `status`와 기록 보관 값 줄임 확인이 지금처럼 컨테이너의 환경 변수에서 떠 있는 값을 읽는다.
@@ -136,35 +136,15 @@ compose 파일의 `healthcheck`를 지우고, `core-server.sh`가 코어 서버�
 
 ISO로 설치한 서버와 최소 설치는 위 목록과 다를 수 있고, 이는 확인하지 못했다. 그래서 두 도구가 모두 없으면 준비 확인 대신 세 컨테이너가 실행 중이고 다시 시작 횟수(`RestartCount`)가 늘지 않는지 보고, 준비 확인을 하지 못했다는 경고를 보인다. 띄우기는 막지 않는다(사람 확인: 2026-11-09).
 
-## CA 파일 찾기와 붙이기
+## CA 파일 붙이기
 
-`render`는 Go가 Linux에서 찾는 파일 목록([`root_linux.go`](https://github.com/golang/go/blob/master/src/crypto/x509/root_linux.go), 확인일 2026-11-09)을 같은 순서로 보고, 처음 찾은 일반 파일을 쓴다.
+2026-11-10에 사람이 바꿨다. 처음 계획은 `render`가 Go가 찾는 OS의 알려진 위치에서 CA 인증서 파일을 찾아 띄울 때마다 `rendered/`로 복사하는 것이었다. 시스템 파일을 다루는 일을 운영 명령에 두지 않기 위해 다음처럼 바꿨다.
 
-1. `/etc/ssl/certs/ca-certificates.crt`(Debian·Ubuntu)
-2. `/etc/pki/tls/certs/ca-bundle.crt`(Fedora·RHEL)
-3. `/etc/ssl/ca-bundle.pem`(openSUSE)
-4. `/etc/pki/tls/cacert.pem`
-5. `/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`(CentOS·RHEL 7)
-6. `/etc/ssl/cert.pem`
-
-RHEL 계열의 `/etc/pki/tls/certs/ca-bundle.crt`는 `/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem`을 가리키는 심볼릭 링크다. 같은 패키지가 `/etc/ssl/certs`도 `/etc/pki/tls/certs`를 가리키는 링크로 만든다([CentOS Stream 9의 `ca-certificates.spec`](https://gitlab.com/redhat/centos-stream/rpms/ca-certificates/-/raw/c9s/ca-certificates.spec), 확인일 2026-11-09). 그래서 링크를 따라간 실제 파일이 비어 있지 않은 일반 파일인지 본다.
-
-찾은 파일은 Blackbox Exporter 컨테이너의 `/etc/ssl/certs/ca-certificates.crt`에만 읽기 전용으로 붙인다. Go가 이 경로를 가장 먼저 찾기 때문이다. `render`가 찾은 파일을 `rendered/ca-certificates.crt`로 복사하고, compose 파일은 그 복사본을 붙인다. 띄울 때마다 다시 복사한다(사람 확인: 2026-11-09). 검토한 방법은 다음 두 가지였다.
-
-- **`render`가 찾은 파일을 `rendered/ca-certificates.crt`로 복사하고 그 복사본을 붙임**: compose 파일의 경로가 늘 같아 직접 실행 경로에서도 `.env`에 경로를 적지 않는다. OS가 인증서를 갱신하면 다음 `render`나 `start` 때 반영된다(요구사항 S4).
-- **OS의 파일 경로를 그대로 붙임**: OS 파일을 바로 쓰지만, compose 파일이 경로를 알려면 Compose 변수가 필요하다. Compose 변수는 `.env`나 셸 환경 변수에서만 오므로, 직접 실행 경로에서는 `.env`에 경로를 적어야 해 요구사항의 하지 않는 것과 맞지 않는다.
-
-첫 번째를 골랐다. 어느 쪽이든 CA 파일은 코어 서버의 파일이고 묶음에 들어가지 않는다.
-
-찾지 못하면 찾아본 여섯 위치와 설치할 패키지를 보인다. 패키지 이름을 공식 자료로 확인한 결과는 다음과 같다(확인일 2026-11-09).
-
-| OS | 패키지 | 근거 |
-|---|---|---|
-| Debian·Ubuntu | `ca-certificates` | 위 Ubuntu manifest, Debian 패키지 목록 |
-| RHEL 계열(CentOS Stream 9) | `ca-certificates` | 위 `ca-certificates.spec` |
-| Amazon Linux 2023 | 확인하지 못함 | AWS 패키지 목록이 너무 커서 끝까지 읽지 못했다 |
-
-확인한 OS가 모두 `ca-certificates`라서, 안내 문구는 `ca-certificates 패키지를 설치하고 다시 실행해 주세요`로 쓰고 OS를 나누지 않는다. Amazon Linux 2023의 이름은 작업 순서의 수동 확인(C4)에서 그 서버의 `rpm -qf /etc/pki/tls/certs/ca-bundle.crt`로 확인한다. 이름이 다르면 그때 안내 문구를 고친다.
+- 운영자가 설치할 때 운영 가이드대로 OS의 CA 인증서 파일을 설치 폴더의 `certs/ca-certificates.crt`에 한 번 복사한다(Ubuntu·Debian·Amazon Linux는 `/etc/ssl/certs/ca-certificates.crt`, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`). token처럼 설치 폴더에 두므로 묶음 버전이 바뀌어도 다시 복사하지 않는다. 저장소에서는 `infrastructure/certs/`이고, `core-dev.bat start`는 그 파일이 없을 때만 공식 이미지의 파일을 꺼내 둔다.
+- compose 파일이 그 파일을 Blackbox Exporter 컨테이너의 `/etc/ssl/certs/ca-certificates.crt`(Go가 가장 먼저 찾는 경로)에만 읽기 전용으로 붙인다. 묶음의 compose 파일은 `../certs/`를 쓴다.
+- 운영 명령은 OS의 파일을 읽거나 옮기지 않는다. `render`, `start`, `rotate-token`이 파일이 있고, 비어 있지 않고, 폴더가 아니고, 컨테이너 사용자가 읽을 수 있는지만 본다. 아니면 복사할 곳과 OS별 파일, 운영 가이드를 안내하고 펼치거나 띄우지 않는다(요구사항 S13).
+- 파일을 옮기지 않으므로 다시 복사했는지는 내용의 해시(`core.env`의 `CORE_CA_SHA256`)로 안다. 이 해시가 `CORE_CONFIG_SHA256`에 들어가, 다시 복사하고 `start`하면 Blackbox Exporter를 다시 만든다(요구사항 S4).
+- `.env`에 CA 파일 경로를 적는 값은 여전히 두지 않는다.
 
 ## node_exporter
 
@@ -339,9 +319,10 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
   - 준비 확인은 셸의 프록시 설정과 관계없이 `127.0.0.1`을 직접 부른다.
   - 권한 시험을 umask 077에서도 실행해 `chmod`가 빠지면 실패하게 했다.
   - 운영 가이드에 Compose 2.24 이상(`env_file`의 `required`)이 필요하다고 적었다.
-  - `CORE_CA_ROOT`, `CORE_READY_TOOLS`가 시험 전용이라고 주석에 밝혔다.
+  - `CORE_CA_ROOT`, `CORE_READY_TOOLS`가 시험 전용이라고 주석에 밝혔다. `CORE_CA_ROOT`는 아래 CA 결정을 바꾸며 지웠다.
   - 위 항목마다 고친 부분을 되돌린 사본에서 새 시험이 실패했다(링크 재확인은 시험하지 않음).
 - **`find`가 없는 서버**: Amazon Linux 2023 **컨테이너 이미지**에는 `find`가 없어, 0011에서 만든 token 권한 검사(`check_token`의 `find -perm`)가 `find: command not found` 뒤 읽을 수 없다고 잘못 안내했다. 이 계획의 범위 밖이었지만 사람의 결정(2026-11-10)으로 이 PR에서 함께 고쳤다. `ls -ldL`의 권한 글자로 보고, 시험에 `find`가 없는 경우를 더했다. Amazon Linux 2023 서버 AMI에 `find`가 있는지는 확인하지 않았다.
+- **CA 인증서 파일을 운영자가 복사(2026-11-10, 사람 결정)**: [CA 파일 붙이기](#ca-파일-붙이기)대로 바꿨다. 시험은 파일 없음·빈 파일·폴더·권한·다시 복사의 경우를 보고, CA 확인을 뺀 사본과 CA 해시를 뺀 사본에서 실패한다. C4의 수동 확인(Debian과 Amazon Linux에서 찾은 파일로 HTTPS 확인)은 같은 파일을 운영자가 복사하는 경우와 같아 다시 하지 않았다.
 
 ## 남길 결정
 
@@ -350,7 +331,7 @@ ADR 0012에 남긴 결정은 다음과 같다.
 - 코어 설정은 운영 명령이 컨테이너 밖에서 검사해 펼치고, 코어 이미지에는 실행 파일과 규칙만 둔다.
 - 템플릿은 묶음 폴더에 두고, 이미지와 같은 커밋에서 만든다.
 - 정상 확인은 운영 명령이 코어 서버에서 준비 확인 주소를 불러 한다. `curl`과 `wget`이 모두 없으면 컨테이너가 실행 중이고 다시 시작이 늘지 않는지로 대신 보고 경고한다.
-- CA 파일은 `render`가 `rendered/`로 복사하고, 그 복사본을 Blackbox Exporter에만 붙인다.
+- CA 파일은 운영자가 설치 폴더의 `certs/`에 복사하고, compose 파일이 Blackbox Exporter에만 붙인다. 운영 명령은 확인만 한다(2026-11-10에 바꿈).
 
 사람이 2026-11-09에 다음을 정했다. 이 계획의 해당 절에 반영했다.
 
@@ -358,6 +339,6 @@ ADR 0012에 남긴 결정은 다음과 같다.
 |---|---|
 | `curl`·`wget`이 모두 없는 서버 | 실행 상태로 대신 보고 경고하되, 띄우기는 막지 않는다 |
 | 펼치기 작업 이름 | `render` |
-| CA 파일 붙이기 | 찾은 파일을 `rendered/`로 복사하고 띄울 때마다 다시 복사한다 |
+| CA 파일 붙이기 | 찾은 파일을 `rendered/`로 복사하고 띄울 때마다 다시 복사한다(2026-11-10에 운영자가 가이드대로 복사하는 것으로 바꿈) |
 | 저장소의 node_exporter `compose.yml` | 최소 이미지를 빌드해 쓴다 |
 | CWE-367(`render` 뒤 token을 지우고 직접 띄움) | 받아들인다 |
