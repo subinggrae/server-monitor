@@ -148,7 +148,13 @@ check_checksums() {
 }
 
 check_env() {
-  [ -f "$ENV_FILE" ] || fail "설정 파일(.env)이 없습니다. 먼저 sh core-server.sh install을 실행해 주세요."
+  if [ ! -f "$ENV_FILE" ]; then
+    # 갱신하며 install로 새 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
+    if core_exists; then
+      fail "설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면 install 대신 이전 묶음 폴더의 .env를 이 폴더에 복사한 뒤 다시 실행해 주세요(운영 가이드의 새 버전으로 갱신). 처음 설치면 sh core-server.sh install을 실행해 주세요."
+    fi
+    fail "설정 파일(.env)이 없습니다. 먼저 sh core-server.sh install을 실행해 주세요."
+  fi
   load_settings
   address=$(env_value MONITORING_APP_ADDRESS)
   core_valid_address "$address" \
@@ -280,6 +286,10 @@ check_token() {
     fail "token 자리에 폴더가 있습니다: $file. 그 폴더를 지운 뒤 sh core-server.sh install로 token을 만들어 주세요."
   fi
   if [ ! -e "$file" ]; then
+    # 코어가 이미 있으면 관리자 서버가 그 코어의 token을 쓰고 있다. 새 token을 만들면 장애 알림이 모두 거부된다.
+    if core_exists; then
+      fail "token 파일이 없습니다: $file. 코어가 이미 있으므로 새 token을 만들면 관리자 서버의 token과 어긋납니다. 지금 코어가 쓰는 token 파일을 이 위치에 두거나 .env의 CORE_SECRETS_DIR를 그 폴더로 고친 뒤 다시 실행해 주세요."
+    fi
     fail "token 파일이 없습니다: $file. sh core-server.sh install로 만들어 주세요."
   fi
   if [ ! -s "$file" ]; then
@@ -345,7 +355,7 @@ check_render_dir() {
       fail "펼친 설정 파일이 심볼릭 링크입니다: $target. 다른 파일을 덮어쓰지 않도록 쓰지 않았습니다. 링크를 지운 뒤 다시 실행해 주세요."
     fi
     if [ -d "$target" ]; then
-      fail "펼친 설정 파일 자리에 폴더가 있습니다: $target. 펼친 설정 없이 Compose로 띄울 때 Docker가 만든 폴더일 수 있습니다. rmdir $target 로 지운 뒤 다시 실행해 주세요."
+      fail "펼친 설정 파일 자리에 폴더가 있습니다: $target. 펼친 설정 없이 Compose로 띄울 때 Docker가 만든 폴더일 수 있습니다. sudo rmdir $target 로 지운 뒤 다시 실행해 주세요."
     fi
   done
 }
@@ -575,7 +585,10 @@ cmd_render() {
   fi
   check_render
   # 떠 있는 컨테이너는 다시 시작할 때 새로 펼친 파일을 읽을 수 있다. 그래서 보관 값을 줄이면 띄우기처럼 확인을 묻는다.
-  # Docker가 없는 곳(빌드 PC의 검사용 컨테이너)에서는 떠 있는 코어가 없다고 본다.
+  # Docker가 없는 곳(빌드 PC의 검사용 컨테이너)에서는 떠 있는 코어가 없다고 본다. Docker가 있는데 닿지 못하면 알린다.
+  if command -v docker > /dev/null 2>&1 && ! docker info > /dev/null 2>&1; then
+    say "경고: Docker에 연결하지 못해 떠 있는 코어의 기록 보관 값과 비교하지 못했습니다. 보관 값을 줄였다면 띄우기 전에 .env를 확인해 주세요."
+  fi
   confirm_retention
   write_rendered
   say "설정을 펼쳤습니다: $RENDER_DIR (CA 인증서: $CA_FILE)"

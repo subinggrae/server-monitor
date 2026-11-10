@@ -226,7 +226,13 @@ check '묶음 파일이 바뀌었으면 그 파일을 알리고 불러오거나 
 setup; prepared; rm "$BUNDLE/.env"
 run start
 check '설정 파일이 없으면 설치 준비를 안내하고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && ! called "^compose"'
+  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && ! contains "이전 묶음 폴더의 .env" && ! called "^compose"'
+
+# 갱신하며 .env를 옮기지 않은 경우: install로 기본값 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
+setup; prepared; rm "$BUNDLE/.env"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+run start
+check '코어가 이미 있는데 설정 파일이 없으면 이전 묶음 폴더의 .env를 복사하라고 안내한다' \
+  '[ $RC -ne 0 ] && contains "이전 묶음 폴더의 .env" && ! called "^compose"'
 
 for address in '' 'http://manager-api:8080' 'manager-api' 'a;touch${IFS}x:80' 'manager-api:70000'; do
   setup; prepared; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$BUNDLE/.env"
@@ -264,6 +270,12 @@ setup; prepared; rm "$INSTALL/secrets/alertmanager_webhook_token"
 run start
 check 'token 파일이 없으면 알리고 그 자리에 폴더를 만들지 않는다' \
   '[ $RC -ne 0 ] && contains "token 파일이 없습니다" && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ] && ! called "^compose"'
+
+# 코어가 이미 있으면 관리자 서버가 그 코어의 token을 쓰고 있다. install로 새 token을 만들면 장애 알림이 모두 거부된다.
+setup; prepared; rm "$TOKEN"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+run start
+check '코어가 이미 있는데 token 파일이 없으면 새 token을 만들지 말고 쓰던 파일을 두라고 안내한다' \
+  '[ $RC -ne 0 ] && contains "token 파일이 없습니다" && contains "관리자 서버의 token과 어긋납니다" && ! called "^compose"'
 
 setup; prepared; : > "$INSTALL/secrets/alertmanager_webhook_token"
 run start
@@ -648,6 +660,12 @@ setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
 run_in_terminal y render
 check '떠 있는 코어보다 보관 기간을 줄여 펼칠지 물었을 때 y이면 펼친다' \
   '[ $RC -eq 0 ] && contains "계속할까요" && grep -q "^      time: 15d$" "$RENDERED/prometheus.yml"'
+
+# Docker에 닿지 못하면 떠 있는 코어의 보관 값과 비교할 수 없다. 그 사실을 알린다.
+setup; prepared; touch "$FAKE/docker_down"
+run render
+check 'Docker에 연결하지 못하면 설정 펼치기가 보관 값을 비교하지 못했다고 경고한다' \
+  '[ $RC -eq 0 ] && contains "비교하지 못했습니다" && [ -f "$RENDERED/core.env" ]'
 
 setup; prepared; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50 CORE_PROBE_TIMEOUT_SECONDS=9
 run render
