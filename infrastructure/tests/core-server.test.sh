@@ -278,6 +278,21 @@ run start
 check 'token 파일을 다른 사용자가 읽을 수 없으면 알리고 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && contains "0644" && ! called "^compose"'
 
+# Amazon Linux 2023 컨테이너 이미지처럼 find가 없는 서버. 시험 환경의 find를 숨길 수 없어, 없을 때처럼 실패하는 가짜를 앞에 둔다.
+no_find() {
+  printf '#!/bin/sh\necho "find: command not found" >&2\nexit 127\n' > "$T/bin/find"
+  chmod +x "$T/bin/find"
+}
+
+setup; prepared; no_find
+run start
+check 'find가 없는 서버에서도 컨테이너가 읽을 수 있는 token이면 띄운다' '[ $RC -eq 0 ] && called "^compose.* up"'
+
+setup; prepared; no_find; chmod 0600 "$INSTALL/secrets/alertmanager_webhook_token"
+run start
+check 'find가 없는 서버에서도 다른 사용자가 읽을 수 없는 token이면 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && ! called "^compose"'
+
 setup; prepared; rm -r "$INSTALL/secrets"; mkdir "$BUNDLE/secrets"; printf 'old\n' > "$BUNDLE/secrets/alertmanager_webhook_token"
 run start
 check '묶음 폴더 안에 token이 있으면 설치 폴더로 옮기라고 안내한다' \

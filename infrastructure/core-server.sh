@@ -327,7 +327,9 @@ check_token() {
   if [ ! -s "$file" ]; then
     fail "token 파일이 비어 있습니다: $file. 파일을 지운 뒤 sh core-server.sh install로 다시 만들어 주세요."
   fi
-  if [ -z "$(find "$file" -prune -perm -0004)" ]; then
+  # 컨테이너 사용자(nobody)는 다른 사용자의 읽기 권한으로 읽는다. 권한 글자(-rw-r--r--)의 8번째 글자가 그 권한이다.
+  # find가 없는 서버(예: Amazon Linux 2023 컨테이너 이미지)도 있어 ls로 본다. 링크면 Docker가 붙이는 실제 파일을 본다.
+  if [ "$(ls -ldL "$file" | cut -c8)" != r ]; then
     fail "컨테이너가 token 파일을 읽을 수 없습니다: $file. chmod 0644로 권한을 바꿔 주세요."
   fi
 }
