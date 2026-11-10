@@ -1,7 +1,7 @@
 # 0015. 셸 없는 최소 코어 이미지 구현 계획
 
 - 요구사항: [0015. 셸 없는 최소 코어 이미지](0015-core-minimal-image.md)
-- 상태: 승인
+- 상태: 진행 중
 
 ## 접근 방법
 
@@ -279,20 +279,23 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
 ## 작업 순서
 
 - [x] 1. [남길 결정](#남길-결정)의 질문에 사람의 답을 받아 이 계획과 ADR 0012에 반영한다.
-- [ ] 2. 운영 명령 시험을 먼저 쓴다: `render`의 성공과 실패(S8, S12~S14, S16, S17), CA 찾기(C5), 준비 확인과 도구 없음(C8), 링크·권한·token 노출(보안 위협). 지금 `core-server.sh`에서 실패하는지 본다.
-  - 2026-11-09에 계획과 ADR 0012를 승인한 뒤 멈췄다. 구현은 시작하지 않았고, 저장소의 코드와 설정은 PR #42의 상태 그대로다. 다음 세션은 이 작업부터 시작한다.
+- [x] 2. 운영 명령 시험을 먼저 쓴다: `render`의 성공과 실패(S8, S12~S14, S16, S17), CA 찾기(C5), 준비 확인과 도구 없음(C8), 링크·권한·token 노출(보안 위협). 지금 `core-server.sh`에서 실패하는지 본다.
+  - 2026-11-10: 시험 169개 가운데 새 시험이 이전 `core-server.sh`에서 실패하는 것을 봤다. 구현 뒤 모두 통과하고, token 확인을 뺀 사본, CA 파일 검사를 느슨하게 한 사본, 링크 검사를 뺀 사본, 강제 재생성을 뺀 사본에서 각각 실패한다.
   - 시험 구조: `infrastructure/tests/core-server.test.sh`는 가짜 `docker`, `systemctl`을 `$T/bin`에 두고 `check`로 조건을 본다. 가짜 `docker compose up`은 지금 셸 환경 변수를 컨테이너 환경 변수로 기록하므로, `rendered/core.env`가 없으면 실패하고 있으면 그 내용을 `env.prometheus`, `env.blackbox-exporter`로 기록하게 바꾼다. 관리자 서버 주소를 보던 시험(`compose_address`)은 `rendered/`의 펼친 설정을 보게 바꾼다. 가짜 `curl`과 `wget`도 `$T/bin`에 두고, 준비 여부와 부른 주소를 `$FAKE`에 남긴다.
   - 시험이 두 도구가 없는 서버를 만들려면, 빌드 PC가 시험을 돌리는 BusyBox 이미지에 `wget`이 있으므로 PATH로는 숨길 수 없다. 그래서 `CORE_WAIT_SECONDS`처럼 시험에서 쓸 도구 목록을 바꾸는 환경 변수(예: `CORE_READY_TOOLS`, 기본 `curl wget`)를 두고, CA 파일 위치도 가짜 루트 아래에서 찾게 하는 변수(예: `CORE_CA_ROOT`)를 둔다.
   - `status` 시험의 `prometheus: healthy` 기대는 새 표시(상태와 준비 여부)로 바꾼다. 시험을 느슨하게 바꾸지 않고, 같은 결함을 잡는 새 조건으로 바꾼다.
-- [ ] 3. `core-server.sh`에 펼치기 함수, `render` 작업, CA 찾기, 준비 확인을 넣고 `start`, `rotate-token`, `status`를 바꾼다. 2의 시험을 통과시킨다.
-- [ ] 4. 빌드 검사에 이미지 파일 목록과 이미지 설정 검사를 먼저 더하고, 지금 이미지에서 실패하는지 본다.
-- [ ] 5. 세 Dockerfile을 최소 이미지로 바꾸고 `render-config.sh`를 지운다. `compose.yml`, `.dockerignore`, `.gitignore`, `.env.example`을 고친다.
-- [ ] 6. 빌드 검사를 공식 이미지의 도구로 옮기고, 거부 값 확인을 지운다(2에서 운영 명령 시험으로 옮겼다). `--check`를 통과시킨다.
-- [ ] 7. node_exporter Dockerfile과 compose 파일을 바꾸고, 빌드 스크립트가 이미지를 빌드하게 한다. 저장소 compose도 최소 이미지를 빌드한다.
-- [ ] 8. 빌드 스크립트에서 BusyBox 소스 싣기를 지우고, `infrastructure/licenses/`를 고친다.
-- [ ] 9. `core-dev.bat start`를 고친다.
-- [ ] 10. 수동 확인 C3, C4, C6, C9, C12, C14, C16을 한다.
-- [ ] 11. 문서를 고친다: OPERATIONS.md, ARCHITECTURE.md, DEVELOPMENT.md, INTEGRATION.md, LICENSES.md. ADR 0012를 승인으로 바꾼다.
+- [x] 3. `core-server.sh`에 펼치기 함수, `render` 작업, CA 찾기, 준비 확인을 넣고 `start`, `rotate-token`, `status`를 바꾼다. 2의 시험을 통과시킨다.
+- [x] 4. 빌드 검사에 이미지 파일 목록과 이미지 설정 검사를 먼저 더하고, 지금 이미지에서 실패하는지 본다.
+  - 4~6을 한 번에 바꿨다. 지금 이미지에서 실패하는지 보는 대신, 최소 이미지에 `/bin/sh`를 넣은 사본으로 실패를 봤다.
+- [x] 5. 세 Dockerfile을 최소 이미지로 바꾸고 `render-config.sh`를 지운다. `compose.yml`, `.dockerignore`, `.gitignore`, `.env.example`을 고친다.
+- [x] 6. 빌드 검사를 공식 이미지의 도구로 옮기고, 거부 값 확인을 지운다(2에서 운영 명령 시험으로 옮겼다). `--check`를 통과시킨다.
+- [x] 7. node_exporter Dockerfile과 compose 파일을 바꾸고, 빌드 스크립트가 이미지를 빌드하게 한다. 저장소 compose도 최소 이미지를 빌드한다.
+- [x] 8. 빌드 스크립트에서 BusyBox 소스 싣기를 지우고, `infrastructure/licenses/`를 고친다.
+- [x] 9. `core-dev.bat start`를 고친다.
+- [x] 10. 수동 확인 C3, C4, C6, C9, C12, C14, C16을 한다.
+  - 2026-11-10에 했다. 결과는 [진행 중 발견](#진행-중-발견)의 2026-11-10 항목에 있다.
+- [x] 11. 문서를 고친다: OPERATIONS.md, ARCHITECTURE.md, DEVELOPMENT.md, INTEGRATION.md, LICENSES.md. ADR 0012를 승인으로 바꾼다.
+  - ADR 0012는 계획을 승인할 때 이미 승인으로 바꿨다. README.md와 루트 `compose.yml`의 코어 실행 안내도 고쳤다.
 - [ ] 12. 구현한 대화를 이어받지 않은 하위 에이전트에 리뷰를 맡긴다(AGENTS.md의 자체 리뷰). 보안 위협의 CWE 목록을 함께 준다.
 - [ ] 13. 요구사항 상태를 구현됨으로 바꾸고, 이 계획을 지운다. ADR 0012의 관련에 PR 링크를 쓴다.
 
@@ -310,6 +313,24 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
 - Docker Desktop(Compose v5.1.0)에서 없는 파일을 bind mount(`create_host_path: false`)하거나 `configs.file`로 붙이면, Docker가 그 자리에 빈 폴더를 만들고 Blackbox가 `is a directory`로 멈췄다. 반면 `env_file`에 `required: true`로 없는 파일을 두면, Compose가 컨테이너를 만들기 전에 `env file … not found`로 멈췄다. Linux Docker Engine에서는 확인하지 않았다.
 - `env_file`에 `required: true`로 없는 파일을 두면 `docker compose config`도 실패하지만, `docker compose build`는 성공한다(2026-11-09, Docker Desktop). 그래서 빌드 스크립트의 포트 바인딩 검사(`checkPortBindings`, `validateRuntimeCompose`)는 compose 파일을 임시 폴더에 복사하고 빈 `rendered/core.env`를 둔 뒤 `config`를 실행해야 한다. 이미지 빌드는 바꾸지 않아도 된다.
 - 저장소에서 펼치기를 실행하면 `core-server.sh`가 묶음이 아닌 저장소 배치를 다뤄야 한다. 템플릿은 `infrastructure/<구성 요소>/`에 있고, token 폴더의 기본값은 `./secrets`(묶음은 `../secrets`)다. 그래서 `templates/`가 없고 `prometheus/prometheus.yml`이 있으면 저장소 배치로 보도록 계획한다. 개발용 띄우기(`core-dev.bat start`)가 쓰는 공식 Prometheus 이미지의 digest는 Dockerfile의 `FROM`과 같아야 하므로, 빌드 검사가 두 값이 같은지 본다.
+
+2026-11-10에 구현하며 다음을 알게 됐다.
+
+- **파일 단위로 붙인 설정은 이름을 바꿔 옮긴 새 파일을 보지 못한다**: Docker는 bind mount한 파일의 inode를 붙잡는다. 그래서 관리자 서버 주소만 바꿔 다시 펼치면 Compose가 컨테이너를 다시 만들지 않고, 컨테이너는 옛 설정을 계속 읽는다. 펼친 설정 네 파일의 해시를 `rendered/core.env`의 `CORE_CONFIG_SHA256`에 넣어, 해시가 바뀌면 운영 명령 없이 `docker compose up -d`로 띄워도 Compose가 다시 만들게 했다. `start`는 디스크의 펼친 설정이 새로 펼친 내용과 다르면(운영자가 고친 경우 포함, S17) `--force-recreate`로 띄운다.
+- **Windows에서 받은 저장소의 템플릿은 CRLF다**: `render`가 펼칠 때 CR을 지워, 어디서 펼쳐도 같은 파일과 해시가 나온다.
+- **`docker compose config`는 `env_file`을 펼친 뒤 지워서 보여 준다**: 그래서 빌드 검사는 임시 `core.env`에 표시 값을 넣어 세 서비스가 그 값을 받는지 보고, `core.env` 없이 읽으면 실패하는지 따로 본다.
+- **빈 이미지의 작업 폴더**: 작업 폴더가 없던 공식 이미지(Blackbox Exporter, node_exporter)의 `WorkingDir`은 `""`인데, 빈 이미지로 만들면 `"/"`로 보인다. 컨테이너의 작업 폴더는 둘 다 `/`라 기대값을 `"/"`로 뒀다.
+- **도구 이미지는 Dockerfile의 `src` 단계를 빌드해 얻는다**: 계획은 `core-dev.bat`에 공식 이미지 digest를 따로 적고 빌드 검사가 Dockerfile과 같은지 보게 했다. 대신 `docker build --target src`로 Dockerfile의 첫 단계를 빌드해 쓰면 digest가 Dockerfile 한 곳에만 있어 비교가 필요 없다. 빌드 검사의 promtool·amtool도 같은 방법으로 얻는다.
+- **묶음의 라이선스**: 지금까지 두 묶음에 다섯 프로그램의 라이선스를 모두 실었다. 요구사항 S11대로 묶음마다 그 묶음 프로그램의 것만 싣게 나눴고, node_exporter 묶음의 안내 파일(`infrastructure/licenses/node-exporter-README.txt`)을 더했다.
+- **세 포트의 값 세 벌**: 빌드 검사가 운영 명령의 `render`로 펼치므로 세 포트가 같으면 겹친다고 거부된다. 아래 끝과 위 끝에서 포트끼리 1씩 다르게 둔다.
+- **Docker Desktop에서 `docker run --rm` 컨테이너가 끝나지 않음**: 빌드 검사 중 두 번, 컨테이너 안 프로세스는 끝났는데 Docker가 컨테이너를 실행 중으로 둬 검사가 멈췄다. 다른 세션의 Testcontainers 통합 테스트가 같은 Docker를 쓰던 때였고, 같은 명령을 27번 되풀이해도 재현되지 않았다. 컨테이너를 지우고 다시 실행하면 통과했다.
+- **수동 확인 결과**:
+  - C3, C5, C8, C9, C14: 인터넷을 끊은 `docker:29-dind`(`--network none`, Alpine, `curl` 없음)에서 `install`, `start`로 세 프로그램이 준비됐다(`wget`으로 확인). config API의 HTTP SD 주소와 `time: 30d`, Blackbox `/config`의 `timeout: 7s`, 바꾼 포트 19090이 `.env` 값과 같았다. 관리자 서버 주소만 바꿔도 세 컨테이너를 다시 만들어 반영했고, 바꾸지 않고 다시 띄우면 그대로 뒀다. mount는 펼친 설정이 모두 읽기 전용이고 CA 파일은 `blackbox-exporter`에만 있었으며 healthcheck는 없었다. docker-proxy를 끊어 Blackbox Exporter만 닿지 않게 하자 `status`가 `준비되지 않음`, `start`가 `docker logs blackbox-exporter`를 보였다. `rendered/`를 지우고 `docker compose up -d`를 하면 `env file …/rendered/core.env not found`로 컨테이너와 폴더를 만들지 않았고, `render` 뒤에는 떴다. `docker exec prometheus sh`는 `executable file not found`였다. 묶음 96MB, 이미지 327MB, 메모리 52MiB였다.
+  - C4: Debian 12 컨테이너는 `ca-certificates`가 없을 때 여섯 위치와 패키지를 안내하고 펼치지 않았고, 설치한 뒤 `/etc/ssl/certs/ca-certificates.crt`를 찾았다. Amazon Linux 2023 컨테이너는 같은 경로(링크)를 찾았고 `rpm -qf /etc/pki/tls/certs/ca-bundle.crt`가 `ca-certificates`라 안내 문구를 바꾸지 않았다. 두 복사본으로 최소 Blackbox Exporter가 `https://github.com`을 `probe_success 1`로 확인했고, CA 없이는 `x509: certificate signed by unknown authority`였다. Debian에 시험용 사내 인증 기관을 등록하고 다시 펼치자 그 기관이 서명한 주소가 0에서 1이 됐다. RHEL 계열의 사내 인증 기관 등록은 확인하지 않았다.
+  - C6: `docker:29-dind`에서 이 변경 전 묶음(7d6093f) → 이 변경의 묶음 → 이전 묶음(`y`) → 이 변경의 묶음으로 바꾸는 동안 `minTime`과 silence(`active`)가 이어졌다.
+  - C12: Windows 빌드 PC에서 `core-dev.bat start`로 세 준비 확인 주소가 200을 돌려줬고, `core-dev.bat stop`으로 멈췄다.
+  - C16: 인터넷을 끊은 `docker:29-dind`에서 node_exporter 묶음이 `65534:65534`, host 네트워크와 PID로 떴다. 공식 이미지와 최소 이미지의 `/metrics` 지표 이름이 306개로 같았고, 관리자 서버의 연결 시험이 읽는 지표(`node_exporter_build_info`, CPU, Memory, 파일 시스템)가 있었다. 관리자 서버로 연결 시험을 실행하지는 않았다.
+- **범위 밖에서 발견**: Amazon Linux 2023 **컨테이너 이미지**에는 `find`가 없어, 0011에서 만든 token 권한 검사(`check_token`의 `find -perm`)가 `find: command not found` 뒤 읽을 수 없다고 잘못 안내한다. Amazon Linux 2023 서버 AMI에는 `find`가 있어 운영 서버에는 영향이 없을 것으로 보지만 AMI에서 확인하지는 않았다.
 
 ## 남길 결정
 
