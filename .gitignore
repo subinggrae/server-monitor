@@ -11,6 +11,9 @@ infrastructure/secrets/*
 # 운영 명령이 .env에서 펼친 코어 설정입니다(core-server.sh render). 펼칠 때마다 다시 만듭니다.
 infrastructure/rendered/
 
+# 개발 PC의 CA 인증서 파일입니다(core-dev.bat start가 공식 이미지에서 꺼내 둠). 코어 서버에서는 운영자가 OS의 파일을 복사합니다.
+infrastructure/certs/
+
 # 예전 Alertmanager secret 위치입니다. 남아 있는 파일도 올리지 않습니다.
 infrastructure/alertmanager/secrets/
 

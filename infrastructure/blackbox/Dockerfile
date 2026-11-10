@@ -3,7 +3,7 @@
 # 빌드 context는 infrastructure/입니다.
 # 셸, BusyBox, CA 묶음, 시간대 자료는 담지 않습니다. 묶음에 Blackbox Exporter 밖의 라이선스를 더하지 않기 위해서입니다. (요구사항 0015)
 # module 정의(blackbox.yml)는 코어 서버의 운영 명령(core-server.sh render)이 펼치고, compose 파일이 /etc/core/에 읽기 전용으로 붙입니다.
-# HTTPS 확인에 쓰는 CA 인증서는 운영 명령이 코어 서버 OS에서 찾아 복사하고, compose 파일이 Go가 가장 먼저 찾는 경로에 붙입니다.
+# HTTPS 확인에 쓰는 CA 인증서는 운영자가 코어 서버 OS의 파일을 복사해 두고, compose 파일이 Go가 가장 먼저 찾는 경로에 붙입니다.
 FROM quay.io/prometheus/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc AS src
 
 FROM scratch

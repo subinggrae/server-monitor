@@ -3,7 +3,8 @@
 #   cp infrastructure/.env.example infrastructure/.env
 #   core-dev.bat start      (Windows. 설정을 펼친 뒤 다시 빌드해 띄웁니다)
 #
-# Windows가 아니면 설정을 펼친 뒤 띄웁니다. 펼치기에는 OS의 CA 인증서 파일이 필요합니다.
+# Windows가 아니면 OS의 CA 인증서 파일을 certs/에 복사하고 설정을 펼친 뒤 띄웁니다.
+#   mkdir -p infrastructure/certs && cp -L /etc/ssl/certs/ca-certificates.crt infrastructure/certs/
 #   sh infrastructure/core-server.sh render && docker compose -f infrastructure/compose.yml up -d --build
 #
 # 코어 이미지에는 실행 파일과 Alert 규칙만 있고 셸이 없습니다. (docs/decisions/0012)
@@ -47,10 +48,11 @@ services:
     ports:
       - "127.0.0.1:${CORE_BLACKBOX_PORT:-9115}:9115"
 
-    # CA 인증서 파일은 HTTPS 확인을 하는 이 컨테이너에만 붙입니다. 운영 명령이 코어 서버 OS에서 찾아 복사한 파일입니다.
+    # CA 인증서 파일은 HTTPS 확인을 하는 이 컨테이너에만 붙입니다. 운영자가 코어 서버 OS의 파일을 복사해 둔 것입니다.
+    # 내부망 서버용 묶음은 설치 폴더의 certs/(../certs)를 씁니다.
     volumes:
       - ./rendered/blackbox.yml:/etc/core/blackbox.yml:ro
-      - ./rendered/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - ./certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
 
     networks:
       - monitoring

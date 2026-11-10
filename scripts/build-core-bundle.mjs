@@ -346,13 +346,16 @@ const HOST_PORT_TARGETS = { CORE_PROMETHEUS_PORT: 9090, CORE_ALERTMANAGER_PORT: 
 const BLACKBOX_TIMEOUT_OFFSET_SECONDS = 0.5;
 // 포트 번호의 범위다. 1024 아래는 시스템이 쓰는 포트다.
 const PORT_RANGE = { min: 1024, max: 65535 };
-// compose 파일이 붙이는 펼친 설정이다. CA 인증서 파일은 HTTPS 확인을 하는 Blackbox Exporter에만 붙인다(요구사항 0015).
-const RENDERED_MOUNTS = {
-  prometheus: { 'rendered/prometheus.yml': '/etc/core/prometheus.yml' },
-  alertmanager: { 'rendered/alertmanager.yml': '/etc/core/alertmanager.yml' },
-  'blackbox-exporter': { 'rendered/blackbox.yml': '/etc/core/blackbox.yml',
-    'rendered/ca-certificates.crt': '/etc/ssl/certs/ca-certificates.crt' },
-};
+// compose 파일이 붙이는 파일이다. CA 인증서 파일은 HTTPS 확인을 하는 Blackbox Exporter에만 붙인다(요구사항 0015).
+// CA 인증서 파일은 운영자가 복사해 두는 곳(caDir: 저장소는 certs, 묶음은 설치 폴더의 ../certs)에서 붙인다.
+function renderedMounts(caDir) {
+  return {
+    prometheus: { 'rendered/prometheus.yml': '/etc/core/prometheus.yml' },
+    alertmanager: { 'rendered/alertmanager.yml': '/etc/core/alertmanager.yml' },
+    'blackbox-exporter': { 'rendered/blackbox.yml': '/etc/core/blackbox.yml',
+      [`${caDir}/ca-certificates.crt`]: '/etc/ssl/certs/ca-certificates.crt' },
+  };
+}
 
 function readSettingRanges(tools) {
   const out = run('docker', ['run', '--rm', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
@@ -395,7 +398,7 @@ function durationSeconds(text) {
 }
 
 // 코어 서버와 같은 운영 명령(core-server.sh render)으로 설정을 펼친다. 저장소 배치를 본뜬 임시 폴더에서 공식 이미지의 셸로 실행한다.
-// token과 CA 인증서는 검사용 값이고 비밀값이 아니다.
+// token과 CA 인증서 파일은 검사용 값이고 비밀값이 아니다.
 function renderConfigs(tools, values) {
   const work = scratchDir('render-check');
   for (const name of ['core-server.sh', 'core-settings.sh', 'prometheus/prometheus.yml', 'alertmanager/alertmanager.yml',
@@ -406,8 +409,9 @@ function renderConfigs(tools, values) {
   writeText(path.join(work, '.env'), `${env.join('\n')}\n`);
   writeText(path.join(work, 'secrets', 'alertmanager_webhook_token'), 'build-check-token\n');
   fs.chmodSync(path.join(work, 'secrets', 'alertmanager_webhook_token'), 0o644);
-  writeText(path.join(work, 'ca', 'etc', 'ssl', 'certs', 'ca-certificates.crt'), 'build-check-ca\n');
-  run('docker', ['run', '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work', '-e', 'CORE_CA_ROOT=/work/ca',
+  writeText(path.join(work, 'certs', 'ca-certificates.crt'), 'build-check-ca\n');
+  fs.chmodSync(path.join(work, 'certs', 'ca-certificates.crt'), 0o644);
+  run('docker', ['run', '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work',
     '--entrypoint', '/bin/sh', tools.prometheus, 'core-server.sh', 'render'], { capture: true });
   const rendered = path.join(work, 'rendered');
   return { dir: rendered, work, read: (name) => fs.readFileSync(path.join(rendered, name), 'utf8') };
@@ -521,9 +525,9 @@ function checkPortBindings(composeFile, ranges) {
 
 // 서비스마다 붙이는 파일이 운영 명령이 펼친 설정뿐이고 읽기 전용인지, 세 서비스가 펼친 core.env를 읽는지 본다.
 // CA 인증서 파일은 Blackbox Exporter에만 붙어야 한다(요구사항 0015의 C5). core.env가 없으면 Compose가 멈춰야 한다(S16).
-function checkRenderedMounts(composeFile) {
+function checkRenderedMounts(composeFile, caDir) {
   const { config, project } = composeConfig(composeFile, {});
-  for (const [name, expected] of Object.entries(RENDERED_MOUNTS)) {
+  for (const [name, expected] of Object.entries(renderedMounts(caDir))) {
     const service = config.services[name];
     const binds = (service.volumes ?? []).filter((volume) => volume.type === 'bind');
     const found = Object.fromEntries(binds.map((volume) =>
@@ -583,7 +587,7 @@ function checkCoreImages(core, tools) {
   }
   console.log('compose.yml의 포트가 127.0.0.1에만 열리고, 펼친 설정만 읽기 전용으로 붙는지 확인한다.');
   checkPortBindings(CORE_COMPOSE, ranges);
-  checkRenderedMounts(CORE_COMPOSE);
+  checkRenderedMounts(CORE_COMPOSE, CERTS_DIR);
   // 테스트 파일은 ../rules/를 읽으므로 꺼낸 규칙 바로 옆에 붙여, 이미지에 들어간 규칙을 그대로 시험한다.
   console.log('운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 실행한다.');
   const tests = path.join(CORE_DIR, 'prometheus', 'tests');
@@ -617,6 +621,9 @@ function buildImages(core, { pull }) {
 // 저장소에서는 infrastructure/secrets/를 쓰고, 묶음은 버전 폴더가 바뀌어도 같은 token을 쓰도록 설치 폴더의 secrets/를 쓴다(요구사항 0011).
 const SECRETS_DEFAULT = '${CORE_SECRETS_DIR:-./secrets}';
 const BUNDLE_SECRETS_DEFAULT = '${CORE_SECRETS_DIR:-../secrets}';
+// CA 인증서 파일도 token처럼, 묶음에서는 버전이 바뀌어도 그대로인 설치 폴더의 certs/에 둔다(요구사항 0015).
+const CERTS_DIR = 'certs';
+const BUNDLE_CERTS_DIR = '../certs';
 
 // 묶음 폴더에서는 저장소의 infrastructure/ 아래 파일이 같은 폴더에 있으므로 안내 문구의 경로를 바꾼다.
 function forBundle(text) {
@@ -655,7 +662,8 @@ function bundleCompose(sourceFile, core, header, services) {
       skipIndent = indent;
       continue;
     }
-    out.push(line.replaceAll('${CORE_VERSION:-dev}', core.describe).replaceAll(SECRETS_DEFAULT, BUNDLE_SECRETS_DEFAULT));
+    out.push(line.replaceAll('${CORE_VERSION:-dev}', core.describe).replaceAll(SECRETS_DEFAULT, BUNDLE_SECRETS_DEFAULT)
+      .replaceAll(`./${CERTS_DIR}/`, `${BUNDLE_CERTS_DIR}/`));
   }
   const text = `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
   if (/^\s+build:/m.test(text) || /CORE_VERSION|CORE_REVISION|x-core-build-args|core-build-args/.test(text)) {
@@ -681,6 +689,9 @@ function runtimeCompose(core) {
   if (!text.includes(BUNDLE_SECRETS_DEFAULT)) {
     fail(`실행용 compose 파일에 token 폴더 기본값 ${SECRETS_DEFAULT}가 없다. infrastructure/compose.yml의 secrets 항목을 확인한다.`);
   }
+  if (!text.includes(`${BUNDLE_CERTS_DIR}/ca-certificates.crt`)) {
+    fail(`실행용 compose 파일에 CA 인증서 파일 위치 ${BUNDLE_CERTS_DIR}/ca-certificates.crt가 없다. infrastructure/compose.yml의 blackbox-exporter 항목을 확인한다.`);
+  }
   return text;
 }
 
@@ -700,7 +711,7 @@ function runtimeNodeExporterCompose(core) {
 function validateRuntimeCompose(dir, ranges) {
   const file = path.join(dir, 'compose.yml');
   checkPortBindings(file, ranges);
-  checkRenderedMounts(file);
+  checkRenderedMounts(file, BUNDLE_CERTS_DIR);
 }
 
 // infrastructure/secrets/의 실제 비밀값이다. Docker가 없는 secret 자리에 만든 폴더는 건너뛴다. 값은 출력하지 않는다.
@@ -726,7 +737,8 @@ function assertNoSecretValue(bytes, where, secrets) {
 function assertNoSecrets(dir, secrets) {
   for (const file of filesUnder(dir)) {
     const relative = path.relative(dir, file).split(path.sep).join('/');
-    if (relative === '.env' || relative.startsWith('rendered/') || (relative.startsWith('secrets/') && !relative.endsWith('.example'))) {
+    if (relative === '.env' || relative.startsWith('rendered/') || relative.startsWith('certs/')
+      || (relative.startsWith('secrets/') && !relative.endsWith('.example'))) {
       fail(`묶음에 비밀값 파일이나 서버에서 만드는 파일이 있다: ${relative}`);
     }
     if (!/\.tar(\.gz|\.bz2)?$/.test(relative)) {

@@ -15,7 +15,7 @@ SETTINGS="$SOURCE_DIR/core-settings.sh"
 FAILED=0
 PASSED=0
 
-# 시험 하나마다 빈 설치 폴더, 묶음 폴더, 가짜 명령, 가짜 OS의 CA 인증서 파일을 새로 만든다.
+# 시험 하나마다 빈 설치 폴더, 묶음 폴더, 가짜 명령을 새로 만든다.
 setup() {
   T=$(mktemp -d)
   INSTALL="$T/install"
@@ -23,8 +23,8 @@ setup() {
   FAKE="$T/fake"
   TOKEN="$INSTALL/secrets/alertmanager_webhook_token"
   RENDERED="$BUNDLE/rendered"
-  CA_ROOT="$T/os"
-  mkdir -p "$BUNDLE/templates" "$FAKE" "$T/bin" "$CA_ROOT/etc/ssl/certs"
+  CA="$INSTALL/certs/ca-certificates.crt"
+  mkdir -p "$BUNDLE/templates" "$FAKE" "$T/bin"
   cp "$SCRIPT" "$BUNDLE/core-server.sh"
   cp "$SETTINGS" "$BUNDLE/core-settings.sh"
   cp "$SOURCE_DIR/prometheus/prometheus.yml" "$SOURCE_DIR/alertmanager/alertmanager.yml" "$SOURCE_DIR/blackbox/blackbox.yml" \
@@ -41,7 +41,6 @@ EOF
   printf '# 예시\nMONITORING_APP_ADDRESS=manager-api:8080\n' > "$BUNDLE/.env.example"
   printf 'images' > "$BUNDLE/core-images.tar"
   (cd "$BUNDLE" && sha256sum compose.yml .env.example core-images.tar core-server.sh core-settings.sh templates/* > SHA256SUMS)
-  printf 'TEST CA 1\n' > "$CA_ROOT/etc/ssl/certs/ca-certificates.crt"
   printf 'enabled\n' > "$FAKE/systemctl"
   printf '1761600000\n' > "$FAKE/bundle_time"
   write_fake_docker
@@ -50,7 +49,7 @@ EOF
   write_fake_http wget 1
   PATH="$T/bin:$ORIGINAL_PATH"
   unset CORE_READY_TOOLS
-  export PATH FAKE CORE_WAIT_SECONDS=2 CORE_WAIT_INTERVAL=1 CORE_CA_ROOT="$CA_ROOT"
+  export PATH FAKE CORE_WAIT_SECONDS=2 CORE_WAIT_INTERVAL=1
 }
 
 write_fake_docker() {
@@ -145,8 +144,11 @@ EOF
   chmod +x "$T/bin/systemctl"
 }
 
-# 설치 준비를 마친 상태: token과 .env가 있다.
+# 설치 준비를 마친 상태: token, .env, 운영자가 가이드대로 복사한 CA 인증서 파일이 있다.
 prepared() {
+  mkdir -p "$INSTALL/certs"
+  printf 'TEST CA 1\n' > "$CA"
+  chmod 0644 "$CA"
   mkdir -p "$INSTALL/secrets"
   chmod 0700 "$INSTALL/secrets"
   printf 'secret-value-for-test\n' > "$INSTALL/secrets/alertmanager_webhook_token"
@@ -746,12 +748,12 @@ check '컨테이너가 받은 값이 틀리면 기본값이라고 하지 않고 
 # 이전에 펼친 설정이 있는 상태와, 그 설정이 그대로인지 보는 조건
 previously_rendered() {
   mkdir -p "$RENDERED"
-  for name in prometheus.yml alertmanager.yml blackbox.yml ca-certificates.crt core.env; do
+  for name in prometheus.yml alertmanager.yml blackbox.yml core.env; do
     printf 'previous\n' > "$RENDERED/$name"
   done
 }
 unchanged() {
-  [ "$(ls -A "$RENDERED" | wc -l | tr -d ' ')" -eq 5 ] && [ "$(cat "$RENDERED"/* | sort -u)" = previous ]
+  [ "$(ls -A "$RENDERED" | wc -l | tr -d ' ')" -eq 4 ] && [ "$(cat "$RENDERED"/* | sort -u)" = previous ]
 }
 config_hash() { sed -n 's/^CORE_CONFIG_SHA256=//p' "$RENDERED/core.env"; }
 
@@ -764,11 +766,11 @@ check '설정을 펼치면 Compose로 띄우는 방법과 .env를 바꾸면 다�
 check '펼친 설정에 자리표시와 token 값이 남지 않는다' \
   '! grep -rq "@[A-Z][A-Z_]*@" "$RENDERED" && ! grep -rq "secret-value-for-test" "$RENDERED" && ! contains "secret-value-for-test"'
 check '펼친 설정은 운영자만 고칠 수 있고 컨테이너 사용자가 읽을 수 있다' \
-  '[ "$(mode "$RENDERED")" = drwxr-xr-x ] && [ "$(mode "$RENDERED/prometheus.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/alertmanager.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/blackbox.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/ca-certificates.crt")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/core.env")" = -rw-r--r-- ]'
-check '설정을 펼치면 OS의 CA 인증서 파일을 복사하고 컨테이너에 넘길 값을 core.env에 쓴다' \
-  '[ "$(cat "$RENDERED/ca-certificates.crt")" = "TEST CA 1" ] && grep -q "^CORE_RETENTION_DAYS=15$" "$RENDERED/core.env" && grep -q "^CORE_RETENTION_SIZE_GB=$" "$RENDERED/core.env" && grep -q "^CORE_PROBE_TIMEOUT_SECONDS=5$" "$RENDERED/core.env" && [ "$(config_hash | grep -c "^[0-9a-f]\{64\}$")" -eq 1 ]'
+  '[ "$(mode "$RENDERED")" = drwxr-xr-x ] && [ "$(mode "$RENDERED/prometheus.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/alertmanager.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/blackbox.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/core.env")" = -rw-r--r-- ]'
+check '설정을 펼치면 컨테이너에 넘길 값을 core.env에 쓰고 CA 인증서 파일은 옮기지 않는다' \
+  '[ ! -e "$RENDERED/ca-certificates.crt" ] && [ "$(cat "$CA")" = "TEST CA 1" ] && grep -q "^CORE_RETENTION_DAYS=15$" "$RENDERED/core.env" && grep -q "^CORE_RETENTION_SIZE_GB=$" "$RENDERED/core.env" && grep -q "^CORE_PROBE_TIMEOUT_SECONDS=5$" "$RENDERED/core.env" && [ "$(config_hash | grep -c "^[0-9a-f]\{64\}$")" -eq 1 ]'
 check '설정을 펼친 뒤 임시 파일을 남기지 않는다' \
-  '[ "$(ls -A "$RENDERED" | sort | tr "\n" " ")" = "alertmanager.yml blackbox.yml ca-certificates.crt core.env prometheus.yml " ]'
+  '[ "$(ls -A "$RENDERED" | sort | tr "\n" " ")" = "alertmanager.yml blackbox.yml core.env prometheus.yml " ]'
 
 # umask가 좁은 서버에서도 컨테이너 사용자(nobody)가 읽을 수 있어야 한다.
 setup; prepared
@@ -852,42 +854,50 @@ run render
 check '설정 펼치기는 컨테이너가 token 파일을 읽을 수 없으면 알리고 펼치지 않는다' \
   '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && [ ! -e "$RENDERED" ]'
 
-# --- CA 인증서 파일 찾기(요구사항 0015의 S3, S4, S13) ---
+# --- CA 인증서 파일(요구사항 0015의 S3, S4, S13) ---
+# 운영자가 가이드대로 설치 폴더의 certs/에 복사한다. 운영 명령은 OS의 파일을 읽거나 옮기지 않고 확인만 한다.
 
-ALL_CA_LOCATIONS='contains "/etc/ssl/certs/ca-certificates.crt" && contains "/etc/pki/tls/certs/ca-bundle.crt" && contains "/etc/ssl/ca-bundle.pem" && contains "/etc/pki/tls/cacert.pem" && contains "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem" && contains "/etc/ssl/cert.pem"'
+COPY_HINT='contains "/etc/ssl/certs/ca-certificates.crt" && contains "/etc/pki/tls/certs/ca-bundle.crt" && contains "docs/OPERATIONS.md"'
 
-setup; prepared; rm "$CA_ROOT/etc/ssl/certs/ca-certificates.crt"
+setup; prepared; rm "$CA"
 run render
-check 'CA 인증서 파일을 찾지 못하면 찾아본 위치와 설치할 패키지를 보이고 펼치지 않는다' \
-  '[ $RC -ne 0 ] && '"$ALL_CA_LOCATIONS"' && contains "ca-certificates 패키지" && [ ! -e "$RENDERED" ]'
+check 'CA 인증서 파일이 없으면 복사할 곳과 OS의 파일 위치를 보이고 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "$CA" && '"$COPY_HINT"' && [ ! -e "$RENDERED" ]'
 
-setup; prepared; rm "$CA_ROOT/etc/ssl/certs/ca-certificates.crt"
+setup; prepared; rm "$CA"
 run start
-check 'CA 인증서 파일을 찾지 못하면 띄우기도 이미지를 불러오거나 컨테이너를 바꾸지 않는다' \
-  '[ $RC -ne 0 ] && contains "ca-certificates 패키지" && ! called load && ! called "^compose"'
+check 'CA 인증서 파일이 없으면 띄우기도 이미지를 불러오거나 컨테이너를 바꾸지 않는다' \
+  '[ $RC -ne 0 ] && contains "$CA" && ! called load && ! called "^compose"'
 
-setup; prepared; rm "$CA_ROOT/etc/ssl/certs/ca-certificates.crt"
-mkdir -p "$CA_ROOT/etc/pki/ca-trust/extracted/pem" "$CA_ROOT/etc/pki/tls/certs"
-printf 'RHEL CA\n' > "$CA_ROOT/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"
-ln -s ../../ca-trust/extracted/pem/tls-ca-bundle.pem "$CA_ROOT/etc/pki/tls/certs/ca-bundle.crt"
+setup; prepared; : > "$CA"
 run render
-check 'RHEL 계열처럼 CA 인증서 파일이 링크면 링크가 가리키는 파일의 내용을 복사한다' \
-  '[ $RC -eq 0 ] && [ "$(cat "$RENDERED/ca-certificates.crt")" = "RHEL CA" ] && [ ! -L "$RENDERED/ca-certificates.crt" ]'
+check 'CA 인증서 파일이 비어 있으면 알리고 펼치지 않는다' '[ $RC -ne 0 ] && contains "비어 있습니다" && contains "$CA" && [ ! -e "$RENDERED" ]'
 
-setup; prepared; : > "$CA_ROOT/etc/ssl/certs/ca-certificates.crt"
-mkdir -p "$CA_ROOT/etc/pki/tls/certs"; ln -s "$T/no-such-file" "$CA_ROOT/etc/pki/tls/certs/ca-bundle.crt"
-printf 'LAST CA\n' > "$CA_ROOT/etc/ssl/cert.pem"
+setup; prepared; rm "$CA"; mkdir "$CA"
 run render
-check '비어 있거나 끊긴 링크인 CA 인증서 파일은 건너뛰고 다음 위치의 파일을 쓴다' \
-  '[ $RC -eq 0 ] && [ "$(cat "$RENDERED/ca-certificates.crt")" = "LAST CA" ]'
+check 'CA 인증서 파일 자리에 폴더가 있으면 알리고 펼치지 않는다' '[ $RC -ne 0 ] && contains "폴더가 있습니다" && [ ! -e "$RENDERED" ]'
+
+setup; prepared; chmod 0600 "$CA"
+run render
+check '컨테이너가 CA 인증서 파일을 읽을 수 없으면 권한을 바꾸라고 알리고 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && contains "0644" && [ ! -e "$RENDERED" ]'
+
+setup; prepared; no_find
+run render
+check 'find가 없는 서버에서도 CA 인증서 파일의 읽기 권한을 확인한다' '[ $RC -eq 0 ]'
 
 setup; prepared
 run render
 first=$(config_hash)
-printf 'TEST CA 2\n' > "$CA_ROOT/etc/ssl/certs/ca-certificates.crt"
+printf 'TEST CA 2\n' > "$CA"
 run render
-check 'OS의 CA 인증서 파일이 바뀌면 다시 펼칠 때 복사본과 core.env의 설정 값이 바뀐다' \
-  '[ $RC -eq 0 ] && [ "$(cat "$RENDERED/ca-certificates.crt")" = "TEST CA 2" ] && [ "$(config_hash)" != "$first" ]'
+check '운영자가 CA 인증서 파일을 다시 복사하면 다시 펼칠 때 core.env의 설정 값이 바뀐다' \
+  '[ $RC -eq 0 ] && [ "$(config_hash)" != "$first" ]'
+
+setup; prepared; started; printf 'TEST CA 2\n' > "$CA"
+run start
+check '운영자가 CA 인증서 파일을 다시 복사한 뒤 띄우면 컨테이너를 다시 만든다' \
+  '[ $RC -eq 0 ] && called "^compose.* up -d --force-recreate"'
 
 setup; prepared
 run render
@@ -953,10 +963,11 @@ cp "$SOURCE_DIR/prometheus/prometheus.yml" "$REPO/prometheus/"
 cp "$SOURCE_DIR/alertmanager/alertmanager.yml" "$REPO/alertmanager/"
 cp "$SOURCE_DIR/blackbox/blackbox.yml" "$REPO/blackbox/"
 printf 'repo-token-for-test\n' > "$REPO/secrets/alertmanager_webhook_token"
+mkdir -p "$REPO/certs"; printf 'REPO CA\n' > "$REPO/certs/ca-certificates.crt"; chmod 0644 "$REPO/certs/ca-certificates.crt"
 printf 'MONITORING_APP_ADDRESS=dev-api:8080\n' > "$REPO/.env"
 OUT=$(cd "$REPO" && sh ./core-server.sh render 2>&1 < /dev/null)
 RC=$?
-check '저장소의 infrastructure/에서 펼치면 저장소의 템플릿과 ./secrets의 token으로 rendered/에 쓴다' \
+check '저장소의 infrastructure/에서 펼치면 저장소의 템플릿, ./secrets의 token, ./certs의 CA 인증서 파일로 rendered/에 쓴다' \
   '[ $RC -eq 0 ] && grep -q "url: http://dev-api:8080/api/prometheus/sd/blackbox" "$REPO/rendered/prometheus.yml" && [ -f "$REPO/rendered/core.env" ]'
 
 # --- 준비 확인(요구사항 0015의 S7, S15) ---

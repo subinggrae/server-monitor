@@ -45,7 +45,8 @@ goto end
 call :require_docker || goto end
 rem 코어 이미지에는 셸이 없고 Windows에는 POSIX sh가 없다. 그래서 Prometheus Dockerfile의 첫 단계(공식 이미지)를 빌드해
 rem 그 BusyBox sh로 운영 명령의 render를 실행한다. 이 셸은 빌드 PC에서만 쓰고 묶음에 들어가지 않는다(docs/decisions/0012).
-rem 운영 명령처럼 셸 환경 변수가 .env보다 먼저 쓰이도록 같은 이름을 넘긴다. CA 인증서는 그 공식 이미지 안의 파일을 복사한다.
+rem 운영 명령처럼 셸 환경 변수가 .env보다 먼저 쓰이도록 같은 이름을 넘긴다.
+rem Windows에는 Blackbox Exporter가 읽을 CA 인증서 파일이 없어, infrastructure\certs\에 없을 때만 그 공식 이미지 안의 파일을 꺼내 둔다.
 set TOOLS=
 for /f "delims=" %%i in ('docker build -q --target src -f infrastructure\prometheus\Dockerfile infrastructure') do set "TOOLS=%%i"
 if not defined TOOLS (
@@ -53,7 +54,7 @@ if not defined TOOLS (
   set RC=1
   goto end
 )
-docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e CORE_RETENTION_DAYS -e CORE_RETENTION_SIZE_GB -e CORE_PROBE_TIMEOUT_SECONDS -e CORE_PROMETHEUS_PORT -e CORE_ALERTMANAGER_PORT -e CORE_BLACKBOX_PORT --user 0 --entrypoint /bin/sh %TOOLS% core-server.sh render
+docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e CORE_RETENTION_DAYS -e CORE_RETENTION_SIZE_GB -e CORE_PROBE_TIMEOUT_SECONDS -e CORE_PROMETHEUS_PORT -e CORE_ALERTMANAGER_PORT -e CORE_BLACKBOX_PORT --user 0 --entrypoint /bin/sh %TOOLS% -c "[ -f certs/ca-certificates.crt ] || { mkdir -p certs && cp /etc/ssl/certs/ca-certificates.crt certs/ && chmod 0644 certs/ca-certificates.crt; }; sh core-server.sh render"
 if errorlevel 1 (
   set RC=1
   goto end
