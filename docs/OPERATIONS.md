@@ -24,7 +24,7 @@
 
 ## 코어 서버 사양
 
-코어 서버는 x86-64 Linux이고 Docker Engine과 Compose, 정상 확인에 쓸 `curl`(없으면 `wget`), OS의 CA 인증서 패키지(`ca-certificates`)가 있어야 한다. Blackbox Exporter가 HTTPS 주소를 확인할 때 이 패키지의 인증서 파일을 쓴다. Ubuntu, Debian, Amazon Linux 2023의 서버 이미지에는 기본으로 들어 있다. 코어가 쓰는 메모리와 CPU는 감시 대상이 늘수록 늘고, 디스크는 감시 대상 수와 보관 기간(기본 15일)에 따라 커진다. 다음 값은 2026-11-10에 개발 PC의 인터넷을 끊은 Docker(`docker:dind`) 안에서 감시 대상 없이 코어를 띄워 잰 값이다.
+코어 서버에 미리 있어야 하는 프로그램은 [처음 따라 하기의 준비](#1-준비)에 있다. 코어가 쓰는 메모리와 CPU는 감시 대상이 늘수록 늘고, 디스크는 감시 대상 수와 보관 기간(기본 15일)에 따라 커진다. 다음 값은 2026-11-10에 개발 PC의 인터넷을 끊은 Docker(`docker:dind`) 안에서 감시 대상 없이 코어를 띄워 잰 값이다.
 
 | 항목 | 잰 값 |
 |---|---|
@@ -43,22 +43,21 @@
 배포를 처음 하는 사람이 Windows PC에서 코어 묶음을 만들어, 인터넷이 없어도 되는 Linux 코어 서버에 설치하고 띄우기까지의 순서다. 명령은 그대로 복사해 쓰고, `<버전>`, `<계정>`처럼 꺾쇠로 감싼 부분만 자기 값으로 바꾼다. 설치한 뒤 갱신, 되돌리기, token 바꾸기는 [운영 작업](#운영-작업)에 있다.
 
 ```text
-[빌드 PC: Windows]                         [코어 서버: Linux]
-1. 준비 → 2. 묶음 만들기 → 4. 폴더 옮기기 →  3. Docker 준비 → 5. 설치하고 띄우기
+[빌드 PC: Windows]                [코어 서버: Linux]
+1. 준비 → 2. 묶음 만들기 → 3. 폴더 옮기기 → 4. 설치하고 띄우기
 ```
 
-### 1. 빌드 PC 준비
+### 1. 준비
 
-처음 한 번만 한다. 빌드 PC에는 인터넷이 필요하다.
+다음은 처음 한 번만 갖춘다. 각 프로그램은 그 공식 문서대로 설치한다.
 
-1. [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/)을 설치하고 실행한다. 직원 250명이 넘거나 연 매출 1천만 달러가 넘는 회사는 유료 구독이 필요하다.
-2. [Node.js](https://nodejs.org/) LTS(18 이상)와 [Git](https://git-scm.com/)을 설치한다.
-3. 시작 메뉴에서 `cmd`(명령 프롬프트)를 열고 저장소를 받는다. 이후 빌드 PC의 명령은 모두 이 저장소 폴더에서 실행한다.
-
-   ```bat
-   git clone https://github.com/subinggrae/server-monitor.git
-   cd server-monitor
-   ```
+- **빌드 PC(Windows)**: 인터넷, Docker Desktop, Node.js 18 이상, Git, 이 저장소(`git clone https://github.com/subinggrae/server-monitor.git`). 빌드 PC의 명령은 저장소 폴더의 cmd에서 실행한다.
+- **코어 서버(x86-64 Linux)**:
+  - Docker Engine과 Compose 2.24 이상. 코어의 compose 파일이 Compose 2.24부터 받는 형식(`env_file`의 `required`)을 쓴다. 이 저장소는 Docker Engine 29, Compose 5에서 확인했다.
+  - 서버가 켜질 때 Docker도 켜지게 설정(`sudo systemctl enable --now docker`). 그래야 서버가 재시작돼도 코어가 다시 뜬다.
+  - `curl`(없으면 `wget`)과 CA 인증서 패키지(`ca-certificates`). 운영 명령이 정상 확인과 HTTPS 주소 확인에 쓴다. Ubuntu, Debian, Amazon Linux 2023의 서버 이미지에는 기본으로 들어 있다.
+  - `sudo`를 쓸 수 있는 계정, [코어 서버 사양](#코어-서버-사양)에 맞는 디스크와 메모리
+  - 감시할 주소와 감시 대상 서버의 exporter 포트(기본 9100·9182)에 닿는 네트워크. 인터넷은 없어도 된다.
 
 ### 2. 묶음 만들기
 
@@ -70,50 +69,17 @@ core-dev.bat build
 
 마지막에 `묶음을 만들었다`와 함께 `dist\monitoring-core-<버전>` 폴더가 보이면 성공이다. 이 폴더 하나가 서버로 옮길 묶음이다. 저장소의 파일을 고치고 커밋하지 않았으면 멈추므로, 먼저 커밋하거나 받은 그대로 둔다. `Docker에 연결하지 못했습니다`가 나오면 Docker Desktop을 켠다.
 
-### 3. 코어 서버 준비
+### 3. 묶음 폴더를 서버로 옮기기
 
-처음 한 번만 한다. 코어 서버는 x86-64 Linux이고, [코어 서버 사양](#코어-서버-사양)에 맞는 디스크와 메모리, 감시할 주소와 감시 대상 서버의 9100·9182 포트에 닿는 네트워크가 있어야 한다. 서버 주소, 접속 계정, 그 계정의 `sudo` 권한을 준비한다.
-
-서버에 접속해(5번의 `ssh`) Docker가 있는지 본다. 두 명령 모두 버전이 나오고 Compose가 2.24 이상이면 설치할 필요가 없다. 코어의 compose 파일이 Compose 2.24부터 받는 형식(`env_file`의 `required`)을 쓰기 때문이다. 이 저장소는 Docker Engine 29, Compose 5에서 확인했다.
-
-```sh
-docker --version
-docker compose version
-```
-
-없으면 서버 OS에 맞게 설치한다. 다른 OS는 [Docker 공식 설치 문서](https://docs.docker.com/engine/install/)를 따른다.
-
-- **Ubuntu**: 인터넷이 되는 서버는 공식 문서의 저장소 방식으로 설치한다. 인터넷이 없으면 인터넷이 되는 PC에서 `https://download.docker.com/linux/ubuntu/dists/<우분투 코드명>/pool/stable/amd64/`의 `.deb` 다섯 개(`containerd.io`, `docker-ce`, `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`)를 받아 서버로 옮긴 뒤 설치한다. 우분투 코드명은 서버에서 `grep VERSION_CODENAME /etc/os-release`로 본다([공식 문서의 패키지로 설치](https://docs.docker.com/engine/install/ubuntu/#install-from-a-package)).
-
-  ```sh
-  sudo dpkg -i ./containerd.io_*.deb ./docker-ce_*.deb ./docker-ce-cli_*.deb ./docker-buildx-plugin_*.deb ./docker-compose-plugin_*.deb
-  ```
-
-- **Amazon Linux 2023**: Docker는 Amazon의 패키지 저장소에 있다([AWS 안내](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/create-container-image.html#create-container-image-install-docker)). Compose는 들어 있지 않으므로, 인터넷이 되는 PC에서 [Compose 릴리스](https://github.com/docker/compose/releases)의 `docker-compose-linux-x86_64`를 받아 서버로 옮긴 뒤 플러그인 폴더에 넣는다([공식 문서의 수동 설치](https://docs.docker.com/compose/install/linux/#install-the-plugin-manually)).
-
-  ```sh
-  sudo yum install -y docker
-  sudo mkdir -p /usr/local/lib/docker/cli-plugins
-  sudo install -m 0755 docker-compose-linux-x86_64 /usr/local/lib/docker/cli-plugins/docker-compose
-  ```
-
-설치한 뒤에는 서버가 켜질 때 Docker도 켜지게 하고, 지금 켠다. 코어는 사람이 멈추지 않는 한 서버가 재시작돼도 다시 뜨는데(재시작 정책 `unless-stopped`), Docker가 먼저 켜져야 하기 때문이다.
-
-```sh
-sudo systemctl enable --now docker
-```
-
-### 4. 묶음 폴더를 서버로 옮기기
-
-빌드 PC의 `dist\monitoring-core-<버전>` 폴더를 통째로 서버의 `/tmp/`로 옮긴다. 폴더 안의 `licenses`도 함께 옮긴다([라이선스](#라이선스)). [WinSCP](https://winscp.net/) 같은 파일 전송 프로그램을 써도 되고, 저장소 폴더의 cmd에서 다음을 실행해도 된다. Windows 10 이상에는 `scp`가 들어 있다.
+빌드 PC의 `dist\monitoring-core-<버전>` 폴더를 `licenses`까지 통째로 서버의 `/tmp/`로 옮긴다([라이선스](#라이선스)). 예를 들어 저장소 폴더의 cmd에서 다음을 실행한다.
 
 ```bat
 scp -r dist\monitoring-core-<버전> <계정>@<서버 주소>:/tmp/
 ```
 
-### 5. 서버에서 설치하고 띄우기
+### 4. 서버에서 설치하고 띄우기
 
-cmd에서 서버에 접속한 뒤, 서버에서 다음을 차례로 실행한다. `/opt/monitoring`이 설치 폴더다. `sudo`는 `/opt`에 쓰고 Docker를 쓰는 데 필요하다.
+cmd에서 서버에 접속한 뒤, 서버에서 다음을 차례로 실행한다. 아래 명령은 설치 폴더를 `/opt/monitoring`으로 두는 예다. 설치 폴더는 어느 폴더든 되고, 다른 폴더를 쓰면 명령의 `/opt/monitoring`만 그 폴더로 바꾼다. 운영 명령은 정해진 경로를 쓰지 않고, 묶음 폴더의 바로 위 폴더를 설치 폴더로 보고 그 안의 `secrets/`(token)와 `certs/`(CA 인증서 파일)를 쓴다. `sudo`는 설치 폴더에 쓰고 Docker를 쓰는 데 필요하다.
 
 ```bat
 ssh <계정>@<서버 주소>
@@ -136,10 +102,10 @@ sudo sh core-server.sh start
 
 `sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`인지도 볼 수 있다. 운영 명령은 코어 서버에서 `curl`(없으면 `wget`)로 `127.0.0.1`의 세 포트를 불러 준비 여부를 본다. 두 도구가 모두 없으면 `start`가 코어를 바꾸지 않고 멈추므로, 코어 서버에 `curl`을 둔다. 코어 컨테이너에는 healthcheck가 없어 `docker ps`에는 `healthy`가 보이지 않는다.
 
-설치를 마친 서버의 폴더는 다음 모양이다. 새 버전은 이 설치 폴더에 나란히 둔다.
+설치를 마친 서버의 폴더는 다음 모양이다. 새 버전도 같은 설치 폴더에 나란히 둔다. 그래야 새 버전이 같은 token과 CA 인증서 파일을 쓰고, 이전 버전 폴더로 되돌릴 수 있다.
 
 ```text
-/opt/monitoring/                         설치 폴더
+/opt/monitoring/                         설치 폴더(예, 어느 폴더든 됨)
 ├── secrets/alertmanager_webhook_token   코어와 관리자 서버가 함께 읽는 token
 ├── certs/ca-certificates.crt            OS에서 복사한 CA 인증서 파일
 ├── monitoring-core-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
@@ -151,7 +117,7 @@ sudo sh core-server.sh start
 
 `rendered/`의 파일은 띄울 때마다 `.env`와 `templates/`에서 다시 만들므로 직접 고쳐도 남지 않는다. 바꿀 값은 `.env`에 적는다.
 
-### 6. 다음 할 일
+### 5. 다음 할 일
 
 코어는 관리자 서버 없이도 정상으로 뜨고, 감시 대상이 없는 상태로 기다린다. 이어서 다음을 한다.
 
@@ -171,7 +137,7 @@ sudo sh core-server.sh start
 
 | 바꾸고 싶은 것 | 바꾸는 곳 | 기본값 |
 |---|---|---|
-| 설치 폴더 위치 | 원하는 곳에 폴더를 만들고 묶음 폴더를 그 안에 둠 | 없음(어디든 됨) |
+| 설치 폴더 위치 | 원하는 곳에 폴더를 만들고 묶음 폴더를 그 안에 둠(묶음 폴더의 바로 위 폴더가 설치 폴더) | 없음(어디든 됨) |
 | 관리자 서버 이름·포트 | 묶음 폴더 `.env`의 `MONITORING_APP_ADDRESS` | 없음(`install`이 물음) |
 | token 폴더 위치 | 묶음 폴더 `.env`의 `CORE_SECRETS_DIR` | 설치 폴더의 `secrets/` |
 | token 값 | token 폴더의 `alertmanager_webhook_token` 파일 | 없음(`install`이 만듦) |
@@ -193,7 +159,7 @@ sudo sh core-server.sh start
 - **주소 확인 제한 시간**: ping, TCP, 웹 주소 확인이 모두 이 시간까지 응답을 기다린다. 감시 항목마다 다르게 둘 수는 없다. 코어가 확인 결과를 수집 제한 시간(10초) 안에 받아야 해서 9초가 상한이다.
 - **포트**: 코어 서버의 다른 프로그램이 9090 같은 포트를 쓸 때 바꾼다. 바꿔도 `127.0.0.1`에만 열리고, 세 값은 서로 달라야 한다. 관리자 서버가 부르는 `http://prometheus:9090`과 코어끼리 부르는 포트는 바뀌지 않으므로 관리자 서버의 설정은 그대로 둔다. 바꾼 뒤에는 이 문서의 `127.0.0.1:9090` 같은 주소와 SSH 터널을 바꾼 포트로 읽는다.
 
-묶음 폴더는 버전마다 새로 생기므로, 묶음 폴더들을 한 설치 폴더에 나란히 두고 token은 설치 폴더의 `secrets/`에 둔다([처음 따라 하기의 폴더 모양](#5-서버에서-설치하고-띄우기)). 버전이 바뀌어도 token 경로가 그대로라 관리자 서버의 설정을 바꾸지 않는다. token을 다른 곳에 두려면 `.env`의 `CORE_SECRETS_DIR`에 경로를 적는다. 상대 경로는 묶음 폴더 기준이다.
+묶음 폴더는 버전마다 새로 생기므로, 묶음 폴더들을 한 설치 폴더에 나란히 두고 token은 설치 폴더의 `secrets/`에 둔다([처음 따라 하기의 폴더 모양](#4-서버에서-설치하고-띄우기)). 버전이 바뀌어도 token 경로가 그대로라 관리자 서버의 설정을 바꾸지 않는다. token을 다른 곳에 두려면 `.env`의 `CORE_SECRETS_DIR`에 경로를 적는다. 상대 경로는 묶음 폴더 기준이다.
 
 ### 관리자 서버 화면에서 바꾸는 값
 
@@ -228,7 +194,7 @@ sudo sh core-server.sh start
 
 ### 운영 명령 없이 실행
 
-[처음 따라 하기](#처음-따라-하기)의 5번에서 `install`, `start` 대신 묶음 폴더에서 다음을 실행한다. token은 설치 폴더의 `secrets/`(`../secrets`)에서 읽는다. 코어 이미지에는 셸이 없어 컨테이너 안에서 설정을 펼칠 수 없으므로, Compose로 띄우기 전에 운영 명령의 설정 펼치기(`render`)를 반드시 실행한다.
+[처음 따라 하기](#처음-따라-하기)의 4번에서 `install`, `start` 대신 묶음 폴더에서 다음을 실행한다. token은 설치 폴더의 `secrets/`(`../secrets`)에서 읽는다. 코어 이미지에는 셸이 없어 컨테이너 안에서 설정을 펼칠 수 없으므로, Compose로 띄우기 전에 운영 명령의 설정 펼치기(`render`)를 반드시 실행한다.
 
 ```sh
 install -d -m 0700 ../secrets
@@ -306,12 +272,12 @@ docker compose -f infrastructure/compose.yml ps
 
 ## 운영 작업
 
-코어를 운영하면서 하는 일은 다음과 같다. 명령은 지금 쓰는 버전의 묶음 폴더에서 실행하고, [처음 따라 하기](#5-서버에서-설치하고-띄우기)처럼 설치 폴더에 쓰고 Docker를 쓰려면 `sudo`를 붙인다. 저장소에서 실행했으면 `core-dev.bat`을 쓰거나 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
+코어를 운영하면서 하는 일은 다음과 같다. 명령은 지금 쓰는 버전의 묶음 폴더에서 실행하고, [처음 따라 하기](#4-서버에서-설치하고-띄우기)처럼 설치 폴더에 쓰고 Docker를 쓰려면 `sudo`를 붙인다. 저장소에서 실행했으면 `core-dev.bat`을 쓰거나 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
 
 - **관리자 서버 이름·포트 바꾸기**: `.env`의 `MONITORING_APP_ADDRESS`를 고친 뒤 `sh core-server.sh start`를 실행한다.
 - **기록 보관 기간·용량, 주소 확인 제한 시간, 포트 바꾸기**: `.env`의 값을 고친 뒤 `sh core-server.sh start`를 실행한다([서버에서 바꾸는 값](#서버에서-바꾸는-값)). 쌓은 기록과 장애 상태는 이어진다.
 - **기록 보관 값 줄이기**: 보관 기간을 줄이거나, 보관 용량을 줄이거나, 제한이 없던 용량을 처음 정하고 `start`를 실행하면 운영 명령이 `기록 보관 값을 줄입니다`와 함께 계속할지 묻는다. `y`를 넣어야 띄우고, 그 밖의 답이면 아무것도 바꾸지 않는다. 터미널이 아닌 곳(예: 다른 스크립트)에서 실행하면 물을 수 없으므로 띄우지 않는다. 운영 명령은 떠 있거나 멈춰 있는 코어의 값과 비교하므로, `docker compose down`으로 코어 컨테이너를 지운 뒤에는 묻지 않고 새 값으로 띄운다. 그때는 `.env`의 값을 먼저 확인한다.
-- **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 [처음 따라 하기의 CA 인증서 파일 복사](#5-서버에서-설치하고-띄우기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh core-server.sh start`를 실행한다. 운영 명령이 바뀐 파일을 알아보고 세 컨테이너를 다시 만든다. 그동안 잠깐 수집과 확인이 멈춘다. 다시 복사하고 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
+- **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 [처음 따라 하기의 CA 인증서 파일 복사](#4-서버에서-설치하고-띄우기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh core-server.sh start`를 실행한다. 운영 명령이 바뀐 파일을 알아보고 세 컨테이너를 다시 만든다. 그동안 잠깐 수집과 확인이 멈춘다. 다시 복사하고 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
 - **token 바꾸기**: 코어를 띄운 묶음 폴더에서 다음을 실행하고, 관리자 서버도 다시 띄운다. 첫 명령은 새 값을 임시 파일에 쓴 뒤 이름을 바꿔 옮기므로, 쓰는 도중의 파일을 읽지 않고 값이 화면에 나오지 않는다. 관리자 서버는 시작할 때 token을 읽고, Alertmanager는 다시 만들어야 새 파일을 확실히 읽는다. 관리자 서버를 다시 띄울 때까지 장애 알림이 거부된다. `.env`의 `CORE_SECRETS_DIR`에 다른 폴더를 적었으면 `../secrets` 대신 그 폴더를 쓴다.
 
   ```sh
@@ -332,10 +298,10 @@ docker compose -f infrastructure/compose.yml ps
   4. 이전 폴더의 `.env`를 새 폴더에 복사하고 `sh core-server.sh start`를 실행한 뒤, 관리자 서버를 다시 띄운다.
 - **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 묻지 않고 바로 이전 버전으로 바뀌고, 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다. 묶음 폴더에 `templates/`가 없는 예전 묶음으로 되돌리면 그 묶음의 운영 명령이 이전 버전으로 바꿀지 물으므로 `y`를 넣는다. 이전 폴더의 `.env`를 쓰므로, 지금 폴더에서 바꾼 코어 값을 이어 쓰려면 이전 폴더의 `.env`에도 같게 적은 뒤 실행한다.
   - **주의(서버에서 코어 값을 바꿀 수 없던 버전으로 되돌릴 때)**: 그 버전은 `CORE_RETENTION_DAYS` 같은 값을 모르므로 기록 보관 15일, 용량 제한 없음, 주소 확인 제한 시간 5초, 포트 9090·9093·9115로 돈다. 보관 기간을 15일보다 늘려 두었으면 15일이 지난 기록이 확인 없이 지워지고 되돌릴 수 없다. 포트를 바꿔 두었으면 기본 포트로 돌아가므로 다른 프로그램과 겹칠 수 있다. 꼭 되돌려야 할 때만 한다.
-- **오래된 버전 정리**: 띄운 버전과 직전 버전, 두 묶음만 남기고 더 오래된 묶음 폴더와 그 버전의 이미지를 지운다. 운영 명령은 지우지 않는다. 지금 띄운 버전은 `sh core-server.sh status`로, 남아 있는 버전은 `ls /opt/monitoring`과 `docker image ls monitoring-core-prometheus`로 본다. 띄운 버전과 직전 버전은 지우지 않는다.
+- **오래된 버전 정리**: 띄운 버전과 직전 버전, 두 묶음만 남기고 더 오래된 묶음 폴더와 그 버전의 이미지를 지운다. 운영 명령은 지우지 않는다. 지금 띄운 버전은 `sh core-server.sh status`로, 남아 있는 버전은 `ls <설치 폴더>`와 `docker image ls monitoring-core-prometheus`로 본다. 띄운 버전과 직전 버전은 지우지 않는다.
 
   ```sh
-  sudo rm -rf /opt/monitoring/monitoring-core-<오래된 버전>
+  sudo rm -rf <설치 폴더>/monitoring-core-<오래된 버전>
   sudo docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-core-alertmanager:<오래된 버전> monitoring-core-blackbox-exporter:<오래된 버전>
   ```
 
@@ -356,7 +322,7 @@ docker compose -f infrastructure/compose.yml ps
 | `설정 값이 올바르지 않습니다: CORE_…` | `.env`나 셸 환경 변수의 코어 값이 숫자가 아니거나, 단위나 앞의 0이 붙었거나, 허용 범위 밖임 | 안내의 허용 범위와 고치는 방법대로 값을 고치거나 지운다(셸 환경 변수에서 왔다고 나오면 `unset <변수 이름>`) |
 | `기록 보관 값을 줄이려면 터미널에서 실행해 확인해 주세요` | 보관 기간이나 용량을 줄였는데, 입력을 받을 수 없는 방식으로 실행함 | 줄이려는 것이 맞으면 터미널에서 직접 실행해 `y`를 넣고, 아니면 `.env`의 값을 되돌린다 |
 | `port is already allocated` 또는 `address already in use` | 코어 서버의 다른 프로그램이나 컨테이너가 그 포트를 쓰거나, `.env`의 세 포트 가운데 둘이 같음 | `.env`의 그 포트(`CORE_PROMETHEUS_PORT` 등)를 비어 있는 포트로 바꾸고 다시 `start`를 실행한다 |
-| `CA 인증서 파일이 없습니다` 또는 `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 CA 인증서 파일을 복사하지 않음 | [처음 따라 하기](#5-서버에서-설치하고-띄우기)대로 복사한다 |
+| `CA 인증서 파일이 없습니다` 또는 `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 CA 인증서 파일을 복사하지 않음 | [처음 따라 하기](#4-서버에서-설치하고-띄우기)대로 복사한다 |
 | `CA 인증서 파일 자리에 폴더가 있습니다` | 파일을 복사하기 전에 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 파일을 복사한다 |
 | `컨테이너가 CA 인증서 파일을 읽을 수 없습니다` | 복사한 파일의 권한이 0600 등임 | 파일 권한을 0644로 바꾼다 |
 | `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 파일 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `sudo rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
@@ -462,35 +428,21 @@ ssh -L 8081:127.0.0.1:8081 운영자@코어서버
 코어 서버에는 들어오는 연결을 열 필요가 없다. 운영자의 SSH만 연다. 나가는 연결은 다음을 허용한다.
 
 - 감시할 주소: 확인 방식에 따라 ICMP(ping), 대상 TCP 포트, HTTP·HTTPS 포트
-- 감시 대상 서버의 exporter 포트: 9100, 9182
+- 감시 대상 서버의 exporter 포트: 기본 9100, 9182(관리자 서버에서 바꿨으면 그 포트)
 - 관리자 서버가 외부 메신저로 알리면 그 서비스(예: Telegram은 `api.telegram.org`의 443)
 
 ### 감시 대상 서버의 방화벽
 
-exporter는 인증과 암호화 없이 열린다. 그래서 감시 대상 서버의 exporter 포트(Linux 9100, Windows 9182)를 코어 서버에서만 열 수 있게 운영자가 방화벽을 직접 설정한다. 관리자 서버의 연결 시험도 코어 서버에서 exporter를 읽으므로 코어 서버 하나만 허용하면 된다. 출발지를 `0.0.0.0/0`이나 서브넷 전체로 열지 않는다.
+exporter는 인증과 암호화 없이 열린다. 그래서 운영자가 감시 대상 서버의 방화벽(AWS 보안 그룹, `ufw`, `firewalld`, Windows Defender 방화벽 등)에서 exporter 포트를 코어 서버에서만 열리게 설정한다. 설정 방법은 그 방화벽의 문서를 따른다.
 
-서버가 어디에 있는지에 따라 다음 가운데 하나를 쓴다. 아래 예는 코어 서버가 `10.0.0.5`인 경우다. AWS의 보안 그룹과 서버 안의 방화벽을 함께 쓰면 두 곳 모두에서 허용해야 닿는다.
-
-- **AWS(EC2)**: 감시 대상 서버의 보안 그룹에 인바운드 규칙을 더한다. 유형은 사용자 지정 TCP, 포트는 9100 또는 9182, 소스는 코어 서버의 보안 그룹이다. 소스를 IP 대신 보안 그룹으로 두면 코어 서버의 IP가 바뀌어도 규칙이 맞는다. Amazon Linux 2023과 Ubuntu는 서버 안의 방화벽이 기본으로 꺼져 있어, AWS에서는 보안 그룹이 실제로 막는 곳이다.
-- **Ubuntu의 `ufw`**: 다음 규칙을 더한다. 이 규칙은 `ufw`가 켜져 있고 들어오는 연결의 기본 정책이 `deny`일 때만 다른 서버를 막는다. `sudo ufw status verbose`로 확인한다.
-
-  ```sh
-  sudo ufw allow from 10.0.0.5 to any port 9100 proto tcp
-  ```
-
-- **Amazon Linux·RHEL 계열의 `firewalld`**: `firewalld`를 켜 둔 서버에서만 쓴다. `sudo firewall-cmd --state`가 `running`이면 다음 규칙을 더한다.
-
-  ```sh
-  sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="10.0.0.5" port port="9100" protocol="tcp" accept'
-  sudo firewall-cmd --reload
-  ```
-
-- **Windows 서버**: Windows Defender 방화벽의 인바운드 규칙에서 9182 포트의 원격 주소를 코어 서버로 제한한다.
+- **열 포트**: 관리자 서버에 그 서버의 exporter 포트로 등록한 포트다. 기본은 Linux 9100, Windows 9182이고, 바꿨으면 바꾼 포트를 연다.
+- **허용할 출발지**: 코어 서버 하나다. 관리자 서버의 연결 시험도 코어 서버에서 exporter를 읽으므로 이것으로 충분하다. `0.0.0.0/0`이나 서브넷 전체로 열지 않는다.
+- **방화벽이 둘이면**: AWS 보안 그룹과 서버 안의 방화벽을 함께 쓰면 두 곳 모두에서 허용해야 닿는다.
 
 설정한 뒤에는 막혔는지 확인한다. 코어 서버에서는 응답이 오고, 코어 서버가 아닌 같은 망의 다른 PC에서는 연결이 실패해야 한다. 다른 PC에서도 응답이 오면 방화벽 설정이 빠졌으므로 다시 확인한다.
 
 ```sh
-curl -s -m 5 http://<대상 서버 주소>:9100/metrics | head -n 1
+curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 ```
 
 이 방법은 exporter 트래픽이 VPC나 사내망 안에서만 오갈 때 충분하다. 다음 가운데 하나에 해당하면 방화벽만으로는 부족하므로 exporter에 TLS와 인증을 건다([#15](https://github.com/subinggrae/server-monitor/issues/15)).

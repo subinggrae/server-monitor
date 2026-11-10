@@ -70,7 +70,7 @@ CPU·Memory·디스크 임계값 알림을 만들면 테이블 네 개가 더 �
 - 코어와 같은 token 파일을 컨테이너에 붙인다. 컨테이너 안에서는 `/run/secrets/alertmanager_webhook_token`에서 읽는다. 코드나 설정 파일에 값을 쓰지 않는다.
 - 목록 API는 인증 없이 불리므로 관리자 서버 포트를 밖에 열지 않는다. 화면을 열어야 하면 `127.0.0.1`에만 묶는다.
 
-`docker run`으로 띄우면 다음과 같다. `my-admin`, `my-admin-image`, 환경 변수 이름은 관리자 서버에 맞춘다.
+`docker run`으로 띄우면 다음과 같다. `my-admin`, `my-admin-image`, 환경 변수 이름은 관리자 서버에 맞춘다. `/opt/monitoring`은 코어 설치 폴더의 예이므로, 코어를 설치한 폴더로 바꾼다.
 
 ```sh
 docker run -d --name my-admin --network monitoring \
