@@ -2,12 +2,16 @@
 # 내부망 코어 서버에서 모니터링 코어를 설치하고 띄우는 운영 명령이다. 묶음 폴더 안에 있고, 묶음 폴더에서 실행한다.
 #
 #   sh core-server.sh install        token과 설정 파일(.env)을 만들거나 떠 있는 버전의 폴더에서 가져온다
-#   sh core-server.sh start          확인한 뒤 이미지를 불러와 띄우고 정상 상태까지 기다린다
+#   sh core-server.sh render         설정 값을 검사해 설정을 rendered/에 펼친다. 컨테이너는 바꾸지 않는다
+#   sh core-server.sh start          확인하고 설정을 펼친 뒤 이미지를 불러와 띄우고 정상 상태까지 기다린다
 #   sh core-server.sh rotate-token   token을 새 값으로 바꾸고 Alertmanager를 다시 만든다
-#   sh core-server.sh status         떠 있는 버전, 컨테이너 상태, 기본값과 다른 설정 값을 보인다
+#   sh core-server.sh status         떠 있는 버전, 컨테이너 상태와 준비 여부, 기본값과 다른 설정 값을 보인다
 #
 # 묶음 폴더들은 한 설치 폴더에 나란히 두고, token은 설치 폴더의 secrets/에 둔다(요구사항 0011).
 # .env에서 바꾸는 코어 값(보관 기간·용량, 확인 제한 시간, 호스트 포트)의 규칙은 같은 폴더의 core-settings.sh에 있다(요구사항 0013).
+# 코어 이미지에는 셸이 없어 컨테이너 안에서 설정을 펼칠 수 없다. 그래서 이 명령이 값을 검사해 묶음의 templates/에서
+# rendered/로 펼치고, compose 파일이 펼친 설정을 읽기 전용으로 붙인다. 정상 확인도 코어 서버에서 한다(요구사항 0015, ADR 0012).
+# 저장소의 infrastructure/에서도 render를 실행할 수 있다. 그때는 저장소의 템플릿과 ./secrets를 쓴다(core-dev.bat start).
 # 코어 서버에는 Node와 bash가 없을 수 있어 POSIX sh로 쓰고, GNU coreutils와 BusyBox가 함께 지원하는 옵션만 쓴다.
 # 설치 방법은 docs/OPERATIONS.md에 있다.
 set -eu
@@ -15,11 +19,28 @@ set -eu
 BUNDLE_DIR=$(cd "$(dirname "$0")" && pwd -P)
 INSTALL_DIR=$(dirname "$BUNDLE_DIR")
 ENV_FILE="$BUNDLE_DIR/.env"
+RENDER_DIR="$BUNDLE_DIR/rendered"
 TOKEN_NAME=alertmanager_webhook_token
 CONTAINERS="prometheus alertmanager blackbox-exporter"
-# 시험에서는 기다리는 시간을 줄인다.
+TEMPLATES="prometheus.yml alertmanager.yml blackbox.yml"
+# core.env의 CORE_CONFIG_SHA256이 이 파일들의 내용을 나타낸다.
+CONFIG_FILES="$TEMPLATES ca-certificates.crt"
+# Go가 Linux에서 CA 인증서 파일을 찾는 위치와 순서다(crypto/x509의 root_linux.go). Blackbox Exporter가 Go 프로그램이다.
+CA_FILES="/etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/ca-bundle.pem /etc/pki/tls/cacert.pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/ssl/cert.pem"
+# 시험에서는 기다리는 시간을 줄이고, CA 인증서 파일을 가짜 루트 아래에서 찾고, 준비 확인 도구를 고른다.
 WAIT_SECONDS=${CORE_WAIT_SECONDS:-180}
 WAIT_INTERVAL=${CORE_WAIT_INTERVAL:-5}
+CA_ROOT=${CORE_CA_ROOT:-}
+READY_TOOLS=${CORE_READY_TOOLS-curl wget}
+
+# 묶음에는 templates/가 있다. 저장소의 infrastructure/에는 구성 요소마다 폴더에 템플릿이 있고, token 폴더 기본값이 compose.yml처럼 ./secrets다.
+if [ ! -d "$BUNDLE_DIR/templates" ] && [ -f "$BUNDLE_DIR/prometheus/prometheus.yml" ]; then
+  LAYOUT=repository
+  SECRETS_DEFAULT=./secrets
+else
+  LAYOUT=bundle
+  SECRETS_DEFAULT=../secrets
+fi
 
 say() {
   printf '%s\n' "$*"
@@ -35,7 +56,8 @@ usage() {
 사용법: sh core-server.sh <작업>
 
   install        token과 설정 파일(.env)을 준비합니다
-  start          확인한 뒤 코어를 띄웁니다
+  render         설정 값을 검사해 설정을 펼칩니다(운영 명령 없이 Compose로 띄우기 전에 실행)
+  start          확인하고 설정을 펼친 뒤 코어를 띄웁니다
   rotate-token   token을 새 값으로 바꿉니다
   status         떠 있는 버전, 상태, 기본값과 다른 설정 값을 보입니다
 EOF
@@ -65,7 +87,7 @@ env_value() {
 token_file() {
   dir=$(env_value CORE_SECRETS_DIR "${1:-}")
   if [ -z "$dir" ]; then
-    dir=../secrets
+    dir=$SECRETS_DEFAULT
   fi
   case "$dir" in
     /*) ;;
@@ -138,8 +160,8 @@ check_env() {
   address=$(env_value MONITORING_APP_ADDRESS)
   core_valid_address "$address" \
     || fail "관리자 서버 주소가 올바르지 않습니다: '$address'. .env의 MONITORING_APP_ADDRESS를 컨테이너 이름:포트 형식(예: manager-api:8080)으로 고쳐 주세요."
-  # 코어 값과 같이, Compose가 .env나 셸 환경 변수를 다시 읽지 않고 검사한 값을 그대로 쓰게 한다.
-  export MONITORING_APP_ADDRESS="$address"
+  # 펼칠 때 .env나 셸 환경 변수를 다시 읽지 않고 검사한 값을 그대로 쓴다.
+  app_address=$address
 }
 
 load_settings() {
@@ -149,7 +171,7 @@ load_settings() {
 }
 
 # .env에서 바꾸는 코어 값을 모두 검사하고, 틀린 값은 한 번에 모두 보인 뒤 아무것도 바꾸지 않고 멈춘다.
-# 검사한 값은 export해 Compose가 .env를 다시 읽지 않고 그 값을 그대로 쓰게 한다.
+# 검사한 값은 export해 펼치기와 Compose(호스트 포트)가 .env를 다시 읽지 않고 그 값을 그대로 쓰게 한다.
 # env_value의 .env 읽기가 Compose와 조금이라도 다르면 검사한 값과 띄우는 값이 어긋날 수 있기 때문이다.
 check_settings() {
   load_settings
@@ -309,6 +331,119 @@ check_token() {
   fi
 }
 
+template_file() {
+  if [ "$LAYOUT" = bundle ]; then
+    printf '%s/templates/%s' "$BUNDLE_DIR" "$1"
+  else
+    printf '%s/%s/%s' "$BUNDLE_DIR" "${1%.yml}" "$1"
+  fi
+}
+
+check_templates() {
+  for name in $TEMPLATES; do
+    [ -f "$(template_file "$name")" ] \
+      || fail "설정 템플릿이 없습니다: $(template_file "$name"). 묶음 폴더를 다시 옮겨 주세요."
+  done
+}
+
+# Blackbox Exporter의 HTTPS 확인이 쓸 코어 서버 OS의 CA 인증서 파일을 찾아 ca_source에 둔다.
+# 링크(RHEL 계열)는 따라가고, 비어 있거나 읽을 수 없는 파일은 건너뛴다. 내용은 OS와 운영자가 관리하므로 검사하지 않는다.
+find_ca() {
+  for path in $CA_FILES; do
+    if [ -f "$CA_ROOT$path" ] && [ -s "$CA_ROOT$path" ] && [ -r "$CA_ROOT$path" ]; then
+      ca_source="$CA_ROOT$path"
+      return 0
+    fi
+  done
+  {
+    say "코어 서버 OS의 CA 인증서 파일을 찾지 못했습니다. 다음 위치를 차례로 찾아봤습니다."
+    for path in $CA_FILES; do
+      say "  $path"
+    done
+    say "CA 인증서 파일이 없으면 HTTPS 주소 확인이 모두 실패해 장애 알림이 한꺼번에 갈 수 있어 펼치거나 띄우지 않습니다."
+  } >&2
+  fail "OS에 ca-certificates 패키지를 설치하고 다시 실행해 주세요. 아무것도 바꾸지 않았습니다."
+}
+
+# 운영자 권한으로 쓰므로, rendered/나 그 안의 파일이 다른 곳을 가리키는 링크면 쓰지 않는다.
+# 펼친 설정 없이 Compose로 띄우면 Docker가 파일 자리에 빈 폴더를 만들 수 있다. 그 폴더는 지우지 않고 지우는 방법을 보인다.
+check_render_dir() {
+  if [ -L "$RENDER_DIR" ]; then
+    fail "펼친 설정 폴더가 심볼릭 링크입니다: $RENDER_DIR. 다른 파일을 덮어쓰지 않도록 쓰지 않았습니다. 링크를 지운 뒤 다시 실행해 주세요."
+  fi
+  if [ -e "$RENDER_DIR" ] && [ ! -d "$RENDER_DIR" ]; then
+    fail "펼친 설정 폴더 자리에 파일이 있습니다: $RENDER_DIR. 그 파일을 지운 뒤 다시 실행해 주세요."
+  fi
+  for name in $CONFIG_FILES core.env; do
+    target="$RENDER_DIR/$name"
+    if [ -L "$target" ]; then
+      fail "펼친 설정 파일이 심볼릭 링크입니다: $target. 다른 파일을 덮어쓰지 않도록 쓰지 않았습니다. 링크를 지운 뒤 다시 실행해 주세요."
+    fi
+    if [ -d "$target" ]; then
+      fail "펼친 설정 파일 자리에 폴더가 있습니다: $target. 펼친 설정 없이 Compose로 띄울 때 Docker가 만든 폴더일 수 있습니다. rmdir $target 로 지운 뒤 다시 실행해 주세요."
+    fi
+  done
+}
+
+# 펼치기 전의 검사다. 아무것도 쓰지 않으므로, 실패해도 이전에 펼친 설정과 떠 있는 코어가 그대로다.
+check_render() {
+  check_env
+  check_settings
+  check_token
+  check_templates
+  find_ca
+  check_render_dir
+}
+
+# check_render를 통과한 값으로 템플릿을 펼쳐 rendered/에 쓴다. 같은 폴더 안의 임시 폴더에 모두 쓴 뒤 이름만 바꿔 옮긴다.
+# 펼치는 글자는 검사를 통과한 주소와 core_setting_text의 결과뿐이라 sed와 YAML이 특별하게 읽는 글자가 없다. 값은 eval하지 않는다.
+# 이전과 내용이 달라졌으면 render_changed=yes다. 파일 단위로 붙인 컨테이너는 이름을 바꿔 옮긴 새 파일을 보지 못하기 때문이다.
+write_rendered() {
+  if [ ! -d "$RENDER_DIR" ]; then
+    mkdir "$RENDER_DIR"
+  fi
+  # 컨테이너 사용자(nobody)가 읽어야 하고, 다른 사용자가 고치면 안 된다.
+  chmod 0755 "$RENDER_DIR"
+  stage=$(mktemp -d "$RENDER_DIR/.render.XXXXXX")
+  trap 'rm -rf "$stage"' EXIT
+  script="s|@MONITORING_APP_ADDRESS@|$app_address|g"
+  for setting in $CORE_SETTING_NAMES; do
+    script="$script
+s|@$setting@|$(core_setting_text "$setting" "$(printenv "$setting")")|g"
+  done
+  # Windows에서 받은 저장소의 템플릿은 줄 끝이 CRLF일 수 있다. 어디서 펼쳐도 같은 파일이 되게 CR을 지운다.
+  for name in $TEMPLATES; do
+    tr -d '\r' < "$(template_file "$name")" | sed "$script" > "$stage/$name"
+    if grep -q '@[A-Z][A-Z_]*@' "$stage/$name"; then
+      fail "$(template_file "$name")에 펼치지 못한 자리표시가 남았습니다. 묶음 폴더를 다시 옮겨 주세요. 아무것도 바꾸지 않았습니다."
+    fi
+  done
+  cat "$ca_source" > "$stage/ca-certificates.crt"
+  config_hash=$(cd "$stage" && cat $CONFIG_FILES | sha256sum | cut -d ' ' -f 1)
+  previous_hash=$(cd "$RENDER_DIR" && cat $CONFIG_FILES 2>/dev/null | sha256sum | cut -d ' ' -f 1)
+  # compose 파일이 env_file로 세 컨테이너에 넘긴다. 프로그램은 읽지 않고, status와 보관 값 줄임 확인이 떠 있는 값을 여기서 읽는다.
+  # CORE_CONFIG_SHA256이 바뀌면 운영 명령 없이 docker compose up -d로 띄워도 Compose가 컨테이너를 다시 만든다.
+  {
+    printf '# sh core-server.sh render가 .env에서 만든 파일입니다. 고치지 않습니다. 펼칠 때마다 다시 만듭니다.\n'
+    for setting in CORE_RETENTION_DAYS CORE_RETENTION_SIZE_GB CORE_PROBE_TIMEOUT_SECONDS; do
+      printf '%s=%s\n' "$setting" "$(printenv "$setting")"
+    done
+    printf 'CORE_CONFIG_SHA256=%s\n' "$config_hash"
+  } > "$stage/core.env"
+  for name in $CONFIG_FILES core.env; do
+    chmod 0644 "$stage/$name"
+  done
+  for name in $CONFIG_FILES core.env; do
+    mv -f "$stage/$name" "$RENDER_DIR/$name"
+  done
+  rmdir "$stage"
+  trap - EXIT
+  render_changed=no
+  if [ "$config_hash" != "$previous_hash" ]; then
+    render_changed=yes
+  fi
+}
+
 load_images() {
   version=$(bundle_version)
   for name in $CONTAINERS; do
@@ -359,18 +494,68 @@ confirm_version() {
   esac
 }
 
-wait_healthy() {
+# 코어 이미지에는 셸과 wget이 없어 컨테이너 healthcheck를 둘 수 없다. 그래서 코어 서버에서 호스트 포트로 준비 확인 주소를 부른다.
+# 컨테이너(첫 번째 인자)의 컨테이너 안 포트와 준비 확인 경로를 ready_port, ready_path에 둔다.
+ready_target() {
+  case "$1" in
+    prometheus) ready_port=9090 ready_path=/-/ready ;;
+    alertmanager) ready_port=9093 ready_path=/-/ready ;;
+    blackbox-exporter) ready_port=9115 ready_path=/-/healthy ;;
+  esac
+}
+
+# 준비 확인 주소를 부를 도구. 없으면 빈 값이다.
+ready_tool() {
+  for tool in $READY_TOOLS; do
+    case "$tool" in
+      curl|wget) ;;
+      *) continue ;;
+    esac
+    if command -v "$tool" > /dev/null 2>&1; then
+      printf '%s' "$tool"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# ready_tool로 고른 도구(ready_with)로 컨테이너의 준비 확인 주소를 한 번 부른다. 바꾼 호스트 포트도 실제로 묶인 값에서 읽는다.
+# GNU와 BusyBox 구현이 함께 받는 옵션만 쓴다.
+is_ready() {
+  ready_target "$1"
+  binding=$(host_binding "$1" "$ready_port")
+  [ -n "$binding" ] || return 1
+  case "$ready_with" in
+    curl) curl -fsS -m 5 -o /dev/null "http://$binding$ready_path" > /dev/null 2>&1 ;;
+    wget) wget -q -T 5 -O /dev/null "http://$binding$ready_path" > /dev/null 2>&1 ;;
+    *) return 1 ;;
+  esac
+}
+
+not_ready() {
+  {
+    say "정상 상태가 되지 않았습니다:$1. 컨테이너는 그대로 두었습니다. 다음 명령으로 로그를 보세요."
+    for name in $1; do
+      say "  docker logs $name"
+    done
+  } >&2
+  exit 1
+}
+
+wait_ready() {
+  ready_with=$(ready_tool)
+  if [ -z "$ready_with" ]; then
+    wait_running "$@"
+    return 0
+  fi
   say "정상 상태가 될 때까지 기다립니다(최대 ${WAIT_SECONDS}초): $*"
   waited=0
   while :; do
-    unhealthy=""
+    unready=""
     for name in "$@"; do
-      status=$(docker inspect -f '{{.State.Health.Status}}' "$name" 2>/dev/null) || status="없음"
-      if [ "$status" != healthy ]; then
-        unhealthy="$unhealthy $name"
-      fi
+      is_ready "$name" || unready="$unready $name"
     done
-    if [ -z "$unhealthy" ]; then
+    if [ -z "$unready" ]; then
       return 0
     fi
     if [ "$waited" -ge "$WAIT_SECONDS" ]; then
@@ -379,13 +564,33 @@ wait_healthy() {
     sleep "$WAIT_INTERVAL"
     waited=$((waited + WAIT_INTERVAL))
   done
-  {
-    say "정상 상태가 되지 않았습니다:$unhealthy. 컨테이너는 그대로 두었습니다. 다음 명령으로 로그를 보세요."
-    for name in $unhealthy; do
-      say "  docker logs $name"
-    done
-  } >&2
-  exit 1
+  not_ready "$unready"
+}
+
+restart_count() {
+  docker inspect -f '{{.RestartCount}}' "$1" 2>/dev/null || printf '없음'
+}
+
+# curl과 wget이 모두 없는 서버에서는 준비 확인 대신, 컨테이너가 실행 중이고 지켜보는 동안 다시 시작하지 않았는지만 본다.
+# 설정이 틀린 프로그램은 바로 끝나고 재시작 정책으로 다시 시작하므로 다시 시작 횟수가 는다.
+wait_running() {
+  watch_seconds=$((WAIT_INTERVAL * 3))
+  say "경고: 코어 서버에 curl과 wget이 없어 준비 확인 주소를 부르지 못했습니다. 대신 ${watch_seconds}초 동안 컨테이너가 실행 중이고 다시 시작하지 않는지만 봅니다. 정상 여부를 확인하려면 curl을 설치해 주세요."
+  counts=""
+  for name in "$@"; do
+    counts="$counts $name=$(restart_count "$name")"
+  done
+  sleep "$watch_seconds"
+  unready=""
+  for name in "$@"; do
+    case " $counts " in
+      *" $name=$(restart_count "$name") "*) [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" = true ] || unready="$unready $name" ;;
+      *) unready="$unready $name" ;;
+    esac
+  done
+  if [ -n "$unready" ]; then
+    not_ready "$unready"
+  fi
 }
 
 # Docker가 컨테이너를 띄우지 못하면(예: 다른 프로그램이 그 호스트 포트를 씀) Compose의 오류 뒤에 정상이 아닌 컨테이너와 고치는 방법을 보인다.
@@ -495,17 +700,32 @@ cmd_install() {
   say "다음: sh core-server.sh start"
 }
 
+cmd_render() {
+  if [ "$LAYOUT" = bundle ]; then
+    check_checksums
+  fi
+  check_render
+  write_rendered
+  say "설정을 펼쳤습니다: $RENDER_DIR (CA 인증서: $ca_source)"
+  say "운영 명령 없이 띄우려면 이 폴더에서 docker compose up -d를 실행합니다. .env를 바꾸거나 OS의 CA 인증서를 바꾸면 이 작업을 다시 실행해야 반영됩니다."
+}
+
 cmd_start() {
   check_docker
   check_checksums
-  check_env
-  check_settings
-  check_token
+  check_render
   load_images
   confirm_version
   confirm_retention
-  compose_up
-  wait_healthy $CONTAINERS
+  # 확인을 기다리는 동안 token 파일이 바뀌었을 수 있어 쓰기 직전에 다시 본다. 운영자가 멈추면 펼친 설정은 그대로다.
+  check_token
+  write_rendered
+  if [ "$render_changed" = yes ]; then
+    compose_up --force-recreate
+  else
+    compose_up
+  fi
+  wait_ready $CONTAINERS
   check_autostart
   show_settings
   say "코어가 떠 있습니다: 버전 $(running_label org.opencontainers.image.version), 커밋 $(running_label org.opencontainers.image.revision)"
@@ -513,10 +733,8 @@ cmd_start() {
 
 cmd_rotate_token() {
   check_docker
-  check_env
-  # Alertmanager를 다시 만들 때 Compose가 .env의 호스트 포트를 쓰므로 같은 검사를 거친다.
-  check_settings
-  check_token
+  # Alertmanager를 다시 만들 때 Compose가 .env의 호스트 포트와 펼친 설정을 쓰므로 띄우기와 같은 검사를 거친다.
+  check_render
   # 다른 버전 폴더의 compose로 Alertmanager를 다시 만들면 그 컨테이너만 다른 버전이 된다.
   if core_exists; then
     owner=$(core_bundle_dir) || owner=""
@@ -528,9 +746,10 @@ cmd_rotate_token() {
   write_token "$file"
   say "token을 새 값으로 바꿨습니다: $(real_path "$file")"
   if core_running; then
+    write_rendered
     # 파일만 바꾸면 Alertmanager가 붙잡은 옛 파일을 계속 읽을 수 있어 컨테이너를 다시 만든다.
     compose_up --force-recreate alertmanager
-    wait_healthy alertmanager
+    wait_ready alertmanager
   else
     say "코어가 떠 있지 않습니다. 다음 start부터 새 token을 씁니다."
   fi
@@ -550,9 +769,19 @@ cmd_status() {
   else
     say "코어가 멈춰 있습니다. 마지막으로 띄운 버전: $current (커밋 $(running_label org.opencontainers.image.revision))"
   fi
+  # 실행 중인 컨테이너만 준비 확인 주소를 부른다.
+  ready_with=$(ready_tool)
   for name in $CONTAINERS; do
-    state=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name" 2>/dev/null) || state="없음"
-    say "  $name: $state"
+    state=$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null) || state="없음"
+    if [ "$state" != running ]; then
+      say "  $name: $state"
+    elif [ -z "$ready_with" ]; then
+      say "  $name: running, 준비 확인 못 함(curl, wget 없음)"
+    elif is_ready "$name"; then
+      say "  $name: running, 준비됨"
+    else
+      say "  $name: running, 준비되지 않음"
+    fi
   done
   load_settings
   show_settings
@@ -563,6 +792,7 @@ cmd_status() {
 
 case "${1:-}" in
   install) cmd_install ;;
+  render) cmd_render ;;
   start) cmd_start ;;
   rotate-token) cmd_rotate_token ;;
   status) cmd_status ;;

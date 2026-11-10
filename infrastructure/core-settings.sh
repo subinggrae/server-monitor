@@ -1,9 +1,9 @@
 #!/bin/sh
 # 운영자가 코어 서버의 설정 파일(.env)에서 바꾸는 코어 값의 기본값, 허용 범위, 검사를 한곳에 둔다(요구사항 0013).
-# 묶음 폴더의 core-server.sh와 코어 이미지 안의 render-config.sh가 이 파일을 . 으로 읽어 같은 규칙으로 검사한다.
+# 묶음 폴더의 core-server.sh가 이 파일을 . 으로 읽어, 띄우기와 설정 펼치기(render)에서 같은 규칙으로 검사한다.
 # 빌드 PC의 설정 검사(scripts/build-core-bundle.mjs)는 core_settings_ranges의 출력으로 허용 범위를 읽는다.
 #
-# 코어 서버와 이미지의 sh가 BusyBox일 수 있어 POSIX sh로 쓴다. 읽는 쪽의 변수와 겹치지 않게 변수 이름 앞에 spec_, cs_, core_를 붙인다.
+# 코어 서버와 빌드 PC의 검사에 쓰는 sh가 BusyBox일 수 있어 POSIX sh로 쓴다. 읽는 쪽의 변수와 겹치지 않게 변수 이름 앞에 spec_, cs_, core_를 붙인다.
 # 값은 셸로 해석하지 않고 printf '%s'로만 내보낸다. 검사를 통과한 값은 앞에 0이 없는 10진 정수뿐이다.
 
 CORE_SETTING_NAMES="CORE_RETENTION_DAYS CORE_RETENTION_SIZE_GB CORE_PROBE_TIMEOUT_SECONDS CORE_PROMETHEUS_PORT CORE_ALERTMANAGER_PORT CORE_BLACKBOX_PORT"
@@ -109,7 +109,7 @@ core_setting_check() {
   return 1
 }
 
-# 관리자 서버 주소(컨테이너 이름:포트)의 형식이 맞으면 0을 돌려준다. 운영 명령과 시작 스크립트가 같이 쓴다(요구사항 0013의 S16).
+# 관리자 서버 주소(컨테이너 이름:포트)의 형식이 맞으면 0을 돌려준다. 운영 명령이 펼치기 전에 쓴다(요구사항 0013의 S16).
 # 이름은 영문자나 숫자로 시작하고 영문자, 숫자, _, ., -만 쓰며, 포트는 1~65535다.
 # 줄마다 맞춰 보는 grep 대신 case로 값 전체를 보고, locale에 따라 범위가 달라지지 않게 글자를 나열한다.
 core_valid_address() {

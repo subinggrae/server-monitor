@@ -1,7 +1,9 @@
 # 감시 대상 Linux 서버에 node_exporter를 띄우는 배포 묶음입니다. 코어나 앱과 따로, 감시 대상 서버에서 띄웁니다.
 #
-#   docker compose -f compose.yml up -d
+#   docker compose -f compose.yml up -d --build
 #
+# 이 폴더의 Dockerfile로 공식 이미지에서 실행 파일만 담은 이미지를 빌드합니다. 공개 저장소에는 이 이미지가 없습니다.
+# 인터넷이 없는 서버용 묶음은 scripts/build-core-bundle.mjs가 build 항목을 pull_policy: never로 바꿔 만듭니다.
 # node_exporter는 인증 없이 9100 포트를 엽니다. 서버 방화벽에서 Prometheus와 앱이 있는 호스트만 접근하게 합니다.
 # Docker가 없는 서버의 바이너리 설치와 방화벽 예시는 docs/OPERATIONS.md에 있습니다.
 
@@ -10,8 +12,13 @@ name: node-exporter
 services:
 
   node-exporter:
-    # 앱의 개발용 테스트 대상(os-test-node-exporter)과 같은 버전입니다. 이 버전에서 metric 이름을 확인했습니다.
-    image: quay.io/prometheus/node-exporter:v1.12.1
+    # 앱의 개발용 테스트 대상(os-test-node-exporter)과 같은 버전(v1.12.1)입니다. 이 버전에서 metric 이름을 확인했습니다.
+    build:
+      context: .
+      args:
+        CORE_VERSION: ${CORE_VERSION:-dev}
+        CORE_REVISION: ${CORE_REVISION:-unknown}
+    image: monitoring-node-exporter:${CORE_VERSION:-dev}
     container_name: node-exporter
     restart: unless-stopped
 

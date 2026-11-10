@@ -8,6 +8,9 @@
 infrastructure/secrets/*
 !infrastructure/secrets/*.example
 
+# 운영 명령이 .env에서 펼친 코어 설정입니다(core-server.sh render). 펼칠 때마다 다시 만듭니다.
+infrastructure/rendered/
+
 # 예전 Alertmanager secret 위치입니다. 남아 있는 파일도 올리지 않습니다.
 infrastructure/alertmanager/secrets/
 
