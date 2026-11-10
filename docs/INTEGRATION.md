@@ -51,7 +51,7 @@ Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_AD
 | 바꾸려는 것 | 방법 | 고치는 곳 |
 |---|---|---|
 | 앱 호스트, 포트 | 코어 설정의 앱 주소를 바꾸고 코어를 다시 띄움 | 코어의 `.env` |
-| webhook token | token 파일을 바꾸고 코어의 Alertmanager와 앱을 다시 만듦(내부망 묶음은 `sh core-server.sh rotate-token`) | token 폴더의 `alertmanager_webhook_token` |
+| webhook token | token 파일을 바꾸고 코어의 Alertmanager와 앱을 다시 만듦(내부망 묶음은 [운영 가이드의 운영 작업](OPERATIONS.md#운영-작업)의 token 바꾸기) | token 폴더의 `alertmanager_webhook_token` |
 | API 경로 | 바꾸지 않고, 앱 앞단(리버스 프록시 등)에서 받아 넘김 | 앱 쪽 |
 | `http`를 `https`로 | 지원하지 않음(같은 호스트의 Docker 네트워크 안에서만 부름) | 없음 |
 

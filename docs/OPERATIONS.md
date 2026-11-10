@@ -312,16 +312,35 @@ docker compose -f infrastructure/compose.yml ps
 - **기록 보관 기간·용량, 주소 확인 제한 시간, 포트 바꾸기**: `.env`의 값을 고친 뒤 `sh core-server.sh start`를 실행한다([서버에서 바꾸는 값](#서버에서-바꾸는-값)). 쌓은 기록과 장애 상태는 이어진다.
 - **기록 보관 값 줄이기**: 보관 기간을 줄이거나, 보관 용량을 줄이거나, 제한이 없던 용량을 처음 정하고 `start`를 실행하면 운영 명령이 `기록 보관 값을 줄입니다`와 함께 계속할지 묻는다. `y`를 넣어야 띄우고, 그 밖의 답이면 아무것도 바꾸지 않는다. 터미널이 아닌 곳(예: 다른 스크립트)에서 실행하면 물을 수 없으므로 띄우지 않는다. 운영 명령은 떠 있거나 멈춰 있는 코어의 값과 비교하므로, `docker compose down`으로 코어 컨테이너를 지운 뒤에는 묻지 않고 새 값으로 띄운다. 그때는 `.env`의 값을 먼저 확인한다.
 - **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 [처음 따라 하기의 CA 인증서 파일 복사](#5-서버에서-설치하고-띄우기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh core-server.sh start`를 실행한다. 운영 명령이 바뀐 파일을 알아보고 Blackbox Exporter를 다시 만든다. 다시 복사하고 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
-- **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 지난 `start` 뒤 `.env`나 CA 인증서 파일을 바꿨으면 token을 바꾸지 않고 멈추므로, 먼저 `sh core-server.sh start`로 반영한다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
+- **token 바꾸기**: 코어를 띄운 묶음 폴더에서 다음을 실행하고, 관리자 서버도 다시 띄운다. 관리자 서버는 시작할 때 token을 읽고, Alertmanager는 다시 만들어야 새 파일을 확실히 읽는다. 관리자 서버를 다시 띄울 때까지 장애 알림이 거부된다.
+
+  ```sh
+  openssl rand -hex 32 > ../secrets/alertmanager_webhook_token
+  chmod 0644 ../secrets/alertmanager_webhook_token
+  docker compose up -d --force-recreate alertmanager
+  ```
 - **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
-- **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
-- **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 `install`을 실행하면 새 token을 만들지 않고 멈춘다. 새 token을 만들면 관리자 서버의 token과 어긋나기 때문이다. 다음 순서로 옮긴다.
-  1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다. 이전 묶음 폴더도 같은 설치 폴더에 있으면 `install`이 그 폴더의 `.env`를 가져온다.
-  2. token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). `install`이 멈출 때 보인 옛 token 경로를 쓴다. 이전 `.env`에 `CORE_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
+- **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 다음을 실행한다. token과 CA 인증서 파일은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어지고, 이전 폴더는 되돌릴 때 쓰도록 남긴다.
+
+  ```sh
+  cp ../monitoring-core-<이전 버전>/.env .
+  sh core-server.sh start
+  ```
+- **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 token을 옮기지 않고 `install`을 실행하면 새 token이 생겨 관리자 서버의 token과 어긋나므로, 다음 순서로 옮긴다.
+  1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다.
+  2. 예전 묶음 폴더의 token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). 이전 `.env`에 `CORE_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
   3. 관리자 서버가 붙이는 token 경로를 새 위치로 바꾼다.
-  4. 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행하고, 관리자 서버를 다시 띄운다.
-- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 이전 버전으로 바꿀지 물으면 `y`를 넣는다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다. 이전 폴더의 `.env`를 쓰므로, 지금 폴더에서 바꾼 코어 값을 이어 쓰려면 이전 폴더의 `.env`에도 같게 적은 뒤 실행한다.
+  4. 이전 폴더의 `.env`를 새 폴더에 복사하고 `sh core-server.sh start`를 실행한 뒤, 관리자 서버를 다시 띄운다.
+- **이전 버전으로 되돌리기**: 이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 묻지 않고 바로 이전 버전으로 바뀌고, 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 이전 버전의 이미지를 지우지 않았으면 다시 불러오지 않는다. 묶음 폴더에 `templates/`가 없는 예전 묶음으로 되돌리면 그 묶음의 운영 명령이 이전 버전으로 바꿀지 물으므로 `y`를 넣는다. 이전 폴더의 `.env`를 쓰므로, 지금 폴더에서 바꾼 코어 값을 이어 쓰려면 이전 폴더의 `.env`에도 같게 적은 뒤 실행한다.
   - **주의(서버에서 코어 값을 바꿀 수 없던 버전으로 되돌릴 때)**: 그 버전은 `CORE_RETENTION_DAYS` 같은 값을 모르므로 기록 보관 15일, 용량 제한 없음, 주소 확인 제한 시간 5초, 포트 9090·9093·9115로 돈다. 보관 기간을 15일보다 늘려 두었으면 15일이 지난 기록이 확인 없이 지워지고 되돌릴 수 없다. 포트를 바꿔 두었으면 기본 포트로 돌아가므로 다른 프로그램과 겹칠 수 있다. 꼭 되돌려야 할 때만 한다.
+- **오래된 버전 정리**: 띄운 버전과 직전 버전, 두 묶음만 남기고 더 오래된 묶음 폴더와 그 버전의 이미지를 지운다. 운영 명령은 지우지 않는다. 지금 띄운 버전은 `sh core-server.sh status`로, 남아 있는 버전은 `ls /opt/monitoring`과 `docker image ls monitoring-core-prometheus`로 본다. 띄운 버전과 직전 버전은 지우지 않는다.
+
+  ```sh
+  sudo rm -rf /opt/monitoring/monitoring-core-<오래된 버전>
+  docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-core-alertmanager:<오래된 버전> monitoring-core-blackbox-exporter:<오래된 버전>
+  ```
+
+- **서버 재시작**: 할 일이 없다. 서버가 켜지면 Docker가 켜지고(설치 때 `systemctl enable`), 세 컨테이너가 재시작 정책(`unless-stopped`)으로 다시 뜬다. 켜진 뒤 `sh core-server.sh status`로 세 줄이 `running, 준비됨`인지 본다. `docker compose down`으로 멈춘 코어는 다시 뜨지 않으므로 `sh core-server.sh start`로 띄운다.
 - **띄운 버전 확인**: `sh core-server.sh status`를 실행한다. 떠 있는 버전, 그 버전을 빌드한 커밋, 세 컨테이너의 상태와 준비 여부, 기본값과 다른 설정 값이 보인다. 준비 여부는 `127.0.0.1`의 호스트 포트(바꿨으면 바꾼 포트)로 세 프로그램의 준비 확인 주소를 부른 결과다.
 - **멈추기**: `docker compose down`을 실행한다. 쌓은 기록은 volume에 남고, 서버가 재시작돼도 다시 뜨지 않는다. 다시 띄우려면 `sh core-server.sh start`를 실행한다.
 - **기록까지 지우기**: `docker compose down -v`를 실행한다. 되돌릴 수 없어 운영 명령에 넣지 않았다.
@@ -335,24 +354,19 @@ docker compose -f infrastructure/compose.yml ps
 |---|---|---|
 | `Docker에 연결하지 못했습니다` | Docker가 꺼져 있거나 이 사용자가 `docker`를 쓸 권한이 없음 | `sudo systemctl start docker`, 또는 사용자를 `docker` 그룹에 넣는다 |
 | `서버가 켜질 때 Docker가 자동으로 켜지지 않습니다` | Docker 서비스가 자동 시작으로 설정되지 않음 | `sudo systemctl enable docker` |
-| `이전 버전(…)으로 바꾸려면 터미널에서 실행해 확인해 주세요` | 이전 버전 폴더에서 `start`를 실행했는데, 입력을 받을 수 없는 방식으로 실행함 | 이전 버전으로 되돌리려는 것이 맞으면 터미널에서 직접 실행하고 `y`를 넣는다 |
 | `설정 값이 올바르지 않습니다: CORE_…` | `.env`나 셸 환경 변수의 코어 값이 숫자가 아니거나, 단위나 앞의 0이 붙었거나, 허용 범위 밖임 | 안내의 허용 범위와 고치는 방법대로 값을 고치거나 지운다(셸 환경 변수에서 왔다고 나오면 `unset <변수 이름>`) |
-| `호스트 포트가 겹칩니다` | 세 포트 가운데 둘 이상이 같음 | `.env`의 세 포트를 서로 다른 값으로 고친다 |
 | `기록 보관 값을 줄이려면 터미널에서 실행해 확인해 주세요` | 보관 기간이나 용량을 줄였는데, 입력을 받을 수 없는 방식으로 실행함 | 줄이려는 것이 맞으면 터미널에서 직접 실행해 `y`를 넣고, 아니면 `.env`의 값을 되돌린다 |
-| `port is already allocated` 또는 `address already in use` | 코어 서버의 다른 프로그램이나 컨테이너가 그 포트를 씀 | `.env`의 그 포트(`CORE_PROMETHEUS_PORT` 등)를 비어 있는 포트로 바꾸고 다시 `start`를 실행한다 |
+| `port is already allocated` 또는 `address already in use` | 코어 서버의 다른 프로그램이나 컨테이너가 그 포트를 쓰거나, `.env`의 세 포트 가운데 둘이 같음 | `.env`의 그 포트(`CORE_PROMETHEUS_PORT` 등)를 비어 있는 포트로 바꾸고 다시 `start`를 실행한다 |
 | `CA 인증서 파일이 없습니다` 또는 `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 CA 인증서 파일을 복사하지 않음 | [처음 따라 하기](#5-서버에서-설치하고-띄우기)대로 복사한다 |
 | `CA 인증서 파일 자리에 폴더가 있습니다` | 파일을 복사하기 전에 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 파일을 복사한다 |
 | `컨테이너가 CA 인증서 파일을 읽을 수 없습니다` | 복사한 파일의 권한이 0600 등임 | 파일 권한을 0644로 바꾼다 |
 | `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 파일 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
 | `펼친 설정 폴더가 심볼릭 링크입니다` 또는 `펼친 설정 파일이 심볼릭 링크입니다` | 묶음 폴더의 `rendered/`나 그 안의 파일이 다른 곳을 가리킴 | 링크를 지우고 다시 실행한다 |
 | `env file …/rendered/core.env not found` | `render`를 실행하지 않고 `docker compose up -d`를 실행함 | `sh core-server.sh render`를 실행한 뒤 다시 띄우거나, `sh core-server.sh start`로 띄운다 |
-| `curl과 wget이 없어 준비 확인 주소를 부르지 못했습니다` | 코어 서버에 `curl`과 `wget`이 모두 없음 | 코어 서버에 `curl`을 설치한다 |
+| `curl과 wget이 없어 코어가 정상인지 확인할 수 없습니다` | 코어 서버에 `curl`과 `wget`이 모두 없음 | 코어 서버에 `curl`을 설치한다 |
 | `정상 상태가 되지 않았습니다` | 띄운 프로그램이 3분 안에 준비됐다고 답하지 않음 | 안내의 `docker logs <컨테이너>`로 로그를 본다 |
 | `exec: "sh": executable file not found` | `docker exec`로 코어 컨테이너 안의 셸을 열려 함 | 셸 대신 로그와 `127.0.0.1`의 HTTP API로 본다 |
-| `코어가 이미 있는데 token 파일이 없습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
-| `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 새 묶음 폴더의 `secrets/`에 token을 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
-| `지난 띄우기 뒤 설정(.env, 템플릿, CA 인증서 파일)이 바뀌었습니다` | `rotate-token` 전에 `.env`나 CA 인증서 파일을 바꿈 | `sh core-server.sh start`로 반영한 뒤 다시 실행한다 |
-| `token은 코어를 띄운 묶음 폴더에서 바꿔 주세요` | 다른 버전 폴더에서 `rotate-token`을 실행함 | 안내된 폴더에서 다시 실행한다 |
+| `token 파일이 없습니다` | token을 만들지 않았거나 예전 방식대로 묶음 폴더의 `secrets/`에 둠 | 처음 설치면 `sh core-server.sh install`, 예전 묶음에서 갱신하는 중이면 [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
 | `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar`로 불러온다 |
 | `sha256sum`이 `FAILED` | 옮기는 중에 파일이 망가짐 | 묶음을 다시 옮긴다 |
