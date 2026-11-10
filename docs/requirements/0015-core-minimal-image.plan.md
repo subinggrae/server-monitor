@@ -296,7 +296,8 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
   - 2026-11-10에 했다. 결과는 [진행 중 발견](#진행-중-발견)의 2026-11-10 항목에 있다.
 - [x] 11. 문서를 고친다: OPERATIONS.md, ARCHITECTURE.md, DEVELOPMENT.md, INTEGRATION.md, LICENSES.md. ADR 0012를 승인으로 바꾼다.
   - ADR 0012는 계획을 승인할 때 이미 승인으로 바꿨다. README.md와 루트 `compose.yml`의 코어 실행 안내도 고쳤다.
-- [ ] 12. 구현한 대화를 이어받지 않은 하위 에이전트에 리뷰를 맡긴다(AGENTS.md의 자체 리뷰). 보안 위협의 CWE 목록을 함께 준다.
+- [x] 12. 구현한 대화를 이어받지 않은 하위 에이전트에 리뷰를 맡긴다(AGENTS.md의 자체 리뷰). 보안 위협의 CWE 목록을 함께 준다.
+  - 2026-11-10에 받은 지적 7건을 모두 반영했다. [진행 중 발견](#진행-중-발견)의 리뷰 반영 항목에 있다.
 - [ ] 13. 요구사항 상태를 구현됨으로 바꾸고, 이 계획을 지운다. ADR 0012의 관련에 PR 링크를 쓴다.
 
 ## 진행 중 발견
@@ -330,6 +331,16 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
   - C6: `docker:29-dind`에서 이 변경 전 묶음(7d6093f) → 이 변경의 묶음 → 이전 묶음(`y`) → 이 변경의 묶음으로 바꾸는 동안 `minTime`과 silence(`active`)가 이어졌다.
   - C12: Windows 빌드 PC에서 `core-dev.bat start`로 세 준비 확인 주소가 200을 돌려줬고, `core-dev.bat stop`으로 멈췄다.
   - C16: 인터넷을 끊은 `docker:29-dind`에서 node_exporter 묶음이 `65534:65534`, host 네트워크와 PID로 떴다. 공식 이미지와 최소 이미지의 `/metrics` 지표 이름이 306개로 같았고, 관리자 서버의 연결 시험이 읽는 지표(`node_exporter_build_info`, CPU, Memory, 파일 시스템)가 있었다. 관리자 서버로 연결 시험을 실행하지는 않았다.
+- **C2 수동 확인**: 이 변경 전(7d6093f)과 이 변경의 이미지를 `docker image inspect`로 비교했다. 작업 폴더, 포트, volume, 버전·커밋 시각 label이 같고, 실행 사용자는 `nobody`가 `65534:65534`로 글자만 바뀌었다(UID 같음). 바뀐 것은 시작 스크립트가 빠진 `Entrypoint`와 `Cmd`의 설정 파일 위치(`/tmp/` → `/etc/core/`)뿐이다.
+- **리뷰 반영(2026-11-10)**:
+  - 펼친 설정 파일은 떠 있는 컨테이너가 다시 시작할 때(서버 재시작 등) 새 파일로 다시 붙는다. 그래서 `render`만 실행해도 다음 다시 시작 때 줄인 보관 기간이 확인 없이 반영될 수 있었다. `render`도 떠 있는 코어보다 보관 값을 줄이면 `start`처럼 확인을 묻는다. `rotate-token`은 지난 `start` 뒤 펼칠 설정이 바뀌었으면 Prometheus·Blackbox Exporter의 설정까지 바꾸지 않도록 token을 바꾸지 않고 `start`를 안내하며, 펼친 설정을 다시 쓰지 않는다.
+  - `rotate-token`도 묶음의 체크섬을 확인한다.
+  - 펼치기 직전에 `rendered/`가 링크가 아닌지 다시 본다(확인 질문 사이의 바꿔치기, CWE-59).
+  - 준비 확인은 셸의 프록시 설정과 관계없이 `127.0.0.1`을 직접 부른다.
+  - 권한 시험을 umask 077에서도 실행해 `chmod`가 빠지면 실패하게 했다.
+  - 운영 가이드에 Compose 2.24 이상(`env_file`의 `required`)이 필요하다고 적었다.
+  - `CORE_CA_ROOT`, `CORE_READY_TOOLS`가 시험 전용이라고 주석에 밝혔다.
+  - 위 항목마다 고친 부분을 되돌린 사본에서 새 시험이 실패했다(링크 재확인은 시험하지 않음).
 - **범위 밖에서 발견**: Amazon Linux 2023 **컨테이너 이미지**에는 `find`가 없어, 0011에서 만든 token 권한 검사(`check_token`의 `find -perm`)가 `find: command not found` 뒤 읽을 수 없다고 잘못 안내한다. Amazon Linux 2023 서버 AMI에는 `find`가 있어 운영 서버에는 영향이 없을 것으로 보지만 AMI에서 확인하지는 않았다.
 
 ## 남길 결정

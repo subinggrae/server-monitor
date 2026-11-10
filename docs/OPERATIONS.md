@@ -74,7 +74,7 @@ core-dev.bat build
 
 처음 한 번만 한다. 코어 서버는 x86-64 Linux이고, [코어 서버 사양](#코어-서버-사양)에 맞는 디스크와 메모리, 감시할 주소와 감시 대상 서버의 9100·9182 포트에 닿는 네트워크가 있어야 한다. 서버 주소, 접속 계정, 그 계정의 `sudo` 권한을 준비한다.
 
-서버에 접속해(5번의 `ssh`) Docker가 있는지 본다. 두 명령 모두 버전이 나오면 설치할 필요가 없다. 이 저장소는 Docker Engine 29, Compose 5에서 확인했다.
+서버에 접속해(5번의 `ssh`) Docker가 있는지 본다. 두 명령 모두 버전이 나오고 Compose가 2.24 이상이면 설치할 필요가 없다. 코어의 compose 파일이 Compose 2.24부터 받는 형식(`env_file`의 `required`)을 쓰기 때문이다. 이 저장소는 Docker Engine 29, Compose 5에서 확인했다.
 
 ```sh
 docker --version
@@ -236,7 +236,7 @@ docker compose up -d
 curl -fsS http://127.0.0.1:9090/-/ready   # Alertmanager는 9093/-/ready, Blackbox Exporter는 9115/-/healthy
 ```
 
-`render`는 `start`와 같은 규칙으로 관리자 서버 주소, [서버에서 바꾸는 값](#서버에서-바꾸는-값), token 파일, CA 인증서 파일을 검사하고, 하나라도 틀리면 안내를 보인 뒤 아무것도 펼치지 않는다. 컨테이너는 만들거나 바꾸지 않는다. 기록 보관 값을 줄일 때의 확인은 묻지 않는다.
+`render`는 `start`와 같은 규칙으로 관리자 서버 주소, [서버에서 바꾸는 값](#서버에서-바꾸는-값), token 파일, CA 인증서 파일을 검사하고, 하나라도 틀리면 안내를 보인 뒤 아무것도 펼치지 않는다. 컨테이너는 만들거나 바꾸지 않는다. 다만 떠 있는 컨테이너는 서버 재시작 등으로 다시 시작할 때 새로 펼친 설정을 읽을 수 있으므로, 떠 있는 코어보다 기록 보관 값을 줄이면 `start`처럼 계속할지 묻는다.
 
 `.env`를 바꾸거나 OS의 CA 인증서를 바꾼 뒤에는 `render`를 다시 실행하고 `docker compose up -d`를 실행한다. 다시 펼치지 않으면 바꾼 값이 반영되지 않는다. 펼친 설정(`rendered/`) 없이 `docker compose up -d`를 실행하면 Compose가 `env file …/rendered/core.env not found`로 멈추고 아무것도 만들지 않는다. `render` 뒤 `docker compose up -d` 전에 token 파일을 지우면 Alertmanager가 token 없이 떠서 관리자 서버가 장애를 거부하므로, 그 사이에 token을 바꾸지 않는다.
 
@@ -302,7 +302,7 @@ docker compose -f infrastructure/compose.yml ps
 - **기록 보관 기간·용량, 주소 확인 제한 시간, 포트 바꾸기**: `.env`의 값을 고친 뒤 `sh core-server.sh start`를 실행한다([서버에서 바꾸는 값](#서버에서-바꾸는-값)). 쌓은 기록과 장애 상태는 이어진다.
 - **기록 보관 값 줄이기**: 보관 기간을 줄이거나, 보관 용량을 줄이거나, 제한이 없던 용량을 처음 정하고 `start`를 실행하면 운영 명령이 `기록 보관 값을 줄입니다`와 함께 계속할지 묻는다. `y`를 넣어야 띄우고, 그 밖의 답이면 아무것도 바꾸지 않는다. 터미널이 아닌 곳(예: 다른 스크립트)에서 실행하면 물을 수 없으므로 띄우지 않는다. 운영 명령은 떠 있거나 멈춰 있는 코어의 값과 비교하므로, `docker compose down`으로 코어 컨테이너를 지운 뒤에는 묻지 않고 새 값으로 띄운다. 그때는 `.env`의 값을 먼저 확인한다.
 - **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 `sh core-server.sh start`를 실행한다. 운영 명령이 OS의 CA 인증서 파일을 다시 복사해 Blackbox Exporter를 다시 만든다. 다시 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
-- **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
+- **token 바꾸기**: `sh core-server.sh rotate-token`을 실행한다. 새 token을 만들고 Alertmanager를 다시 만든다. 지난 `start` 뒤 `.env`나 OS의 CA 인증서를 바꿨으면 token을 바꾸지 않고 멈추므로, 먼저 `sh core-server.sh start`로 반영한다. 파일만 바꾸고 `up -d`를 하면 Alertmanager가 옛 값을 계속 쓸 수 있어 이 명령을 쓴다. 관리자 서버도 시작할 때 token을 읽으므로 다시 띄운다.
 - **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
 - **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 `sh core-server.sh install`, `sh core-server.sh start`를 실행한다. `install`은 지금 떠 있는 버전의 폴더에서 `.env`를 가져온다. token은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다.
 - **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 `install`을 실행하면 새 token을 만들지 않고 멈춘다. 새 token을 만들면 관리자 서버의 token과 어긋나기 때문이다. 다음 순서로 옮긴다.
@@ -339,6 +339,7 @@ docker compose -f infrastructure/compose.yml ps
 | `exec: "sh": executable file not found` | `docker exec`로 코어 컨테이너 안의 셸을 열려 함 | 셸 대신 로그와 `127.0.0.1`의 HTTP API로 본다 |
 | `코어가 이미 있는데 token 파일이 없습니다` | 예전 방식대로 token을 묶음 폴더의 `secrets/`에 둠 | [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
 | `token 파일이 없습니다`와 `묶음 폴더 안에 token이 있습니다` | 새 묶음 폴더의 `secrets/`에 token을 둠 | 설치 폴더의 `secrets/`로 옮기고(권한 0644) 관리자 서버의 경로도 바꾼다 |
+| `지난 띄우기 뒤 설정(.env, 템플릿, OS의 CA 인증서)이 바뀌었습니다` | `rotate-token` 전에 `.env`나 OS의 CA 인증서를 바꿈 | `sh core-server.sh start`로 반영한 뒤 다시 실행한다 |
 | `token은 코어를 띄운 묶음 폴더에서 바꿔 주세요` | 다른 버전 폴더에서 `rotate-token`을 실행함 | 안내된 폴더에서 다시 실행한다 |
 | `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar`로 불러온다 |
