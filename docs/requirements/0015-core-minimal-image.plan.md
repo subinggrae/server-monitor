@@ -341,7 +341,7 @@ LICENSES.md의 고지에서는 BusyBox 소스를 싣는다는 문장과 2026-10-
   - 운영 가이드에 Compose 2.24 이상(`env_file`의 `required`)이 필요하다고 적었다.
   - `CORE_CA_ROOT`, `CORE_READY_TOOLS`가 시험 전용이라고 주석에 밝혔다.
   - 위 항목마다 고친 부분을 되돌린 사본에서 새 시험이 실패했다(링크 재확인은 시험하지 않음).
-- **범위 밖에서 발견**: Amazon Linux 2023 **컨테이너 이미지**에는 `find`가 없어, 0011에서 만든 token 권한 검사(`check_token`의 `find -perm`)가 `find: command not found` 뒤 읽을 수 없다고 잘못 안내한다. Amazon Linux 2023 서버 AMI에는 `find`가 있어 운영 서버에는 영향이 없을 것으로 보지만 AMI에서 확인하지는 않았다.
+- **`find`가 없는 서버**: Amazon Linux 2023 **컨테이너 이미지**에는 `find`가 없어, 0011에서 만든 token 권한 검사(`check_token`의 `find -perm`)가 `find: command not found` 뒤 읽을 수 없다고 잘못 안내했다. 이 계획의 범위 밖이었지만 사람의 결정(2026-11-10)으로 이 PR에서 함께 고쳤다. `ls -ldL`의 권한 글자로 보고, 시험에 `find`가 없는 경우를 더했다. Amazon Linux 2023 서버 AMI에 `find`가 있는지는 확인하지 않았다.
 
 ## 남길 결정
 
