@@ -68,7 +68,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 | `frontend/src/components/ui` | 버튼, 다이얼로그, 입력, 표 같은 기본 UI |
 | `frontend/src/lib` | API 호출과 query 정의(`api.ts`), 표시 형식(`format.ts`) |
 | `frontend/e2e` | 전체 실행 환경에 실행하는 E2E, 화면 검사, 성능 검사(Playwright) |
-| `docs/reference-schema/` | 다른 앱이 참고하는 리소스 임계값 DDL(이 앱의 migration이 아님, `ReferenceSchemaIntegrationTest`가 적용 확인) |
+| `docs/reference-schema/` | 다른 앱이 참고하는 기본 테이블(`base-tables.sql`, 기준 migration과 같은 정의)과 리소스 임계값(`resource-thresholds.sql`, `ReferenceSchemaIntegrationTest`가 적용 확인) DDL |
 | `infrastructure/` | 모니터링 코어(`compose.yml`, 구성 요소마다 `Dockerfile`, 설정을 펼치고 띄우는 운영 명령 `core-server.sh`와 그 시험 `tests/`, 서버에서 바꾸는 코어 값의 기본값과 검사 `core-settings.sh`), Prometheus 설정 템플릿과 규칙(규칙 테스트는 `prometheus/tests/`), Alertmanager, Blackbox 설정, 묶음에 싣는 라이선스 파일(`licenses/`), node_exporter 배포 묶음(`node-exporter/`), 비밀값 예시 파일 |
 | `scripts/build-core-bundle.mjs` | 코어 이미지 빌드와 검사, 내부망 서버로 옮길 코어·node_exporter 묶음 |
 | `core-dev.bat` | Windows 빌드 PC에서 묶음 만들기, 설정 검사, 개발용 코어 띄우기·멈추기 |

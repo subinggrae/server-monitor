@@ -5,8 +5,8 @@
 -- 판단 규칙은 docs/INTEGRATION.md에 있습니다.
 -- postgresql/resource-thresholds.sql과 논리 schema가 같아야 합니다.
 --
--- 기준 migration(backend/src/main/resources/db/migration/mariadb/V1__baseline.sql)의 server_targets와
--- monitored_resources를 외래 키로 가리킵니다. 두 테이블의 이름을 바꿨으면 여기서도 바꿉니다.
+-- 같은 폴더의 base-tables.sql의 server_targets와 monitored_resources를 외래 키로 가리키므로, 그 파일 다음에 적용합니다.
+-- 두 테이블의 이름을 바꿨으면 여기서도 바꿉니다.
 --
 -- 작성 규칙
 --   * 시간 값은 DATETIME(6)에 UTC로 저장합니다.

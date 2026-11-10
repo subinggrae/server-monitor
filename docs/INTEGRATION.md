@@ -278,7 +278,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 
 ### 참고용 DDL
 
-판단에 필요한 설정과 상태를 담는 테이블의 참고용 DDL은 [MariaDB용](reference-schema/mariadb/resource-thresholds.sql)과 [PostgreSQL용](reference-schema/postgresql/resource-thresholds.sql)이 있다. 두 파일은 `server_targets`와 `monitored_resources`를 외래 키로 가리키므로, 앱의 서버·Resource 테이블 이름에 맞게 고쳐 적용한다. 테이블마다 담는 것은 다음과 같다.
+판단에 필요한 설정과 상태를 담는 테이블의 참고용 DDL은 [MariaDB용](reference-schema/mariadb/resource-thresholds.sql)과 [PostgreSQL용](reference-schema/postgresql/resource-thresholds.sql)이 있다. 두 파일은 기본 테이블 DDL([MariaDB용](reference-schema/mariadb/base-tables.sql), [PostgreSQL용](reference-schema/postgresql/base-tables.sql))의 `server_targets`와 `monitored_resources`를 외래 키로 가리키므로, 그 파일 다음에 적용한다. 앱의 서버·Resource 테이블 이름이 다르면 맞게 고친다. 테이블마다 담는 것은 다음과 같다.
 
 | 테이블 | 담는 것 | Resource나 서버를 지우면 |
 |---|---|---|
