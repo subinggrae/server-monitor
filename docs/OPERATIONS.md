@@ -1,6 +1,6 @@
 # 운영 가이드
 
-모니터링 코어와 node_exporter를 설치하고, 코어에 붙일 관리자 서버를 만드는 설명서다. Prometheus를 모르는 개발자와 운영자가 이 문서만 보고 인터넷이 없는 서버에서도 감시부터 알림까지 동작시킬 수 있게 쓴다. 관리자 서버 API의 label 하나하나까지의 형식은 [통합 계약](INTEGRATION.md)에 있다. 통합 계약에서 "앱"이라고 부르는 것이 이 문서의 관리자 서버다.
+모니터링 코어와 OS exporter를 설치하고 운영하는 설명서다. Prometheus를 모르는 운영자가 이 문서만 보고 인터넷이 없는 서버에서도 코어를 띄우고 감시부터 알림까지 확인할 수 있게 쓴다. 코어에 붙일 관리자 서버를 만드는 방법은 [관리자 서버 만들기](ADMIN-SERVER.md)에 있다.
 
 ## 한눈에 보기
 
@@ -21,6 +21,22 @@
 7. 관리자 서버가 주기적으로 사용량을 물어 사용자가 정한 임계값과 비교하고, 넘으면 알린다. 임계값 판단은 코어가 하지 않는다.
 
 코어와 관리자 서버는 같은 서버에서 각자 컨테이너로 띄우고, Docker 네트워크 `monitoring`으로만 통신한다. 서로 다른 서버에 나눠 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 서버 한 대에는 코어 하나와 관리자 서버 하나만 둔다.
+
+## 코어 서버 사양
+
+코어 서버는 x86-64 Linux이고 Docker Engine과 Compose가 있어야 한다. 코어가 쓰는 메모리와 CPU는 감시 대상이 늘수록 늘고, 디스크는 감시 대상 수와 보관 기간(15일)에 따라 커진다. 다음 값은 2026-11-09에 개발 PC에서 감시 대상 없이 코어를 띄워 잰 값이다.
+
+| 항목 | 잰 값 |
+|---|---|
+| 서버로 옮길 묶음 폴더 | 약 160MB |
+| 서버에 불러온 이미지 | 약 550MB(Prometheus 372MB, Alertmanager 124MB, Blackbox Exporter 57MB) |
+| 메모리 | 약 75MiB(Prometheus 56MiB, Alertmanager 13MiB, Blackbox Exporter 7MiB) |
+| CPU | 1% 미만 |
+
+운영할 규모에서의 메모리와 디스크는 아직 재지 않았다. 감시 대상을 등록한 뒤 다음 방법으로 재서 서버 크기를 정한다.
+
+- **메모리**: 코어 서버에서 `docker stats --no-stream prometheus alertmanager blackbox-exporter`로 본다. 관리자 서버를 같은 서버에 두면 관리자 서버와 그 DB의 메모리를 더한다.
+- **디스크**: Prometheus 공식 문서의 계산식인 `보관 기간(초) × 초당 저장하는 값의 수 × 1~2바이트`로 계산한다([Prometheus 저장소 문서](https://prometheus.io/docs/prometheus/latest/storage/#operational-aspects), 확인일 2026-11-09). 초당 저장하는 값의 수는 `http://127.0.0.1:9090`에서 `rate(prometheus_tsdb_head_samples_appended_total[1h])`를 조회해 얻는다.
 
 ## 처음 따라 하기
 
@@ -56,7 +72,7 @@ core-dev.bat build
 
 ### 3. 코어 서버 준비
 
-처음 한 번만 한다. 코어 서버는 x86-64 Linux이고, 15일치 기록을 둘 디스크와 감시할 주소, 감시 대상 서버의 9100·9182 포트에 닿는 네트워크가 있어야 한다. 서버 주소, 접속 계정, 그 계정의 `sudo` 권한을 준비한다.
+처음 한 번만 한다. 코어 서버는 x86-64 Linux이고, [코어 서버 사양](#코어-서버-사양)에 맞는 디스크와 메모리, 감시할 주소와 감시 대상 서버의 9100·9182 포트에 닿는 네트워크가 있어야 한다. 서버 주소, 접속 계정, 그 계정의 `sudo` 권한을 준비한다.
 
 서버에 접속해(5번의 `ssh`) Docker가 있는지 본다. 두 명령 모두 버전이 나오면 설치할 필요가 없다. 이 저장소는 Docker Engine 29, Compose 5에서 확인했다.
 
@@ -111,7 +127,7 @@ sudo sh core-server.sh install
 sudo sh core-server.sh start
 ```
 
-- **`install`**: 관리자 서버 주소를 묻는다. 이 저장소의 관리자 서버(Manager)를 쓰면 `manager-api:8080`을 넣는다. 다른 관리자 서버는 그 컨테이너의 `이름:포트`를 넣는다([관리자 서버 띄우기](#관리자-서버-띄우기)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
+- **`install`**: 관리자 서버 주소를 묻는다. 이 저장소의 관리자 서버(Manager)를 쓰면 `manager-api:8080`을 넣는다. 다른 관리자 서버는 그 컨테이너의 `이름:포트`를 넣는다([관리자 서버 만들기의 관리자 서버 띄우기](ADMIN-SERVER.md#관리자-서버-띄우기)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
 - **`start`**: 파일이 온전한지 확인하고, 설정과 token을 검사한 뒤 코어를 띄워 정상 상태가 될 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
 
 `sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running healthy`인지도 볼 수 있다. 설치를 마친 서버의 폴더는 다음 모양이다. 새 버전은 이 설치 폴더에 나란히 둔다.
@@ -127,7 +143,7 @@ sudo sh core-server.sh start
 
 코어는 관리자 서버 없이도 정상으로 뜨고, 감시 대상이 없는 상태로 기다린다. 이어서 다음을 한다.
 
-1. 관리자 서버를 띄운다. 코어가 만든 `monitoring` 네트워크에 붙으므로 코어 다음에 띄운다([관리자 서버 띄우기](#관리자-서버-띄우기)). 관리자 서버가 뜨면 코어가 15~30초 안에 감시 대상 목록을 받아 간다.
+1. 관리자 서버를 띄운다. 코어가 만든 `monitoring` 네트워크에 붙으므로 코어 다음에 띄운다([관리자 서버 만들기의 관리자 서버 띄우기](ADMIN-SERVER.md#관리자-서버-띄우기)). 관리자 서버가 뜨면 코어가 15~30초 안에 감시 대상 목록을 받아 간다.
 2. 감시 대상 서버에 OS exporter를 설치하고 방화벽을 연다([OS exporter 설치](#os-exporter-설치)).
 3. 관리자 서버에 감시 대상을 등록하고 [설치 확인](#설치-확인)대로 동작을 본다.
 
@@ -169,7 +185,7 @@ sudo sh core-server.sh start
 
 다음 값은 코어 이미지와 묶음의 `compose.yml`에 들어 있다. 바꾸려면 저장소에서 고치고 다시 빌드해 모든 코어 서버를 갱신한다.
 
-- **주소 확인 장애의 기준**: 실패가 1분 이어지면 장애, 코어가 관리자 서버에 5분마다 다시 보냄. 그래서 관리자 서버의 재알림 주기는 5분보다 짧게 둘 수 없다. 1분을 화면에서 정하는 일은 [#5](https://github.com/subinggrae/server-monitor/issues/5)에 남아 있다.
+- **주소 확인 장애의 기준**: 실패가 1분 이어지면 장애, 코어가 관리자 서버에 5분마다 다시 보냄. 그래서 관리자 서버의 재알림 주기는 5분보다 짧게 둘 수 없다. 이 기준은 코어가 정하고 관리자 서버 화면에서는 바꾸지 않는다([ARCHITECTURE.md의 지켜야 할 경계](ARCHITECTURE.md#지켜야-할-경계)).
 - **주소 확인 방식**: 제한 시간 5초, IPv4만, HTTP는 2xx만 성공
 - **기록 보관 기간**: 15일
 - **코어 포트**: 9090, 9093, 9115
@@ -222,229 +238,7 @@ docker compose -f infrastructure/compose.yml ps
 
 ## 관리자 서버 만들기
 
-관리자 서버가 감시부터 알림까지 하려면 다음 여섯 가지를 만든다. 앞의 세 가지는 코어가 부르는 API라서 경로와 형식을 정해진 대로 만들고, 뒤의 세 가지는 관리자 서버 안에서 자유롭게 만든다.
-
-| 만들 것 | 누가 언제 | 하는 일 |
-|---|---|---|
-| 주소 감시 대상 목록 API | 코어가 15초마다 `GET /api/prometheus/sd/blackbox` | 확인할 주소와 확인 주기를 내줌 |
-| 서버 감시 대상 목록 API | 코어가 30초마다 `GET /api/prometheus/sd/os-exporter` | 사용량을 모을 서버와 수집 주기를 내줌 |
-| 장애 수신 API | 코어가 장애가 생기거나 바뀔 때 `POST /api/integrations/alertmanager/webhook` | 장애를 기록하고 알림을 보냄 |
-| 결과 조회 | 관리자 서버가 필요할 때 코어의 `GET /api/v1/query` | 주소 확인 결과와 사용률을 화면에 보임 |
-| 임계값 판단 | 관리자 서버 안의 주기 작업 | 사용률이 임계값을 넘으면 알림 |
-| 알림 발송과 재알림 | 관리자 서버 안 | 문자, 메신저 등으로 보내고 재알림 주기를 지킴 |
-
-DB 테이블은 이 저장소의 기준 migration(`backend/src/main/resources/db/migration/`의 `V1__baseline.sql`)과 [임계값 판단용 참고 DDL](INTEGRATION.md#참고용-ddl)을 참고한다.
-
-### 주소 감시 대상 목록 API
-
-- **요청**: 코어가 15초마다 `GET /api/prometheus/sd/blackbox`를 부른다. 인증은 없다.
-- **응답**: `200`, `Content-Type: application/json`으로 JSON 배열을 돌려준다. 켜져 있는 감시 주소 하나가 항목 하나이고, 대상이 없으면 `[]`이다.
-- **오류**: DB 오류 등으로 목록을 만들지 못하면 `[]`이 아니라 `5xx`를 돌려준다. `[]`을 받으면 코어가 모든 감시를 멈추지만, 오류를 받으면 마지막 목록으로 감시를 이어 간다.
-
-응답 예는 다음과 같다. label 값은 모두 문자열로 보낸다. 숫자로 보내면 코어가 목록 전체를 거부한다.
-
-```json
-[
-  {
-    "targets": ["https://example.com/health"],
-    "labels": {
-      "check_id": "12", "check_target_id": "31", "check_type": "HTTPS", "module": "http_2xx",
-      "environment": "Production", "check_name": "전자결재 Health", "__scrape_interval__": "30s"
-    }
-  }
-]
-```
-
-확인 방식마다 `targets`와 `module`에 넣는 값은 다음과 같다.
-
-| 확인 방식(`check_type`) | `targets` | `module` |
-|---|---|---|
-| `ICMP`(ping) | host 또는 IP | `icmp` |
-| `TCP` | `host:port` | `tcp_connect` |
-| `HTTP`, `HTTPS` | 전체 URL | `http_2xx` |
-
-`check_id`와 `check_target_id`는 감시 항목과 그 주소의 id이고, 장애를 받았을 때 어느 감시 항목인지 찾는 열쇠다. 한 번 정한 id는 바꾸지 않는다. `__scrape_interval__`은 확인 주기이고 `10s`~`240s`다. label마다의 뜻은 [통합 계약의 가용성 Check 대상](INTEGRATION.md#가용성-check-대상-get-apiprometheussdblackbox)에 있다.
-
-### 서버 감시 대상 목록 API
-
-- **요청**: 코어가 30초마다 `GET /api/prometheus/sd/os-exporter`를 부른다. 인증은 없다.
-- **응답**: 주소 감시 대상 목록과 같은 형식이다. 감시와 사용량 수집을 모두 켠 서버 하나가 항목 하나이고, `targets`는 OS exporter의 `host:port`다.
-- **오류**: 주소 감시 대상 목록과 같이 `5xx`를 돌려준다.
-
-```json
-[
-  {
-    "targets": ["10.0.0.21:9100"],
-    "labels": {
-      "server_id": "7", "server_name": "웹 서버 1", "environment": "Production", "os": "LINUX",
-      "__scrape_interval__": "30s"
-    }
-  }
-]
-```
-
-`server_id`는 사용량을 서버별로 찾는 열쇠라 한 번 정하면 바꾸지 않는다. `os`는 `LINUX` 또는 `WINDOWS`다.
-
-### 장애 수신 API
-
-- **요청**: 코어가 `POST /api/integrations/alertmanager/webhook`을 부른다. 장애가 처음 생기면 30초 기다렸다 보내고, 이어지면 5분마다, 풀리면 복구를 보낸다. 한 요청에 같은 감시 항목의 장애 여러 개(주소마다 하나)가 `alerts` 배열로 온다.
-- **인증**: `Authorization: Bearer <token>` 헤더가 붙는다. token 파일 값과 고정 시간 비교로 맞춰 보고, 다르면 `401`을 돌려주고 기록하지 않는다.
-- **응답**: 처리하면 `2xx`를 돌려준다. 알림 전송에 실패해도 `2xx`다. 실패를 돌려주면 코어가 같은 장애를 계속 다시 보낸다. 모르는 필드가 있어도 실패하지 않는다.
-
-받는 내용 가운데 쓰는 필드는 다음과 같다.
-
-```json
-{
-  "alerts": [
-    {
-      "status": "firing",
-      "labels": {
-        "alertname": "MonitoringCheckDown", "check_id": "12", "check_target_id": "31",
-        "check_name": "전자결재 Health", "instance": "https://example.com/health"
-      },
-      "annotations": { "summary": "전자결재 Health 확인에 실패했습니다" },
-      "startsAt": "2026-10-21T01:02:03.000Z",
-      "endsAt": "0001-01-01T00:00:00Z",
-      "fingerprint": "a1b2c3d4e5f60718"
-    }
-  ]
-}
-```
-
-`alerts`의 항목마다 다음 순서로 처리한다.
-
-1. `labels.check_id`로 감시 항목을 찾는다. 지운 감시 항목이면 기록만 남기고 알리지 않는다.
-2. `fingerprint`와 `startsAt`으로 장애 한 번을 구분한다. 같은 값이 다시 오면 같은 장애가 이어지고, 복구된 뒤 다시 실패하면 `startsAt`이 새로 온다.
-3. `status`가 `firing`이면 장애, `resolved`면 복구다. 복구 시각은 `endsAt`이고, 장애 중의 `endsAt`(`0001-01-01`)은 쓰지 않는다.
-4. 같은 장애가 다시 오면 마지막 알림 뒤 그 감시 항목의 재알림 주기가 지났을 때만 다시 알린다.
-
-`alertname`이 `MonitoringCheckProbeFailed`이면 대상이 아니라 코어의 확인 기능이 멈췄다는 뜻이다. label은 같아서 어느 감시 항목의 확인이 멈췄는지 알 수 있다. 전체 필드는 [통합 계약의 Alert](INTEGRATION.md#alert-post-apiintegrationsalertmanagerwebhook)에 있다.
-
-### 코어에 결과 묻기
-
-관리자 서버는 `http://prometheus:9090/api/v1/query`에 조회식을 `query` 파라미터로 넘겨 결과를 읽는다. 인증은 없다. 자주 쓰는 조회는 다음과 같다.
-
-| 알고 싶은 것 | `query` 값 | 결과를 나누는 label |
-|---|---|---|
-| 주소마다 마지막 확인 결과(1 성공, 0 실패) | `probe_success{job="manager-blackbox"}` | `check_target_id` |
-| 서버마다 수집 상태(1 수집 중, 0 실패) | `max by (server_id) (up{job="manager-os"})` | `server_id` |
-| 한 서버의 사용률(0~100) | `manager:resource_usage_percent{server_id="7"}` | `resource_type`, `resource_key` |
-
-응답은 `{"status":"success","data":{"result":[{"metric":{...},"value":[조회 시각,"값"]}]}}` 형태다. 읽을 때는 다음을 지킨다.
-
-- `status`가 `success`가 아니거나 연결에 실패하면 "알 수 없음"으로 보이고, 화면이나 판단을 멈추지 않는다.
-- `result`가 빈 배열이면 아직 수집하지 않았거나 수집에 실패했다는 뜻이다. 값이 `"NaN"`일 수도 있다.
-- `value`의 첫 값은 조회한 시각이고 수집한 시각이 아니다. 값이 지금 것인지는 그 서버의 수집 상태가 1인지로 본다.
-- 대상마다 따로 부르지 않고 한 번에 읽어 label로 나눈다.
-
-응답 예와 자세한 규칙은 [통합 계약의 코어가 제공할 것](INTEGRATION.md#코어가-제공할-것)에 있다.
-
-### 임계값 판단
-
-CPU·Memory·디스크 임계값은 코어가 판단하지 않는다. 관리자 서버가 서버의 수집 주기마다 사용률을 읽어 임계값과 비교하고, 넘은 상태가 지속 시간 동안 이어지면 알린다. 값을 읽지 못하면 이미 알린 장애는 유지하고, 관리자 서버를 다시 띄우면 대기 중이던 판단을 처음부터 다시 잰다. Critical이 발생 중이면 같은 리소스의 Warning은 보내지 않는다. 전체 규칙과 참고 DDL은 [통합 계약의 리소스 임계값 판단](INTEGRATION.md#리소스-임계값-판단)에 있다.
-
-### 관리자 서버 띄우기
-
-관리자 서버는 다음 조건으로 띄운다.
-
-- 코어 다음에 띄우고 `monitoring` 네트워크에 붙는다.
-- 컨테이너 이름과 포트가 코어 `.env`의 `MONITORING_APP_ADDRESS`와 같다.
-- 코어와 같은 token 파일을 컨테이너에 붙인다. 컨테이너 안에서는 `/run/secrets/alertmanager_webhook_token`에서 읽는다. 코드나 설정 파일에 값을 쓰지 않는다.
-- 목록 API는 인증 없이 불리므로 관리자 서버 포트를 밖에 열지 않는다. 화면을 열어야 하면 `127.0.0.1`에만 묶는다.
-
-`docker run`으로 띄우면 다음과 같다. `my-admin`, `my-admin-image`, 환경 변수 이름은 관리자 서버에 맞춘다.
-
-```sh
-docker run -d --name my-admin --network monitoring \
-  -v /opt/monitoring/secrets/alertmanager_webhook_token:/run/secrets/alertmanager_webhook_token:ro \
-  -e PROMETHEUS_URL=http://prometheus:9090 \
-  -p 127.0.0.1:8080:8080 my-admin-image
-```
-
-이미 떠 있는 관리자 서버는 다시 띄우지 않고 `docker network connect monitoring my-admin`으로 네트워크에 붙여도 된다. compose로 띄우면 다음과 같다.
-
-```yaml
-services:
-  my-admin:
-    image: my-admin-image
-    container_name: my-admin
-    ports:
-      - "127.0.0.1:8080:8080"
-    environment:
-      PROMETHEUS_URL: http://prometheus:9090
-    secrets:
-      - alertmanager_webhook_token
-    networks:
-      - monitoring
-
-secrets:
-  alertmanager_webhook_token:
-    file: /opt/monitoring/secrets/alertmanager_webhook_token
-
-networks:
-  monitoring:
-    name: monitoring
-    external: true
-```
-
-### 가장 작은 구현 예
-
-다음은 코어가 부르는 API 세 개만 만든 Node.js 예다. 고정된 대상 목록을 내주고, 받은 장애를 콘솔에 찍는다. [설치 확인](#설치-확인)을 이 예로 시험했다. 실제 관리자 서버는 목록을 DB에서 만들고, 장애를 기록하고 알림을 보낸다.
-
-```js
-import http from 'node:http';
-import fs from 'node:fs';
-import crypto from 'node:crypto';
-
-// 코어와 같은 token 파일을 읽는다. 값을 로그에 남기지 않는다.
-const token = fs.readFileSync('/run/secrets/alertmanager_webhook_token', 'utf8').trim();
-
-// label 값은 모두 문자열이다. id를 숫자로 보내면 코어가 목록 전체를 거부한다.
-const addressTargets = [
-  { targets: ['https://example.com/health'],
-    labels: { check_id: '1', check_target_id: '11', check_type: 'HTTPS', module: 'http_2xx',
-      environment: 'Production', check_name: '서비스 상태', __scrape_interval__: '30s' } },
-];
-const serverTargets = [
-  { targets: ['10.0.0.21:9100'],
-    labels: { server_id: '7', server_name: '웹 서버 1', environment: 'Production', os: 'LINUX',
-      __scrape_interval__: '30s' } },
-];
-
-function json(res, body) {
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(body));
-}
-
-http.createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/api/prometheus/sd/blackbox') return json(res, addressTargets);
-  if (req.method === 'GET' && req.url === '/api/prometheus/sd/os-exporter') return json(res, serverTargets);
-  if (req.method === 'POST' && req.url === '/api/integrations/alertmanager/webhook') {
-    const given = Buffer.from(req.headers.authorization ?? '');
-    const expected = Buffer.from(`Bearer ${token}`);
-    if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
-      res.writeHead(401);
-      return res.end();
-    }
-    let body = '';
-    req.on('data', (chunk) => { body += chunk; });
-    req.on('end', () => {
-      for (const alert of JSON.parse(body).alerts) {
-        // status는 firing(장애) 또는 resolved(복구)다. 여기서 기록하고 알림을 보낸다.
-        console.log(alert.status, alert.labels.check_id, alert.labels.instance, alert.annotations.summary);
-      }
-      // 알림 전송에 실패해도 2xx를 돌려준다. 실패를 돌려주면 코어가 같은 장애를 계속 다시 보낸다.
-      res.writeHead(200);
-      res.end();
-    });
-    return;
-  }
-  res.writeHead(404);
-  res.end();
-}).listen(8080);
-```
-
-이 저장소의 관리자 서버(Manager)는 이 여섯 가지 가운데 임계값 판단을 뺀 다섯 가지를 갖추고 있다.
+관리자 서버가 만들 기능, DB에 둘 데이터, 띄우는 방법은 [관리자 서버 만들기](ADMIN-SERVER.md)에 있다.
 
 ## 설치 확인
 

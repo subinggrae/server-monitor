@@ -19,7 +19,7 @@ docker compose --profile local-db up -d --build
 
 ## 운영
 
-코어, 앱, OS exporter를 서버에 설치하는 방법과 포트·방화벽·비밀값 같은 보안 설정은 [운영 가이드](docs/OPERATIONS.md)에 있다.
+코어, 앱, OS exporter를 서버에 설치하는 방법과 포트·방화벽·비밀값 같은 보안 설정은 [운영 가이드](docs/OPERATIONS.md)에 있다. 코어에 붙일 관리자 서버를 직접 만들 때는 [관리자 서버 만들기](docs/ADMIN-SERVER.md)를 읽는다.
 
 ## 문서
 
@@ -29,6 +29,7 @@ docker compose --profile local-db up -d --build
 |---|---|
 | 시스템 구조와 코드 위치 | [아키텍처](docs/ARCHITECTURE.md) |
 | 서버 설치, 포트·방화벽·비밀값 설정 | [운영 가이드](docs/OPERATIONS.md) |
+| 관리자 서버가 만들 기능과 DB에 둘 데이터 | [관리자 서버 만들기](docs/ADMIN-SERVER.md) |
 | 개발 환경, 명령, 코드 작성 기준, 코드 안의 글, 커밋·리뷰와 반영 절차 | [개발 가이드](docs/DEVELOPMENT.md) |
 | 테스트 종류와 작성 기준 | [테스트](docs/TESTING.md) |
 | 제품의 대상, 사용 환경, 말투 | [제품](docs/PRODUCT.md) |
