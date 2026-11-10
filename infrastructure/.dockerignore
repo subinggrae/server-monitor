@@ -5,7 +5,9 @@
 .env.*
 !.env.example
 
-# 코어 이미지에 쓰지 않는 파일입니다.
+# 코어 이미지에 쓰지 않는 파일입니다. 펼친 설정(rendered/)과 CA 인증서 파일(certs/)은 컨테이너에 따로 붙입니다.
 grafana/
 node-exporter/
 prometheus/tests/
+rendered/
+certs/

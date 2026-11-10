@@ -1,7 +1,7 @@
 # Prometheus 배포용 설정 템플릿입니다.
 #
-# @MONITORING_APP_ADDRESS@는 컨테이너가 시작할 때 코어 설정(infrastructure/.env)의 앱 주소로 바뀝니다.
-# 앱 주소를 이 파일에 직접 적지 않습니다. 펼치는 방법은 infrastructure/render-config.sh에 있습니다.
+# @MONITORING_APP_ADDRESS@는 운영 명령이 띄우기 전에 코어 설정(infrastructure/.env)의 앱 주소로 바꿉니다.
+# 앱 주소를 이 파일에 직접 적지 않습니다. 펼치는 방법은 infrastructure/core-server.sh의 render에 있습니다.
 #
 # 사용자가 UI에서 Check를 등록해도 이 파일은 수정하지 않습니다.
 # 모니터링 대상은 Manager의 HTTP Service Discovery로 관리합니다.
@@ -15,8 +15,8 @@ global:
   scrape_timeout: 10s
   evaluation_interval: 15s
 
-# 기록 보관 기간과 용량입니다. 컨테이너가 시작할 때 코어 설정 파일(.env)의 CORE_RETENTION_DAYS(기본 15일)와
-# CORE_RETENTION_SIZE_GB(기본 제한 없음, 0B)로 바뀝니다. 둘 다 정하면 먼저 닿는 쪽에 맞춰 오래된 기록부터 지웁니다.
+# 기록 보관 기간과 용량입니다. 운영 명령이 띄우기 전에 코어 설정 파일(.env)의 CORE_RETENTION_DAYS(기본 15일)와
+# CORE_RETENTION_SIZE_GB(기본 제한 없음, 0B)로 바꿉니다. 둘 다 정하면 먼저 닿는 쪽에 맞춰 오래된 기록부터 지웁니다.
 # 실행 인자(--storage.tsdb.retention.*)는 deprecated라 쓰지 않습니다. (요구사항 0013)
 storage:
   tsdb:
