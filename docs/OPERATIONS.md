@@ -134,7 +134,7 @@ sudo sh core-server.sh start
 - **`install`**: 관리자 서버 주소를 묻는다. 이 저장소의 관리자 서버(Manager)를 쓰면 `manager-api:8080`을 넣는다. 다른 관리자 서버는 그 컨테이너의 `이름:포트`를 넣는다([관리자 서버 만들기의 관리자 서버 띄우기](ADMIN-SERVER.md#관리자-서버-띄우기)). 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 설정 파일 `.env`를 만든다. token 값은 화면에 보이지 않는다.
 - **`start`**: 파일이 온전한지 확인하고, 설정과 token, 복사한 CA 인증서 파일을 검사한다. 그다음 설정을 묶음 폴더의 `rendered/`에 펼치고 코어를 띄워, 세 프로그램이 준비됐다고 답할 때까지 최대 3분 기다린다. 인터넷에서 아무것도 받지 않는다. 마지막 줄에 `코어가 떠 있습니다: 버전 …`이 보이면 성공이다. 실패하면 무엇이 잘못됐고 어떻게 고치는지 보이므로 그대로 고친 뒤 다시 실행한다.
 
-`sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`인지도 볼 수 있다. 운영 명령은 코어 서버에서 `curl`(없으면 `wget`)로 `127.0.0.1`의 세 포트를 불러 준비 여부를 본다. 두 도구가 모두 없으면 컨테이너가 실행 중이고 다시 시작하지 않는지만 보고 경고하므로, 코어 서버에 `curl`을 둔다. 코어 컨테이너에는 healthcheck가 없어 `docker ps`에는 `healthy`가 보이지 않는다.
+`sudo sh core-server.sh status`를 실행해 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`인지도 볼 수 있다. 운영 명령은 코어 서버에서 `curl`(없으면 `wget`)로 `127.0.0.1`의 세 포트를 불러 준비 여부를 본다. 두 도구가 모두 없으면 `start`가 코어를 바꾸지 않고 멈추므로, 코어 서버에 `curl`을 둔다. 코어 컨테이너에는 healthcheck가 없어 `docker ps`에는 `healthy`가 보이지 않는다.
 
 설치를 마친 서버의 폴더는 다음 모양이다. 새 버전은 이 설치 폴더에 나란히 둔다.
 
@@ -306,25 +306,24 @@ docker compose -f infrastructure/compose.yml ps
 
 ## 운영 작업
 
-코어를 운영하면서 하는 일은 다음과 같다. 명령은 지금 쓰는 버전의 묶음 폴더에서 실행한다. 저장소에서 실행했으면 `core-dev.bat`을 쓰거나 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
+코어를 운영하면서 하는 일은 다음과 같다. 명령은 지금 쓰는 버전의 묶음 폴더에서 실행하고, [처음 따라 하기](#5-서버에서-설치하고-띄우기)처럼 설치 폴더에 쓰고 Docker를 쓰려면 `sudo`를 붙인다. 저장소에서 실행했으면 `core-dev.bat`을 쓰거나 `docker compose` 뒤에 `-f infrastructure/compose.yml`을 붙인다.
 
 - **관리자 서버 이름·포트 바꾸기**: `.env`의 `MONITORING_APP_ADDRESS`를 고친 뒤 `sh core-server.sh start`를 실행한다.
 - **기록 보관 기간·용량, 주소 확인 제한 시간, 포트 바꾸기**: `.env`의 값을 고친 뒤 `sh core-server.sh start`를 실행한다([서버에서 바꾸는 값](#서버에서-바꾸는-값)). 쌓은 기록과 장애 상태는 이어진다.
 - **기록 보관 값 줄이기**: 보관 기간을 줄이거나, 보관 용량을 줄이거나, 제한이 없던 용량을 처음 정하고 `start`를 실행하면 운영 명령이 `기록 보관 값을 줄입니다`와 함께 계속할지 묻는다. `y`를 넣어야 띄우고, 그 밖의 답이면 아무것도 바꾸지 않는다. 터미널이 아닌 곳(예: 다른 스크립트)에서 실행하면 물을 수 없으므로 띄우지 않는다. 운영 명령은 떠 있거나 멈춰 있는 코어의 값과 비교하므로, `docker compose down`으로 코어 컨테이너를 지운 뒤에는 묻지 않고 새 값으로 띄운다. 그때는 `.env`의 값을 먼저 확인한다.
-- **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 [처음 따라 하기의 CA 인증서 파일 복사](#5-서버에서-설치하고-띄우기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh core-server.sh start`를 실행한다. 운영 명령이 바뀐 파일을 알아보고 Blackbox Exporter를 다시 만든다. 다시 복사하고 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
-- **token 바꾸기**: 코어를 띄운 묶음 폴더에서 다음을 실행하고, 관리자 서버도 다시 띄운다. 관리자 서버는 시작할 때 token을 읽고, Alertmanager는 다시 만들어야 새 파일을 확실히 읽는다. 관리자 서버를 다시 띄울 때까지 장애 알림이 거부된다.
+- **OS의 CA 인증서를 바꾼 뒤**: OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 [처음 따라 하기의 CA 인증서 파일 복사](#5-서버에서-설치하고-띄우기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh core-server.sh start`를 실행한다. 운영 명령이 바뀐 파일을 알아보고 세 컨테이너를 다시 만든다. 그동안 잠깐 수집과 확인이 멈춘다. 다시 복사하고 띄우기 전에는 이전 인증서로 HTTPS 주소를 확인한다.
+- **token 바꾸기**: 코어를 띄운 묶음 폴더에서 다음을 실행하고, 관리자 서버도 다시 띄운다. 첫 명령은 새 값을 임시 파일에 쓴 뒤 이름을 바꿔 옮기므로, 쓰는 도중의 파일을 읽지 않고 값이 화면에 나오지 않는다. 관리자 서버는 시작할 때 token을 읽고, Alertmanager는 다시 만들어야 새 파일을 확실히 읽는다. 관리자 서버를 다시 띄울 때까지 장애 알림이 거부된다. `.env`의 `CORE_SECRETS_DIR`에 다른 폴더를 적었으면 `../secrets` 대신 그 폴더를 쓴다.
 
   ```sh
-  openssl rand -hex 32 > ../secrets/alertmanager_webhook_token
-  chmod 0644 ../secrets/alertmanager_webhook_token
-  docker compose up -d --force-recreate alertmanager
+  sudo sh -c 'umask 022; f=../secrets/alertmanager_webhook_token; od -An -tx1 -N32 /dev/urandom | tr -d " \n" > "$f.new" && echo >> "$f.new" && mv -f "$f.new" "$f"'
+  sudo docker compose up -d --force-recreate alertmanager
   ```
 - **빌드 전에 고치는 값 바꾸기**: 저장소에서 고친 뒤 새 묶음을 만들어 옮기고, 아래 갱신 절차를 따른다. 저장소에서 실행하면 `core-dev.bat start`로 다시 띄운다.
 - **새 버전으로 갱신**: 새 묶음 폴더를 이전 묶음 폴더 옆에 옮기고, 새 폴더에서 다음을 실행한다. token과 CA 인증서 파일은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어지고, 이전 폴더는 되돌릴 때 쓰도록 남긴다.
 
   ```sh
-  cp ../monitoring-core-<이전 버전>/.env .
-  sh core-server.sh start
+  sudo cp ../monitoring-core-<이전 버전>/.env .
+  sudo sh core-server.sh start
   ```
 - **운영 명령이 없던 묶음에서 갱신**: 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 token을 옮기지 않고 `install`을 실행하면 새 token이 생겨 관리자 서버의 token과 어긋나므로, 다음 순서로 옮긴다.
   1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다.
@@ -337,7 +336,7 @@ docker compose -f infrastructure/compose.yml ps
 
   ```sh
   sudo rm -rf /opt/monitoring/monitoring-core-<오래된 버전>
-  docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-core-alertmanager:<오래된 버전> monitoring-core-blackbox-exporter:<오래된 버전>
+  sudo docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-core-alertmanager:<오래된 버전> monitoring-core-blackbox-exporter:<오래된 버전>
   ```
 
 - **서버 재시작**: 할 일이 없다. 서버가 켜지면 Docker가 켜지고(설치 때 `systemctl enable`), 세 컨테이너가 재시작 정책(`unless-stopped`)으로 다시 뜬다. 켜진 뒤 `sh core-server.sh status`로 세 줄이 `running, 준비됨`인지 본다. `docker compose down`으로 멈춘 코어는 다시 뜨지 않으므로 `sh core-server.sh start`로 띄운다.
@@ -360,13 +359,14 @@ docker compose -f infrastructure/compose.yml ps
 | `CA 인증서 파일이 없습니다` 또는 `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 CA 인증서 파일을 복사하지 않음 | [처음 따라 하기](#5-서버에서-설치하고-띄우기)대로 복사한다 |
 | `CA 인증서 파일 자리에 폴더가 있습니다` | 파일을 복사하기 전에 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 파일을 복사한다 |
 | `컨테이너가 CA 인증서 파일을 읽을 수 없습니다` | 복사한 파일의 권한이 0600 등임 | 파일 권한을 0644로 바꾼다 |
-| `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 파일 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
+| `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 파일 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `sudo rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
 | `펼친 설정 폴더가 심볼릭 링크입니다` 또는 `펼친 설정 파일이 심볼릭 링크입니다` | 묶음 폴더의 `rendered/`나 그 안의 파일이 다른 곳을 가리킴 | 링크를 지우고 다시 실행한다 |
 | `env file …/rendered/core.env not found` | `render`를 실행하지 않고 `docker compose up -d`를 실행함 | `sh core-server.sh render`를 실행한 뒤 다시 띄우거나, `sh core-server.sh start`로 띄운다 |
 | `curl과 wget이 없어 코어가 정상인지 확인할 수 없습니다` | 코어 서버에 `curl`과 `wget`이 모두 없음 | 코어 서버에 `curl`을 설치한다 |
 | `정상 상태가 되지 않았습니다` | 띄운 프로그램이 3분 안에 준비됐다고 답하지 않음 | 안내의 `docker logs <컨테이너>`로 로그를 본다 |
 | `exec: "sh": executable file not found` | `docker exec`로 코어 컨테이너 안의 셸을 열려 함 | 셸 대신 로그와 `127.0.0.1`의 HTTP API로 본다 |
-| `token 파일이 없습니다` | token을 만들지 않았거나 예전 방식대로 묶음 폴더의 `secrets/`에 둠 | 처음 설치면 `sh core-server.sh install`, 예전 묶음에서 갱신하는 중이면 [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 옮긴다 |
+| `token 파일이 없습니다` | token을 만들지 않았거나 예전 방식대로 묶음 폴더의 `secrets/`에 둠 | 처음 설치면 `sh core-server.sh install`을 실행하고, 코어가 이미 있으면 새 token을 만들지 않고 [운영 명령이 없던 묶음에서 갱신](#운영-작업)대로 쓰던 token을 옮긴다 |
+| `설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면` | 갱신하며 이전 폴더의 `.env`를 복사하지 않음 | [새 버전으로 갱신](#운영-작업)대로 `.env`를 복사한다 |
 | `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워서 Docker가 그 자리에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar`로 불러온다 |
 | `sha256sum`이 `FAILED` | 옮기는 중에 파일이 망가짐 | 묶음을 다시 옮긴다 |
