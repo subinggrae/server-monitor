@@ -126,6 +126,7 @@ write_fake_http() {
 #!/bin/sh
 for url; do :; done
 echo "$1 \$*" >> "\$FAKE/ready_calls"
+printf '%s %s' "\${NO_PROXY:-}" "\${no_proxy:-}" > "\$FAKE/proxy_seen"
 port=\$(printf '%s' "\$url" | sed 's|^http://[^:/]*:\([0-9]*\)/.*|\1|')
 if [ -f "\$FAKE/not_ready_ports" ] && grep -qx "\$port" "\$FAKE/not_ready_ports"; then
   exit $2
@@ -151,6 +152,12 @@ prepared() {
   printf 'secret-value-for-test\n' > "$INSTALL/secrets/alertmanager_webhook_token"
   chmod 0644 "$INSTALL/secrets/alertmanager_webhook_token"
   printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$BUNDLE/.env"
+}
+
+# 이 묶음 폴더에서 start로 띄운 상태. 부른 명령 기록은 지운다.
+started() {
+  run start
+  rm -f "$FAKE/calls" "$FAKE/ready_calls"
 }
 
 # 다른 버전의 코어가 떠 있는 상태. 두 번째 인자는 그 이미지의 커밋 시각 label 값이다.
@@ -439,7 +446,7 @@ check 'token을 이미 있는 폴더에 만들면 그 폴더의 권한을 바꾸
 
 # --- token 바꾸기 ---
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; before=$(cat "$TOKEN")
+setup; prepared; started; before=$(cat "$TOKEN")
 run rotate-token
 check 'token을 바꾸면 새 값을 쓰고 출력하지 않는다' \
   '[ $RC -eq 0 ] && [ "$(cat "$TOKEN")" != "$before" ] && grep -Eq "^[0-9a-f]{64}$" "$TOKEN" && ! contains "$(cat "$TOKEN")"'
@@ -459,15 +466,33 @@ run rotate-token
 check '코어가 멈춰 있으면 token만 바꾸고 컨테이너를 띄우지 않는다' \
   '[ $RC -eq 0 ] && [ "$(cat "$TOKEN")" != "$before" ] && ! called "^compose" && contains "다음 start"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; printf '9093\n' > "$FAKE/not_ready_ports"
+setup; prepared; started; printf '9093\n' > "$FAKE/not_ready_ports"
 run rotate-token
 check 'token을 바꾼 뒤 Alertmanager가 준비되지 않으면 로그 명령을 보인다' \
   '[ $RC -ne 0 ] && contains "docker logs alertmanager"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"
+setup; prepared; started
 run rotate-token
 check 'token을 바꾸면 Alertmanager의 준비 확인 주소만 부른다' \
   '[ $RC -eq 0 ] && ready_called "127.0.0.1:9093/-/ready" && ! ready_called ":9090/"'
+
+# Alertmanager만 다시 만드는데 다른 설정까지 바꾸면 Prometheus와 Blackbox Exporter가 다음 다시 시작 때 확인 없이 새 설정을 읽는다.
+setup; prepared; started; before=$(cat "$TOKEN")
+printf 'CORE_RETENTION_DAYS=30\n' >> "$BUNDLE/.env"; expected=$(cat "$RENDERED/prometheus.yml")
+run rotate-token
+check '지난 띄우기 뒤 설정 값을 바꿨으면 token을 바꾸지 않고 start를 먼저 안내한다' \
+  '[ $RC -ne 0 ] && contains "sh core-server.sh start" && [ "$(cat "$TOKEN")" = "$before" ] && [ "$(cat "$RENDERED/prometheus.yml")" = "$expected" ] && ! called "^compose"'
+
+setup; prepared; printf 'x' >> "$BUNDLE/templates/alertmanager.yml"; running_other v2 1761600000 "$BUNDLE"; before=$(cat "$TOKEN")
+run rotate-token
+check '묶음의 템플릿이 바뀌었으면 token을 바꾸지 않는다' \
+  '[ $RC -ne 0 ] && contains "체크섬" && [ "$(cat "$TOKEN")" = "$before" ]'
+
+setup; prepared
+OUT=$(cd "$BUNDLE" && http_proxy=http://proxy.invalid:3128 HTTP_PROXY=http://proxy.invalid:3128 sh ./core-server.sh start 2>&1 < /dev/null)
+RC=$?
+check '셸에 프록시가 있어도 준비 확인은 127.0.0.1을 프록시 없이 부른다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/proxy_seen")" = "127.0.0.1 127.0.0.1" ]'
 
 # --- 서버에서 바꾸는 코어 설정 값(요구사항 0013) ---
 
@@ -717,8 +742,8 @@ config_hash() { sed -n 's/^CORE_CONFIG_SHA256=//p' "$RENDERED/core.env"; }
 
 setup; prepared
 run render
-check '설정을 펼치면 검사한 주소와 기본값으로 세 설정을 rendered/에 쓰고 Docker를 부르지 않는다' \
-  '[ $RC -eq 0 ] && [ "$(rendered_address)" = "manager-api:8080" ] && grep -q "^      time: 15d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 0B$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 5s$" "$RENDERED/blackbox.yml")" -eq 3 ] && grep -q "http://manager-api:8080/api/integrations/alertmanager/webhook" "$RENDERED/alertmanager.yml" && [ ! -f "$FAKE/calls" ]'
+check '설정을 펼치면 검사한 주소와 기본값으로 세 설정을 rendered/에 쓰고 이미지와 컨테이너는 바꾸지 않는다' \
+  '[ $RC -eq 0 ] && [ "$(rendered_address)" = "manager-api:8080" ] && grep -q "^      time: 15d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 0B$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 5s$" "$RENDERED/blackbox.yml")" -eq 3 ] && grep -q "http://manager-api:8080/api/integrations/alertmanager/webhook" "$RENDERED/alertmanager.yml" && ! called "^compose" && ! called load'
 check '설정을 펼치면 Compose로 띄우는 방법과 .env를 바꾸면 다시 펼쳐야 한다는 것을 보인다' \
   'contains "docker compose up -d" && contains "다시 실행"'
 check '펼친 설정에 자리표시와 token 값이 남지 않는다' \
@@ -729,6 +754,25 @@ check '설정을 펼치면 OS의 CA 인증서 파일을 복사하고 컨테이�
   '[ "$(cat "$RENDERED/ca-certificates.crt")" = "TEST CA 1" ] && grep -q "^CORE_RETENTION_DAYS=15$" "$RENDERED/core.env" && grep -q "^CORE_RETENTION_SIZE_GB=$" "$RENDERED/core.env" && grep -q "^CORE_PROBE_TIMEOUT_SECONDS=5$" "$RENDERED/core.env" && [ "$(config_hash | grep -c "^[0-9a-f]\{64\}$")" -eq 1 ]'
 check '설정을 펼친 뒤 임시 파일을 남기지 않는다' \
   '[ "$(ls -A "$RENDERED" | sort | tr "\n" " ")" = "alertmanager.yml blackbox.yml ca-certificates.crt core.env prometheus.yml " ]'
+
+# umask가 좁은 서버에서도 컨테이너 사용자(nobody)가 읽을 수 있어야 한다.
+setup; prepared
+umask 077
+run render
+umask 022
+check 'umask가 077이어도 펼친 설정은 컨테이너 사용자가 읽을 수 있다' \
+  '[ $RC -eq 0 ] && [ "$(mode "$RENDERED")" = drwxr-xr-x ] && [ "$(mode "$RENDERED/prometheus.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/core.env")" = -rw-r--r-- ]'
+
+# 펼친 설정은 떠 있는 컨테이너가 다시 시작할 때 읽을 수 있어, 보관 값을 줄이면 설정 펼치기도 확인을 묻는다.
+setup; prepared; previously_rendered; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
+run render
+check '떠 있는 코어보다 보관 기간을 줄여 펼치는데 터미널이 아니면 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "되돌릴 수 없습니다" && unchanged'
+
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
+run_in_terminal y render
+check '떠 있는 코어보다 보관 기간을 줄여 펼칠지 물었을 때 y이면 펼친다' \
+  '[ $RC -eq 0 ] && contains "계속할까요" && grep -q "^      time: 15d$" "$RENDERED/prometheus.yml"'
 
 setup; prepared; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50 CORE_PROBE_TIMEOUT_SECONDS=9
 run render

@@ -27,7 +27,8 @@ TEMPLATES="prometheus.yml alertmanager.yml blackbox.yml"
 CONFIG_FILES="$TEMPLATES ca-certificates.crt"
 # Go가 Linux에서 CA 인증서 파일을 찾는 위치와 순서다(crypto/x509의 root_linux.go). Blackbox Exporter가 Go 프로그램이다.
 CA_FILES="/etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/ca-bundle.pem /etc/pki/tls/cacert.pem /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/ssl/cert.pem"
-# 시험에서는 기다리는 시간을 줄이고, CA 인증서 파일을 가짜 루트 아래에서 찾고, 준비 확인 도구를 고른다.
+# 시험(tests/core-server.test.sh)에서만 쓰는 값이다. 기다리는 시간을 줄이고, CA 인증서 파일을 가짜 루트 아래에서 찾고,
+# 준비 확인 도구를 고른다. 운영 문서에는 적지 않고, 운영 서버에서는 설정하지 않는다.
 WAIT_SECONDS=${CORE_WAIT_SECONDS:-180}
 WAIT_INTERVAL=${CORE_WAIT_INTERVAL:-5}
 CA_ROOT=${CORE_CA_ROOT:-}
@@ -395,10 +396,12 @@ check_render() {
   check_render_dir
 }
 
-# check_render를 통과한 값으로 템플릿을 펼쳐 rendered/에 쓴다. 같은 폴더 안의 임시 폴더에 모두 쓴 뒤 이름만 바꿔 옮긴다.
+# check_render를 통과한 값으로 템플릿을 펼쳐 rendered/ 안의 임시 폴더(stage)에 쓴다. 옮기기는 commit_rendered가 한다.
 # 펼치는 글자는 검사를 통과한 주소와 core_setting_text의 결과뿐이라 sed와 YAML이 특별하게 읽는 글자가 없다. 값은 eval하지 않는다.
-# 이전과 내용이 달라졌으면 render_changed=yes다. 파일 단위로 붙인 컨테이너는 이름을 바꿔 옮긴 새 파일을 보지 못하기 때문이다.
-write_rendered() {
+# config_hash는 새로 펼친 설정, previous_hash는 지금 rendered/에 있는 설정의 해시다.
+stage_rendered() {
+  # 확인을 기다리는 동안 링크로 바뀌었을 수 있어 쓰기 직전에 다시 본다.
+  check_render_dir
   if [ ! -d "$RENDER_DIR" ]; then
     mkdir "$RENDER_DIR"
   fi
@@ -433,6 +436,16 @@ s|@$setting@|$(core_setting_text "$setting" "$(printenv "$setting")")|g"
   for name in $CONFIG_FILES core.env; do
     chmod 0644 "$stage/$name"
   done
+}
+
+discard_rendered() {
+  rm -rf "$stage"
+  trap - EXIT
+}
+
+# stage_rendered가 쓴 파일을 이름만 바꿔 rendered/로 옮긴다. 이전과 내용이 달라졌으면 render_changed=yes다.
+# 파일 단위로 붙인 컨테이너는 이름을 바꿔 옮긴 새 파일을 다시 시작할 때까지 보지 못하기 때문이다.
+commit_rendered() {
   for name in $CONFIG_FILES core.env; do
     mv -f "$stage/$name" "$RENDER_DIR/$name"
   done
@@ -442,6 +455,11 @@ s|@$setting@|$(core_setting_text "$setting" "$(printenv "$setting")")|g"
   if [ "$config_hash" != "$previous_hash" ]; then
     render_changed=yes
   fi
+}
+
+write_rendered() {
+  stage_rendered
+  commit_rendered
 }
 
 load_images() {
@@ -520,14 +538,14 @@ ready_tool() {
 }
 
 # ready_tool로 고른 도구(ready_with)로 컨테이너의 준비 확인 주소를 한 번 부른다. 바꾼 호스트 포트도 실제로 묶인 값에서 읽는다.
-# GNU와 BusyBox 구현이 함께 받는 옵션만 쓴다.
+# GNU와 BusyBox 구현이 함께 받는 옵션만 쓴다. 셸에 프록시가 설정돼 있어도 127.0.0.1은 프록시를 거치지 않게 한다.
 is_ready() {
   ready_target "$1"
   binding=$(host_binding "$1" "$ready_port")
   [ -n "$binding" ] || return 1
   case "$ready_with" in
-    curl) curl -fsS -m 5 -o /dev/null "http://$binding$ready_path" > /dev/null 2>&1 ;;
-    wget) wget -q -T 5 -O /dev/null "http://$binding$ready_path" > /dev/null 2>&1 ;;
+    curl) NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 curl -fsS -m 5 -o /dev/null "http://$binding$ready_path" > /dev/null 2>&1 ;;
+    wget) NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 wget -q -T 5 -O /dev/null "http://$binding$ready_path" > /dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -705,9 +723,15 @@ cmd_render() {
     check_checksums
   fi
   check_render
+  # 떠 있는 컨테이너는 다시 시작할 때 새로 펼친 파일을 읽을 수 있다. 그래서 보관 값을 줄이면 띄우기처럼 확인을 묻는다.
+  # Docker가 없는 곳(빌드 PC의 검사용 컨테이너)에서는 떠 있는 코어가 없다고 본다.
+  confirm_retention
   write_rendered
   say "설정을 펼쳤습니다: $RENDER_DIR (CA 인증서: $ca_source)"
   say "운영 명령 없이 띄우려면 이 폴더에서 docker compose up -d를 실행합니다. .env를 바꾸거나 OS의 CA 인증서를 바꾸면 이 작업을 다시 실행해야 반영됩니다."
+  if core_exists; then
+    say "떠 있는 코어는 docker compose up -d로 다시 만들 때 새 설정을 씁니다. 그 전이라도 컨테이너가 다시 시작하면(서버 재시작 등) 새 설정을 읽을 수 있습니다."
+  fi
 }
 
 cmd_start() {
@@ -733,6 +757,9 @@ cmd_start() {
 
 cmd_rotate_token() {
   check_docker
+  if [ "$LAYOUT" = bundle ]; then
+    check_checksums
+  fi
   # Alertmanager를 다시 만들 때 Compose가 .env의 호스트 포트와 펼친 설정을 쓰므로 띄우기와 같은 검사를 거친다.
   check_render
   # 다른 버전 폴더의 compose로 Alertmanager를 다시 만들면 그 컨테이너만 다른 버전이 된다.
@@ -742,11 +769,18 @@ cmd_rotate_token() {
       fail "token은 코어를 띄운 묶음 폴더에서 바꿔 주세요: ${owner:-알 수 없음}. token은 바꾸지 않았습니다."
     fi
   fi
+  # Alertmanager만 다시 만드므로 다른 설정은 바꾸지 않는다. 지난 띄우기 뒤 설정이 바뀌었으면 start로 함께 반영하게 한다.
+  if core_running; then
+    stage_rendered
+    discard_rendered
+    if [ "$config_hash" != "$previous_hash" ]; then
+      fail "지난 띄우기 뒤 설정(.env, 템플릿, OS의 CA 인증서)이 바뀌었습니다. 먼저 sh core-server.sh start로 반영한 뒤 token을 바꿔 주세요. token은 바꾸지 않았습니다."
+    fi
+  fi
   file=$(token_file)
   write_token "$file"
   say "token을 새 값으로 바꿨습니다: $(real_path "$file")"
   if core_running; then
-    write_rendered
     # 파일만 바꾸면 Alertmanager가 붙잡은 옛 파일을 계속 읽을 수 있어 컨테이너를 다시 만든다.
     compose_up --force-recreate alertmanager
     wait_ready alertmanager
