@@ -30,8 +30,8 @@ CREATE TABLE resource_thresholds (
         REFERENCES monitored_resources (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
--- 서버마다 리소스 알림 재발송 주기입니다. 행이 없는 서버는 60분입니다.
--- 허용 범위는 Check의 재발송 주기와 같은 5~1440분입니다.
+-- 서버마다 리소스 알림을 다시 보내는 간격입니다. 행이 없는 서버는 60분입니다.
+-- 허용 범위는 Check의 알림 다시 보내는 간격과 같은 5~1440분입니다.
 CREATE TABLE server_resource_alert_settings (
     server_id               BIGINT      NOT NULL,
     repeat_interval_minutes INT         NOT NULL,

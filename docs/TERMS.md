@@ -38,7 +38,9 @@
 | 비밀번호 | 패스워드, 암호(password의 뜻) | KRDS 로그인 패턴(KRDS 안에서도 패스워드를 섞음, Apple은 암호) | 2026-10-07 |
 | 감시 항목 | Check, Monitoring Check, 모니터(Check의 뜻) | 제품 개념은 한국어로 쓰고 메뉴와 제목에서만 병기(요구사항 0005, Uptime Kuma는 모니터) | 2026-10-15 |
 | 장애 | Alert, 경고(Alert의 뜻) | 감시 단위와 장애 이벤트를 나눔(PagerDuty, Zabbix의 장애, Grafana는 Alert와 Warning이 모두 경고라 겹침) | 2026-10-15 |
-| 알림 | 장애(Telegram 발송의 뜻) | 알림은 Telegram으로 보내는 일에만 씀 | 2026-10-15 |
+| 알림 | 장애(담당자에게 보내는 것의 뜻) | 알림은 담당자에게 보내는 것(Telegram, 문자, 메신저 등)에만 씀 | 2026-11-11 |
+| 알림 다시 보내는 간격 | 재발송 주기, 재알림 주기, 리마인드 알림 주기 | [토스 앱인토스 UX 라이팅](https://developers-apps-in-toss.toss.im/design/ux-writing.html)의 명사+명사 쓰지 않기, [SEED Field](https://seed-design.io/llms/components/field.txt)의 한 줄 라벨(네이버클라우드의 리마인드 알림 주기는 반례) | 2026-11-11 |
+| 알림을 보내다 | 발송하다, 전송하다(알림의 뜻) | [토스피드 UX Writer 인터뷰](https://toss.im/tossfeed/article/uxwriter-interview)와 [SEED Writing](https://seed-design.io/llms/foundations/writing.txt) 예문이 보내다를 씀 | 2026-11-11 |
 | 복구 | 해소, Resolved | Telegram 메시지와 복구 알림 설정이 이미 복구를 씀(Zabbix, Grafana는 해결됨) | 2026-10-15 |
 | 위험, 경고 | Critical, Warning | 상태 이름 위험과 심각도를 한 말로 맞춤 | 2026-10-15 |
 | 임계값 | Threshold | Grafana, Zabbix 한국어판 | 2026-10-15 |
