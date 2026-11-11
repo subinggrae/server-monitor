@@ -444,7 +444,7 @@ sudo docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-co
 
 ### 설정 파일을 설치 폴더로 옮기기
 
-설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신할 때 한 번만 한다. 새 묶음 폴더에서 `start`를 실행하면 다음처럼 복사할 명령을 보여 준다. 그 명령을 실행한 뒤 `start`를 다시 실행한다.
+설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신할 때 한 번만 한다. 새 묶음 폴더에서 `start`나 `install`을 실행하면 다음처럼 복사할 명령을 보여 준다. 그 명령을 실행한 뒤 `start`를 다시 실행한다.
 
 ```text
 실패: 설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp /opt/monitoring/monitoring-core-<이전 버전>/.env /opt/monitoring/.env 를 실행하고 다시 실행해 주세요.

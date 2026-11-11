@@ -464,8 +464,9 @@ running_other v1 1761500000 "$INSTALL/monitoring-core-v1"; before=$(cat "$TOKEN"
 STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
 run install
 unset STDIN
-check '설치 준비는 떠 있는 버전의 폴더에서 설정을 가져오지 않고 주소를 물으며 token은 그대로 둔다' \
-  '[ $RC -eq 0 ] && grep -q "^MONITORING_APP_ADDRESS=manager-api:8080$" "$ENV" && ! grep -q "old-admin" "$ENV" && [ "$(cat "$TOKEN")" = "$before" ]'
+# 이전 방식 서버에서 install(요구사항 0017의 S8): 기본값 .env를 새로 만들면 바꿔 둔 값이 사라지므로 복사 명령을 보이고 멈춘다.
+check '설치 준비는 쓰던 설정 파일이 있으면 새로 만들지 않고 복사하는 명령을 보이며 token은 그대로 둔다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "관리자 서버 주소(" && [ ! -e "$ENV" ] && [ "$(cat "$TOKEN")" = "$before" ]'
 
 setup; STDIN="$T/answer"; printf 'bad address\n' > "$STDIN"
 run install

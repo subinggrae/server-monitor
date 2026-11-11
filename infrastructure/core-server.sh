@@ -605,6 +605,10 @@ cmd_install() {
   check_docker
   load_settings
   check_env_location
+  # 이전 방식 서버에서 기본값 .env를 새로 만들면 바꿔 둔 값이 사라진다. 쓰던 파일을 찾으면 복사하는 명령만 보인다(요구사항 0017의 S8).
+  if [ "$LAYOUT" = bundle ] && [ ! -f "$ENV_FILE" ] && old=$(previous_env); then
+    fail "설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp $old $ENV_FILE 를 실행하고 다시 실행해 주세요."
+  fi
   file=$(token_file)
 
   address=""
