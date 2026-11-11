@@ -270,6 +270,44 @@ run start
 check '묶음 폴더의 .env가 다른 곳을 가리키는 링크면 따라가지 않고 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "sudo rm $BUNDLE/.env" && [ "$(cat "$T/other.env")" = "MONITORING_APP_ADDRESS=other-admin:9000" ] && ! called "^compose"'
 
+# 이전 폴더가 여럿이면 떠 있는 버전의 폴더를 먼저 고른다. 이름순으로 앞서고 더 최근에 고친 폴더가 있어도 같다.
+setup; prepared; rm "$ENV"; mkdir "$INSTALL/monitoring-core-a0" "$INSTALL/monitoring-core-v1"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-v1/.env"
+touch -t 202001010000 "$INSTALL/monitoring-core-v1/.env"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-a0/.env"
+running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+run start
+check '이전 폴더가 여럿이면 떠 있는 버전의 폴더에서 설정 파일을 고른다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "monitoring-core-a0" && ! called "^compose"'
+
+# 코어가 없으면 코어 묶음 폴더 가운데 가장 최근에 고친 파일을 고르고, 코어가 아닌 폴더의 .env는 보지 않는다.
+setup; prepared; rm "$ENV"; mkdir "$INSTALL/manager" "$INSTALL/monitoring-core-a0" "$INSTALL/monitoring-core-v1"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-a0/.env"
+touch -t 202001010000 "$INSTALL/monitoring-core-a0/.env"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-v1/.env"
+touch -t 202101010000 "$INSTALL/monitoring-core-v1/.env"
+printf 'DB_PASSWORD=x\n' > "$INSTALL/manager/.env"
+run start
+check '코어가 없으면 코어 묶음 폴더 가운데 가장 최근 설정 파일을 고르고 다른 폴더의 .env는 고르지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "$INSTALL/manager" && ! called "^compose"'
+
+# 설치 폴더의 .env가 링크면 따라가지 않는다(CWE-59).
+setup; prepared; mv "$ENV" "$T/real.env"; ln -s "$T/real.env" "$ENV"
+run start
+check '설치 폴더의 설정 파일이 링크면 따라가 읽지 않고 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "링크입니다" && ! called "^compose"'
+
+setup; prepared; rm "$ENV"; ln -s "$T/victim.conf" "$ENV"; STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
+run install
+unset STDIN
+check '설치 준비는 설치 폴더의 설정 파일 자리에 있는 링크를 따라 쓰지 않는다' \
+  '[ $RC -ne 0 ] && contains "링크입니다" && [ ! -e "$T/victim.conf" ]'
+
+setup; prepared; printf 'MONITORING_APP_ADDRESS=other-admin:9000\n' > "$T/other.env"; ln -s "$T/other.env" "$BUNDLE/.env"
+run install
+check '설치 준비도 묶음 폴더의 .env가 다른 곳을 가리키는 링크면 멈춘다' \
+  '[ $RC -ne 0 ] && contains "sudo rm $BUNDLE/.env" && [ "$(readlink "$BUNDLE/.env")" = "$T/other.env" ]'
+
 for address in '' 'http://manager-api:8080' 'manager-api' 'a;touch${IFS}x:80' 'manager-api:70000'; do
   setup; prepared; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$ENV"
   run start

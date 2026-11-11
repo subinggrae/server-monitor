@@ -318,7 +318,8 @@ curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 | `token 파일이 없습니다` | token을 만들지 않았거나 예전처럼 묶음 폴더의 `secrets/`에 둠 | 처음 설치면 `install`, 쓰던 코어가 있으면 [운영 명령이 없던 묶음에서 갱신](#운영-명령이-없던-묶음에서-갱신)대로 token을 옮긴다 |
 | `설치 폴더에 설정 파일(.env)이 없습니다` | 설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신함 | 안내의 `sudo cp` 명령을 실행한다([설정 파일을 설치 폴더로 옮기기](#설정-파일을-설치-폴더로-옮기기)) |
 | `설정 파일(.env)을 설치 폴더로 옮겨 주세요` | 묶음 폴더에 `.env` 파일을 직접 둠 | 안내의 `sudo mv` 명령을 실행한다 |
-| `묶음 폴더에도 설정 파일(.env)이 있습니다` | 설치 폴더와 묶음 폴더에 모두 설정 파일이 있음 | 설치 폴더의 값이 맞는지 본 뒤 안내의 `sudo rm` 명령으로 묶음 폴더의 파일을 지운다 |
+| `묶음 폴더의 설정 파일은 쓰지 않습니다` | 묶음 폴더의 `.env`가 링크가 아닌 파일이거나 다른 곳을 가리킴(편집기가 링크를 파일로 바꿔 저장한 경우 포함) | 고친 값을 설치 폴더의 `.env`에 옮긴 뒤 안내의 `sudo rm` 명령으로 지운다 |
+| `설치 폴더의 설정 파일이 링크입니다` | 설치 폴더의 `.env`가 다른 파일을 가리키는 링크임 | 링크를 지우고 실제 파일을 둔다 |
 | `설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면` | 코어는 있는데 설정 파일을 어디서도 찾지 못함 | 쓰던 `.env`를 설치 폴더로 복사한다 |
 | `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar` |
@@ -446,7 +447,7 @@ sudo docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-co
 설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신할 때 한 번만 한다. 새 묶음 폴더에서 `start`를 실행하면 다음처럼 복사할 명령을 보여 준다. 그 명령을 실행한 뒤 `start`를 다시 실행한다.
 
 ```text
-… 쓰던 설정을 이어 쓰려면 sudo cp /opt/monitoring/monitoring-core-<이전 버전>/.env /opt/monitoring/.env 를 실행한 뒤 다시 실행해 주세요.
+실패: 설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp /opt/monitoring/monitoring-core-<이전 버전>/.env /opt/monitoring/.env 를 실행하고 다시 실행해 주세요.
 ```
 
 이전 묶음 폴더의 `.env`는 지우지 말고 남긴다. 그 버전으로 되돌리면 그 파일을 읽는다.
@@ -499,7 +500,7 @@ chmod 0644 ../secrets/alertmanager_webhook_token
 install -d -m 0755 ../certs
 cp -L /etc/ssl/certs/ca-certificates.crt ../certs/ca-certificates.crt   # RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt
 chmod 0644 ../certs/ca-certificates.crt
-cp .env.example ../.env           # MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
+cp -n .env.example ../.env        # 설치 폴더에 .env가 없을 때만 만든다. MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
 ln -s ../.env .env                # 묶음 폴더의 docker compose가 설치 폴더의 값을 읽게 한다
 docker load -i core-images.tar
 sh core-server.sh render          # 파일이 온전한지 보고, 값과 token, CA 인증서 파일을 검사해 rendered/에 펼친다
