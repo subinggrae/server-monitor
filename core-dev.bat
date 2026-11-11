@@ -1,7 +1,18 @@
 @echo off
-for /f "tokens=2 delims=:." %%c in ('chcp') do set "OLD_CODEPAGE=%%c"
-chcp 65001 >nul
+if not defined CORE_DEV_UTF8 (
+  setlocal EnableDelayedExpansion
+  for /f "tokens=2 delims=:." %%c in ('chcp') do set "CORE_DEV_OLD_CODEPAGE=%%c"
+  chcp 65001 >nul
+  set "CORE_DEV_UTF8=1"
+  cmd /d /c ""%~f0" %*"
+  set "CORE_DEV_RC=!ERRORLEVEL!"
+  chcp !CORE_DEV_OLD_CODEPAGE! >nul
+  exit /b !CORE_DEV_RC!
+)
 setlocal
+rem 위 블록은 콘솔 코드 페이지를 UTF-8(65001)로 바꾼 뒤 이 파일을 새 cmd로 다시 실행하고, 끝나면 코드 페이지를 되돌린다.
+rem 한 cmd 안에서 코드 페이지를 바꾸면 cmd가 한글 줄의 위치를 잘못 세어 줄 중간부터 실행한다(PowerShell 기본 949에서 생김).
+rem 그래서 블록 안에는 ASCII만 둔다.
 rem Windows 빌드 PC에서 모니터링 코어를 빌드하고 개발용으로 띄우는 명령이다. 저장소 어디에서 실행해도 된다.
 rem
 rem   core-dev.bat build   내부망 서버로 옮길 묶음을 dist\에 만든다(추가 옵션은 빌드 스크립트로 넘긴다. 예: --allow-dirty)
@@ -89,6 +100,4 @@ exit /b 0
 
 :end
 popd
-rem 한글 출력을 위해 바꾼 콘솔 코드페이지를 되돌린다.
-if defined OLD_CODEPAGE chcp %OLD_CODEPAGE% >nul
 exit /b %RC%

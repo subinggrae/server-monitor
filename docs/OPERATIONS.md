@@ -92,7 +92,7 @@
 
 ### 1. 묶음 만들기
 
-빌드 PC의 저장소 폴더에서 cmd를 열고 다음을 실행한다. 5~10분 걸린다.
+빌드 PC의 저장소 폴더에서 다음을 실행한다. PowerShell에서는 `.\core-dev.bat build`처럼 앞에 `.\`를 붙인다. 5~10분 걸린다.
 
 ```bat
 core-dev.bat build
