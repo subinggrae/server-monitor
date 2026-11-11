@@ -71,10 +71,10 @@ function run(command, args, { env = {}, capture = false } = {}) {
     maxBuffer: 64 * 1024 * 1024,
   });
   if (result.error) {
-    fail(`${command}를 실행하지 못했다: ${result.error.message}`);
+    fail(`${command}를 실행하지 못했습니다: ${result.error.message}`);
   }
   if (result.status !== 0) {
-    fail(`${command} ${args.join(' ')} 종료 코드 ${result.status}`);
+    fail(`명령이 실패했습니다(종료 코드 ${result.status}): ${command} ${args.join(' ')}`);
   }
   return capture ? result.stdout.trim() : '';
 }
@@ -83,7 +83,7 @@ function run(command, args, { env = {}, capture = false } = {}) {
 function runResult(command, args, { env = {} } = {}) {
   const result = spawnSync(command, args, { cwd: ROOT, env: { ...process.env, ...env }, encoding: 'utf8' });
   if (result.error) {
-    fail(`${command}를 실행하지 못했다: ${result.error.message}`);
+    fail(`${command}를 실행하지 못했습니다: ${result.error.message}`);
   }
   return result;
 }
@@ -153,9 +153,9 @@ function version({ allowDirty }) {
   const commitTime = run('git', ['show', '-s', '--format=%ct', 'HEAD'], { capture: true });
   if (describe.endsWith('-dirty')) {
     if (!allowDirty) {
-      fail('커밋하지 않은 변경이 있다. 커밋한 뒤 묶음을 만든다. 시험용으로만 만들려면 --allow-dirty를 붙인다.');
+      fail('커밋하지 않은 변경이 있습니다. 커밋한 뒤 다시 실행해 주세요. 시험용 묶음만 만들려면 --allow-dirty를 붙여 주세요.');
     }
-    console.warn('경고: 커밋하지 않은 변경이 있다. 버전 끝에 -dirty가 붙고, 그 커밋만으로는 같은 이미지를 다시 만들 수 없다.');
+    console.warn('경고: 커밋하지 않은 변경이 있습니다. 버전 끝에 -dirty가 붙고, 이 커밋만으로는 같은 이미지를 다시 만들 수 없습니다.');
   }
   return { describe, revision, commitTime };
 }
@@ -226,7 +226,7 @@ function exportImage(image) {
   fs.rmSync(exported, { force: true });
   spawnSync('docker', ['rm', container], { stdio: 'ignore' });
   if (!bytes) {
-    fail(`${image}의 파일 시스템을 내보내지 못했다.`);
+    fail(`${image}의 파일 시스템을 내보내지 못했습니다.`);
   }
   return bytes;
 }
@@ -287,17 +287,17 @@ function checkImageFiles(image, spec) {
   const allowed = new Set([...spec.files, ...DOCKER_MADE_FILES]);
   const extra = entries.filter((entry) => !allowed.has(entry.name)).map((entry) => entry.name);
   if (extra.length > 0) {
-    fail(`${image}에 정해진 파일 밖의 것이 있다: ${extra.slice(0, 20).join(', ')}${extra.length > 20 ? ` 외 ${extra.length - 20}개` : ''}`);
+    fail(`${image}에 정해진 파일 밖의 것이 있습니다: ${extra.slice(0, 20).join(', ')}${extra.length > 20 ? ` 외 ${extra.length - 20}개` : ''}`);
   }
   const names = new Set(entries.map((entry) => entry.name));
   const missing = spec.files.filter((name) => !names.has(name));
   if (missing.length > 0) {
-    fail(`${image}에 있어야 할 파일이 없다: ${missing.join(', ')}`);
+    fail(`${image}에 있어야 할 파일이 없습니다: ${missing.join(', ')}`);
   }
   for (const entry of entries.filter((item) => spec.files.includes(item.name))) {
     const expected = spec.owners[entry.name] ?? '0:0';
     if (entry.owner !== expected) {
-      fail(`${image}의 ${entry.name} 소유자가 ${entry.owner}다. 기대: ${expected}. 새 volume에 기록을 쓰지 못할 수 있다.`);
+      fail(`${image}의 ${entry.name} 소유자가 ${entry.owner}입니다. 기대: ${expected}. 새 volume에 기록을 쓰지 못할 수 있습니다.`);
     }
   }
   return bytes;
@@ -315,19 +315,19 @@ function checkImageConfig(image, spec) {
   };
   for (const [key, expected] of Object.entries(spec.config)) {
     if (JSON.stringify(found[key]) !== JSON.stringify(expected)) {
-      fail(`${image}의 ${key}가 기대와 다르다. 받은 값: ${JSON.stringify(found[key])}, 기대: ${JSON.stringify(expected)}`);
+      fail(`${image}의 ${key}가 기대와 다릅니다. 받은 값: ${JSON.stringify(found[key])}, 기대: ${JSON.stringify(expected)}`);
     }
   }
   for (const [key, expected] of Object.entries(spec.labels)) {
     if ((config.Labels ?? {})[key] !== expected) {
-      fail(`${image}의 label ${key}가 기대와 다르다. 받은 값: ${JSON.stringify((config.Labels ?? {})[key])}, 기대: ${JSON.stringify(expected)}`);
+      fail(`${image}의 label ${key}가 기대와 다릅니다. 받은 값: ${JSON.stringify((config.Labels ?? {})[key])}, 기대: ${JSON.stringify(expected)}`);
     }
   }
 }
 
 // 이미지마다 파일 목록과 설정을 보고, 내보낸 파일 시스템을 돌려준다.
 function checkImages(images, specs) {
-  console.log('운영 이미지에 정해진 파일만 있고 실행 사용자, 포트, 실행 인자, label이 기대와 같은지 확인한다.');
+  console.log('운영 이미지에 정해진 파일만 있고 실행 사용자, 포트, 실행 인자, label이 기대와 같은지 확인합니다.');
   return Object.fromEntries(images.map((image) => {
     const bytes = checkImageFiles(image, specs[image]);
     checkImageConfig(image, specs[image]);
@@ -366,7 +366,7 @@ function readSettingRanges(tools) {
   });
   const names = ranges.map((range) => range.name).sort();
   if (names.join() !== [...CORE_SETTING_NAMES].sort().join()) {
-    fail(`core-settings.sh의 값 목록(${names.join(', ')})이 이 스크립트의 CORE_SETTING_NAMES와 다르다. 두 곳을 함께 고친다.`);
+    fail(`core-settings.sh의 값 목록(${names.join(', ')})이 이 스크립트의 CORE_SETTING_NAMES와 다릅니다. 두 곳을 함께 고쳐 주세요.`);
   }
   return ranges;
 }
@@ -392,7 +392,7 @@ function durationSeconds(text) {
   const units = { ms: 0.001, s: 1, m: 60, h: 3600, d: 86400, w: 604800, y: 31536000 };
   const parts = [...text.matchAll(/(\d+)(ms|s|m|h|d|w|y)/g)];
   if (parts.length === 0 || parts.map((part) => part[0]).join('') !== text) {
-    fail(`기간 표기를 읽지 못했다: ${text}`);
+    fail(`기간 표기를 읽지 못했습니다: ${text}`);
   }
   return parts.reduce((sum, [, amount, unit]) => sum + Number(amount) * units[unit], 0);
 }
@@ -424,7 +424,7 @@ function checkPrometheusRetention(rendered, ranges, set) {
   const expected = { time: `${effective(ranges, set.values, 'CORE_RETENTION_DAYS')}d`, size: size === '' ? '0B' : `${size}GB` };
   const found = /^storage:\s*\n\s+tsdb:\s*\n\s+retention:\s*\n\s+time:\s*(\S+)\s*\n\s+size:\s*(\S+)\s*$/m.exec(text);
   if (!found || (text.match(/^\s+retention:/gm) ?? []).length !== 1 || found[1] !== expected.time || found[2] !== expected.size) {
-    fail(`${set.label}: 펼친 prometheus.yml의 보관 항목이 time ${expected.time}, size ${expected.size}가 아니다. 받은 값: ${found ? `${found[1]}, ${found[2]}` : '찾지 못함'}`);
+    fail(`${set.label}: 펼친 prometheus.yml의 보관 항목이 time ${expected.time}, size ${expected.size}가 아닙니다. 받은 값: ${found ? `${found[1]}, ${found[2]}` : '찾지 못함'}`);
   }
 }
 
@@ -435,10 +435,10 @@ function checkBlackboxConfig(rendered, ranges, set) {
   const timeouts = [...text.matchAll(/^\s+timeout:\s*(\S+)\s*$/gm)].map((match) => match[1]);
   const expected = `${effective(ranges, set.values, 'CORE_PROBE_TIMEOUT_SECONDS')}s`;
   if (modules === 0 || timeouts.length !== modules || timeouts.some((timeout) => timeout !== expected)) {
-    fail(`${set.label}: 펼친 Blackbox 설정의 timeout이 module마다 ${expected}가 아니다. 받은 값: ${timeouts.join(', ')}`);
+    fail(`${set.label}: 펼친 Blackbox 설정의 timeout이 module마다 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ')}`);
   }
   if (/insecure_skip_verify/.test(text)) {
-    fail(`${set.label}: 펼친 Blackbox 설정에 인증서 확인을 끄는 insecure_skip_verify가 있다.`);
+    fail(`${set.label}: 펼친 Blackbox 설정에 인증서 확인을 끄는 insecure_skip_verify가 있습니다.`);
   }
 }
 
@@ -447,7 +447,7 @@ function checkCoreEnv(rendered, ranges, set) {
   const text = rendered.read('core.env');
   for (const name of ['CORE_RETENTION_DAYS', 'CORE_RETENTION_SIZE_GB', 'CORE_PROBE_TIMEOUT_SECONDS']) {
     if (!text.split('\n').includes(`${name}=${effective(ranges, set.values, name)}`)) {
-      fail(`${set.label}: 펼친 core.env에 ${name}=${effective(ranges, set.values, name)}이 없다.`);
+      fail(`${set.label}: 펼친 core.env에 ${name}=${effective(ranges, set.values, name)}이 없습니다.`);
     }
   }
 }
@@ -457,25 +457,25 @@ function checkSettingContracts(rendered, rulesDir, ranges) {
   const range = (name) => ranges.find((item) => item.name === name);
   const scrapeTimeout = /^global:\s*$[\s\S]*?^\s+scrape_timeout:\s*(\S+)/m.exec(rendered.read('prometheus.yml'));
   if (!scrapeTimeout) {
-    fail('펼친 prometheus.yml에서 전역 scrape_timeout을 찾지 못했다.');
+    fail('펼친 prometheus.yml에서 전역 scrape_timeout을 찾지 못했습니다.');
   }
   const probeLimit = durationSeconds(scrapeTimeout[1]) - BLACKBOX_TIMEOUT_OFFSET_SECONDS;
   if (range('CORE_PROBE_TIMEOUT_SECONDS').max > probeLimit) {
-    fail(`확인 제한 시간의 상한(${range('CORE_PROBE_TIMEOUT_SECONDS').max}초)이 scrape_timeout(${scrapeTimeout[1]})에서 ${BLACKBOX_TIMEOUT_OFFSET_SECONDS}초를 뺀 ${probeLimit}초보다 길다.`);
+    fail(`주소 확인 제한 시간의 상한(${range('CORE_PROBE_TIMEOUT_SECONDS').max}초)이 scrape_timeout(${scrapeTimeout[1]})에서 ${BLACKBOX_TIMEOUT_OFFSET_SECONDS}초를 뺀 ${probeLimit}초보다 깁니다.`);
   }
   const rules = fs.readdirSync(rulesDir).map((name) => fs.readFileSync(path.join(rulesDir, name), 'utf8')).join('\n');
   const longestRange = Math.max(0, ...[...rules.matchAll(/\[((?:\d+(?:ms|s|m|h|d|w|y))+)(?::[^\]]*)?\]/g)].map((match) => durationSeconds(match[1])));
   if (range('CORE_RETENTION_DAYS').min * 86400 <= longestRange) {
-    fail(`보관 기간의 하한(${range('CORE_RETENTION_DAYS').min}일)이 규칙이 읽는 가장 긴 범위(${longestRange}초)보다 길지 않다.`);
+    fail(`보관 기간의 하한(${range('CORE_RETENTION_DAYS').min}일)이 규칙이 읽는 가장 긴 범위(${longestRange}초)보다 길지 않습니다.`);
   }
   const ports = ranges.filter((item) => HOST_PORT_TARGETS[item.name]);
   for (const port of ports) {
     if (port.min < PORT_RANGE.min || port.max > PORT_RANGE.max) {
-      fail(`${port.name}의 허용 범위(${port.min}~${port.max})가 ${PORT_RANGE.min}~${PORT_RANGE.max} 밖이다.`);
+      fail(`${port.name}의 허용 범위(${port.min}~${port.max})가 ${PORT_RANGE.min}~${PORT_RANGE.max} 밖입니다.`);
     }
   }
   if (new Set(ports.map((port) => port.defaultValue)).size !== ports.length) {
-    fail('세 호스트 포트의 기본값이 서로 다르지 않다.');
+    fail('세 포트의 기본값 가운데 같은 값이 있습니다.');
   }
 }
 
@@ -498,7 +498,7 @@ function composeConfig(composeFile, env, { withEnvFile = true } = {}) {
     return { result };
   }
   if (result.status !== 0) {
-    fail(`${composeFile}을 Compose가 읽지 못했다: ${result.stderr.trim()}`);
+    fail(`${composeFile}을 Compose가 읽지 못했습니다: ${result.stderr.trim()}`);
   }
   return { config: JSON.parse(result.stdout), project };
 }
@@ -514,11 +514,11 @@ function checkPortBindings(composeFile, ranges) {
       [HOST_PORT_TARGETS[range.name], effective(portRanges, set.values, range.name)]));
     const published = Object.fromEntries(ports.map((port) => [port.target, String(port.published)]));
     if (ports.some((port) => port.host_ip !== '127.0.0.1')) {
-      fail(`${set.label}: ${composeFile}에 127.0.0.1이 아닌 주소에 여는 포트가 있다: ${JSON.stringify(ports)}`);
+      fail(`${set.label}: ${composeFile}에 127.0.0.1이 아닌 주소에 여는 포트가 있습니다: ${JSON.stringify(ports)}`);
     }
     if (ports.length !== portRanges.length || JSON.stringify(published, Object.keys(expected).sort())
       !== JSON.stringify(expected, Object.keys(expected).sort())) {
-      fail(`${set.label}: ${composeFile}의 호스트 포트가 기대와 다르다. 받은 값: ${JSON.stringify(published)}, 기대: ${JSON.stringify(expected)}`);
+      fail(`${set.label}: ${composeFile}의 호스트 포트가 기대와 다릅니다. 받은 값: ${JSON.stringify(published)}, 기대: ${JSON.stringify(expected)}`);
     }
   }
 }
@@ -534,19 +534,19 @@ function checkRenderedMounts(composeFile, caDir) {
       [path.relative(project, volume.source).split(path.sep).join('/'), volume.target]));
     if (JSON.stringify(found, Object.keys(found).sort()) !== JSON.stringify(expected, Object.keys(expected).sort())
       || binds.some((volume) => volume.read_only !== true)) {
-      fail(`${composeFile}의 ${name}가 붙이는 파일이 기대와 다르다. 받은 값: ${JSON.stringify(binds)}, 기대(읽기 전용): ${JSON.stringify(expected)}`);
+      fail(`${composeFile}의 ${name}가 붙이는 파일이 기대와 다릅니다. 받은 값: ${JSON.stringify(binds)}, 기대(읽기 전용): ${JSON.stringify(expected)}`);
     }
     const [key, value] = COMPOSE_CHECK_MARK.split('=');
     if ((service.environment ?? {})[key] !== value) {
-      fail(`${composeFile}의 ${name}가 펼친 rendered/core.env를 env_file로 읽지 않는다.`);
+      fail(`${composeFile}의 ${name}가 펼친 rendered/core.env를 env_file로 읽지 않습니다.`);
     }
     if (service.healthcheck && service.healthcheck.disable !== true) {
-      fail(`${composeFile}의 ${name}에 healthcheck가 있다. 코어 이미지에는 healthcheck를 실행할 명령이 없다.`);
+      fail(`${composeFile}의 ${name}에 healthcheck가 있습니다. 코어 이미지에는 healthcheck를 실행할 명령이 없습니다.`);
     }
   }
   const { result } = composeConfig(composeFile, {}, { withEnvFile: false });
   if (result.status === 0 || !result.stderr.includes('core.env')) {
-    fail(`${composeFile}을 펼친 설정(rendered/core.env) 없이 Compose가 읽었다. env_file에 required: true가 있어야 Docker가 빈 폴더를 만들지 않는다.`);
+    fail(`${composeFile}을 펼친 설정(rendered/core.env) 없이 Compose가 읽었습니다. env_file에 required: true가 있어야 Docker가 빈 폴더를 만들지 않습니다.`);
   }
 }
 
@@ -557,7 +557,7 @@ function extractRules(prometheus) {
   const result = spawnSync('docker', ['cp', `${container}:/etc/prometheus/rules`, dir], { stdio: 'inherit' });
   spawnSync('docker', ['rm', container], { stdio: 'ignore' });
   if (result.status !== 0) {
-    fail(`${prometheus}에서 규칙을 꺼내지 못했다.`);
+    fail(`${prometheus}에서 규칙을 꺼내지 못했습니다.`);
   }
   return { root: dir, rules: path.join(dir, 'rules') };
 }
@@ -567,10 +567,10 @@ function checkCoreImages(core, tools) {
   const ranges = readSettingRanges(tools);
   const extracted = extractRules(images.prometheus);
   for (const [index, set] of settingSets(ranges).entries()) {
-    console.log(`운영 명령으로 펼친 설정을 공식 이미지의 도구로 검사한다(${set.label}): ${Object.entries(set.values).map(([key, value]) => `${key}=${value}`).join(' ')}`);
+    console.log(`운영 명령으로 펼친 설정을 공식 이미지의 도구로 검사합니다(${set.label}): ${Object.entries(set.values).map(([key, value]) => `${key}=${value}`).join(' ')}`);
     const rendered = renderConfigs(tools, set.values);
     if (index === 0) {
-      console.log('설정 값의 허용 범위가 코어의 약속(확인 제한 시간, 규칙의 범위, 포트)을 지키는지 확인한다.');
+      console.log('설정 값의 허용 범위가 코어의 약속(주소 확인 제한 시간, 규칙의 범위, 포트)을 지키는지 확인합니다.');
       checkSettingContracts(rendered, extracted.rules, ranges);
     }
     run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/core:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
@@ -585,11 +585,11 @@ function checkCoreImages(core, tools) {
     checkCoreEnv(rendered, ranges, set);
     fs.rmSync(rendered.work, { recursive: true, force: true });
   }
-  console.log('compose.yml의 포트가 127.0.0.1에만 열리고, 펼친 설정만 읽기 전용으로 붙는지 확인한다.');
+  console.log('compose.yml의 포트가 127.0.0.1에만 열리고, 펼친 설정만 읽기 전용으로 붙는지 확인합니다.');
   checkPortBindings(CORE_COMPOSE, ranges);
   checkRenderedMounts(CORE_COMPOSE, CERTS_DIR);
   // 테스트 파일은 ../rules/를 읽으므로 꺼낸 규칙 바로 옆에 붙여, 이미지에 들어간 규칙을 그대로 시험한다.
-  console.log('운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 실행한다.');
+  console.log('운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 실행합니다.');
   const tests = path.join(CORE_DIR, 'prometheus', 'tests');
   for (const testFile of fs.readdirSync(tests).filter((name) => name.endsWith('.test.yml'))) {
     run('docker', ['run', '--rm', '-v', `${extracted.rules}:/etc/prometheus/rules:ro`, '-v', `${tests}:/etc/prometheus/tests:ro`,
@@ -598,7 +598,7 @@ function checkCoreImages(core, tools) {
   fs.rmSync(extracted.root, { recursive: true, force: true });
   // 코어 서버의 sh가 BusyBox일 수도 있어, 공식 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
   // 확인 질문 시험이 가상 터미널을 여는데, 이미지의 기본 사용자(nobody)는 열 수 없어 root로 실행한다.
-  console.log('코어 서버 운영 명령(core-server.sh)의 자동 시험을 실행한다.');
+  console.log('코어 서버 운영 명령(core-server.sh)의 자동 시험을 실행합니다.');
   run('docker', ['run', '--rm', '--user', '0', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus,
     '/src/tests/core-server.test.sh', '/src/core-server.sh']);
   return ranges;
@@ -606,7 +606,7 @@ function checkCoreImages(core, tools) {
 
 // 코어 이미지와 node_exporter 이미지를 빌드하고, 검사에 쓸 공식 이미지(Dockerfile의 src 단계)를 받는다.
 function buildImages(core, { pull }) {
-  console.log(`코어 이미지와 node_exporter 이미지를 빌드한다(버전 ${core.describe}, ${PLATFORM}).`);
+  console.log(`코어 이미지와 node_exporter 이미지를 빌드합니다(버전 ${core.describe}, ${PLATFORM}).`);
   const pullFlag = pull ? ['--pull'] : [];
   run('docker', ['compose', '-f', CORE_COMPOSE, 'build', ...pullFlag], { env: composeEnv(core) });
   run('docker', ['compose', '-f', NODE_EXPORTER_COMPOSE, 'build', ...pullFlag], { env: composeEnv(core) });
@@ -667,39 +667,39 @@ function bundleCompose(sourceFile, core, header, services) {
   }
   const text = `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
   if (/^\s+build:/m.test(text) || /CORE_VERSION|CORE_REVISION|x-core-build-args|core-build-args/.test(text)) {
-    fail(`${sourceFile}로 만든 실행용 compose 파일에 빌드 항목이 남았다. 형식이 바뀌었는지 확인한다.`);
+    fail(`${sourceFile}로 만든 실행용 compose 파일에 빌드 항목이 남았습니다. 형식이 바뀌었는지 확인해 주세요.`);
   }
   if ((text.match(/^\s+pull_policy:/gm) ?? []).length !== services) {
-    fail(`${sourceFile}로 만든 실행용 compose 파일의 pull_policy가 서비스 수와 다르다. 원본에 pull_policy를 직접 두지 않는다.`);
+    fail(`${sourceFile}로 만든 실행용 compose 파일의 pull_policy가 서비스 수와 다릅니다. 원본에서 pull_policy를 지워 주세요.`);
   }
   return text;
 }
 
 function runtimeCompose(core) {
   const text = bundleCompose(CORE_COMPOSE, core, [
-    '# 내부망 서버용 모니터링 코어 실행 파일이다. scripts/build-core-bundle.mjs가 저장소의 infrastructure/compose.yml에서 만들었다.',
+    '# 내부망 서버에서 모니터링 코어를 띄우는 파일입니다. 저장소의 infrastructure/compose.yml로 만들었습니다.',
     `# 버전 ${core.describe}, 커밋 ${core.revision}`,
-    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있다. 이 파일은 고치지 않고, 바꿀 것은 .env와 설치 폴더의 secrets/에 둔다.',
+    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있습니다. 이 파일은 고치지 말고, 바꿀 값은 .env에 적어 주세요.',
     '#',
     '#   sh core-server.sh install',
     '#   sh core-server.sh start',
     '#',
-    '# 운영 명령 없이 이 파일로 띄우려면 먼저 sh core-server.sh render로 설정을 rendered/에 펼친다.',
+    '# docker compose로 직접 띄울 때는 먼저 sh core-server.sh render를 실행해 주세요.',
   ], CORE_IMAGES.length);
   if (!text.includes(BUNDLE_SECRETS_DEFAULT)) {
-    fail(`실행용 compose 파일에 token 폴더 기본값 ${SECRETS_DEFAULT}가 없다. infrastructure/compose.yml의 secrets 항목을 확인한다.`);
+    fail(`실행용 compose 파일에 token 폴더 기본값 ${SECRETS_DEFAULT}가 없습니다. infrastructure/compose.yml의 secrets 항목을 확인해 주세요.`);
   }
   if (!text.includes(`${BUNDLE_CERTS_DIR}/ca-certificates.crt`)) {
-    fail(`실행용 compose 파일에 CA 인증서 파일 위치 ${BUNDLE_CERTS_DIR}/ca-certificates.crt가 없다. infrastructure/compose.yml의 blackbox-exporter 항목을 확인한다.`);
+    fail(`실행용 compose 파일에 CA 인증서 파일 위치 ${BUNDLE_CERTS_DIR}/ca-certificates.crt가 없습니다. infrastructure/compose.yml의 blackbox-exporter 항목을 확인해 주세요.`);
   }
   return text;
 }
 
 function runtimeNodeExporterCompose(core) {
   return bundleCompose(NODE_EXPORTER_COMPOSE, core, [
-    '# 감시 대상 Linux 서버용 node_exporter 실행 파일이다. scripts/build-core-bundle.mjs가 저장소의 infrastructure/node-exporter/compose.yml에서 만들었다.',
+    '# 감시 대상 Linux 서버에서 node_exporter를 띄우는 파일입니다. 저장소의 infrastructure/node-exporter/compose.yml로 만들었습니다.',
     `# 버전 ${core.describe}, 커밋 ${core.revision}`,
-    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있다.',
+    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있습니다.',
     '#',
     '#   docker load -i node-exporter-image.tar',
     '#   docker compose -f compose.yml up -d',
@@ -728,7 +728,7 @@ function localSecretValues() {
 
 function assertNoSecretValue(bytes, where, secrets) {
   if (secrets.some((value) => bytes.includes(value))) {
-    fail(`${where}에 infrastructure/secrets/의 비밀값이 들어 있다.`);
+    fail(`${where}에 infrastructure/secrets/의 비밀값이 들어 있습니다.`);
   }
 }
 
@@ -739,7 +739,7 @@ function assertNoSecrets(dir, secrets) {
     const relative = path.relative(dir, file).split(path.sep).join('/');
     if (relative === '.env' || relative.startsWith('rendered/') || relative.startsWith('certs/')
       || (relative.startsWith('secrets/') && !relative.endsWith('.example'))) {
-      fail(`묶음에 비밀값 파일이나 서버에서 만드는 파일이 있다: ${relative}`);
+      fail(`묶음에 비밀값 파일이나 서버에서 만드는 파일이 있습니다: ${relative}`);
     }
     if (!/\.tar(\.gz|\.bz2)?$/.test(relative)) {
       assertNoSecretValue(fs.readFileSync(file), relative, secrets);
@@ -749,10 +749,10 @@ function assertNoSecrets(dir, secrets) {
 
 function assertImagesHaveNoSecrets(exported, secrets) {
   if (secrets.length === 0) {
-    console.warn('경고: infrastructure/secrets/에 비밀값 파일이 없어 이미지 안의 비밀값 검사를 건너뛴다.');
+    console.warn('경고: infrastructure/secrets/에 비밀값 파일이 없어 이미지 안의 비밀값 검사를 건너뜁니다.');
     return;
   }
-  console.log('이미지 안에 로컬 비밀값이 들어가지 않았는지 확인한다.');
+  console.log('이미지 안에 로컬 비밀값이 들어가지 않았는지 확인합니다.');
   for (const [image, bytes] of Object.entries(exported)) {
     assertNoSecretValue(bytes, image, secrets);
   }
@@ -763,7 +763,7 @@ function addLicenses(out, bundle) {
   const known = Object.values(BUNDLE_LICENSES).flatMap((item) => [item.readme, ...item.files]);
   const unknown = fs.readdirSync(LICENSES_DIR).filter((name) => !known.includes(name));
   if (unknown.length > 0) {
-    fail(`infrastructure/licenses/의 ${unknown.join(', ')}을 싣는 묶음이 없다. BUNDLE_LICENSES에 더한다.`);
+    fail(`infrastructure/licenses/의 ${unknown.join(', ')}을 싣는 묶음이 없습니다. BUNDLE_LICENSES에 더해 주세요.`);
   }
   const { readme, files } = BUNDLE_LICENSES[bundle];
   writeText(path.join(out, 'licenses', 'README.txt'), fs.readFileSync(path.join(LICENSES_DIR, readme), 'utf8'));
@@ -778,7 +778,7 @@ function buildCoreBundle(core, ranges, secrets, exported) {
   const images = CORE_IMAGES.map((name) => imageName(name, core));
   assertImagesHaveNoSecrets(Object.fromEntries(images.map((image) => [image, exported[image]])), secrets);
 
-  console.log('코어 이미지를 묶음 파일로 내보낸다.');
+  console.log('코어 이미지를 묶음 파일로 내보냅니다.');
   run('docker', ['save', '-o', path.join(out, 'core-images.tar'), ...images]);
 
   writeText(path.join(out, 'compose.yml'), runtimeCompose(core));
@@ -821,9 +821,9 @@ async function download(urls, file) {
       }
       catch (error) {
         if (attempt >= 3 && url === urls.at(-1)) {
-          fail(`${urls.join(', ')}에서 받지 못했다: ${failureReason(error)}`);
+          fail(`${urls.join(', ')}에서 받지 못했습니다: ${failureReason(error)}`);
         }
-        console.warn(`경고: ${url}을 받지 못했다(${attempt}/3): ${failureReason(error)}`);
+        console.warn(`경고: ${url}을 받지 못했습니다(${attempt}/3): ${failureReason(error)}`);
       }
     }
   }
@@ -835,16 +835,16 @@ async function buildNodeExporterBundle(core, secrets, exported) {
   const image = nodeExporterImage(core);
   assertImagesHaveNoSecrets({ [image]: exported[image] }, secrets);
 
-  console.log('node_exporter 이미지를 묶음 파일로 내보낸다.');
+  console.log('node_exporter 이미지를 묶음 파일로 내보냅니다.');
   run('docker', ['save', '-o', path.join(out, 'node-exporter-image.tar'), image]);
 
-  console.log(`node_exporter 실행 파일을 받아 공식 체크섬과 대조한다(${NODE_EXPORTER.archive}).`);
+  console.log(`node_exporter 실행 파일을 받아 공식 체크섬과 대조합니다(${NODE_EXPORTER.archive}).`);
   const archive = path.join(out, NODE_EXPORTER.archive);
   await download([`https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER.version}/${NODE_EXPORTER.archive}`],
     archive);
   if (sha256(archive) !== NODE_EXPORTER.archiveSha256) {
     fs.rmSync(archive);
-    fail(`${NODE_EXPORTER.archive}의 체크섬이 공식 값과 다르다. 받은 파일을 지웠다.`);
+    fail(`${NODE_EXPORTER.archive}의 체크섬이 공식 값과 다릅니다. 받은 파일을 지웠습니다.`);
   }
 
   const compose = runtimeNodeExporterCompose(core);
@@ -865,12 +865,12 @@ const specs = imageSpecs(core);
 const exported = checkImages(Object.keys(specs), specs);
 const ranges = checkCoreImages(core, tools);
 if (CHECK_ONLY) {
-  console.log('\n이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험을 통과했다.');
+  console.log('\n이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험을 통과했습니다.');
   process.exit(0);
 }
 const secrets = localSecretValues();
 const coreOut = buildCoreBundle(core, ranges, secrets, exported);
 const nodeOut = await buildNodeExporterBundle(core, secrets, exported);
-console.log('\n묶음을 만들었다. 두 폴더를 내부망 서버로 옮긴다.');
+console.log('\n묶음을 만들었습니다. 다음 두 폴더를 내부망 서버로 옮겨 주세요.');
 console.log(`  ${path.relative(ROOT, coreOut)}`);
 console.log(`  ${path.relative(ROOT, nodeOut)}`);

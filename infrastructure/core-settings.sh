@@ -19,19 +19,19 @@ core_setting_spec() {
   case "$1" in
     CORE_RETENTION_DAYS)
       spec_label='기록 보관 기간' spec_unit='일' spec_default=15 spec_min=1 spec_max=365
-      spec_reason='1일보다 짧으면 화면이 보여 줄 기록이 거의 남지 않고, 365일보다 길면 디스크를 많이 씁니다.' ;;
+      spec_reason='1일보다 짧으면 볼 기록이 거의 남지 않고, 365일보다 길면 디스크를 많이 씁니다.' ;;
     CORE_RETENTION_SIZE_GB)
       spec_label='기록 보관 용량' spec_unit='GB' spec_default='' spec_min=1 spec_max=''
-      spec_reason='0GB로는 기록을 남길 수 없습니다. 용량을 제한하지 않으려면 값을 비워 둡니다.' ;;
+      spec_reason='0GB로는 기록을 남길 수 없습니다. 제한하지 않으려면 값을 비워 주세요.' ;;
     CORE_PROBE_TIMEOUT_SECONDS)
-      spec_label='확인 제한 시간' spec_unit='초' spec_default=5 spec_min=1 spec_max=9
-      spec_reason='확인은 1초 이상이어야 하고, 코어가 확인 결과를 수집 제한 시간(10초) 안에 받아야 해서 9초보다 오래 기다릴 수 없습니다.' ;;
+      spec_label='주소 확인 제한 시간' spec_unit='초' spec_default=5 spec_min=1 spec_max=9
+      spec_reason='0초로는 기다릴 수 없고, 코어가 결과를 10초 안에 받아야 해서 9초가 최대입니다.' ;;
     CORE_PROMETHEUS_PORT)
-      spec_label='Prometheus 호스트 포트' spec_unit='' spec_default=9090 spec_min=1024 spec_max=65535 ;;
+      spec_label='Prometheus 포트' spec_unit='' spec_default=9090 spec_min=1024 spec_max=65535 ;;
     CORE_ALERTMANAGER_PORT)
-      spec_label='Alertmanager 호스트 포트' spec_unit='' spec_default=9093 spec_min=1024 spec_max=65535 ;;
+      spec_label='Alertmanager 포트' spec_unit='' spec_default=9093 spec_min=1024 spec_max=65535 ;;
     CORE_BLACKBOX_PORT)
-      spec_label='Blackbox Exporter 호스트 포트' spec_unit='' spec_default=9115 spec_min=1024 spec_max=65535 ;;
+      spec_label='Blackbox Exporter 포트' spec_unit='' spec_default=9115 spec_min=1024 spec_max=65535 ;;
     *) return 1 ;;
   esac
   case "$1" in
@@ -85,7 +85,7 @@ core_setting_check() {
   # [0-9] 같은 범위는 locale에 따라 전각 숫자에도 맞으므로 글자를 나열한다.
   case "$core_value" in
     *[!0123456789]*|0?*)
-      core_setting_error "$1" "$2" "숫자 형식이 아닙니다. 단위 없이 숫자만 적고, 앞에 0을 붙이지 않습니다(예: ${spec_default:-50})."
+      core_setting_error "$1" "$2" "단위나 앞의 0 없이 숫자만 적을 수 있습니다(예: ${spec_default:-50})."
       return 1 ;;
   esac
   if [ -n "$spec_max" ]; then

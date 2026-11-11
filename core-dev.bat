@@ -21,7 +21,7 @@ if "%~1"=="stop" goto stop
 >&2 echo 사용법: core-dev.bat ^<작업^>
 >&2 echo.
 >&2 echo   build   내부망 서버로 옮길 묶음을 만듭니다
->&2 echo   check   이미지 검사, 설정 검사, 규칙 테스트를 실행합니다
+>&2 echo   check   묶음을 만들지 않고 검사와 시험만 실행합니다
 >&2 echo   start   설정을 펼쳐 개발용 코어를 띄웁니다
 >&2 echo   stop    개발용 코어를 멈춥니다
 set RC=1

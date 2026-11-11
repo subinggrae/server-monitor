@@ -438,7 +438,7 @@ reject_in_env_file() {
 }
 
 for value in 15d abc -1 7.5 015 '1 5' '15 --web.enable-admin-api' '３０'; do
-  reject_in_env_file CORE_RETENTION_DAYS "$value" '1~365' '앞에 0을 붙이지'
+  reject_in_env_file CORE_RETENTION_DAYS "$value" '1~365' '앞의 0 없이'
 done
 reject_in_env_file CORE_RETENTION_DAYS 0 '1~365'
 reject_in_env_file CORE_RETENTION_DAYS 366 '1~365'
@@ -448,8 +448,8 @@ reject_in_env_file CORE_RETENTION_SIZE_GB 1000000000 '999999999'
 for value in 5s '5|g' '5&' 'prober:'; do
   reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS "$value" '1~9'
 done
-reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 0 '1~9' '수집 제한 시간'
-reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 10 '1~9' '수집 제한 시간'
+reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 0 '1~9' '10초 안에'
+reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 10 '1~9' '10초 안에'
 reject_in_env_file CORE_PROMETHEUS_PORT 65536 '1024~65535'
 reject_in_env_file CORE_ALERTMANAGER_PORT 80 '1024~65535'
 reject_in_env_file CORE_BLACKBOX_PORT 1023 '1024~65535'
@@ -664,8 +664,8 @@ check '떠 있는 코어보다 보관 기간을 줄여 펼칠지 물었을 때 y
 # Docker에 닿지 못하면 떠 있는 코어의 보관 값과 비교할 수 없다. 그 사실을 알린다.
 setup; prepared; touch "$FAKE/docker_down"
 run render
-check 'Docker에 연결하지 못하면 설정 펼치기가 보관 값을 비교하지 못했다고 경고한다' \
-  '[ $RC -eq 0 ] && contains "비교하지 못했습니다" && [ -f "$RENDERED/core.env" ]'
+check 'Docker에 연결하지 못하면 설정 펼치기가 보관 값을 줄였는지 확인하지 못했다고 경고한다' \
+  '[ $RC -eq 0 ] && contains "줄였는지 확인하지 못했습니다" && [ -f "$RENDERED/core.env" ]'
 
 setup; prepared; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50 CORE_PROBE_TIMEOUT_SECONDS=9
 run render
