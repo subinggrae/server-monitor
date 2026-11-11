@@ -36,7 +36,7 @@
 
 ## 코어 설정
 
-코어 설정은 세 가지다. 저장소에서는 `infrastructure/.env`와 `infrastructure/secrets/`에, 내부망 묶음에서는 묶음 폴더의 `.env`와 token 폴더에 둔다. 바꾼 뒤 다시 띄우는 방법은 [운영 가이드의 운영 작업](OPERATIONS.md#운영-작업)에 있다.
+코어 설정은 세 가지다. 저장소에서는 `infrastructure/.env`와 `infrastructure/secrets/`에, 내부망 묶음에서는 설치 폴더의 `.env`와 token 폴더에 둔다. 바꾼 뒤 다시 띄우는 방법은 [운영 가이드의 운영 작업](OPERATIONS.md#운영-작업)에 있다.
 
 - `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
 - `CORE_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 저장소에서는 `infrastructure/secrets/`를, 내부망 묶음에서는 설치 폴더(묶음 폴더의 상위 폴더)의 `secrets/`를 쓴다.

@@ -103,7 +103,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
   - `/api/integrations/telegram/webhook`: Telegram이 호출한다. 공개 API로 본다.
 - 신뢰 경계는 다음과 같다.
   - 신뢰할 수 없는 입력은 화면용 REST API의 요청, 두 webhook의 요청, Prometheus와 Telegram의 응답, OS exporter의 `/metrics` 응답으로 들어온다. Manager는 `/metrics`를 경로를 고정해 `GET`으로만 읽고, 리다이렉트를 따르지 않으며, 크기와 시간에 한도를 둔다. 응답 본문은 화면과 로그에 넣지 않는다.
-  - 코어 서버의 `.env`와 셸 환경 변수는 묶음 폴더에 쓸 수 있는 운영자만 바꾸지만, 복사해 붙인 값이나 셸에 남은 환경 변수처럼 의도하지 않은 값이 들어올 수 있다. 그래서 운영 명령은 `.env`를 셸로 실행하지 않고 읽으며, 코어 값은 위 검사를 통과한 정수만 YAML 설정과 Compose `ports`에 넘긴다.
+  - 코어 서버의 `.env`와 셸 환경 변수는 설치 폴더에 쓸 수 있는 운영자만 바꾸지만, 복사해 붙인 값이나 셸에 남은 환경 변수처럼 의도하지 않은 값이 들어올 수 있다. 그래서 운영 명령은 `.env`를 셸로 실행하지 않고 읽으며, 코어 값은 위 검사를 통과한 정수만 YAML 설정과 Compose `ports`에 넘긴다.
   - OS exporter는 인증 없이 열린다. 운영자가 대상 서버의 방화벽이나 AWS 보안 그룹에서 코어 서버(Prometheus와 Monitoring Manager)만 접근하게 한다. exporter 트래픽이 VPC나 사내망 밖을 지나거나 고객사가 암호화·인증을 요구하면 TLS와 인증을 건다([#15](https://github.com/subinggrae/server-monitor/issues/15), 사람 확인: 2026-10-29).
   - 두 webhook은 각각 Bearer token과 Telegram secret header로 호출하는 쪽을 확인한다.
   - 데이터가 외부로 나가는 곳은 Telegram Bot API(알림 메시지)다.
