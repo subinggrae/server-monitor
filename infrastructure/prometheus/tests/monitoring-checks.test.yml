@@ -1,0 +1,432 @@
+# rules/monitoring-checks.yml의 promtool 테스트입니다.
+# Prometheus가 rules/*.yml을 모두 규칙 파일로 읽으므로 이 파일은 rules/ 밖에 둡니다.
+# 실행 명령은 docs/DEVELOPMENT.md에 있습니다.
+#
+# Alert label은 alertname, severity, check_id, check_target_id뿐이어야 합니다.
+# 사용자가 바꾸는 이름, 환경, 확인 방식, 주소가 label에 있으면 값을 바꿀 때 Alert가 끊깁니다. (docs/decisions/0010)
+
+rule_files:
+  - ../rules/monitoring-checks.yml
+
+evaluation_interval: 15s
+
+tests:
+  # 감시 항목 1의 주소 11~14는 처음부터 계속 실패하고, 2분쯤에 사용자가 값을 바꿉니다.
+  #   11: 이름과 환경. 바꾼 시점(2m15s)에 옛 series에 stale 표시가 남고 새 series가 시작합니다.
+  #   12: 이름과 환경. stale 표시 없이 옛 series와 새 series가 75초부터 함께 남아 있습니다.
+  #   13: 확인 방식(TCP에서 HTTPS). module과 주소도 함께 바뀝니다.
+  #   14: 주소. 주소의 id는 그대로입니다.
+  # 바꾼 30초 뒤에도 firing이어야 합니다. 새 series만 보고 판단하면 아직 pending입니다.
+  # 감시 항목 2는 계속 성공하므로 Alert가 없어야 합니다.
+  - interval: 15s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.5:8080"}'
+        values: '0x8 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP 새 이름",instance="10.0.0.5:8080"}'
+        values: '_x9 0x12'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="12",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.6:8080"}'
+        values: '0x8'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="12",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP 새 이름",instance="10.0.0.6:8080"}'
+        values: '_x5 0x16'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="13",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.7:443"}'
+        values: '0x8 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="13",check_type="HTTPS",module="http_2xx",environment="Production",check_name="결재 TCP",instance="https://10.0.0.7/health"}'
+        values: '_x9 0x12'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="14",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.8:8080"}'
+        values: '0x8 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="1",check_target_id="14",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.9:8080"}'
+        values: '_x9 0x12'
+      - series: 'probe_success{job="manager-blackbox",check_id="2",check_target_id="21",check_type="HTTPS",module="http_2xx",environment="Production",check_name="포털",instance="https://example.com/health"}'
+        values: '1x21'
+
+      # 주소 11의 확인 결과를 가져오지 못하는 동안 이름과 환경이, 주소 14의 주소가 바뀝니다.
+      - series: 'up{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.5:8080"}'
+        values: '0x8 stale'
+      - series: 'up{job="manager-blackbox",check_id="1",check_target_id="11",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP 새 이름",instance="10.0.0.5:8080"}'
+        values: '_x9 0x12'
+      - series: 'up{job="manager-blackbox",check_id="1",check_target_id="14",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.8:8080"}'
+        values: '0x8 stale'
+      - series: 'up{job="manager-blackbox",check_id="1",check_target_id="14",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.0.9:8080"}'
+        values: '_x9 0x12'
+      - series: 'up{job="manager-blackbox",check_id="2",check_target_id="21",check_type="HTTPS",module="http_2xx",environment="Production",check_name="포털",instance="https://example.com/health"}'
+        values: '1x21'
+
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 2m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '1'
+              check_target_id: '11'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '1'
+              check_target_id: '12'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '1'
+              check_target_id: '13'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '1'
+              check_target_id: '14'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 2m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '1'
+              check_target_id: '11'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+          - exp_labels:
+              severity: critical
+              check_id: '1'
+              check_target_id: '14'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+    promql_expr_test:
+      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
+      - expr: ALERTS_FOR_STATE
+        eval_time: 2m45s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="11"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="12"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="13"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="14"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="1",check_target_id="11"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="1",check_target_id="14"}'
+            value: 0
+
+  # 아래 그룹은 입력을 5초 간격으로 넣어 수집 시점과 규칙 평가 시점(15초마다)을 따로 둡니다.
+  # 값 위치 n의 시각은 n×5초입니다. '0x24 stale'은 0~120초에 0을 넣고 125초에 stale 표시를 남깁니다.
+
+  # 수집 틈: 값을 바꾸면 옛 series는 바로 stale로 끝나고, 새 series는 새 target의 첫 수집 때 시작합니다.
+  # 주소 31은 틈이 15초(125~140초, 평가 135초가 걸림), 주소 32는 4분(125~365초)입니다.
+  # 틈 동안에도 Alert와 처음 활성화된 시각(0초)이 그대로여야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '0x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '_x28 0x60'
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="32",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.32:8080"}'
+        values: '0x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="32",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP",instance="10.0.1.32:8080"}'
+        values: '_x73 0x20'
+      - series: 'up{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '0x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Staging",check_name="결재 TCP",instance="10.0.1.31:8080"}'
+        values: '_x28 0x60'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 2m15s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '3'
+              check_target_id: '31'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '3'
+              check_target_id: '32'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 2m15s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '3'
+              check_target_id: '31'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckDown
+        eval_time: 6m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '3'
+              check_target_id: '31'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '3'
+              check_target_id: '32'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+    promql_expr_test:
+      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
+      - expr: ALERTS_FOR_STATE
+        eval_time: 6m
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="3",check_target_id="31"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="3",check_target_id="32"}'
+            value: 0
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="3",check_target_id="31"}'
+            value: 0
+
+  # 지우거나 끈 주소: series가 stale로 끝나고 새 series가 없습니다.
+  # 마지막 실패 값(120초)이 5분 창 안에 있는 동안 Alert가 이어지고, 420초 평가부터 없어야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="5",check_target_id="51",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.51:8080"}'
+        values: '0x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="5",check_target_id="51",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.51:8080"}'
+        values: '0x24 stale'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 4m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '5'
+              check_target_id: '51'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 4m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '5'
+              check_target_id: '51'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckDown
+        eval_time: 6m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '5'
+              check_target_id: '51'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 6m45s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '5'
+              check_target_id: '51'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckDown
+        eval_time: 7m
+        exp_alerts: []
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 7m
+        exp_alerts: []
+
+  # 살아난 주소(두 규칙): 주소 41은 180초부터 성공합니다. 주소 42는 이름을 바꾼 새 series가,
+  # 주소 43은 확인 방식을 바꾼 새 series가 125초부터 성공합니다.
+  # 옛 series의 마지막 실패 값이 5분 창 안에 남아 있어도, 지금 값이 있으면 그 값으로 판단해 바로 복구되어야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="41",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.41:8080"}'
+        values: '0x35 1x20'
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="42",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.42:8080"}'
+        values: '0x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="42",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.42:8080"}'
+        values: '_x25 1x30'
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="43",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.43:443"}'
+        values: '0x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="4",check_target_id="43",check_type="HTTPS",module="http_2xx",environment="Production",check_name="결재 TCP",instance="https://10.0.1.43/health"}'
+        values: '_x25 1x30'
+      - series: 'up{job="manager-blackbox",check_id="4",check_target_id="41",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.41:8080"}'
+        values: '0x35 1x20'
+      - series: 'up{job="manager-blackbox",check_id="4",check_target_id="42",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.42:8080"}'
+        values: '0x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="4",check_target_id="42",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.42:8080"}'
+        values: '_x25 1x30'
+      - series: 'up{job="manager-blackbox",check_id="4",check_target_id="43",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.43:443"}'
+        values: '0x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="4",check_target_id="43",check_type="HTTPS",module="http_2xx",environment="Production",check_name="결재 TCP",instance="https://10.0.1.43/health"}'
+        values: '_x25 1x30'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 2m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '41'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '42'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '43'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+      - alertname: MonitoringCheckDown
+        eval_time: 2m15s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '41'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+      - alertname: MonitoringCheckDown
+        eval_time: 3m
+        exp_alerts: []
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 2m
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '41'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '42'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '43'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 2m15s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '4'
+              check_target_id: '41'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 3m
+        exp_alerts: []
+
+  # 성공 중에 값을 바꾸고 바로 실패(두 규칙): 옛 series의 마지막 성공 값(120초)이 5분 창 안에 남아 있어도
+  # 새 series가 125~140초에 성공하고 145초부터 실패하면, 첫 실패 평가(150초)의 1분 뒤(210초) firing이어야 합니다.
+  # 주소 61은 이름을, 주소 62는 주소를 바꿉니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="6",check_target_id="61",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.61:8080"}'
+        values: '1x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="6",check_target_id="61",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.61:8080"}'
+        values: '_x25 1x3 0x40'
+      - series: 'probe_success{job="manager-blackbox",check_id="6",check_target_id="62",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.62:8080"}'
+        values: '1x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="6",check_target_id="62",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.63:8080"}'
+        values: '_x25 1x3 0x40'
+      - series: 'up{job="manager-blackbox",check_id="6",check_target_id="61",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.61:8080"}'
+        values: '1x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="6",check_target_id="61",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.61:8080"}'
+        values: '_x25 1x3 0x40'
+      - series: 'up{job="manager-blackbox",check_id="6",check_target_id="62",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.62:8080"}'
+        values: '1x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="6",check_target_id="62",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.63:8080"}'
+        values: '_x25 1x3 0x40'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 3m15s
+        exp_alerts: []
+      - alertname: MonitoringCheckDown
+        eval_time: 3m30s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '6'
+              check_target_id: '61'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+          - exp_labels:
+              severity: critical
+              check_id: '6'
+              check_target_id: '62'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 3m15s
+        exp_alerts: []
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 3m30s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '6'
+              check_target_id: '61'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+          - exp_labels:
+              severity: critical
+              check_id: '6'
+              check_target_id: '62'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+    promql_expr_test:
+      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
+      - expr: ALERTS_FOR_STATE
+        eval_time: 3m30s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="6",check_target_id="61"}'
+            value: 150
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="6",check_target_id="62"}'
+            value: 150
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="6",check_target_id="61"}'
+            value: 150
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="6",check_target_id="62"}'
+            value: 150
