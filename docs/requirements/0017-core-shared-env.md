@@ -1,6 +1,6 @@
 # 0017. 설치 폴더 하나의 코어 설정 파일
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-11
 - 관련: [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md), [0015](0015-core-minimal-image.md)
 
@@ -99,12 +99,12 @@ token(`secrets/`)과 CA 인증서 파일(`certs/`)은 이미 설치 폴더에 �
 
 ## 완료 기준
 
-- [ ] C1. `install`이 설치 폴더에 `.env`를 만들고 묶음 폴더에는 만들지 않는다. (S1) — 확인: 운영 명령 시험
-- [ ] C2. 설치 폴더의 `.env` 값으로 `start`, `render`, `status`가 동작한다. (S2, S4) — 확인: 운영 명령 시험
-- [ ] C3. 묶음 폴더에서 실행한 `docker compose` 명령이 설치 폴더 `.env`의 포트와 token 폴더를 쓴다. (S3) — 확인: 운영 명령 시험(링크를 만드는지), 코어 서버에서 포트를 바꾼 뒤 묶음 폴더의 `docker compose config` 수동 확인
-- [ ] C4. S5, S6, S7, S8에서 코어를 바꾸지 않고 안내한다. (S5, S6, S7, S8) — 확인: 운영 명령 시험
-- [ ] C5. 운영 가이드의 설치, 갱신, 운영 명령 없이 실행 절차가 새 위치를 쓰고, 갱신 절차에 `.env` 복사 단계가 없다. — 확인: 문서 리뷰, `node scripts/check-docs.mjs`
-- [ ] C6. 묶음의 시험과 검사가 통과한다. — 확인: `node scripts/build-core-bundle.mjs --check`
+- [x] C1. `install`이 설치 폴더에 `.env`를 만들고 묶음 폴더에는 만들지 않는다. (S1) — 확인: 운영 명령 시험
+- [x] C2. 설치 폴더의 `.env` 값으로 `start`, `render`, `status`가 동작한다. (S2, S4) — 확인: 운영 명령 시험
+- [x] C3. 묶음 폴더에서 실행한 `docker compose` 명령이 설치 폴더 `.env`의 포트와 token 폴더를 쓴다. (S3) — 확인: 운영 명령 시험(링크를 만드는지), 코어 서버에서 포트를 바꾼 뒤 묶음 폴더의 `docker compose config` 수동 확인(코어 서버에서는 링크 생성과 S5 흐름까지 확인하고, compose가 링크를 따라 읽는 것은 `docker:cli` 컨테이너로 확인함)
+- [x] C4. S5, S6, S7, S8에서 코어를 바꾸지 않고 안내한다. (S5, S6, S7, S8) — 확인: 운영 명령 시험
+- [x] C5. 운영 가이드의 설치, 갱신, 운영 명령 없이 실행 절차가 새 위치를 쓰고, 갱신 절차에 `.env` 복사 단계가 없다. — 확인: 문서 리뷰, `node scripts/check-docs.mjs`
+- [x] C6. 묶음의 시험과 검사가 통과한다. — 확인: `node scripts/build-core-bundle.mjs --check`
 
 ## 확인 필요
 

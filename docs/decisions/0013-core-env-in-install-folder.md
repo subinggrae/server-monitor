@@ -1,8 +1,8 @@
 # 0013. 코어 설정 파일은 설치 폴더에 하나만 두고, 묶음 폴더에는 그 파일을 가리키는 링크를 둔다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-11-11
-- 관련: [요구사항 0017](../requirements/0017-core-shared-env.md), [요구사항 0015](../requirements/0015-core-minimal-image.md), [ADR 0012](0012-core-render-outside-image.md)
+- 관련: [요구사항 0017](../requirements/0017-core-shared-env.md), [PR #53](https://github.com/subinggrae/server-monitor/pull/53)(구현 계획 포함), [요구사항 0015](../requirements/0015-core-minimal-image.md), [ADR 0012](0012-core-render-outside-image.md)
 
 ## 배경과 문제
 
