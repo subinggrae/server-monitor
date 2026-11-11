@@ -143,7 +143,7 @@ CREATE TABLE monitoring_check_notification_bindings (
         REFERENCES telegram_destinations (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
--- Check마다 알림 재발송 주기입니다. 행이 없는 Check는 60분입니다.
+-- Check마다 알림을 다시 보내는 간격입니다. 행이 없는 Check는 60분입니다.
 -- 허용 범위(5~1440분)는 요청 DTO에서 검증합니다.
 CREATE TABLE check_notification_settings (
     check_id                BIGINT      NOT NULL,

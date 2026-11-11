@@ -358,7 +358,8 @@ if (fs.existsSync(termsPath)) {
   if (pairs.length) {
     for (const f of mdFiles) {
       const r = rel(f);
-      if (r === 'docs/TERMS.md') continue;
+      // 요구사항과 ADR은 결정할 때의 말을 남긴 기록이라 나중에 정한 용어로 고치지 않는다
+      if (r === 'docs/TERMS.md' || r.startsWith('docs/requirements/') || r.startsWith('docs/decisions/')) continue;
       stripComments(stripCode(fs.readFileSync(f, 'utf8'))).split('\n').forEach((l, i) => {
         for (const [avoid, use] of pairs) if (l.includes(avoid)) add('warn', 'term', `${r}:${i + 1}`, termMessage(avoid, use));
       });
