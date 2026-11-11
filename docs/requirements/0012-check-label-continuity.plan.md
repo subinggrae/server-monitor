@@ -30,12 +30,12 @@ annotation에는 label에 없는 값을 쓸 수 없으므로 이름, 환경, 주
 
 | 위치 | 변경 |
 |---|---|
-| `infrastructure/prometheus/rules/monitoring-checks.yml` | 두 규칙의 식을 위로 바꾼다. annotation에서 `check_name`, `instance`, `check_type`, `environment`를 뺀다. 파일 머리 주석의 label 목록을 고친다 |
-| `infrastructure/prometheus/tests/monitoring-checks.test.yml` | 새 규칙 테스트. PR #43의 테스트를 바탕으로 확인 방식·주소 변경과 바뀐 label을 더한다 |
+| `infrastructure/prometheus/rules/monitoring-checks.yml` | 두 규칙의 식, annotation, 머리 주석의 label 목록 |
+| `infrastructure/prometheus/tests/monitoring-checks.test.yml` | 새 규칙 테스트(PR #43의 테스트에 확인 방식·주소 변경과 바뀐 label을 더함) |
 | `infrastructure/alertmanager/alertmanager.yml` | `group_by`를 `[alertname, check_id, environment]`에서 `[alertname, check_id]`로 바꾼다 |
 | `backend/.../alert/AlertEventService.java` | 알림의 환경을 Alert label이 아니라 감시 항목의 DB 값으로 채운다 |
 | `backend/.../alert/AlertEventServiceTest.java` | 새 단위 테스트(C3) |
-| `backend/.../prometheus/BlackboxServiceDiscoveryService.java` | label 주석을 실제와 맞춘다. SD label은 그대로다 |
+| `backend/.../prometheus/BlackboxServiceDiscoveryService.java` | label 주석만 실제와 맞춘다(SD label은 그대로) |
 | `docs/INTEGRATION.md` | SD label 뜻, webhook 예시, Alert label 표, 묶음, 처리 순서, 복구 시점 |
 | `docs/ADMIN-SERVER.md` | 관리자 서버가 이름·환경·주소를 DB에서 채우는 안내와 예시 |
 | `docs/OPERATIONS.md` | 지우거나 끈 감시 항목·주소의 복구 시점 |
@@ -54,7 +54,7 @@ Alertmanager webhook 계약(INTEGRATION.md의 Alert)이 바뀐다. `BREAKING CHA
 | 항목 | 이전 | 새 값 |
 |---|---|---|
 | Alert label | `alertname`, `severity`, `check_id`, `check_target_id`, `check_name`, `check_type`, `module`, `environment`, `instance`, `job` | `alertname`, `severity`, `check_id`, `check_target_id` |
-| `MonitoringCheckDown` annotation | `summary`: `{{ check_name }} 확인에 실패했습니다`, `description`: 주소, 확인 방식, 환경을 넣은 문장 | 이름·주소·확인 방식·환경이 없는 문장 |
+| `MonitoringCheckDown` annotation | 이름, 주소, 확인 방식, 환경을 넣은 문장 | 이름, 주소, 확인 방식, 환경이 없는 문장 |
 | `MonitoringCheckProbeFailed` annotation | `description`에 주소 | 주소가 없는 문장 |
 | `group_by` | `alertname`, `check_id`, `environment` | `alertname`, `check_id` |
 
@@ -75,12 +75,14 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 
 | 완료 기준 | 테스트 | 실행 명령과 기대 결과 |
 |---|---|---|
-| C1, C4, C12 | 규칙 테스트 `monitoring-checks.test.yml`: 이름·환경·확인 방식·주소 변경 때 label과 Alert가 이어짐, 수집 틈 15초와 4분, 지우거나 끈 주소는 5분 뒤 복구, 살아난 주소는 바로 복구, 장애가 없을 때 값을 바꾼 뒤 실패하면 1분 뒤 장애, Alert label과 annotation | `core-dev.bat check` 통과. 저장소 밖 사본에서 바꾸기 전 규칙, `or` 앞의 식만, `or` 뒤의 식만, `without (check_name, environment)`로 바꾸면 실패 |
-| C3 | 단위 테스트 `AlertEventServiceTest`: label에 다른 환경이 있어도 알림의 환경이 DB 값 | `cd backend && ./gradlew test --tests '*AlertEventServiceTest'` 통과. 구현 전에는 실패 |
+| C1, C4, C12 | 규칙 테스트 `monitoring-checks.test.yml`: 이름·환경·확인 방식·주소 변경 때 label과 Alert가 이어짐, 수집 틈 15초와 4분, 지우거나 끈 주소는 5분 뒤 복구, 살아난 주소는 바로 복구, 장애가 없을 때 값을 바꾼 뒤 실패하면 1분 뒤 장애, Alert label과 annotation | `core-dev.bat check` 통과, 저장소 밖 사본에서 다른 식(아래)으로 바꾸면 실패 |
+| C3 | 단위 테스트 `AlertEventServiceTest`: label에 다른 환경이 있어도 알림의 환경이 DB 값 | `cd backend && ./gradlew test --tests '*AlertEventServiceTest'` 통과(구현 전에는 실패) |
 | C5 | 설정 검사 | `core-dev.bat check`의 `amtool check-config` 통과 |
 | C2, C5 | 개발 환경 수동 확인: 수집 주기 10초와 60초의 감시 항목(주소 둘 이상)을 실패시키고, 장애 중에 이름·환경과 확인 방식을 바꾼다 | Alertmanager API의 fingerprint와 `startsAt`이 그대로, 관리자 서버에 복구 webhook 0건, 장애 기록 수가 그대로, 한 감시 항목의 주소들이 한 요청으로 옴 |
 | C6, C11, C13 | 문서 검사와 리뷰 | `node scripts/check-docs.mjs` 오류 0 |
 | 전체 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build`, `core-dev.bat check`, `node scripts/check-docs.mjs` 통과 |
+
+규칙 테스트가 실패해야 하는 다른 식은 바꾸기 전 규칙, `or` 앞의 식만 쓴 규칙, `or` 뒤의 식만 쓴 규칙, `without (check_name, environment)`로 묶은 규칙이다.
 
 ## 작업 순서
 
