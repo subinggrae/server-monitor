@@ -33,9 +33,6 @@ annotation에는 label에 없는 값을 쓸 수 없으므로 이름, 환경, 주
 | `infrastructure/prometheus/rules/monitoring-checks.yml` | 두 규칙의 식, annotation, 머리 주석의 label 목록 |
 | `infrastructure/prometheus/tests/monitoring-checks.test.yml` | 새 규칙 테스트(PR #43의 테스트에 확인 방식·주소 변경과 바뀐 label을 더함) |
 | `infrastructure/alertmanager/alertmanager.yml` | `group_by`를 `[alertname, check_id, environment]`에서 `[alertname, check_id]`로 바꾼다 |
-| `backend/.../alert/AlertEventService.java` | 알림의 환경을 Alert label이 아니라 감시 항목의 DB 값으로 채운다 |
-| `backend/.../alert/AlertEventServiceTest.java` | 새 단위 테스트(C3) |
-| `backend/.../prometheus/BlackboxServiceDiscoveryService.java` | label 주석만 실제와 맞춘다(SD label은 그대로) |
 | `docs/INTEGRATION.md` | SD label 뜻, webhook 예시, Alert label 표, 묶음, 처리 순서, 복구 시점 |
 | `docs/ADMIN-SERVER.md` | 관리자 서버가 이름·환경·주소를 DB에서 채우는 안내와 예시 |
 | `docs/OPERATIONS.md` | 지우거나 끈 감시 항목·주소의 복구 시점 |
@@ -76,9 +73,8 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 | 완료 기준 | 테스트 | 실행 명령과 기대 결과 |
 |---|---|---|
 | C1, C4, C12 | 규칙 테스트 `monitoring-checks.test.yml`: 이름·환경·확인 방식·주소 변경 때 label과 Alert가 이어짐, 수집 틈 15초와 4분, 지우거나 끈 주소는 5분 뒤 복구, 살아난 주소는 바로 복구, 장애가 없을 때 값을 바꾼 뒤 실패하면 1분 뒤 장애, Alert label과 annotation | `core-dev.bat check` 통과, 저장소 밖 사본에서 다른 식(아래)으로 바꾸면 실패 |
-| C3 | 단위 테스트 `AlertEventServiceTest`: label에 다른 환경이 있어도 알림의 환경이 DB 값 | `cd backend && ./gradlew test --tests '*AlertEventServiceTest'` 통과(구현 전에는 실패) |
 | C5 | 설정 검사 | `core-dev.bat check`의 `amtool check-config` 통과 |
-| C2, C5 | 개발 환경 수동 확인: 수집 주기 10초와 60초의 감시 항목(주소 둘 이상)을 실패시키고, 장애 중에 이름·환경과 확인 방식을 바꾼다 | Alertmanager API의 fingerprint와 `startsAt`이 그대로, 관리자 서버에 복구 webhook 0건, 장애 기록 수가 그대로, 한 감시 항목의 주소들이 한 요청으로 옴 |
+| C2, C5 | 개발 환경 수동 확인(이 저장소의 Manager를 고치지 않고 그대로 띄움): 수집 주기 10초와 60초의 감시 항목(주소 둘 이상)을 실패시키고, 장애 중에 이름·환경과 확인 방식을 바꾼다 | Alertmanager API의 fingerprint와 `startsAt`이 그대로, 관리자 서버에 복구 webhook 0건, 장애 기록 수가 그대로, 한 감시 항목의 주소들이 한 요청으로 옴 |
 | C6, C11, C13 | 문서 검사와 리뷰 | `node scripts/check-docs.mjs` 오류 0 |
 | 전체 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build`, `core-dev.bat check`, `node scripts/check-docs.mjs` 통과 |
 
@@ -86,11 +82,9 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 
 ## 작업 순서
 
+- [ ] 문서(INTEGRATION, ADMIN-SERVER, OPERATIONS, ARCHITECTURE, TESTING)를 고친다(사람 확인: 2026-11-12, 문서부터 고침)
 - [ ] 규칙 테스트를 쓰고, 지금 규칙에서 실패하는지 확인한다
 - [ ] Alert 규칙과 `group_by`를 바꾸고 `core-dev.bat check`로 확인한다. 저장소 밖 사본으로 테스트가 다른 식에서 실패하는지 확인한다
-- [ ] `AlertEventServiceTest`를 쓰고 실패를 확인한 뒤 `AlertEventService`를 고친다
-- [ ] `BlackboxServiceDiscoveryService`의 주석을 고친다
-- [ ] 문서(INTEGRATION, ADMIN-SERVER, OPERATIONS, ARCHITECTURE, TESTING)를 고친다
 - [ ] 개발 환경에서 C2, C5를 수동 확인하고 결과를 진행 중 발견에 적는다
 - [ ] 전체 검증을 실행하고, 새 하위 에이전트에게 리뷰를 맡긴다
 - [ ] 요구사항을 구현됨으로, ADR 0010을 승인으로 바꾸고 이 계획을 지운다

@@ -33,8 +33,7 @@ SD label은 그대로 둔다. 사용자의 Grafana가 이 Prometheus의 기록�
 
 - 대상이 계속 실패하는 동안 사용자가 감시 항목의 이름, 환경, 확인 방식이나 주소를 바꿔도 장애는 하나로 이어진다. 복구 알림과 새 장애 알림이 가지 않고, 장애 기록도 하나로 남는다.
 - 관리자 서버를 만드는 개발자가 알림의 감시 항목 이름, 환경, 주소를 Alert label이 아니라 알림을 보내는 시점의 자기 DB 값으로 채워야 한다는 것을 [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에서 알 수 있다.
-- 이 저장소의 관리자 서버도 알림의 환경을 Alert label이 아니라 DB 값으로 채운다. 이름과 주소는 지금도 DB 값으로 채운다.
-- [INTEGRATION.md](../INTEGRATION.md)의 label 설명과 `BlackboxServiceDiscoveryService`의 주석이 실제 동작과 맞는다.
+- [INTEGRATION.md](../INTEGRATION.md)의 label 설명이 실제 동작과 맞는다.
 
 ## 하지 않는 것
 
@@ -42,7 +41,9 @@ SD label은 그대로 둔다. 사용자의 Grafana가 이 Prometheus의 기록�
 - 실패가 1분 이어지면 장애라는 기준(`for: 1m`)을 바꾸는 것. 장애 판단은 코어가 정한다([ARCHITECTURE.md의 지켜야 할 경계](../ARCHITECTURE.md#지켜야-할-경계)). 다만 값을 바꿀 때의 수집 틈을 메우려고, 지금 값이 없는 대상을 판단하는 방법은 바꾼다(S9, S10).
 - OS exporter SD의 `server_name`, `environment`를 바꾸는 것. OS exporter에는 Alert 규칙이 없고, 앱이 읽는 recording rule은 id만 쓰며, Grafana에서 서버를 이름으로 보려면 이 label이 필요하다(사람 확인: 2026-10-29).
 - 장애 중인 감시 항목이나 주소를 지우거나 끌 때 관리자 서버가 장애 기록을 직접 닫는 것. 직접 닫아도 그 뒤 5분 동안 같은 장애의 firing webhook이 다시 와서 기록을 다시 열기 때문이다. 기록은 최대 5분 뒤 오는 복구 webhook으로 닫는다(사람 확인: 2026-11-12).
-- 대시보드와 감시 항목 상세가 함께 쓰는 최근 장애 표(`RecentAlertTable`)와 장애 목록 화면에 감시 항목 이름을 보이는 것. 이 변경 뒤에는 두 화면의 장애 내용 칸에 이름과 주소가 없는 장애 문장(annotation `summary`)이 보이고, 주소 칸은 지금처럼 DB의 주소를 보인다. 화면 목록을 다시 정할 예정이고 관리자 서버의 웹은 다른 웹에서 만들기 때문이다(사람 확인: 2026-10-29, 2026-11-09). 2026-11-09에 하지 않기로 한 다음 항목도 그대로 하지 않는다.
+- 이 저장소의 Manager(`backend/`, `frontend/`)를 고치는 것. 이 저장소는 코어만 남기고, 관리자 서버의 API와 웹은 다른 웹에서 만든다(사람 확인: 2026-11-09, 2026-11-12). 이 저장소의 Manager는 Alert에 환경 label이 없으면 감시 항목의 DB 값을 쓰므로, 고치지 않아도 알림에 지금 환경이 보인다(`AlertEventService`를 읽어 확인). 이 변경 뒤에는 장애 목록 화면과 최근 장애 표(`RecentAlertTable`)의 내용 칸에 이름과 주소가 없는 장애 문장(annotation `summary`)이 보인다. 그래서 다음은 하지 않는다.
+  - 알림의 환경을 Alert label을 보지 않고 DB 값으로만 채우게 `AlertEventService`를 고치는 것
+  - `BlackboxServiceDiscoveryService`의 label 주석을 실제 동작에 맞추는 것
   - S6~S8. 장애 목록 화면의 내용 칸에 감시 항목 이름을 DB의 지금 값으로 먼저 보이는 것
   - C7. 지운 감시 항목의 복구 Alert가 기록만 남는지 새 `AlertEventService` 단위 테스트로 확인하는 것
   - C8. `GET /api/alerts`의 항목마다 지금 감시 항목 이름(`checkName`)을 주는 것
@@ -106,7 +107,7 @@ SD label은 그대로 둔다. 사용자의 Grafana가 이 Prometheus의 기록�
 ### 보안
 
 - 접근 권한: 바뀌지 않는다. Alertmanager webhook은 Bearer token으로 확인한다.
-- 외부 입력: 바뀌지 않는다. Alertmanager webhook 요청의 label 값이 줄어들 뿐이다. 이 저장소의 관리자 서버는 받은 label 가운데 `environment`를 더는 읽지 않는다.
+- 외부 입력: 바뀌지 않는다. Alertmanager webhook 요청의 label 값이 줄어들 뿐이다.
 - 민감한 정보: 없음
 - 남길 보안 이벤트: 없음
 
@@ -117,17 +118,15 @@ SD label은 그대로 둔다. 사용자의 Grafana가 이 Prometheus의 기록�
 - Alertmanager의 `group_wait`, `group_interval`, `repeat_interval`, 복구 Alert 전송
 - 장애를 `fingerprint`와 `startsAt`으로 구분하는 방식과 재발송 판단([ADR 0001](../decisions/0001-alert-repeat-in-manager.md))
 - 한 감시 항목의 여러 주소 Alert가 한 webhook 요청으로 묶여 오는 것
-- 이 저장소의 관리자 서버가 알림의 감시 항목 이름과 주소를 DB 값으로 채우는 것. 주소를 DB에서 찾지 못할 때 Alert의 `instance` label을 쓰는 동작도 그대로 둔다. 이 변경 뒤에는 그 label이 오지 않아 주소가 비어 있다.
-- 이 저장소의 화면(`frontend/`)
+- 이 저장소의 Manager 코드(`backend/`, `frontend/`)
 
 ## 완료 기준
 
 - [ ] C1. 두 Alert 규칙에서 장애가 이어지는 대상의 이름, 환경, 확인 방식, 주소를 바꿔도 Alert의 label이 그대로이고 Alert가 끊기지 않는다. (S1, S2, S12, S13) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트
 - [ ] C2. 개발 환경에서 장애가 이어지는 감시 항목의 이름·환경과 확인 방식을 바꿔도 Alertmanager의 그 Alert fingerprint와 `startsAt`이 그대로이고, 관리자 서버에 복구 webhook이 오지 않으며 장애 기록이 하나로 남는다. 수집 주기 30초 이상을 포함한다. (S1, S2, S12, S9) — 확인: 개발 환경 수동 확인
-- [ ] C3. 이 저장소의 관리자 서버가 알림의 환경을 Alert label이 아니라 DB 값으로 채운다. label에 다른 환경이 있어도 DB 값이 쓰인다. (S2) — 확인: `AlertEventService` 테스트
 - [ ] C4. Alert 규칙의 label이 `alertname`, `severity`, `check_id`, `check_target_id`뿐이고, annotation에 이름·환경·주소·확인 방식이 없으며, `core-dev.bat check`(이미지 빌드, 설정 검사, 규칙 테스트)가 통과한다. (S1, S2, S12, S13) — 확인: 규칙 테스트, `core-dev.bat check`
 - [ ] C5. `alertmanager.yml`의 `group_by`가 `alertname`, `check_id`뿐이고, 한 감시 항목의 여러 주소 Alert가 여전히 한 요청으로 묶인다. — 확인: `amtool check-config`(`core-dev.bat check`에 포함)와 C2의 수동 확인
-- [ ] C6. [INTEGRATION.md](../INTEGRATION.md)의 SD label 표와 Alert label 표, webhook 예시, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 예시, `BlackboxServiceDiscoveryService`의 주석이 실제 label과 맞는다. — 확인: 리뷰
+- [ ] C6. [INTEGRATION.md](../INTEGRATION.md)의 SD label 표와 Alert label 표, webhook 예시, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 예시가 실제 label과 맞는다. — 확인: 리뷰
 - [ ] C11. [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에 관리자 서버가 알림의 감시 항목 이름, 환경, 주소를 Alert label이 아니라 `check_id`, `check_target_id`로 찾은 자기 DB 값으로 채워야 한다고 적혀 있다. (S1, S2, S13) — 확인: 리뷰
 - [ ] C12. 두 Alert 규칙에서 옛 기록의 stale 표시와 새 기록의 첫 수집 사이에 평가가 있어도 장애가 이어지고 시작 시각이 그대로다. 지우거나 끈 대상의 장애는 5분 동안 이어진 뒤 끝나고, 살아난 대상의 장애는 다음 평가에서 끝난다. 장애가 없을 때 값을 바꾼 직후 실패하면 1분 뒤 장애가 된다. (S3, S9, S10, S11) — 확인: 규칙 테스트. 바꾸기 전 규칙, 지금 값만 보는 식, `last_over_time`만 보는 식에서 실패하는지도 확인한다
 - [ ] C13. [INTEGRATION.md](../INTEGRATION.md)와 [운영 가이드](../OPERATIONS.md)에 지우거나 끈 감시 항목·주소의 장애가 최대 5분 뒤 복구로 끝나고 그 사이 재발송 알림이 한 번 더 갈 수 있다고 적혀 있다. (S10) — 확인: 리뷰
