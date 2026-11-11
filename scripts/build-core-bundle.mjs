@@ -679,7 +679,7 @@ function runtimeCompose(core) {
   const text = bundleCompose(CORE_COMPOSE, core, [
     '# 내부망 서버에서 모니터링 코어를 띄우는 파일입니다. 저장소의 infrastructure/compose.yml로 만들었습니다.',
     `# 버전 ${core.describe}, 커밋 ${core.revision}`,
-    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있습니다. 이 파일은 고치지 말고, 바꿀 값은 .env에 적어 주세요.',
+    '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있습니다. 이 파일은 고치지 말고, 바꿀 값은 설치 폴더의 .env에 적어 주세요.',
     '#',
     '#   sh core-server.sh install',
     '#   sh core-server.sh start',

@@ -22,6 +22,8 @@ setup() {
   BUNDLE="$INSTALL/monitoring-core-v2"
   FAKE="$T/fake"
   TOKEN="$INSTALL/secrets/alertmanager_webhook_token"
+  # 묶음에서 설정 파일은 설치 폴더의 .env 하나다(요구사항 0017). 묶음 폴더의 .env는 운영 명령이 만드는 ../.env 링크다.
+  ENV="$INSTALL/.env"
   RENDERED="$BUNDLE/rendered"
   CA="$INSTALL/certs/ca-certificates.crt"
   mkdir -p "$BUNDLE/templates" "$FAKE" "$T/bin"
@@ -148,7 +150,7 @@ prepared() {
   chmod 0700 "$INSTALL/secrets"
   printf 'secret-value-for-test\n' > "$INSTALL/secrets/alertmanager_webhook_token"
   chmod 0644 "$INSTALL/secrets/alertmanager_webhook_token"
-  printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$BUNDLE/.env"
+  printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$ENV"
 }
 
 # 이 묶음 폴더에서 start로 띄운 상태. 부른 명령 기록은 지운다.
@@ -223,19 +225,91 @@ check '묶음 파일이 바뀌었으면 그 파일을 알리고 불러오거나 
 
 # --- 설정 파일 ---
 
-setup; prepared; rm "$BUNDLE/.env"
+setup; prepared; rm "$ENV"
 run start
 check '설정 파일이 없으면 설치 준비를 안내하고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && ! contains "이전 묶음 폴더의 .env" && ! called "^compose"'
+  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && ! contains "install 대신" && ! contains "sudo cp" && ! called "^compose"'
 
 # 갱신하며 .env를 옮기지 않은 경우: install로 기본값 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
-setup; prepared; rm "$BUNDLE/.env"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+setup; prepared; rm "$ENV"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
 run start
-check '코어가 이미 있는데 설정 파일이 없으면 이전 묶음 폴더의 .env를 복사하라고 안내한다' \
-  '[ $RC -ne 0 ] && contains "이전 묶음 폴더의 .env" && ! called "^compose"'
+check '코어가 이미 있는데 설정 파일이 어디에도 없으면 install 대신 쓰던 .env를 복사하라고 안내한다' \
+  '[ $RC -ne 0 ] && contains "install 대신" && ! called "^compose"'
+
+# 이전 방식 서버에서 처음 갱신(S5): 떠 있는 버전의 묶음 폴더에만 .env가 있다. 직접 복사하지 않고 명령만 보인다.
+setup; prepared; mkdir "$INSTALL/monitoring-core-v1"; mv "$ENV" "$INSTALL/monitoring-core-v1/.env"
+running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+run start
+check '설치 폴더에 설정 파일이 없고 떠 있는 버전의 폴더에 있으면 그 파일을 복사하는 명령을 보이고 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && [ ! -e "$ENV" ] && ! called "^compose"'
+
+setup; prepared; mkdir "$INSTALL/monitoring-core-v1"; mv "$ENV" "$INSTALL/monitoring-core-v1/.env"
+run start
+check '코어가 없어도 이전 묶음 폴더에 설정 파일이 있으면 그 파일을 복사하는 명령을 보인다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && [ ! -e "$ENV" ] && ! called "^compose"'
+
+# 지금 묶음 폴더에 이전 방식으로 .env를 둔 경우(S5): 설치 폴더로 옮기라고 안내한다.
+setup; prepared; mv "$ENV" "$BUNDLE/.env"
+run start
+check '설정 파일이 묶음 폴더에만 있으면 설치 폴더로 옮기는 명령을 보이고 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo mv $BUNDLE/.env $ENV" && [ ! -e "$ENV" ] && [ ! -L "$BUNDLE/.env" ] && ! called "^compose"'
+
+# 양쪽에 설정 파일이 있는 경우(S6): 어느 값을 쓰는지 헷갈리지 않게 멈춘다.
+setup; prepared; printf 'MONITORING_APP_ADDRESS=other-admin:9000\n' > "$BUNDLE/.env"
+run start
+check '설치 폴더와 묶음 폴더에 모두 설정 파일이 있으면 묶음 폴더의 파일을 지우라고 안내하고 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo rm $BUNDLE/.env" && grep -q other-admin "$BUNDLE/.env" && ! called "^compose"'
+
+setup; prepared; printf 'MONITORING_APP_ADDRESS=other-admin:9000\n' > "$BUNDLE/.env"
+run render
+check '설정 펼치기도 묶음 폴더에 별도의 설정 파일이 있으면 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo rm $BUNDLE/.env" && [ ! -e "$RENDERED" ]'
+
+setup; prepared; printf 'MONITORING_APP_ADDRESS=other-admin:9000\n' > "$T/other.env"; ln -s "$T/other.env" "$BUNDLE/.env"
+run start
+check '묶음 폴더의 .env가 다른 곳을 가리키는 링크면 따라가지 않고 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo rm $BUNDLE/.env" && [ "$(cat "$T/other.env")" = "MONITORING_APP_ADDRESS=other-admin:9000" ] && ! called "^compose"'
+
+# 이전 폴더가 여럿이면 떠 있는 버전의 폴더를 먼저 고른다. 이름순으로 앞서고 더 최근에 고친 폴더가 있어도 같다.
+setup; prepared; rm "$ENV"; mkdir "$INSTALL/monitoring-core-a0" "$INSTALL/monitoring-core-v1"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-v1/.env"
+touch -t 202001010000 "$INSTALL/monitoring-core-v1/.env"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-a0/.env"
+running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+run start
+check '이전 폴더가 여럿이면 떠 있는 버전의 폴더에서 설정 파일을 고른다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "monitoring-core-a0" && ! called "^compose"'
+
+# 코어가 없으면 코어 묶음 폴더 가운데 가장 최근에 고친 파일을 고르고, 코어가 아닌 폴더의 .env는 보지 않는다.
+setup; prepared; rm "$ENV"; mkdir "$INSTALL/manager" "$INSTALL/monitoring-core-a0" "$INSTALL/monitoring-core-v1"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-a0/.env"
+touch -t 202001010000 "$INSTALL/monitoring-core-a0/.env"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-v1/.env"
+touch -t 202101010000 "$INSTALL/monitoring-core-v1/.env"
+printf 'DB_PASSWORD=x\n' > "$INSTALL/manager/.env"
+run start
+check '코어가 없으면 코어 묶음 폴더 가운데 가장 최근 설정 파일을 고르고 다른 폴더의 .env는 고르지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "$INSTALL/manager" && ! called "^compose"'
+
+# 설치 폴더의 .env가 링크면 따라가지 않는다(CWE-59).
+setup; prepared; mv "$ENV" "$T/real.env"; ln -s "$T/real.env" "$ENV"
+run start
+check '설치 폴더의 설정 파일이 링크면 따라가 읽지 않고 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "링크입니다" && ! called "^compose"'
+
+setup; prepared; rm "$ENV"; ln -s "$T/victim.conf" "$ENV"; STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
+run install
+unset STDIN
+check '설치 준비는 설치 폴더의 설정 파일 자리에 있는 링크를 따라 쓰지 않는다' \
+  '[ $RC -ne 0 ] && contains "링크입니다" && [ ! -e "$T/victim.conf" ]'
+
+setup; prepared; printf 'MONITORING_APP_ADDRESS=other-admin:9000\n' > "$T/other.env"; ln -s "$T/other.env" "$BUNDLE/.env"
+run install
+check '설치 준비도 묶음 폴더의 .env가 다른 곳을 가리키는 링크면 멈춘다' \
+  '[ $RC -ne 0 ] && contains "sudo rm $BUNDLE/.env" && [ "$(readlink "$BUNDLE/.env")" = "$T/other.env" ]'
 
 for address in '' 'http://manager-api:8080' 'manager-api' 'a;touch${IFS}x:80' 'manager-api:70000'; do
-  setup; prepared; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$BUNDLE/.env"
+  setup; prepared; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$ENV"
   run start
   check "관리자 서버 주소가 '$address'이면 거부한다" \
     '[ $RC -ne 0 ] && contains "관리자 서버 주소" && ! called "^compose" && [ ! -e "$BUNDLE/x" ]'
@@ -255,12 +329,12 @@ RC=$?
 check '셸 환경 변수의 관리자 서버 주소 끝에 줄바꿈이 있으면 검사한 값 그대로 설정에 펼친다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && [ "$(rendered_address)" = "manager-api:8080" ]'
 
-setup; prepared; printf "MONITORING_APP_ADDRESS='manager-api:8080' # 관리자 서버\n" > "$BUNDLE/.env"
+setup; prepared; printf "MONITORING_APP_ADDRESS='manager-api:8080' # 관리자 서버\n" > "$ENV"
 run start
 check '설정 파일의 관리자 서버 주소는 따옴표와 주석을 뺀 값으로 설정에 펼친다' \
   '[ $RC -eq 0 ] && [ "$(rendered_address)" = "manager-api:8080" ]'
 
-setup; prepared; printf 'MONITORING_APP_ADDRESS=manager-api:8080\n$(touch %s/injected)\n' "$T" > "$BUNDLE/.env"
+setup; prepared; printf 'MONITORING_APP_ADDRESS=manager-api:8080\n$(touch %s/injected)\n' "$T" > "$ENV"
 run start
 check '설정 파일의 셸 명령은 실행하지 않는다' '[ ! -e "$T/injected" ]'
 
@@ -308,7 +382,7 @@ check 'find가 없는 서버에서도 다른 사용자가 읽을 수 없는 toke
   '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && ! called "^compose"'
 
 setup; prepared; mkdir "$T/custom"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/custom/"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/custom" > "$BUNDLE/.env"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/custom" > "$ENV"
 run start
 check '설정 파일에 token 폴더를 적었으면 그 폴더를 쓴다' '[ $RC -eq 0 ] && called "^compose"'
 
@@ -318,6 +392,18 @@ setup; prepared
 run start
 check '준비를 마쳤으면 불러오고 띄운 뒤 버전을 보인다' \
   '[ $RC -eq 0 ] && called load && called "^compose.* up" && contains "v2" && ! contains "secret-value-for-test"'
+check '띄우면 묶음 폴더에 설치 폴더의 설정 파일을 가리키는 ../.env 링크를 만든다' \
+  '[ -L "$BUNDLE/.env" ] && [ "$(readlink "$BUNDLE/.env")" = ../.env ] && [ -f "$ENV" ] && [ ! -L "$ENV" ]'
+
+setup; prepared
+run render
+check '설정을 펼치면 묶음 폴더에 ../.env 링크를 만든다' \
+  '[ $RC -eq 0 ] && [ -L "$BUNDLE/.env" ] && [ "$(readlink "$BUNDLE/.env")" = ../.env ]'
+
+setup; prepared; ln -s ../.env "$BUNDLE/.env"
+run start
+check '이미 ../.env 링크가 있으면 그대로 두고 띄운다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && [ "$(readlink "$BUNDLE/.env")" = ../.env ]'
 
 setup; prepared; touch "$FAKE/images_loaded"
 run start
@@ -356,32 +442,41 @@ check '처음 설치하면 token 폴더를 운영자만 열 수 있게 만든다
 check '처음 설치하면 token 파일을 컨테이너가 읽을 수 있게 만든다' '[ "$(mode "$token")" = -rw-r--r-- ]'
 check '처음 설치하면 64자리 16진수 token을 만들고 출력하지 않는다' \
   '[ "$(wc -c < "$token" | tr -d " ")" -ge 64 ] && grep -Eq "^[0-9a-f]{64}$" "$token" && ! contains "$(cat "$token")"'
-check '처음 설치하면 입력한 주소로 설정 파일을 만든다' 'grep -q "^MONITORING_APP_ADDRESS=manager-api:8080$" "$BUNDLE/.env"'
+check '처음 설치하면 입력한 주소로 설정 파일을 만든다' 'grep -q "^MONITORING_APP_ADDRESS=manager-api:8080$" "$ENV"'
+check '처음 설치하면 설정 파일을 설치 폴더에 두고 묶음 폴더에는 ../.env 링크만 둔다' \
+  '[ -f "$ENV" ] && [ ! -L "$ENV" ] && [ -L "$BUNDLE/.env" ] && [ "$(readlink "$BUNDLE/.env")" = ../.env ]'
 unset STDIN
 
-setup; prepared; before=$(cat "$INSTALL/secrets/alertmanager_webhook_token" "$BUNDLE/.env")
+setup; prepared; before=$(cat "$INSTALL/secrets/alertmanager_webhook_token" "$ENV")
 run install
 check '설치 준비를 다시 하면 token과 설정 파일을 덮어쓰지 않는다' \
-  '[ $RC -eq 0 ] && contains "이미 있습니다" && [ "$(cat "$INSTALL/secrets/alertmanager_webhook_token" "$BUNDLE/.env")" = "$before" ]'
+  '[ $RC -eq 0 ] && contains "이미 있습니다" && [ "$(cat "$INSTALL/secrets/alertmanager_webhook_token" "$ENV")" = "$before" ]'
 
-setup; prepared; rm "$BUNDLE/.env"; mkdir "$INSTALL/monitoring-core-v1"
+setup; prepared; mv "$ENV" "$BUNDLE/.env"; STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
+run install
+unset STDIN
+check '설치 준비에서 설정 파일이 묶음 폴더에만 있으면 옮기라고 안내하고 새로 만들지 않는다' \
+  '[ $RC -ne 0 ] && contains "sudo mv $BUNDLE/.env $ENV" && [ ! -e "$ENV" ]'
+
+setup; prepared; rm "$ENV"; mkdir "$INSTALL/monitoring-core-v1"
 printf 'MONITORING_APP_ADDRESS=old-admin:9000\n' > "$INSTALL/monitoring-core-v1/.env"
 running_other v1 1761500000 "$INSTALL/monitoring-core-v1"; before=$(cat "$TOKEN")
 STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
 run install
 unset STDIN
-check '설치 준비는 떠 있는 버전의 폴더에서 설정을 가져오지 않고 주소를 물으며 token은 그대로 둔다' \
-  '[ $RC -eq 0 ] && grep -q "^MONITORING_APP_ADDRESS=manager-api:8080$" "$BUNDLE/.env" && ! grep -q "old-admin" "$BUNDLE/.env" && [ "$(cat "$TOKEN")" = "$before" ]'
+# 이전 방식 서버에서 install(요구사항 0017의 S8): 기본값 .env를 새로 만들면 바꿔 둔 값이 사라지므로 복사 명령을 보이고 멈춘다.
+check '설치 준비는 쓰던 설정 파일이 있으면 새로 만들지 않고 복사하는 명령을 보이며 token은 그대로 둔다' \
+  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "관리자 서버 주소(" && [ ! -e "$ENV" ] && [ "$(cat "$TOKEN")" = "$before" ]'
 
 setup; STDIN="$T/answer"; printf 'bad address\n' > "$STDIN"
 run install
 unset STDIN
 check '설치 준비에서 잘못된 주소를 넣으면 설정 파일을 만들지 않는다' \
-  '[ $RC -ne 0 ] && contains "관리자 서버 주소" && [ ! -e "$BUNDLE/.env" ]'
+  '[ $RC -ne 0 ] && contains "관리자 서버 주소" && [ ! -e "$ENV" ]'
 
 # --- 설정 파일 읽기 ---
 
-setup; prepared; printf "export MONITORING_APP_ADDRESS='manager-api:8080' # 관리자 서버\n" > "$BUNDLE/.env"
+setup; prepared; printf "export MONITORING_APP_ADDRESS='manager-api:8080' # 관리자 서버\n" > "$ENV"
 run start
 check 'export, 작은따옴표, 줄 끝 주석이 있는 설정 파일을 Compose처럼 읽는다' '[ $RC -eq 0 ] && called "^compose.* up"'
 
@@ -394,10 +489,10 @@ setup; touch "$FAKE/docker_down"; STDIN="$T/answer"; printf 'manager-api:8080\n'
 run install
 unset STDIN
 check 'Docker가 꺼져 있으면 설치 준비에서 아무것도 만들지 않는다' \
-  '[ $RC -ne 0 ] && contains "Docker에 연결하지 못했습니다" && [ ! -e "$INSTALL/secrets" ] && [ ! -e "$BUNDLE/.env" ]'
+  '[ $RC -ne 0 ] && contains "Docker에 연결하지 못했습니다" && [ ! -e "$INSTALL/secrets" ] && [ ! -e "$ENV" ]'
 
 setup; mkdir "$T/shared"; chmod 0755 "$T/shared"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/shared" > "$BUNDLE/.env"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/shared" > "$ENV"
 run install
 check 'token을 이미 있는 폴더에 만들면 그 폴더의 권한을 바꾸지 않는다' \
   '[ $RC -eq 0 ] && [ "$(mode "$T/shared")" = drwxr-xr-x ] && [ -s "$T/shared/alertmanager_webhook_token" ]'
@@ -407,7 +502,7 @@ check 'token을 이미 있는 폴더에 만들면 그 폴더의 권한을 바꾸
 # 설정 파일에 줄을 더한다. 인자 하나가 한 줄이다.
 with_settings() {
   for line in "$@"; do
-    printf '%s\n' "$line" >> "$BUNDLE/.env"
+    printf '%s\n' "$line" >> "$ENV"
   done
 }
 
@@ -672,7 +767,7 @@ run render
 check '바꾼 코어 값으로 보관 항목과 확인 제한 시간을 펼치고 core.env에도 쓴다' \
   '[ $RC -eq 0 ] && grep -q "^      time: 30d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 50GB$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 9s$" "$RENDERED/blackbox.yml")" -eq 3 ] && grep -q "^CORE_RETENTION_SIZE_GB=50$" "$RENDERED/core.env"'
 
-setup; prepared; rm "$BUNDLE/.env"
+setup; prepared; rm "$ENV"
 run render
 check '설정 파일이 없으면 설정 펼치기도 설치 준비를 안내하고 펼치지 않는다' \
   '[ $RC -ne 0 ] && contains "sh core-server.sh install" && [ ! -e "$RENDERED" ]'
@@ -685,7 +780,7 @@ check '묶음의 템플릿이 바뀌었으면 체크섬 오류를 보이고 펼�
 # 형식이 틀린 관리자 서버 주소와 코어 값: 빌드 PC의 설정 검사가 시작 스크립트로 확인하던 목록이다.
 for address in '' 'manager-api' 'http://manager-api:8080' 'manager-api:0' 'manager-api:70000' 'a:b:8080' '-manager:8080' \
   'manager api:8080' 'manager|api:8080' 'manager&api:8080' 'manager;api:8080' '$(touch${IFS}injected):8080'; do
-  setup; prepared; previously_rendered; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$BUNDLE/.env"
+  setup; prepared; previously_rendered; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$ENV"
   run render
   check "설정 펼치기는 관리자 서버 주소가 '$address'이면 거부하고 이전에 펼친 설정을 바꾸지 않는다" \
     '[ $RC -ne 0 ] && contains "관리자 서버 주소" && unchanged && [ ! -e "$BUNDLE/injected" ]'
@@ -774,7 +869,7 @@ check '운영자가 CA 인증서 파일을 다시 복사한 뒤 띄우면 컨테
 setup; prepared
 run render
 first=$(config_hash)
-printf 'MONITORING_APP_ADDRESS=other-api:9000\n' > "$BUNDLE/.env"
+printf 'MONITORING_APP_ADDRESS=other-api:9000\n' > "$ENV"
 run render
 check '관리자 서버 주소를 바꿔 다시 펼치면 Compose가 컨테이너를 다시 만들도록 core.env의 설정 값이 바뀐다' \
   '[ $RC -eq 0 ] && [ "$(rendered_address)" = "other-api:9000" ] && [ "$(config_hash)" != "$first" ]'

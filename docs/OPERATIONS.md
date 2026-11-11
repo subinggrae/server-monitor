@@ -54,7 +54,7 @@
 - **코어 서버에서 9090, 9093, 9115 포트를 이미 쓰고 있다**: 코어 포트를 비어 있는 포트로 바꾼다. 쓰고 있는 포트는 `ss -ltn`으로 볼 수 있다. 겹치면 `port is already allocated` 오류가 나고 코어가 뜨지 않는다.
 - **기록을 둘 디스크가 넉넉하지 않다**: 기록 보관 기간을 줄이거나 보관 용량을 정한다. 나중에 줄이면 오래된 기록이 지워지므로 설치할 때 정해 두는 편이 낫다.
 
-설정 값은 묶음 폴더의 `.env`에 적는다. 이 파일은 코어만 읽고, [코어 설치](#코어-설치)의 4단계에서 생기며 5단계에서 고친다. 적을 수 있는 값은 다음과 같다.
+설정 값은 설치 폴더의 `.env`에 적는다. 이 파일은 코어만 읽고, 설치한 모든 버전이 함께 쓴다. [코어 설치](#코어-설치)의 4단계에서 생기며 5단계에서 고친다. 적을 수 있는 값은 다음과 같다.
 
 | 값 | `.env` 변수 | 기본값 | 허용 범위 |
 |---|---|---|---|
@@ -141,11 +141,11 @@ cd /opt/monitoring/monitoring-core-<버전>
 sudo sh core-server.sh install
 ```
 
-`관리자 서버 주소(컨테이너 이름:포트, 예: manager-api:8080):`가 나오면 [관리자 서버 주소](#설치-전에-정할-값)를 넣는다. `install`은 설치 폴더의 `secrets/`에 token 파일을, 묶음 폴더에 `.env`를 만든다. token 값은 화면에 나오지 않는다. 이미 있는 파일은 그대로 두고, `.env`가 이미 있으면 주소를 묻지 않는다.
+`관리자 서버 주소(컨테이너 이름:포트, 예: manager-api:8080):`가 나오면 [관리자 서버 주소](#설치-전에-정할-값)를 넣는다. `install`은 설치 폴더에 token 파일(`secrets/`)과 설정 파일(`.env`)을 만든다. token 값은 화면에 나오지 않는다. 이미 있는 파일은 그대로 두고, `.env`가 이미 있으면 주소를 묻지 않는다.
 
 ### 5. 설정 값 바꾸기
 
-[설치 전에 정할 값](#설치-전에-정할-값)에서 기본값과 다르게 정한 값이 있으면 묶음 폴더의 `.env`를 편집기로 연다(예: `sudo vi .env`). 바꿀 줄 앞의 `#`을 지우고 값을 적는다. 다음은 기록을 30일 보관하고 Prometheus 포트를 19090으로 바꾸는 예다.
+[설치 전에 정할 값](#설치-전에-정할-값)에서 기본값과 다르게 정한 값이 있으면 설치 폴더의 `.env`를 편집기로 연다(예: `sudo vi ../.env`). 바꿀 줄 앞의 `#`을 지우고 값을 적는다. 다음은 기록을 30일 보관하고 Prometheus 포트를 19090으로 바꾸는 예다.
 
 ```text
 CORE_RETENTION_DAYS=30
@@ -174,15 +174,16 @@ sudo sh core-server.sh start
 
 `sudo sh core-server.sh status`로도 상태를 볼 수 있다. 세 줄(`prometheus`, `alertmanager`, `blackbox-exporter`)이 모두 `running, 준비됨`이면 정상이다. `docker ps`에는 `healthy`가 나오지 않으므로 `status`로 본다.
 
-설치를 마친 서버의 폴더는 다음 모양이다. `rendered/`는 `start`가 띄울 때마다 `.env`로 다시 만드는 설정이고, 운영 명령은 이 일을 "설정을 펼친다"고 부른다. 직접 고쳐도 남지 않으므로 바꿀 값은 `.env`에 적는다.
+설치를 마친 서버의 폴더는 다음 모양이다. 묶음 폴더의 `.env`는 운영 명령이 만드는 링크라서, 묶음 폴더에서 실행하는 `docker compose`도 설치 폴더의 값을 쓴다. `rendered/`는 `start`가 띄울 때마다 `.env`로 다시 만드는 설정이고, 운영 명령은 이 일을 "설정을 펼친다"고 부른다. 직접 고쳐도 남지 않으므로 바꿀 값은 설치 폴더의 `.env`에 적는다.
 
 ```text
 /opt/monitoring/                         설치 폴더(예)
+├── .env                                 설정 값(모든 버전이 함께 읽는다)
 ├── secrets/alertmanager_webhook_token   코어와 관리자 서버가 함께 읽는 token
 ├── certs/ca-certificates.crt            OS에서 복사한 CA 인증서 파일
 ├── monitoring-core-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
 └── monitoring-core-<새 버전>/
-    ├── .env                             설정 값
+    ├── .env -> ../.env                  운영 명령이 만드는 링크
     ├── templates/                       설정 템플릿(고치지 않는다)
     └── rendered/                        펼친 설정(띄울 때마다 다시 만든다)
 ```
@@ -315,7 +316,11 @@ curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 | `정상 상태가 되지 않았습니다` | 3분 안에 준비되지 않은 프로그램이 있음 | 안내의 `docker logs <컨테이너>`로 로그를 본다 |
 | `exec: "sh": executable file not found` | `docker exec`로 코어 컨테이너의 셸을 열려 함 | 셸 대신 로그와 `127.0.0.1`의 HTTP API로 본다 |
 | `token 파일이 없습니다` | token을 만들지 않았거나 예전처럼 묶음 폴더의 `secrets/`에 둠 | 처음 설치면 `install`, 쓰던 코어가 있으면 [운영 명령이 없던 묶음에서 갱신](#운영-명령이-없던-묶음에서-갱신)대로 token을 옮긴다 |
-| `설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면` | 갱신하면서 이전 폴더의 `.env`를 복사하지 않음 | [새 버전으로 갱신](#새-버전으로-갱신)대로 `.env`를 복사한다 |
+| `설치 폴더에 설정 파일(.env)이 없습니다` | 설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신함 | 안내의 `sudo cp` 명령을 실행한다([설정 파일을 설치 폴더로 옮기기](#설정-파일을-설치-폴더로-옮기기)) |
+| `설정 파일(.env)을 설치 폴더로 옮겨 주세요` | 묶음 폴더에 `.env` 파일을 직접 둠 | 안내의 `sudo mv` 명령을 실행한다 |
+| `묶음 폴더의 설정 파일은 쓰지 않습니다` | 묶음 폴더의 `.env`가 링크가 아닌 파일이거나 다른 곳을 가리킴(편집기가 링크를 파일로 바꿔 저장한 경우 포함) | 고친 값을 설치 폴더의 `.env`에 옮긴 뒤 안내의 `sudo rm` 명령으로 지운다 |
+| `설치 폴더의 설정 파일이 링크입니다` | 설치 폴더의 `.env`가 다른 파일을 가리키는 링크임 | 링크를 지우고 실제 파일을 둔다 |
+| `설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면` | 코어는 있는데 설정 파일을 어디서도 찾지 못함 | 쓰던 `.env`를 설치 폴더로 복사한다 |
 | `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 코어 이미지를 불러오지 않음 | `docker load -i core-images.tar` |
 | `sha256sum`이 `FAILED` | 옮기는 중에 파일이 망가짐 | 묶음을 다시 옮긴다 |
@@ -396,7 +401,7 @@ ssh -L 9090:127.0.0.1:9090 <계정>@<코어 서버 주소>
 | 하려는 일 | 방법 |
 |---|---|
 | 상태 보기 | `sh core-server.sh status` |
-| 설정 값 바꾸기 | `.env`를 고친 뒤 `sh core-server.sh start` |
+| 설정 값 바꾸기 | 설치 폴더의 `.env`를 고친 뒤 `sh core-server.sh start` |
 | 멈추기 | `docker compose down` |
 | 다시 띄우기 | `sh core-server.sh start` |
 | 로그 보기 | `docker logs -f prometheus`(다른 프로그램은 컨테이너 이름만 바꿈) |
@@ -416,12 +421,13 @@ Docker 자동 시작이 켜져 있으면 서버를 재시작해도 코어가 다
 
 ### 새 버전으로 갱신
 
-새 묶음 폴더를 이전 묶음 폴더 옆에 옮긴 뒤, 새 폴더에서 다음을 실행한다. token과 CA 인증서 파일은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다. 이전 `.env`에 없던 값은 기본값을 쓴다.
+새 묶음 폴더를 이전 묶음 폴더 옆에 옮긴 뒤, 새 폴더에서 다음을 실행한다. 설정 파일, token, CA 인증서 파일은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다. `.env`에 적지 않은 새 값은 기본값을 쓴다.
 
 ```sh
-sudo cp ../monitoring-core-<이전 버전>/.env .
 sudo sh core-server.sh start
 ```
+
+설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신하면, `start`가 설치 폴더로 복사하는 명령을 보이고 멈춘다([설정 파일을 설치 폴더로 옮기기](#설정-파일을-설치-폴더로-옮기기)).
 
 이전 폴더는 되돌릴 때 쓰도록 남긴다. 운영 명령은 오래된 버전을 지우지 않으므로, 띄운 버전과 직전 버전만 남기고 더 오래된 묶음 폴더와 이미지는 다음처럼 지운다. 지금 띄운 버전은 `status`로, 남은 버전은 `ls <설치 폴더>`와 `docker image ls monitoring-core-prometheus`로 본다.
 
@@ -432,9 +438,19 @@ sudo docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-co
 
 ### 이전 버전으로 되돌리기
 
-이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 확인 없이 바로 이전 버전으로 바뀌고, 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 이전 폴더의 `.env`를 쓰므로, 지금 폴더에서 바꾼 값을 이어 쓰려면 이전 폴더의 `.env`에도 같게 적는다. `templates/`가 없는 예전 묶음으로 되돌리면 그 묶음의 운영 명령이 이전 버전으로 바꿀지 물으므로 `y`를 넣는다.
+이전 묶음 폴더에서 `sh core-server.sh start`를 실행한다. 확인 없이 바로 이전 버전으로 바뀌고, 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 설정은 설치 폴더의 `.env`를 함께 쓰므로 되돌아가지 않는다. 다만 설정 파일을 묶음 폴더에 두던 버전으로 되돌리면, 그 버전은 자기 폴더의 `.env`를 읽는다. `templates/`가 없는 예전 묶음으로 되돌리면 그 묶음의 운영 명령이 이전 버전으로 바꿀지 물으므로 `y`를 넣는다.
 
 서버에서 코어 값을 바꿀 수 없던 예전 버전으로 되돌리면, 그 버전은 기록 보관 15일, 용량 제한 없음, 제한 시간 5초, 포트 9090·9093·9115로 돈다. 보관 기간을 15일보다 늘려 두었다면 15일이 지난 기록이 확인 없이 지워지고, 포트를 바꿔 두었다면 다른 프로그램과 겹칠 수 있다. 그래서 이런 되돌리기는 꼭 필요할 때만 한다.
+
+### 설정 파일을 설치 폴더로 옮기기
+
+설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신할 때 한 번만 한다. 새 묶음 폴더에서 `start`나 `install`을 실행하면 다음처럼 복사할 명령을 보여 준다. 그 명령을 실행한 뒤 `start`를 다시 실행한다.
+
+```text
+실패: 설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp /opt/monitoring/monitoring-core-<이전 버전>/.env /opt/monitoring/.env 를 실행하고 다시 실행해 주세요.
+```
+
+이전 묶음 폴더의 `.env`는 지우지 말고 남긴다. 그 버전으로 되돌리면 그 파일을 읽는다.
 
 ### 운영 명령이 없던 묶음에서 갱신
 
@@ -443,7 +459,7 @@ sudo docker image rm monitoring-core-prometheus:<오래된 버전> monitoring-co
 1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다.
 2. 예전 묶음 폴더의 token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). 이전 `.env`에 `CORE_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
 3. 관리자 서버가 읽는 token 경로를 새 위치로 바꾼다.
-4. 이전 폴더의 `.env`를 새 폴더에 복사하고 `sh core-server.sh start`를 실행한 뒤, 관리자 서버를 다시 띄운다.
+4. 이전 폴더의 `.env`를 설치 폴더로 복사하고(`sudo cp <예전 묶음 폴더>/.env <설치 폴더>/.env`) `sh core-server.sh start`를 실행한 뒤, 관리자 서버를 다시 띄운다.
 
 ### token 바꾸기
 
@@ -484,7 +500,8 @@ chmod 0644 ../secrets/alertmanager_webhook_token
 install -d -m 0755 ../certs
 cp -L /etc/ssl/certs/ca-certificates.crt ../certs/ca-certificates.crt   # RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt
 chmod 0644 ../certs/ca-certificates.crt
-cp .env.example .env              # MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
+cp -n .env.example ../.env        # 설치 폴더에 .env가 없을 때만 만든다. MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
+ln -s ../.env .env                # 묶음 폴더의 docker compose가 설치 폴더의 값을 읽게 한다
 docker load -i core-images.tar
 sh core-server.sh render          # 파일이 온전한지 보고, 값과 token, CA 인증서 파일을 검사해 rendered/에 펼친다
 docker compose up -d

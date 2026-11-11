@@ -6,9 +6,9 @@
 #   sh core-server.sh start     확인하고 설정을 펼친 뒤 이미지를 불러와 띄우고 정상 상태까지 기다린다
 #   sh core-server.sh status    떠 있는 버전, 컨테이너 상태와 준비 여부, 기본값과 다른 설정 값을 보인다
 #
-# 최소 기능만 둔다. token 바꾸기, 갱신할 때 .env 옮기기, 오래된 버전 정리는 운영 가이드의 절차로 한다(요구사항 0015).
+# 최소 기능만 둔다. token 바꾸기, 이전 방식의 .env를 설치 폴더로 처음 옮기기, 오래된 버전 정리는 운영 가이드의 절차로 한다(요구사항 0015).
 #
-# 묶음 폴더들은 한 설치 폴더에 나란히 두고, token은 설치 폴더의 secrets/에 둔다(요구사항 0011).
+# 묶음 폴더들은 한 설치 폴더에 나란히 두고, token은 설치 폴더의 secrets/에, 설정 파일은 설치 폴더의 .env에 둔다(요구사항 0011, 0017).
 # .env에서 바꾸는 코어 값(보관 기간·용량, 확인 제한 시간, 호스트 포트)의 규칙은 같은 폴더의 core-settings.sh에 있다(요구사항 0013).
 # 코어 이미지에는 셸이 없어 컨테이너 안에서 설정을 펼칠 수 없다. 그래서 이 명령이 값을 검사해 묶음의 templates/에서
 # rendered/로 펼치고, compose 파일이 펼친 설정을 읽기 전용으로 붙인다. 정상 확인도 코어 서버에서 한다(요구사항 0015, ADR 0012).
@@ -20,7 +20,6 @@ set -eu
 
 BUNDLE_DIR=$(cd "$(dirname "$0")" && pwd -P)
 INSTALL_DIR=$(dirname "$BUNDLE_DIR")
-ENV_FILE="$BUNDLE_DIR/.env"
 RENDER_DIR="$BUNDLE_DIR/rendered"
 TOKEN_NAME=alertmanager_webhook_token
 CONTAINERS="prometheus alertmanager blackbox-exporter"
@@ -38,11 +37,17 @@ if [ ! -d "$BUNDLE_DIR/templates" ] && [ -f "$BUNDLE_DIR/prometheus/prometheus.y
   LAYOUT=repository
   SECRETS_DEFAULT=./secrets
   CA_FILE="$BUNDLE_DIR/certs/ca-certificates.crt"
+  ENV_FILE="$BUNDLE_DIR/.env"
+  ENV_LINK=""
 else
   LAYOUT=bundle
   SECRETS_DEFAULT=../secrets
   # token처럼 설치 폴더에 두어, 묶음 버전이 바뀌어도 다시 복사하지 않는다. compose 파일의 ../certs/와 같은 곳이다.
   CA_FILE="$INSTALL_DIR/certs/ca-certificates.crt"
+  # 설정 파일도 설치 폴더에 하나만 두어 모든 버전이 함께 읽는다(요구사항 0017).
+  # 묶음 폴더에는 ../.env 링크를 두어, 운영자가 묶음 폴더에서 실행하는 docker compose도 같은 값을 읽게 한다.
+  ENV_FILE="$INSTALL_DIR/.env"
+  ENV_LINK="$BUNDLE_DIR/.env"
 fi
 
 say() {
@@ -147,11 +152,63 @@ check_checksums() {
   fail "체크섬이 맞지 않는 파일이 있습니다. 묶음 폴더를 다시 옮겨 주세요."
 }
 
+# 묶음 폴더의 .env가 없거나 운영 명령이 만든 ../.env 링크면 0을 돌려준다.
+env_link_ok() {
+  if [ ! -e "$ENV_LINK" ] && [ ! -L "$ENV_LINK" ]; then
+    return 0
+  fi
+  [ -L "$ENV_LINK" ] && [ "$(readlink "$ENV_LINK")" = ../.env ]
+}
+
+# 이전 방식으로 묶음 폴더에 둔 설정 파일이 있으면, 어느 값을 쓰는지 헷갈리지 않게 멈추고 옮기거나 지우라고 안내한다.
+# 링크는 따라가지 않는다. 설치 폴더의 .env가 링크면 다른 곳의 파일을 읽거나 install이 그 파일에 쓰게 된다(CWE-59).
+check_env_location() {
+  [ "$LAYOUT" = bundle ] || return 0
+  if [ -L "$ENV_FILE" ]; then
+    fail "설치 폴더의 설정 파일이 링크입니다: $ENV_FILE. 링크를 지우고 실제 파일을 둔 뒤 다시 실행해 주세요."
+  fi
+  env_link_ok && return 0
+  if [ -L "$ENV_LINK" ] || [ -e "$ENV_FILE" ]; then
+    fail "묶음 폴더의 설정 파일은 쓰지 않습니다: $ENV_LINK. 고친 값이 있으면 $ENV_FILE 에 옮긴 뒤, sudo rm $ENV_LINK 로 지우고 다시 실행해 주세요."
+  fi
+  fail "설정 파일(.env)을 설치 폴더로 옮겨 주세요: sudo mv $ENV_LINK $ENV_FILE"
+}
+
+# 이전 방식으로 쓰던 설정 파일을 찾는다. 떠 있거나 멈춘 코어의 묶음 폴더를 먼저 보고, 없으면 설치 폴더의 다른 코어
+# 묶음 폴더 가운데 가장 최근에 고친 파일을 고른다. 관리자 서버처럼 코어가 아닌 폴더의 .env는 보지 않는다.
+previous_env() {
+  dir=$(running_label com.docker.compose.project.working_dir) || dir=""
+  if [ -n "$dir" ] && [ -f "$dir/.env" ] && [ ! -L "$dir/.env" ]; then
+    printf '%s' "$dir/.env"
+    return 0
+  fi
+  newest=""
+  for old in "$INSTALL_DIR"/monitoring-core-*/.env; do
+    if [ -f "$old" ] && [ ! -L "$old" ] && { [ -z "$newest" ] || [ "$old" -nt "$newest" ]; }; then
+      newest=$old
+    fi
+  done
+  [ -n "$newest" ] || return 1
+  printf '%s' "$newest"
+}
+
+# 묶음 폴더에 설치 폴더의 설정 파일을 가리키는 링크를 둔다. 확인을 기다리는 동안 바뀌었을 수 있어 쓰기 직전에 다시 본다.
+link_env() {
+  [ "$LAYOUT" = bundle ] || return 0
+  check_env_location
+  [ -L "$ENV_LINK" ] || ln -s ../.env "$ENV_LINK"
+}
+
 check_env() {
+  check_env_location
   if [ ! -f "$ENV_FILE" ]; then
+    # 운영 명령이 직접 복사하지 않는다. 쓰던 파일을 찾으면 복사하는 명령만 보인다(요구사항 0017의 S5).
+    if [ "$LAYOUT" = bundle ] && old=$(previous_env); then
+      fail "설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp $old $ENV_FILE 를 실행하고 다시 실행해 주세요."
+    fi
     # 갱신하며 install로 새 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
     if core_exists; then
-      fail "설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면 install 대신 이전 묶음 폴더의 .env를 이 폴더에 복사해 주세요. 처음 설치하면 sh core-server.sh install을 실행해 주세요."
+      fail "설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면 install 대신 쓰던 .env를 $ENV_FILE 로 복사해 주세요. 처음 설치하면 sh core-server.sh install을 실행해 주세요."
     fi
     fail "설정 파일(.env)이 없습니다. 먼저 sh core-server.sh install을 실행해 주세요."
   fi
@@ -543,10 +600,15 @@ check_autostart() {
   fi
 }
 
-# 없는 것만 만들고, 있는 token과 .env는 그대로 둔다. 갱신할 때는 운영 가이드대로 이전 폴더의 .env를 먼저 복사한다.
+# 없는 것만 만들고, 있는 token과 .env는 그대로 둔다.
 cmd_install() {
   check_docker
   load_settings
+  check_env_location
+  # 이전 방식 서버에서 기본값 .env를 새로 만들면 바꿔 둔 값이 사라진다. 쓰던 파일을 찾으면 복사하는 명령만 보인다(요구사항 0017의 S8).
+  if [ "$LAYOUT" = bundle ] && [ ! -f "$ENV_FILE" ] && old=$(previous_env); then
+    fail "설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp $old $ENV_FILE 를 실행하고 다시 실행해 주세요."
+  fi
   file=$(token_file)
 
   address=""
@@ -573,10 +635,15 @@ cmd_install() {
   fi
 
   if [ -n "$address" ]; then
-    sed "s/^MONITORING_APP_ADDRESS=.*/MONITORING_APP_ADDRESS=$address/" "$BUNDLE_DIR/.env.example" > "$ENV_FILE"
-    say "설정 파일(.env)을 만들었습니다."
+    # 같은 폴더에 쓴 뒤 이름을 바꾼다. 주소를 묻는 사이 그 자리에 링크가 생겨도 링크를 따라 쓰지 않는다.
+    tmp=$(mktemp "$ENV_FILE.XXXXXX")
+    sed "s/^MONITORING_APP_ADDRESS=.*/MONITORING_APP_ADDRESS=$address/" "$BUNDLE_DIR/.env.example" > "$tmp"
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$ENV_FILE"
+    say "설정 파일을 만들었습니다: $ENV_FILE"
   fi
-  say "필요하면 .env의 값을 고친 뒤 sh core-server.sh start를 실행해 주세요."
+  link_env
+  say "필요하면 $ENV_FILE 의 값을 고친 뒤 sh core-server.sh start를 실행해 주세요."
 }
 
 cmd_render() {
@@ -590,6 +657,7 @@ cmd_render() {
     say "경고: Docker에 연결하지 못해 기록 보관 값을 줄였는지 확인하지 못했습니다. 줄였다면 띄우기 전에 .env를 확인해 주세요."
   fi
   confirm_retention
+  link_env
   write_rendered
   say "설정을 펼쳤습니다: $RENDER_DIR (CA 인증서: $CA_FILE)"
   say "compose.yml이 있는 폴더에서 docker compose up -d로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
@@ -607,6 +675,7 @@ cmd_start() {
   confirm_retention
   # 확인을 기다리는 동안 token 파일이 바뀌었을 수 있어 쓰기 직전에 다시 본다. 운영자가 멈추면 펼친 설정은 그대로다.
   check_token
+  link_env
   write_rendered
   if [ "$render_changed" = yes ]; then
     compose_up --force-recreate
