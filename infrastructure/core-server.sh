@@ -59,8 +59,8 @@ usage() {
 사용법: sh core-server.sh <작업>
 
   install   token과 설정 파일(.env)을 준비합니다
-  render    설정 값을 검사해 설정을 펼칩니다(운영 명령 없이 Compose로 띄우기 전에 실행)
-  start     확인하고 설정을 펼친 뒤 코어를 띄웁니다
+  render    설정 값을 검사해 설정을 펼칩니다(docker compose로 직접 띄울 때만 씁니다)
+  start     설정 값을 검사하고 코어를 띄웁니다
   status    떠 있는 버전, 상태, 기본값과 다른 설정 값을 보입니다
 EOF
 }
@@ -151,7 +151,7 @@ check_env() {
   if [ ! -f "$ENV_FILE" ]; then
     # 갱신하며 install로 새 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
     if core_exists; then
-      fail "설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면 install 대신 이전 묶음 폴더의 .env를 이 폴더에 복사한 뒤 다시 실행해 주세요(운영 가이드의 새 버전으로 갱신). 처음 설치면 sh core-server.sh install을 실행해 주세요."
+      fail "설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면 install 대신 이전 묶음 폴더의 .env를 이 폴더에 복사해 주세요. 처음 설치하면 sh core-server.sh install을 실행해 주세요."
     fi
     fail "설정 파일(.env)이 없습니다. 먼저 sh core-server.sh install을 실행해 주세요."
   fi
@@ -187,7 +187,7 @@ check_settings() {
       settings_ok=no
     fi
   done
-  [ "$settings_ok" = yes ] || fail "설정 값이 올바르지 않아 아무것도 바꾸지 않았습니다. 떠 있던 코어는 그대로 돕니다."
+  [ "$settings_ok" = yes ] || fail "설정 값이 틀려 아무것도 바꾸지 않았습니다. 떠 있던 코어는 그대로 돕니다."
 }
 
 # 컨테이너(첫 번째 인자)가 받은 환경 변수(두 번째 인자)의 값. 없으면 빈 값이다.
@@ -233,9 +233,9 @@ confirm_retention() {
   fi
   [ -n "$changes" ] || return 0
   say "기록 보관 값을 줄입니다: $changes"
-  say "띄우면 새 값을 넘는 오래된 기록이 지워지고, 지운 기록은 되돌릴 수 없습니다."
+  say "띄우면 오래된 기록이 지워지고, 되돌릴 수 없습니다."
   if [ ! -t 0 ]; then
-    fail "기록 보관 값을 줄이려면 터미널에서 실행해 확인해 주세요. 코어는 바꾸지 않았습니다."
+    fail "기록 보관 값을 줄이려면 터미널에서 직접 실행해 y를 입력해 주세요. 코어는 바꾸지 않았습니다."
   fi
   printf '계속할까요? [y/N] '
   read -r answer || answer=""
@@ -288,7 +288,7 @@ check_token() {
   if [ ! -e "$file" ]; then
     # 코어가 이미 있으면 관리자 서버가 그 코어의 token을 쓰고 있다. 새 token을 만들면 장애 알림이 모두 거부된다.
     if core_exists; then
-      fail "token 파일이 없습니다: $file. 코어가 이미 있으므로 새 token을 만들면 관리자 서버의 token과 어긋납니다. 지금 코어가 쓰는 token 파일을 이 위치에 두거나 .env의 CORE_SECRETS_DIR를 그 폴더로 고친 뒤 다시 실행해 주세요."
+      fail "token 파일이 없습니다: $file. 쓰던 token 파일을 이 위치로 옮기거나, .env의 CORE_SECRETS_DIR를 그 파일이 있는 폴더로 고쳐 주세요. 새로 만들면 관리자 서버의 token과 어긋납니다."
     fi
     fail "token 파일이 없습니다: $file. sh core-server.sh install로 만들어 주세요."
   fi
@@ -325,12 +325,12 @@ check_templates() {
 # 이 명령은 OS의 파일을 읽거나 옮기지 않는다. 내용은 OS와 운영자가 관리하므로 검사하지 않는다.
 # 파일이 없는데 Compose로 띄우면 Docker가 그 자리에 빈 폴더를 만들고, HTTPS 주소 확인이 모두 실패해 장애 알림이 한꺼번에 갈 수 있다.
 check_ca() {
-  ca_hint="운영 가이드(docs/OPERATIONS.md)대로 코어 서버 OS의 CA 인증서 파일을 복사해 주세요. Ubuntu·Debian·Amazon Linux는 /etc/ssl/certs/ca-certificates.crt, RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt를 복사합니다(예: sudo mkdir -p $(dirname "$CA_FILE") && sudo cp -L /etc/ssl/certs/ca-certificates.crt $CA_FILE && sudo chmod 0644 $CA_FILE)."
+  ca_hint="코어 서버 OS의 CA 인증서 파일을 복사해 주세요(Ubuntu, Debian, Amazon Linux 예: sudo mkdir -p $(dirname "$CA_FILE") && sudo cp -L /etc/ssl/certs/ca-certificates.crt $CA_FILE && sudo chmod 0644 $CA_FILE). RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt를 복사합니다. 자세한 방법은 docs/OPERATIONS.md에 있습니다."
   if [ -d "$CA_FILE" ]; then
-    fail "CA 인증서 파일 자리에 폴더가 있습니다: $CA_FILE. 파일 없이 Compose로 띄울 때 Docker가 만든 폴더일 수 있습니다. 그 폴더를 지운 뒤 $ca_hint"
+    fail "CA 인증서 파일 자리에 폴더가 있습니다: $CA_FILE. 그 폴더를 지운 뒤 $ca_hint"
   fi
   if [ ! -e "$CA_FILE" ]; then
-    fail "Blackbox Exporter가 HTTPS 주소를 확인할 때 쓸 CA 인증서 파일이 없습니다: $CA_FILE. 없이 띄우면 HTTPS 주소 확인이 모두 실패하므로 펼치거나 띄우지 않았습니다. $ca_hint"
+    fail "CA 인증서 파일이 없습니다: $CA_FILE. 이 파일이 없으면 HTTPS 주소 확인이 모두 실패합니다. 아무것도 바꾸지 않았습니다. $ca_hint"
   fi
   if [ ! -s "$CA_FILE" ]; then
     fail "CA 인증서 파일이 비어 있습니다: $CA_FILE. $ca_hint"
@@ -344,7 +344,7 @@ check_ca() {
 # 펼친 설정 없이 Compose로 띄우면 Docker가 파일 자리에 빈 폴더를 만들 수 있다. 그 폴더는 지우지 않고 지우는 방법을 보인다.
 check_render_dir() {
   if [ -L "$RENDER_DIR" ]; then
-    fail "펼친 설정 폴더가 심볼릭 링크입니다: $RENDER_DIR. 다른 파일을 덮어쓰지 않도록 쓰지 않았습니다. 링크를 지운 뒤 다시 실행해 주세요."
+    fail "펼친 설정 폴더가 심볼릭 링크입니다: $RENDER_DIR. 링크를 지운 뒤 다시 실행해 주세요."
   fi
   if [ -e "$RENDER_DIR" ] && [ ! -d "$RENDER_DIR" ]; then
     fail "펼친 설정 폴더 자리에 파일이 있습니다: $RENDER_DIR. 그 파일을 지운 뒤 다시 실행해 주세요."
@@ -352,10 +352,10 @@ check_render_dir() {
   for name in $CONFIG_FILES core.env; do
     target="$RENDER_DIR/$name"
     if [ -L "$target" ]; then
-      fail "펼친 설정 파일이 심볼릭 링크입니다: $target. 다른 파일을 덮어쓰지 않도록 쓰지 않았습니다. 링크를 지운 뒤 다시 실행해 주세요."
+      fail "펼친 설정 파일이 심볼릭 링크입니다: $target. 링크를 지운 뒤 다시 실행해 주세요."
     fi
     if [ -d "$target" ]; then
-      fail "펼친 설정 파일 자리에 폴더가 있습니다: $target. 펼친 설정 없이 Compose로 띄울 때 Docker가 만든 폴더일 수 있습니다. sudo rmdir $target 로 지운 뒤 다시 실행해 주세요."
+      fail "펼친 설정 파일 자리에 폴더가 있습니다: $target. sudo rmdir $target 로 지운 뒤 다시 실행해 주세요."
     fi
   done
 }
@@ -393,7 +393,7 @@ s|@$setting@|$(core_setting_text "$setting" "$(printenv "$setting")")|g"
   for name in $TEMPLATES; do
     tr -d '\r' < "$(template_file "$name")" | sed "$script" > "$stage/$name"
     if grep -q '@[A-Z][A-Z_]*@' "$stage/$name"; then
-      fail "$(template_file "$name")에 펼치지 못한 자리표시가 남았습니다. 묶음 폴더를 다시 옮겨 주세요. 아무것도 바꾸지 않았습니다."
+      fail "$(template_file "$name")에 채우지 못한 값이 있습니다. 묶음 폴더를 다시 옮겨 주세요. 아무것도 바꾸지 않았습니다."
     fi
   done
   ca_hash=$(sha256sum < "$CA_FILE" | cut -d ' ' -f 1)
@@ -403,7 +403,7 @@ s|@$setting@|$(core_setting_text "$setting" "$(printenv "$setting")")|g"
   # compose 파일이 env_file로 세 컨테이너에 넘긴다. 프로그램은 읽지 않고, status와 보관 값 줄임 확인이 떠 있는 값을 여기서 읽는다.
   # CORE_CONFIG_SHA256이 바뀌면 운영 명령 없이 docker compose up -d로 띄워도 Compose가 컨테이너를 다시 만든다.
   {
-    printf '# sh core-server.sh render가 .env에서 만든 파일입니다. 고치지 않습니다. 펼칠 때마다 다시 만듭니다.\n'
+    printf '# sh core-server.sh render가 .env로 만든 파일입니다. 펼칠 때마다 다시 만들므로, 바꿀 값은 .env에 적어 주세요.\n'
     for setting in CORE_RETENTION_DAYS CORE_RETENTION_SIZE_GB CORE_PROBE_TIMEOUT_SECONDS; do
       printf '%s=%s\n' "$setting" "$(printenv "$setting")"
     done
@@ -477,7 +477,7 @@ is_ready() {
 
 not_ready() {
   {
-    say "정상 상태가 되지 않았습니다:$1. 컨테이너는 그대로 두었습니다. 다음 명령으로 로그를 보세요."
+    say "실패: 정상 상태가 되지 않았습니다:$1. 컨테이너는 그대로 두었습니다. 다음 명령으로 로그를 확인해 주세요."
     for name in $1; do
       say "  docker logs $name"
     done
@@ -519,8 +519,8 @@ compose_up() {
     return 0
   fi
   {
-    say "Docker가 코어를 띄우지 못했습니다. 위 Docker 오류를 확인해 주세요."
-    say "오류에 port is already allocated나 address already in use가 있으면 코어 서버의 다른 프로그램이 그 포트를 씁니다. .env의 CORE_PROMETHEUS_PORT, CORE_ALERTMANAGER_PORT, CORE_BLACKBOX_PORT 가운데 그 포트를 비어 있는 포트로 바꾼 뒤 다시 실행해 주세요."
+    say "실패: Docker가 코어를 띄우지 못했습니다. 위 Docker 오류를 확인해 주세요."
+    say "오류에 port is already allocated나 address already in use가 있으면 다른 프로그램이 그 포트를 씁니다. .env의 CORE_PROMETHEUS_PORT, CORE_ALERTMANAGER_PORT, CORE_BLACKBOX_PORT 가운데 그 포트를 빈 포트로 바꿔 주세요."
     for name in $CONTAINERS; do
       state=$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null) || state="없음"
       if [ "$state" != running ]; then
@@ -534,12 +534,12 @@ compose_up() {
 # 재시작 정책(unless-stopped)은 Docker가 켜져 있어야 동작한다. docker.socket만 켜져 있으면 서버가 켜질 때 Docker가 뜨지 않는다.
 check_autostart() {
   if ! command -v systemctl > /dev/null 2>&1; then
-    say "참고: 서버가 켜질 때 Docker가 자동으로 켜지는지 확인하지 못했습니다(systemctl 없음). 서버 시작 때 Docker가 켜지도록 설정해 주세요."
+    say "경고: 서버가 켜질 때 Docker도 켜지는지 확인하지 못했습니다(systemctl 없음). Docker가 서버와 함께 켜지도록 설정해 주세요."
     return 0
   fi
   state=$(systemctl is-enabled docker.service 2>/dev/null) || true
   if [ "$state" != enabled ]; then
-    say "경고: 서버가 켜질 때 Docker가 자동으로 켜지지 않습니다. 이대로면 서버가 재시작된 뒤 코어가 뜨지 않습니다. 켜려면: sudo systemctl enable docker"
+    say "경고: 서버가 켜질 때 Docker가 자동으로 켜지지 않습니다. 이대로면 서버를 재시작한 뒤 코어가 뜨지 않습니다. sudo systemctl enable docker를 실행해 주세요."
   fi
 }
 
@@ -576,7 +576,7 @@ cmd_install() {
     sed "s/^MONITORING_APP_ADDRESS=.*/MONITORING_APP_ADDRESS=$address/" "$BUNDLE_DIR/.env.example" > "$ENV_FILE"
     say "설정 파일(.env)을 만들었습니다."
   fi
-  say "다음: sh core-server.sh start"
+  say "필요하면 .env의 값을 고친 뒤 sh core-server.sh start를 실행해 주세요."
 }
 
 cmd_render() {
@@ -587,14 +587,14 @@ cmd_render() {
   # 떠 있는 컨테이너는 다시 시작할 때 새로 펼친 파일을 읽을 수 있다. 그래서 보관 값을 줄이면 띄우기처럼 확인을 묻는다.
   # Docker가 없는 곳(빌드 PC의 검사용 컨테이너)에서는 떠 있는 코어가 없다고 본다. Docker가 있는데 닿지 못하면 알린다.
   if command -v docker > /dev/null 2>&1 && ! docker info > /dev/null 2>&1; then
-    say "경고: Docker에 연결하지 못해 떠 있는 코어의 기록 보관 값과 비교하지 못했습니다. 보관 값을 줄였다면 띄우기 전에 .env를 확인해 주세요."
+    say "경고: Docker에 연결하지 못해 기록 보관 값을 줄였는지 확인하지 못했습니다. 줄였다면 띄우기 전에 .env를 확인해 주세요."
   fi
   confirm_retention
   write_rendered
   say "설정을 펼쳤습니다: $RENDER_DIR (CA 인증서: $CA_FILE)"
-  say "운영 명령 없이 띄우려면 이 폴더에서 docker compose up -d를 실행합니다. .env를 바꾸거나 CA 인증서 파일을 다시 복사하면 이 작업을 다시 실행해야 반영됩니다."
+  say "compose.yml이 있는 폴더에서 docker compose up -d로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
   if core_exists; then
-    say "떠 있는 코어는 docker compose up -d로 다시 만들 때 새 설정을 씁니다. 그 전이라도 컨테이너가 다시 시작하면(서버 재시작 등) 새 설정을 읽을 수 있습니다."
+    say "떠 있는 코어에 새 설정을 쓰려면 docker compose up -d를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
   fi
 }
 
