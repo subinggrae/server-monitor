@@ -74,7 +74,7 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 |---|---|---|
 | C1, C4, C12 | 규칙 테스트 `monitoring-checks.test.yml`: 이름·환경·확인 방식·주소 변경 때 label과 Alert가 이어짐, 수집 틈 15초와 4분, 지우거나 끈 주소는 5분 뒤 복구, 살아난 주소는 바로 복구, 장애가 없을 때 값을 바꾼 뒤 실패하면 1분 뒤 장애, Alert label과 annotation | `core-dev.bat check` 통과, 저장소 밖 사본에서 다른 식(아래)으로 바꾸면 실패 |
 | C5 | 설정 검사 | `core-dev.bat check`의 `amtool check-config` 통과 |
-| C2, C5 | 개발 환경 수동 확인(이 저장소의 Manager를 고치지 않고 그대로 띄움): 수집 주기 10초와 60초의 감시 항목(주소 둘 이상)을 실패시키고, 장애 중에 이름·환경과 확인 방식을 바꾼다 | Alertmanager API의 fingerprint와 `startsAt`이 그대로, 관리자 서버에 복구 webhook 0건, 장애 기록 수가 그대로, 한 감시 항목의 주소들이 한 요청으로 옴 |
+| C2, C5 | 개발 환경 수동 확인(빌드한 코어 이미지와 가짜 앱을 따로 띄움): 수집 주기 10초와 60초의 감시 항목을 실패시키고, 장애 중에 이름·환경과 확인 방식을 바꾼다 | Alertmanager API의 fingerprint와 `startsAt`이 그대로, 복구 webhook 0건, 한 감시 항목의 주소들이 한 요청으로 옴 |
 | C6, C11, C13 | 문서 검사와 리뷰 | `node scripts/check-docs.mjs` 오류 0 |
 | 전체 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build`, `core-dev.bat check`, `node scripts/check-docs.mjs` 통과 |
 
@@ -83,15 +83,24 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 ## 작업 순서
 
 - [x] 문서(INTEGRATION, ADMIN-SERVER, OPERATIONS, ARCHITECTURE, TESTING)를 고친다(사람 확인: 2026-11-12, 문서부터 고침)
-- [ ] 규칙 테스트를 쓰고, 지금 규칙에서 실패하는지 확인한다
-- [ ] Alert 규칙과 `group_by`를 바꾸고 `core-dev.bat check`로 확인한다. 저장소 밖 사본으로 테스트가 다른 식에서 실패하는지 확인한다
-- [ ] 개발 환경에서 C2, C5를 수동 확인하고 결과를 진행 중 발견에 적는다
+- [x] 규칙 테스트를 쓰고, 지금 규칙에서 실패하는지 확인한다
+- [x] Alert 규칙과 `group_by`를 바꾸고 `core-dev.bat check`로 확인한다. 저장소 밖 사본으로 테스트가 다른 식에서 실패하는지 확인한다
+- [x] 개발 환경에서 C2, C5를 수동 확인하고 결과를 진행 중 발견에 적는다
 - [ ] 전체 검증을 실행하고, 새 하위 에이전트에게 리뷰를 맡긴다
 - [ ] 요구사항을 구현됨으로, ADR 0010을 승인으로 바꾸고 이 계획을 지운다
 
 ## 진행 중 발견
 
-없음
+- 규칙 테스트는 바꾸기 전 규칙에서 실패했다. 바꾼 규칙에서는 통과했다. 저장소 밖 사본으로 다음 다섯 식에서도 실패를 확인했다: `or` 앞의 식만, `or` 뒤의 식만, `without (check_name, environment)`, 창 4분, `min`. 같은 사본을 그대로 두면 통과했다(2026-11-12).
+- `core-dev.bat check`: 이미지 검사, 설정 검사(`amtool check-config` 포함), 규칙 테스트 두 파일이 통과했고 운영 명령 시험은 통과 171·실패 0이었다(2026-11-12).
+- C2, C5 수동 확인(2026-11-12)
+  - 빌드한 코어 이미지(`fc1a156-dirty`)를 따로 띄웠다. 감시 대상 목록을 주고 webhook을 기록하는 가짜 앱(Python)을 붙였다.
+  - 감시 항목은 둘이다. 감시 항목 1은 수집 주기 10초, 닫힌 TCP 포트 주소 둘이다. 감시 항목 2는 60초, 닫힌 TCP 포트 주소 하나다.
+  - 장애가 이어지는 동안 바꿨다. 23:42:01 UTC에 감시 항목 1의 이름·환경과 감시 항목 2의 이름, 23:43:16에 감시 항목 2의 확인 방식(TCP에서 ICMP)이다.
+  - 그 뒤 11분 동안 15초마다 44번 확인했다. 세 Alert의 처음 활성화 시각(`ALERTS_FOR_STATE`)은 한 번도 바뀌지 않았다.
+  - Alertmanager의 fingerprint와 `startsAt`은 바꾸기 전과 같았다.
+  - webhook 6건은 모두 firing이었다(복구 0건). Alert label은 `alertname`, `check_id`, `check_target_id`, `severity`뿐이었다.
+  - 감시 항목 1의 주소 둘은 매번 한 요청으로 왔다.
 
 ## 남길 결정
 

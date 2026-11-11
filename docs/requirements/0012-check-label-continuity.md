@@ -122,13 +122,13 @@ SD label은 그대로 둔다. 사용자의 Grafana가 이 Prometheus의 기록�
 
 ## 완료 기준
 
-- [ ] C1. 두 Alert 규칙에서 장애가 이어지는 대상의 이름, 환경, 확인 방식, 주소를 바꿔도 Alert의 label이 그대로이고 Alert가 끊기지 않는다. (S1, S2, S12, S13) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트
-- [ ] C2. 개발 환경에서 장애가 이어지는 감시 항목의 이름·환경과 확인 방식을 바꿔도 Alertmanager의 그 Alert fingerprint와 `startsAt`이 그대로이고, 관리자 서버에 복구 webhook이 오지 않으며 장애 기록이 하나로 남는다. 수집 주기 30초 이상을 포함한다. (S1, S2, S12, S9) — 확인: 개발 환경 수동 확인
-- [ ] C4. Alert 규칙의 label이 `alertname`, `severity`, `check_id`, `check_target_id`뿐이고, annotation에 이름·환경·주소·확인 방식이 없으며, `core-dev.bat check`(이미지 빌드, 설정 검사, 규칙 테스트)가 통과한다. (S1, S2, S12, S13) — 확인: 규칙 테스트, `core-dev.bat check`
-- [ ] C5. `alertmanager.yml`의 `group_by`가 `alertname`, `check_id`뿐이고, 한 감시 항목의 여러 주소 Alert가 여전히 한 요청으로 묶인다. — 확인: `amtool check-config`(`core-dev.bat check`에 포함)와 C2의 수동 확인
+- [x] C1. 두 Alert 규칙에서 장애가 이어지는 대상의 이름, 환경, 확인 방식, 주소를 바꿔도 Alert의 label이 그대로이고 Alert가 끊기지 않는다. (S1, S2, S12, S13) — 확인: `infrastructure/prometheus/tests/`의 규칙 테스트
+- [x] C2. 개발 환경에서 장애가 이어지는 감시 항목의 이름·환경과 확인 방식을 바꿔도 Alertmanager의 그 Alert fingerprint와 `startsAt`이 그대로이고, webhook을 받는 곳에 복구 webhook이 오지 않는다. 수집 주기 30초 이상을 포함한다. (S1, S2, S12, S9) — 확인: 개발 환경 수동 확인. 이 저장소의 Manager를 쓰지 않고, 빌드한 코어 이미지에 감시 대상 목록을 주고 webhook을 기록하는 가짜 앱을 붙인다(사람 확인: 2026-11-12, 코어만 남김)
+- [x] C4. Alert 규칙의 label이 `alertname`, `severity`, `check_id`, `check_target_id`뿐이고, annotation에 이름·환경·주소·확인 방식이 없으며, `core-dev.bat check`(이미지 빌드, 설정 검사, 규칙 테스트)가 통과한다. (S1, S2, S12, S13) — 확인: 규칙 테스트, `core-dev.bat check`
+- [x] C5. `alertmanager.yml`의 `group_by`가 `alertname`, `check_id`뿐이고, 한 감시 항목의 여러 주소 Alert가 여전히 한 요청으로 묶인다. — 확인: `amtool check-config`(`core-dev.bat check`에 포함)와 C2의 수동 확인
 - [ ] C6. [INTEGRATION.md](../INTEGRATION.md)의 SD label 표와 Alert label 표, webhook 예시, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 예시가 실제 label과 맞는다. — 확인: 리뷰
 - [ ] C11. [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에 관리자 서버가 알림의 감시 항목 이름, 환경, 주소를 Alert label이 아니라 `check_id`, `check_target_id`로 찾은 자기 DB 값으로 채워야 한다고 적혀 있다. (S1, S2, S13) — 확인: 리뷰
-- [ ] C12. 두 Alert 규칙에서 옛 기록의 stale 표시와 새 기록의 첫 수집 사이에 평가가 있어도 장애가 이어지고 시작 시각이 그대로다. 지우거나 끈 대상의 장애는 5분 동안 이어진 뒤 끝나고, 살아난 대상의 장애는 다음 평가에서 끝난다. 장애가 없을 때 값을 바꾼 직후 실패하면 1분 뒤 장애가 된다. (S3, S9, S10, S11) — 확인: 규칙 테스트. 바꾸기 전 규칙, 지금 값만 보는 식, `last_over_time`만 보는 식에서 실패하는지도 확인한다
+- [x] C12. 두 Alert 규칙에서 옛 기록의 stale 표시와 새 기록의 첫 수집 사이에 평가가 있어도 장애가 이어지고 시작 시각이 그대로다. 지우거나 끈 대상의 장애는 5분 동안 이어진 뒤 끝나고, 살아난 대상의 장애는 다음 평가에서 끝난다. 장애가 없을 때 값을 바꾼 직후 실패하면 1분 뒤 장애가 된다. (S3, S9, S10, S11) — 확인: 규칙 테스트. 바꾸기 전 규칙, 지금 값만 보는 식, `last_over_time`만 보는 식에서 실패하는지도 확인한다
 - [ ] C13. [INTEGRATION.md](../INTEGRATION.md)와 [운영 가이드](../OPERATIONS.md)에 지우거나 끈 감시 항목·주소의 장애가 최대 5분 뒤 복구로 끝나고 그 사이 재발송 알림이 한 번 더 갈 수 있다고 적혀 있다. (S10) — 확인: 리뷰
 
 ## 확인 필요
