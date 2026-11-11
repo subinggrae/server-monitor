@@ -1,8 +1,8 @@
 # 0012. 감시 항목 이름·환경·확인 방식을 바꿔도 이어지는 장애
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-10-29
-- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(이 요구사항의 이전 구현, 확인 기록 포함)
+- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0010](../decisions/0010-alert-labels-by-check-id.md), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(이 요구사항의 이전 구현, 확인 기록 포함)
 
 ## 배경
 
@@ -82,7 +82,7 @@ SD label은 그대로 둔다. 사용자의 Grafana가 이 Prometheus의 기록�
 - **S4. 변경을 배포할 때의 영향**
   - 상황: 이 변경 전의 규칙으로 이어지는 장애가 있는 코어를 이 변경으로 갱신한다.
   - 행동: 이 변경을 배포한다.
-  - 결과: Alert의 label 집합이 한 번 바뀌므로 이어지던 장애가 새 장애로 다시 생긴다. 코어를 갱신하면 Alertmanager가 다시 만들어져 옛 장애를 잊으므로, 관리자 서버에는 옛 장애의 복구가 오지 않고 옛 장애 기록은 장애 중으로 남는다(2026-11-09 개발 환경에서 확인). 아직 운영에 배포한 코어가 없어 이 영향은 생기지 않으므로, 운영 가이드에 안내를 넣지 않는다(사람 확인: 2026-11-09) [확인 필요].
+  - 결과: Alert의 label 집합이 한 번 바뀌므로 이어지던 장애가 새 장애로 다시 생긴다. 코어를 갱신하면 Alertmanager가 다시 만들어져 옛 장애를 잊으므로, 관리자 서버에는 옛 장애의 복구가 오지 않고 옛 장애 기록은 장애 중으로 남는다(2026-11-09 개발 환경에서 확인). 아직 운영에 배포한 코어가 없어 이 영향은 생기지 않으므로, 운영 가이드에 안내를 넣지 않는다(사람 확인: 2026-11-09, 2026-11-12).
 - **S9. 값을 바꾸는 순간의 수집 틈**
   - 상황: 대상이 계속 실패해 장애가 이어지고 있다. 수집 주기는 10~240초 가운데 하나다.
   - 행동: 사용자가 이름, 환경이나 확인 방식을 바꿔, 옛 기록이 끝나고 새 기록이 아직 처음 수집되지 않은 동안 규칙을 평가한다.
@@ -134,4 +134,4 @@ SD label은 그대로 둔다. 사용자의 Grafana가 이 Prometheus의 기록�
 
 ## 확인 필요
 
-- 2026-11-12 지금도 운영에 배포한 코어가 없는가? 있으면 배포할 때 이어지던 장애가 새 장애로 다시 생기고 옛 장애 기록이 장애 중으로 남으므로 운영 가이드에 안내를 넣어야 한다. (가정: 2026-11-09와 같이 없다)
+없음
