@@ -62,7 +62,7 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 - 운영 이미지에서 꺼낸 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
 - 코어 서버 운영 명령(`infrastructure/core-server.sh`)의 자동 시험(`infrastructure/tests/core-server.test.sh`). 공식 Prometheus 이미지의 BusyBox `sh`에서 가짜 `docker`, `systemctl`, `curl`, `wget`으로 실행한다. 범위 밖이거나 형식이 틀린 값과 관리자 서버 주소를 `render`와 `start`가 거부하는지도 여기서 본다
 
-`core-dev.bat build`(`node scripts/build-core-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `core-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 처음 따라 하기](OPERATIONS.md#처음-따라-하기)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-core-bundle.mjs`의 버전·체크섬을 함께 바꾼다.
+`core-dev.bat build`(`node scripts/build-core-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `core-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 코어 설치](OPERATIONS.md#코어-설치)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-core-bundle.mjs`의 버전·체크섬을 함께 바꾼다.
 
 Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝났는데 실행 중으로 남아 검사가 멈추는 일이 있었다(2026-11-10, 원인은 확인하지 못함). `docker ps`에 몇 분째 남은 검사 컨테이너가 있으면 `docker kill <이름>`으로 끝내고, 되풀이되면 Docker Desktop을 다시 시작한다.
 
