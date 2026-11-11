@@ -1,7 +1,7 @@
 # 0012. 감시 항목 이름·환경·확인 방식을 바꿔도 이어지는 장애 구현 계획
 
 - 요구사항: [0012. 감시 항목 이름·환경·확인 방식을 바꿔도 이어지는 장애](0012-check-label-continuity.md)
-- 상태: 검토 중
+- 상태: 진행 중
 
 ## 접근 방법
 
@@ -82,7 +82,7 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 
 ## 작업 순서
 
-- [ ] 문서(INTEGRATION, ADMIN-SERVER, OPERATIONS, ARCHITECTURE, TESTING)를 고친다(사람 확인: 2026-11-12, 문서부터 고침)
+- [x] 문서(INTEGRATION, ADMIN-SERVER, OPERATIONS, ARCHITECTURE, TESTING)를 고친다(사람 확인: 2026-11-12, 문서부터 고침)
 - [ ] 규칙 테스트를 쓰고, 지금 규칙에서 실패하는지 확인한다
 - [ ] Alert 규칙과 `group_by`를 바꾸고 `core-dev.bat check`로 확인한다. 저장소 밖 사본으로 테스트가 다른 식에서 실패하는지 확인한다
 - [ ] 개발 환경에서 C2, C5를 수동 확인하고 결과를 진행 중 발견에 적는다

@@ -74,7 +74,8 @@ http.createServer((req, res) => {
     req.on('end', () => {
       for (const alert of JSON.parse(body).alerts) {
         // status는 firing(장애) 또는 resolved(복구)다. 여기서 기록하고 알림을 보낸다.
-        console.log(alert.status, alert.labels.check_id, alert.labels.instance, alert.annotations.summary);
+        // 장애에는 감시 항목 이름, 환경, 주소가 없다. 알림에 넣으려면 두 id로 DB에서 찾는다.
+        console.log(alert.status, alert.labels.check_id, alert.labels.check_target_id, alert.annotations.summary);
       }
       // 알림 전송에 실패해도 2xx를 돌려준다. 실패를 돌려주면 코어가 같은 장애를 계속 다시 보낸다.
       res.writeHead(200);
@@ -111,6 +112,7 @@ http.createServer((req, res) => {
 테이블 이름과 관계없이 다음은 지킨다.
 
 - **id는 바꾸지 않는다**: 감시 항목, 감시 주소, 서버의 id는 한 번 정하면 바꾸지 않는다. 코어가 이 id로 기록을 쌓고 장애를 보내기 때문이다.
+- **알림의 이름·환경·주소는 DB에서 채운다**: 장애에는 감시 항목 이름, 환경, 주소가 담겨 오지 않는다. 장애의 `check_id`, `check_target_id`로 찾은 감시 항목과 감시 주소의 DB 값으로 채운다. 그래서 사용자가 장애 중에 이 값들을 바꿔도 장애는 이어지고, 다음 알림부터 바뀐 값이 보인다. 코어가 장애에서 이 값들을 빼는 이유는 [통합 계약의 Alert](INTEGRATION.md#alert-post-apiintegrationsalertmanagerwebhook)에 있다.
 - **주기의 범위**: 확인 주기와 수집 주기는 10~240초, 알림 다시 보내는 간격은 5~1440분으로 받는다. 범위의 이유는 [통합 계약](INTEGRATION.md)에 있다.
 - **같은 장애의 기준**: 장애 식별값(`fingerprint`)과 시작 시각이 함께 같을 때 같은 장애로 본다. 식별값만으로 묶으면 같은 주소에서 다음에 생긴 장애가 이전 기록을 덮는다.
 - **기록은 남긴다**: 감시 항목이나 알림 받을 곳을 지워도 장애 기록과 알림을 보낸 기록은 남긴다. 그래서 두 기록에서 감시 항목과 알림 받을 곳을 가리키는 열에는 외래 키를 걸지 않는다.
