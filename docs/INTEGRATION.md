@@ -266,7 +266,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 |---|---|---|
 | 설정 저장과 화면 | 리소스마다 임계값과 지속 시간, 서버마다 알림 다시 보내는 간격을 받는다 | `resource_thresholds`, `server_resource_alert_settings` |
 | 판단 작업 | 앱 안에서 주기적으로 실행해 사용률을 읽고 [판단 규칙](#판단-규칙)대로 상태를 바꾼다 | [코어가 제공할 것](#코어가-제공할-것)의 조회 API, `resource_alert_states`, `resource_alert_events` |
-| 알림 보내기 | 판단 작업이 발생, 다시 보내기, 복구를 정하면 사람에게 보낸다 | 앱이 고른 알림 방법(문자, Telegram 등) |
+| 알림 보내기 | 판단 작업이 발생, 다시 보내기, 복구를 정하면 사람에게 보낸다 | 앱이 고른 알림 방법(문자, Telegram 등), 문구는 [알림 메시지 템플릿](ADMIN-SERVER.md#알림-메시지-템플릿) |
 
 판단 작업은 앱이 하나만 띄워져 있다고 보고 만든다. 앱을 여러 개 띄우면 같은 리소스를 두 번 판단해 알림이 두 번 갈 수 있다([ADR 0008](decisions/0008-resource-threshold-in-app.md)).
 
@@ -292,6 +292,8 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 | `server_resource_alert_settings` | 서버마다 리소스 알림을 다시 보내는 간격 | 서버를 지우면 함께 지워짐 |
 | `resource_alert_states` | 단계마다 넘기 시작한 시각, 발생 기록, 마지막으로 보낸 시각 | 함께 지워짐 |
 | `resource_alert_events` | 발생 한 번과 그때의 서버·리소스 이름, 임계값, 사용률, 복구 시각 | 남음 |
+
+알림 문구를 정하는 메시지 템플릿 테이블의 참고용 DDL은 [MariaDB용](reference-schema/mariadb/alert-message-templates.sql)과 [PostgreSQL용](reference-schema/postgresql/alert-message-templates.sql)이 있다. 다른 테이블을 가리키지 않아서 기본 테이블 이름을 바꿔도 고치지 않는다. 템플릿 종류, 변수, 검사 규칙은 [관리자 서버 만들기의 알림 메시지 템플릿](ADMIN-SERVER.md#알림-메시지-템플릿)에 있다.
 
 ### 판단 규칙
 
