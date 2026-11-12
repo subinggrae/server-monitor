@@ -14,7 +14,7 @@ route:
 
   # 하나의 Check가 주소를 여러 개 가질 수 있습니다.
   # check_id로 묶으면 같은 Check의 주소 여러 개가 한 번에 전달됩니다.
-  # Alert에는 사용자가 바꾸는 이름과 환경이 없고, 있어도 그 값으로 묶지 않습니다. 바꿀 때 묶음이 갈립니다. (docs/decisions/0010)
+  # 사용자가 바꾸는 값(이름, 환경, 확인 방식, 주소)으로 묶지 않습니다. 값을 바꿀 때 묶음이 갈립니다. (docs/decisions/0010)
   group_by:
     - alertname
     - check_id

@@ -61,28 +61,28 @@ tests:
               check_target_id: '11'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '1'
               check_target_id: '12'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '1'
               check_target_id: '13'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '1'
               check_target_id: '14'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 2m45s
         exp_alerts:
@@ -149,14 +149,14 @@ tests:
               check_target_id: '31'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '3'
               check_target_id: '32'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 2m15s
         exp_alerts:
@@ -176,14 +176,14 @@ tests:
               check_target_id: '31'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '3'
               check_target_id: '32'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
     promql_expr_test:
       # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
       # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
@@ -215,7 +215,7 @@ tests:
               check_target_id: '51'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 4m
         exp_alerts:
@@ -235,7 +235,7 @@ tests:
               check_target_id: '51'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 6m45s
         exp_alerts:
@@ -288,21 +288,21 @@ tests:
               check_target_id: '41'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '4'
               check_target_id: '42'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '4'
               check_target_id: '43'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
       - alertname: MonitoringCheckDown
         eval_time: 2m15s
         exp_alerts:
@@ -312,7 +312,7 @@ tests:
               check_target_id: '41'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
       - alertname: MonitoringCheckDown
         eval_time: 3m
         exp_alerts: []
@@ -388,14 +388,14 @@ tests:
               check_target_id: '61'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
           - exp_labels:
               severity: critical
               check_id: '6'
               check_target_id: '62'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다.'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 3m15s
         exp_alerts: []
@@ -429,4 +429,56 @@ tests:
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="6",check_target_id="61"}'
             value: 150
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="6",check_target_id="62"}'
+            value: 150
+
+  # 성공 중에 값을 바꾸고 바로 실패하는데, 옛 series의 stale 표시가 늦게 쓰이는 경우(두 규칙)입니다.
+  # Prometheus는 SD에서 빠진 target의 stale 표시를 마지막 수집에서 수집 주기의 약 2.1배 뒤에 씁니다.
+  # 주소 71은 수집 주기 60초를 흉내 내어, 옛 series가 120초에 마지막 성공 값을 남기고 245초에 stale 표시를 남깁니다.
+  # 그동안 옛 series의 성공 값이 남아 있어도, 새 series가 145초부터 실패하면 210초에 firing이어야 합니다.
+  - interval: 5s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="7",check_target_id="71",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.71:8080"}'
+        values: '1x24 _x24 stale'
+      - series: 'probe_success{job="manager-blackbox",check_id="7",check_target_id="71",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.71:8080"}'
+        values: '_x25 1x3 0x40'
+      - series: 'up{job="manager-blackbox",check_id="7",check_target_id="71",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.71:8080"}'
+        values: '1x24 _x24 stale'
+      - series: 'up{job="manager-blackbox",check_id="7",check_target_id="71",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP 새 이름",instance="10.0.1.71:8080"}'
+        values: '_x25 1x3 0x40'
+    alert_rule_test:
+      - alertname: MonitoringCheckDown
+        eval_time: 3m15s
+        exp_alerts: []
+      - alertname: MonitoringCheckDown
+        eval_time: 3m30s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '7'
+              check_target_id: '71'
+            exp_annotations:
+              summary: '주소 확인에 실패했습니다'
+              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 3m15s
+        exp_alerts: []
+      - alertname: MonitoringCheckProbeFailed
+        eval_time: 3m30s
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              check_id: '7'
+              check_target_id: '71'
+            exp_annotations:
+              summary: '모니터링 확인 자체가 동작하지 않습니다'
+              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+    promql_expr_test:
+      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
+      - expr: ALERTS_FOR_STATE
+        eval_time: 3m30s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="7",check_target_id="71"}'
+            value: 150
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="7",check_target_id="71"}'
             value: 150
