@@ -1,8 +1,8 @@
 # 0012. 감시 항목 이름·환경·확인 방식을 바꿔도 이어지는 장애
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-10-29
-- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0010](../decisions/0010-alert-labels-by-check-id.md), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(이 요구사항의 이전 구현, 확인 기록 포함)
+- 관련: [#22](https://github.com/subinggrae/server-monitor/issues/22), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0010](../decisions/0010-alert-labels-by-check-id.md), [PR #54](https://github.com/subinggrae/server-monitor/pull/54)(구현 계획과 확인 기록 포함), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(이 요구사항의 이전 구현, 확인 기록 포함)
 
 ## 배경
 

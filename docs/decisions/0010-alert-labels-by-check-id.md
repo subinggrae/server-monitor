@@ -1,8 +1,8 @@
 # 0010. 감시 항목 Alert는 감시 항목과 주소의 id로만 묶는다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-11-12
-- 관련: [요구사항 0012](../requirements/0012-check-label-continuity.md), [#22](https://github.com/subinggrae/server-monitor/issues/22), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0007](0007-core-app-contract.md), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(이전 구현과 확인 기록)
+- 관련: [요구사항 0012](../requirements/0012-check-label-continuity.md), [#22](https://github.com/subinggrae/server-monitor/issues/22), [ADR 0001](0001-alert-repeat-in-manager.md), [ADR 0007](0007-core-app-contract.md), [PR #54](https://github.com/subinggrae/server-monitor/pull/54)(구현 계획과 확인 기록 포함), [PR #43](https://github.com/subinggrae/server-monitor/pull/43)(이전 구현과 확인 기록)
 
 ## 배경과 문제
 
