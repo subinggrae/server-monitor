@@ -21,8 +21,8 @@
 
 감시 항목의 두 Alert 규칙을 `check_id`, `check_target_id`로만 묶는다(사람 확인: 2026-11-11). 지금 값으로 판단하는 식과 최근 5분의 마지막 값(`last_over_time(...[5m])`)으로 판단하는 식을 `or`로 합친다.
 
-- 지금 값의 식: 장애가 없을 때 값을 바꾼 직후의 실패를 늦지 않게 잡는다(사람 확인: 2026-11-12).
-- 최근 5분의 식: 값을 바꾸면 옛 series는 바로 stale로 끝나고 새 series는 첫 수집 때 시작하므로, 그 틈을 메운다. 5분은 가장 긴 수집 주기(240초)보다 길게 잡은 값이다.
+- 지금 값의 식: 주소마다 가장 최근에 수집한 series의 값만 본다. Prometheus는 SD에서 빠진 target의 stale 표시를 마지막 수집에서 수집 주기의 약 2.1배 뒤에 쓴다(Prometheus v3.14.0 `scrape/scrape.go`의 `endOfRunStaleness`). 그동안 옛 series의 성공 값이 새 series의 실패를 가리지 않게 해서, 장애가 없을 때 값을 바꾼 직후의 실패를 늦지 않게 잡는다(사람 확인: 2026-11-12).
+- 최근 5분의 식: 옛 series가 stale로 끝난 뒤 새 series가 첫 수집되기 전의 틈을 메운다. 5분은 가장 긴 수집 주기(240초)보다 길게 잡은 값이다.
 
 Alertmanager `group_by`는 `alertname`, `check_id`다. SD label은 그대로 둔다. Alert label에는 두 id와 규칙이 정하는 `alertname`, `severity`만 남고, annotation에는 이름·환경·주소·확인 방식을 넣지 않는다. 관리자 서버는 알림의 감시 항목 이름, 환경, 주소를 `check_id`, `check_target_id`로 찾은 자기 DB 값으로 채운다.
 
@@ -33,12 +33,12 @@ Alertmanager `group_by`는 `alertname`, `check_id`다. SD label은 그대로 둔
 - 좋아지는 점: 이름, 환경, 확인 방식, 주소를 바꿔도 장애가 하나로 이어지고, 알림에는 보낼 때의 DB 값이 보인다. Grafana가 읽는 기록에는 이름과 환경이 그대로 있다.
 - 감수할 점:
   - webhook과 `ALERTS` series에서 id 밖의 label이 빠져 그 label을 읽던 관리자 서버와 대시보드를 고쳐야 한다. 이 결정 전에 운영에 배포한 코어가 없어 배포 때 끊기는 장애는 없다(사람 확인: 2026-11-12).
-  - 장애 중인 감시 항목이나 주소를 지우거나 끄면, Blackbox Exporter가 멈추면 장애가 최대 5분 뒤 복구로 끝나고, 그 사이 재발송 알림이 한 번 더 갈 수 있다(사람 확인: 2026-11-09, 2026-11-11). 대상이 다시 정상으로 동작하면 다음 규칙 평가에서 바로 복구된다.
+  - 장애 중인 감시 항목이나 주소를 지우거나 끄면, Blackbox Exporter가 멈추면 복구 webhook이 지금의 0~5분 뒤 대신 5~10분 뒤에 오고, 그 사이 재발송 알림이 한 번 더 갈 수 있다(사람 확인: 2026-11-09, 2026-11-11). 대상이 다시 정상으로 동작하면 지금처럼 다음 규칙 평가에서 복구되고, 복구 webhook은 5분 안에 온다.
   - 수집 주기가 150초를 넘는 감시 항목은 값을 바꿀 때 끊길 수 있다(240초에서 약 28%로 추정, 사람 확인: 2026-11-09).
 - 다시 볼 신호: 관리자 서버가 DB 없이 webhook만으로 알림을 만들어야 할 때, 수집 주기 상한을 240초보다 늘릴 때
 
 ## 확인 방법
 
-- `infrastructure/prometheus/tests/monitoring-checks.test.yml`(`promtool test rules`): Alert label이 두 id와 `alertname`, `severity`뿐이고, 값을 바꿔도 수집 틈을 지나 Alert가 이어진다. 지운 대상은 5분 뒤, 살아난 대상은 바로 복구된다.
+- `infrastructure/prometheus/tests/monitoring-checks.test.yml`(`promtool test rules`): Alert label이 두 id와 `alertname`, `severity`뿐이고, 값을 바꿔도 수집 틈을 지나 Alert가 이어진다. 지운 대상은 5분 뒤, 살아난 대상은 바로 복구된다. 옛 series의 stale 표시가 늦게 쓰여도 성공 중에 값을 바꾼 뒤의 실패가 1분 뒤 장애가 된다.
 - `amtool check-config`와 리뷰: `group_by`가 `alertname`, `check_id`뿐이다.
 - 리뷰: [관리자 서버 만들기](../ADMIN-SERVER.md)와 [INTEGRATION.md](../INTEGRATION.md)에 알림의 이름, 환경, 주소를 webhook label이 아니라 DB 값으로 채우라고 적혀 있다.

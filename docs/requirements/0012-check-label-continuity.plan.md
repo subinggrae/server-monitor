@@ -8,13 +8,19 @@
 두 Alert 규칙(`MonitoringCheckDown`, `MonitoringCheckProbeFailed`)이 감시 항목과 주소의 id로만 묶어 판단한다. `X`는 `probe_success`와 `up`이다.
 
 ```promql
-max by (check_id, check_target_id) (X{job="manager-blackbox"}) == 0
+max by (check_id, check_target_id) (
+  X{job="manager-blackbox"}
+  and
+  (timestamp(X{job="manager-blackbox"})
+    - on (check_id, check_target_id) group_left
+    max by (check_id, check_target_id) (timestamp(X{job="manager-blackbox"}))) == 0
+) == 0
 or
 max by (check_id, check_target_id) (last_over_time(X{job="manager-blackbox"}[5m])) == 0
 ```
 
 - `by (check_id, check_target_id)`: 결과의 label이 두 id뿐이라, 이름·환경·확인 방식·주소가 바뀌어도 Alert의 label 집합이 그대로다. Alert 규칙의 `severity`와 `alertname`이 더해진다. 값을 바꾸는 동안 옛 series와 새 series가 함께 있어도 `max`가 주소마다 하나로 합친다.
-- `or` 앞의 식은 지금 값만 본다. stale로 끝난 옛 series는 들어가지 않으므로, 장애가 없을 때 값을 바꾼 직후 실패하면 바로 실패로 센다(S3).
+- `or` 앞의 식은 주소마다 가장 최근에 수집한 series의 지금 값만 본다. Prometheus는 SD에서 빠진 target의 stale 표시를 마지막 수집에서 수집 주기의 약 2.1배 뒤에 쓴다(Prometheus v3.14.0 `scrape/scrape.go`의 `endOfRunStaleness`). 그동안 옛 series의 성공 값이 남아도 새 series의 값으로 판단하므로, 장애가 없을 때 값을 바꾼 직후 실패하면 바로 실패로 센다(S3).
 - `or` 뒤의 식은 stale 표시를 건너뛴 최근 5분의 마지막 값을 본다. 옛 series가 끝나고 새 series가 처음 수집되기 전의 틈을 메운다(S9). 지금 값이 있는 주소는 그 값이 두 식에 함께 들어가고 `max`라서, 지금 값이 1이면 어느 쪽도 장애가 아니다. 그래서 살아난 주소는 바로 복구된다(S11).
 - 창 5분은 가장 긴 수집 주기(240초)보다 길게 잡은 값이다(사람 확인: 2026-11-11).
 
@@ -24,6 +30,7 @@ annotation에는 label에 없는 값을 쓸 수 없으므로 이름, 환경, 주
 
 - `max without (check_name, environment)`([PR #43](https://github.com/subinggrae/server-monitor/pull/43)): `check_type`, `module`, `instance`가 남아 확인 방식과 주소를 바꿀 때 장애가 끊긴다.
 - `last_over_time` 식만 쓰기(이슈 #22의 2026-11-11 결정 원문): 장애가 없을 때 값을 바꾼 직후 실패하면 옛 series의 마지막 성공 값이 5분 동안 남아 장애를 최대 5분 늦게 잡는다(사람 확인: 2026-11-12).
+- `or` 앞의 식을 `max by (check_id, check_target_id) (X) == 0`으로 두기(이 브랜치의 첫 구현 `f81ccb4`): stale 표시가 늦게 쓰이는 동안 옛 series의 성공 값이 새 series의 실패를 가려, 장애를 수집 주기 60초에서 약 105초, 240초에서 약 4.5분 늦게 잡는다(2026-11-12 리뷰에서 발견, 사람 확인: 2026-11-12).
 - SD label에서 이름·환경을 빼기, 관리자 서버에서 복구를 걸러내기: [ADR 0010](../decisions/0010-alert-labels-by-check-id.md)에 이유가 있다.
 
 ## 바뀌는 부분
@@ -61,7 +68,7 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 
 - webhook의 빠진 label을 읽던 관리자 서버가 깨진다: 운영에 배포한 코어가 없고(사람 확인: 2026-11-12), INTEGRATION.md와 ADMIN-SERVER.md에 DB에서 채우라고 적는다. 커밋에 `BREAKING CHANGE`를 쓴다.
 - 식이 틀려 장애를 놓치거나 늦게 잡는다: 규칙 테스트가 S3, S9~S13을 확인하고, 바꾸기 전 규칙과 한쪽 식만 쓰는 규칙에서 실패하는지 확인한다.
-- 지우거나 끈 주소의 장애가 최대 5분 늦게 복구되고 그 사이 재발송 알림이 한 번 더 갈 수 있다: 받아들인 위험이다(요구사항 S10).
+- 지우거나 끈 주소의 복구 webhook이 5~10분 뒤에 오고 그 사이 재발송 알림이 한 번 더 갈 수 있다: 받아들인 위험이다(요구사항 S10).
 - 되돌리기: 이 변경의 커밋을 되돌리고 코어를 다시 빌드해 배포한다. 데이터 마이그레이션은 없다. 되돌리면 label 집합이 다시 바뀌어 그때 이어지던 장애가 새 장애로 한 번 다시 생긴다.
 
 ### 보안 위협
@@ -72,13 +79,13 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 
 | 완료 기준 | 테스트 | 실행 명령과 기대 결과 |
 |---|---|---|
-| C1, C4, C12 | 규칙 테스트 `monitoring-checks.test.yml`: 이름·환경·확인 방식·주소 변경 때 label과 Alert가 이어짐, 수집 틈 15초와 4분, 지우거나 끈 주소는 5분 뒤 복구, 살아난 주소는 바로 복구, 장애가 없을 때 값을 바꾼 뒤 실패하면 1분 뒤 장애, Alert label과 annotation | `core-dev.bat check` 통과, 저장소 밖 사본에서 다른 식(아래)으로 바꾸면 실패 |
+| C1, C4, C12 | 규칙 테스트 `monitoring-checks.test.yml`: 이름·환경·확인 방식·주소 변경 때 label과 Alert가 이어짐, 수집 틈 15초와 4분, 지우거나 끈 주소는 5분 뒤 복구, 살아난 주소는 바로 복구, 장애가 없을 때 값을 바꾼 뒤 실패하면 1분 뒤 장애(옛 series의 stale 표시가 늦게 쓰이는 경우 포함), Alert label과 annotation | `core-dev.bat check` 통과, 저장소 밖 사본에서 다른 식(아래)으로 바꾸면 실패 |
 | C5 | 설정 검사 | `core-dev.bat check`의 `amtool check-config` 통과 |
 | C2, C5 | 개발 환경 수동 확인(빌드한 코어 이미지와 가짜 앱을 따로 띄움): 수집 주기 10초와 60초의 감시 항목을 실패시키고, 장애 중에 이름·환경과 확인 방식을 바꾼다 | Alertmanager API의 fingerprint와 `startsAt`이 그대로, 복구 webhook 0건, 한 감시 항목의 주소들이 한 요청으로 옴 |
 | C6, C11, C13 | 문서 검사와 리뷰 | `node scripts/check-docs.mjs` 오류 0 |
 | 전체 | 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build`, `core-dev.bat check`, `node scripts/check-docs.mjs` 통과 |
 
-규칙 테스트가 실패해야 하는 다른 식은 바꾸기 전 규칙, `or` 앞의 식만 쓴 규칙, `or` 뒤의 식만 쓴 규칙, `without (check_name, environment)`로 묶은 규칙이다.
+규칙 테스트가 실패해야 하는 다른 식은 바꾸기 전 규칙, 첫 구현 `f81ccb4`의 식, `or` 앞의 식만 쓴 규칙, `or` 뒤의 식만 쓴 규칙, `without (check_name, environment)`로 묶은 규칙이다.
 
 ## 작업 순서
 
@@ -86,7 +93,8 @@ HTTP SD 응답의 label은 바뀌지 않는다.
 - [x] 규칙 테스트를 쓰고, 지금 규칙에서 실패하는지 확인한다
 - [x] Alert 규칙과 `group_by`를 바꾸고 `core-dev.bat check`로 확인한다. 저장소 밖 사본으로 테스트가 다른 식에서 실패하는지 확인한다
 - [x] 개발 환경에서 C2, C5를 수동 확인하고 결과를 진행 중 발견에 적는다
-- [ ] 전체 검증을 실행하고, 새 하위 에이전트에게 리뷰를 맡긴다
+- [x] 전체 검증을 실행하고, 새 하위 에이전트에게 리뷰를 맡긴다
+- [ ] 리뷰 지적(stale 표시가 늦게 쓰이는 경우, 복구 시점 안내 등)을 반영하고, 코어 검사와 C2·C5 수동 확인을 다시 한다
 - [ ] 요구사항을 구현됨으로, ADR 0010을 승인으로 바꾸고 이 계획을 지운다
 
 ## 진행 중 발견
