@@ -1,8 +1,8 @@
 # 0018. 코어만 남기고 관리자 서버 앱을 저장소에서 걷어냄
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-16
-- 관련: [0008](0008-embeddable-core.md), [0012](0012-check-label-continuity.md), [0014](0014-alert-message-template.md), [ADR 0006](../decisions/0006-baseline-migration.md), [ADR 0007](../decisions/0007-core-app-contract.md), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md)
+- 관련: [PR #57](https://github.com/subinggrae/server-monitor/pull/57)(구현 계획과 확인 기록 포함), [0008](0008-embeddable-core.md), [0012](0012-check-label-continuity.md), [0014](0014-alert-message-template.md), [ADR 0006](../decisions/0006-baseline-migration.md), [ADR 0007](../decisions/0007-core-app-contract.md), [INTEGRATION.md](../INTEGRATION.md), [ADMIN-SERVER.md](../ADMIN-SERVER.md)
 
 ## 배경
 
