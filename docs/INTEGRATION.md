@@ -168,8 +168,8 @@ Alertmanager가 [webhook payload](https://prometheus.io/docs/alerting/latest/con
 앱은 `alerts`의 항목마다 다음 순서로 처리한다.
 
 1. `labels.check_id`로 앱의 감시 항목을, `labels.check_target_id`로 그 주소를 찾는다. 지운 감시 항목이면 기록만 남기고 알리지 않는다. 알림과 화면에 보일 감시 항목 이름, 환경, 주소는 Alert에 없으므로 찾은 감시 항목과 주소의 DB 값으로 채운다. 그래서 사용자가 이 값들을 바꾸면 다음 알림부터 바뀐 값이 보인다. 장애 기록에 남길 주소는 장애를 처음 받을 때 채운다. 지운 주소의 복구 Alert가 오면 DB에서 주소를 찾을 수 없다.
-2. `fingerprint`와 `startsAt`으로 장애 한 번을 구분한다. 같은 값이 다시 오면 같은 장애가 이어진다. 복구된 뒤 다시 실패하면 `startsAt`이 새로 온다.
-3. `status`가 `firing`이면 장애, `resolved`면 복구다. 복구 시각은 `endsAt`이다. 장애 중에는 `endsAt`이 `0001-01-01`이라 복구 시각으로 쓰지 않는다.
+2. `fingerprint`로 그 장애의 열려 있는(아직 복구되지 않은) 기록을 찾는다. 열린 기록이 있으면 `startsAt`이 달라도 같은 장애가 이어지는 것으로 보고, 시작 시각은 처음 받은 값을 그대로 둔다. 모니터링 시스템을 새 버전으로 갱신하거나 Alertmanager를 다시 만들면 이어지던 장애도 `startsAt`이 새 시각으로 오기 때문이다. 열린 기록이 없으면 새 장애로 기록한다. 복구된 뒤 다시 실패하면 이렇게 새 장애가 된다.
+3. `status`가 `firing`이면 장애, `resolved`면 복구다. 복구는 `fingerprint`로 찾은 열린 기록을 닫는다. 복구 시각은 `endsAt`이다. 장애 중에는 `endsAt`이 `0001-01-01`이라 복구 시각으로 쓰지 않는다.
 4. 같은 장애가 다시 오면, 마지막으로 알림을 보낸 뒤 그 감시 항목의 알림 다시 보내는 간격이 지났을 때만 다시 보낸다. 이 간격은 5~1440분으로 받고, 정하지 않은 감시 항목은 60분으로 보기를 권한다. Alertmanager는 이어지는 Alert를 5분마다 보내므로, 간격을 5분보다 짧게 두지 않는다([ADR 0001](decisions/0001-alert-repeat-in-manager.md)).
 
 `alertname`이 `MonitoringCheckProbeFailed`인 Alert는 대상이 아니라 모니터링 시스템 쪽 문제다. Blackbox Exporter가 멈췄거나 응답하지 않아 확인 결과를 받지 못한 상태다. label은 `MonitoringCheckDown`과 같아서 어느 감시 항목의 확인이 멈췄는지 알 수 있고, annotation 문구는 다르다. 앱은 두 Alert를 같은 방식으로 기록하고 알려도 된다.
