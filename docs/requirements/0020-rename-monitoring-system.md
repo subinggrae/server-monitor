@@ -1,6 +1,6 @@
 # 0020. 모니터링 코어를 모니터링 시스템으로 바꿈(이름 포함)
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-16
 - 관련: [#56](https://github.com/subinggrae/server-monitor/issues/56), [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md), [0017](0017-core-shared-env.md), [0018](0018-core-only-repository.md), 요구사항 0019(브랜치 `feature/core-external-network`)
 
@@ -34,7 +34,9 @@
 ## 하지 않는 것
 
 - 이전 버전(모니터링 코어)에서 옮기는 방법. 운영 명령이 `.env`의 옛 이름이나 옛 이름으로 띄운 컨테이너를 찾지 않고, 운영 가이드에 옮기는 절차도 두지 않는다. 정식으로 운영하는 서버가 없기 때문이다. 이전 버전을 띄운 곳은 사람이 직접 지운다(사람 확인: 2026-11-16).
-- 지난 요구사항과 ADR의 글과 파일 이름을 바꾸는 것. 결정할 때의 말을 남긴 기록이기 때문이다.
+- 지난 요구사항과 ADR의 글과 파일 이름을 바꾸는 것. 결정할 때의 말을 남긴 기록이기 때문이다. 다만 바뀐 제목을 가리키는 링크는 문서 검사가 통과하도록 링크 주소만 고친다(요구사항 0013의 통합 계약 링크).
+- 이름을 바꾸기 전 묶음(요구사항 0017 전 방식 포함)을 위한 운영 명령의 처리(`previous_env`, 옛 이름 `monitoring-core-<버전>` 폴더에서 `.env` 찾기)와 운영 가이드의 절차를 지우는 것. 동작이 바뀌므로 [#58](https://github.com/subinggrae/server-monitor/issues/58)에서 따로 정한다. 그때까지 이 처리는 옛 폴더 이름을 그대로 찾고, 운영 가이드에는 이름을 바꾸기 전 묶음과 갱신·되돌리기를 할 수 없다는 안내만 더한다(사람 확인: 2026-11-16).
+- 리뷰와 수동 확인에서 찾은 범위 밖 문제: Dockerfile의 commit-time label 주석([#59](https://github.com/subinggrae/server-monitor/issues/59)), Alertmanager를 다시 만들면 이어지던 장애의 `startsAt`이 바뀌는 것([#60](https://github.com/subinggrae/server-monitor/issues/60)). 둘 다 이름 변경 전부터 있던 동작이다.
 - 컨테이너 이름(`prometheus`, `alertmanager`, `blackbox-exporter`), 볼륨 이름(`prometheus-data`, `alertmanager-data`), 네트워크 이름(`monitoring`)을 바꾸는 것. 관리자 서버가 컨테이너 이름과 네트워크로 붙는다. 이름에 "코어"도 없다.
 - node_exporter 묶음(`node-exporter-<버전>`, 이미지 `monitoring-node-exporter`)의 이름을 바꾸는 것. 이름에 "코어"가 없다.
 - 관리자 서버 주소 변수 `MONITORING_APP_ADDRESS`의 이름을 바꾸는 것. 이름에 "코어"가 없다(사람 확인: 2026-11-16).
@@ -97,11 +99,11 @@
 
 ## 완료 기준
 
-- [ ] C1. 지난 요구사항·ADR과 "하지 않는 것"에 적은 예외 밖에서 `git grep`으로 "코어"와 제품을 뜻하는 `core`(파일 이름 포함)가 나오지 않는다. (목표) — 확인: `git grep -n 코어`, `git grep -n -i core`, `git ls-files | grep -i core`의 결과를 예외와 대조
-- [ ] C2. 운영 명령 시험이 새 이름(명령, 변수, 이미지, 묶음 폴더)으로 통과하고, 옛 변수 이름만 적은 `.env`의 값은 쓰지 않는다. (S1, S4) — 확인: 운영 명령 시험
-- [ ] C3. 빌드 PC에서 만든 묶음으로 처음 설치하면 S1대로 뜨고, 다른 커밋으로 만든 묶음으로 갱신하면 S2대로 기록과 장애 상태가 이어진다. (S1, S2) — 확인: Linux 컨테이너에서 수동 확인
-- [ ] C4. `monitoring-dev.bat check`가 통과하고, `start`, `stop`이 개발용 모니터링 시스템을 띄우고 멈춘다. (S3) — 확인: 실행
-- [ ] C5. TERMS.md에 "모니터링 시스템", "모니터링 서버", "알림 받을 곳" 행이 있고 "받는 그룹", "설정 안 됨", "토픽 ID" 행이 없으며, `node scripts/check-docs.mjs`가 오류 없이 통과한다. (목표) — 확인: 실행
+- [x] C1. 지난 요구사항·ADR과 "하지 않는 것"에 적은 예외 밖에서 `git grep`으로 "코어"와 제품을 뜻하는 `core`(파일 이름 포함)가 나오지 않는다. (목표) — 확인: `git grep -n 코어`, `git grep -n -i core`, `git ls-files | grep -i core`의 결과를 예외와 대조 (2026-11-16 확인. 남은 "코어"는 TERMS.md의 쓰지 않는 말과 "CPU 코어", 남은 `core`는 `--no-core`·`CORE_DOCS`, windows `core` label, GNU coreutils, 지난 요구사항·ADR 파일 이름, #58의 옛 묶음 폴더 이름, 옛 변수 이름 시험뿐이다)
+- [x] C2. 운영 명령 시험이 새 이름(명령, 변수, 이미지, 묶음 폴더)으로 통과하고, 옛 변수 이름만 적은 `.env`의 값은 쓰지 않는다. (S1, S4) — 확인: 운영 명령 시험 (2026-11-16 확인. 통과 172, 실패 0. 새 시험은 옛 값을 읽게 망가뜨린 운영 명령에서 실패했다)
+- [x] C3. 빌드 PC에서 만든 묶음으로 처음 설치하면 S1대로 뜨고, 다른 커밋으로 만든 묶음으로 갱신하면 S2대로 기록과 장애 상태가 이어진다. (S1, S2) — 확인: Linux 컨테이너에서 수동 확인 (2026-11-16 확인. `docker:28-dind`에서 `ef37fa3` 묶음으로 설치하자 `.env`가 `MONITORING_*`로 생기고 compose 프로젝트 `monitoring-system`으로 떴다. `c12e64b` 묶음으로 갱신하자 가장 오래된 표본 시각, 장애의 fingerprint, 바꾼 설정 값(보관 30일, 포트 19090)이 이어지고 webhook도 계속 왔다. 장애의 `startsAt`은 바뀌었고 이는 #60)
+- [x] C4. `monitoring-dev.bat check`가 통과하고, `start`, `stop`이 개발용 모니터링 시스템을 띄우고 멈춘다. (S3) — 확인: 실행 (2026-11-16 확인. `check` 통과, `start` 뒤 `/-/ready` 200, `stop` 뒤 컨테이너 없음)
+- [x] C5. TERMS.md에 "모니터링 시스템", "모니터링 서버", "알림 받을 곳" 행이 있고 "받는 그룹", "설정 안 됨", "토픽 ID" 행이 없으며, `node scripts/check-docs.mjs`가 오류 없이 통과한다. (목표) — 확인: 실행 (2026-11-16 확인. `--render` 오류 0, 경고 0)
 
 ## 확인 필요
 
