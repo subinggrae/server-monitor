@@ -70,6 +70,16 @@ if errorlevel 1 (
   set RC=1
   goto end
 )
+rem 모니터링 시스템과 관리자 서버가 함께 붙는 monitoring 네트워크다. 서버에서는 운영자가 만들고, 빌드 PC에서는 없을 때만 여기서 만든다(요구사항 0019).
+docker network inspect monitoring >nul 2>&1
+if errorlevel 1 (
+  docker network create monitoring >nul
+  if errorlevel 1 (
+    >&2 echo 실패: Docker 네트워크 monitoring을 만들지 못했습니다. 위 Docker 오류를 확인해 주세요.
+    set RC=1
+    goto end
+  )
+)
 docker compose -f infrastructure\compose.yml up -d --build
 set RC=%ERRORLEVEL%
 goto end
