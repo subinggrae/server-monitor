@@ -20,13 +20,14 @@
   - 작업 지침과 문서 체계
 - 개발 가이드, 테스트 기준, 아키텍처, README, AI 작업 지침과 검증 명령이 코어만 기준으로 한다.
 - 코어의 빌드, 검사, 묶음, 개발용 실행(`core-dev.bat check`, `build`, `start`, `stop`)은 지금처럼 동작한다.
+- 남는 설정, 비밀값, 주석, 참고용 DDL이 특정 알림 수단(Telegram)을 전제로 하지 않는다. 이 코어로 만드는 관리자 서버가 Telegram을 꼭 쓰는 것은 아니기 때문이다(사람 확인: 2026-11-16). 남는 비밀값은 코어가 쓰는 webhook token 하나다.
 
 ## 하지 않는 것
 
 - 코어의 동작과 코어·관리자 서버 사이의 계약을 바꾸는 것. 코어가 쓰는 네트워크는 요구사항 0019에서, 제품 이름(모니터링 코어)은 [#56](https://github.com/subinggrae/server-monitor/issues/56)에서 바꾼다.
 - 지난 요구사항과 ADR의 내용을 고치는 것. 기록이기 때문이다. 다만 지운 파일을 가리키는 링크는 문서 검사가 통과하도록 링크를 풀어 글로 남긴다. 더는 지킬 대상이 없는 ADR은 상태만 바꾼다(S4).
 - 참고용 DDL을 자동으로 확인하는 테스트를 새로 만드는 것. 지금은 `backend/`의 `ReferenceSchemaIntegrationTest`가 `resource-thresholds.sql`을 확인하는데, 이 테스트도 함께 없어진다. 참고용 DDL은 문서로만 둔다([요구사항 0014](0014-alert-message-template.md)와 같음, 사람 확인: 2026-11-12).
-- 개인 PC에만 있는 파일(루트 `.env`, `infrastructure/secrets/`의 실제 값 파일)을 지우는 것. Git에 올라가지 않는 파일이라 이 변경으로 지우지 않는다.
+- 개인 PC에만 있는 파일(루트 `.env`, `infrastructure/secrets/`의 실제 값 파일, 빌드 결과)을 저장소 변경으로 다루는 것. Git에 올라가지 않는 파일이라, 작업한 PC에서만 사람 확인을 받고 지웠다(2026-11-16).
 - 닫힌 PR의 원격 브랜치를 정리하는 것
 - 걷어낸 앱에만 해당하는 이슈(#49, #39, #37, #29, #21)를 이 저장소에서 처리하는 것. 이 변경이 병합될 때 이유를 적어 닫는다. #35는 코어의 exporter 묶음이라 남긴다(사람 확인: 2026-11-16).
 
@@ -59,6 +60,11 @@
   - 행동: Manager를 걷어낸다.
   - 결과: ADR 0006의 상태를 폐기로 바꾸고 이유를 한 줄 적는다. 코어와 관리자 서버 사이의 결정(ADR 0001, 0002, 0007, 0008 등)은 그대로 둔다.
 
+- **S6. 알림 수단과 무관한 참고용 DDL**
+  - 상황: 관리자 서버 개발자가 참고용 기본 테이블 DDL(`base-tables.sql`)을 읽는다.
+  - 행동: 알림 받을 곳과 알림 연결, 알림을 보낸 기록 테이블을 본다.
+  - 결과: 테이블과 열이 특정 알림 수단의 이름(`telegram_*`, `chat_id` 등)을 쓰지 않는다. 알림 받을 곳은 이름, 알림 수단 종류, 보낼 곳, 켜짐을 담고, 다른 테이블은 `destination_id`로 가리킨다(사람 확인: 2026-11-16).
+
 ### 예외 동작
 
 - **S5. 지운 경로를 가리키는 글**
@@ -88,6 +94,8 @@
 - [ ] C4. `node scripts/check-docs.mjs`가 오류 0, 경고 0이다. (S3, S5) — 확인: 실행
 - [ ] C5. AGENTS.md, README.md, DEVELOPMENT.md, TESTING.md, ARCHITECTURE.md, OPERATIONS.md, INTEGRATION.md, ADMIN-SERVER.md, WRITING.md, DIAGRAMS.md, LICENSES.md, PRODUCT.md, TERMS.md와 `.gitignore`, 그림이 코어만 기준으로 쓰여 있고 지운 경로를 가리키지 않는다. 전체 검증 명령은 코어 검사와 문서 검사다. (목표, S5) — 확인: `git grep`으로 지운 경로 이름을 찾고 리뷰
 - [ ] C6. ADR 0006의 상태가 폐기다. (S4) — 확인: 리뷰
+- [ ] C7. `git grep -i telegram`과 `chat_id`가 지난 요구사항·ADR과 용어 근거(TERMS.md) 밖에서는 예로 든 글에만 걸린다. 비밀값 예시 파일은 `alertmanager_webhook_token.example` 하나다. (목표) — 확인: `git grep`, `git ls-files infrastructure/secrets`
+- [ ] C8. 바꾼 참고용 기본 테이블 DDL이 빈 MariaDB와 PostgreSQL에 적용되고, 그 뒤에 리소스 임계값·알림 메시지 템플릿 DDL도 적용된다. 두 DB의 열 정의가 같다. (S6) — 확인: 두 DB에 한 번 적용
 
 ## 확인 필요
 

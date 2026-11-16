@@ -19,6 +19,8 @@
 | `backend/`, `frontend/`, `compose.yml`(루트), `.env.example`, `.nvmrc` | 지운다 |
 | `infrastructure/secrets/*.example` 가운데 앱용 | `manager_db_password`, `manager_db_root_password`, `telegram_bot_token`, `telegram_webhook_secret`의 예시 파일을 지운다(`alertmanager_webhook_token.example`은 남김) |
 | `docs/design/` | 네 문서를 지운다 |
+| `docs/reference-schema/*/base-tables.sql` | `telegram_destinations`를 `notification_destinations`(이름, `channel`, `address`, 켜짐)로, `telegram_destination_id` 열을 `destination_id`로 바꾸고 Telegram을 전제로 한 주석을 고친다 |
+| `infrastructure/alertmanager/alertmanager.yml`, `infrastructure/prometheus/rules/monitoring-checks.yml`, `.gitignore` | Telegram을 전제로 한 주석을 알림 수단 일반으로 고친다(설정 값은 그대로) |
 | `docs/assets/test-scope.svg` | 지운다(화면·API·DB 테스트 범위 그림) |
 | `docs/assets/architecture-overview.svg` | 코어 세 구성 요소, 이 저장소 밖의 관리자 서버, 감시 대상만 그린다 |
 | `.gitignore` | Backend, Frontend 항목을 지운다 |
@@ -61,15 +63,18 @@
 | C4 | 문서 검사 | `node scripts/check-docs.mjs` 오류 0, 경고 0 |
 | C5 | 남은 참조 찾기와 리뷰 | 위의 `git grep`이 지난 요구사항·ADR 밖에서 걸리지 않음, 새 하위 에이전트 리뷰 |
 | C6 | 리뷰 | ADR 0006 상태 확인 |
+| C7 | 남은 Telegram 참조 찾기 | `git grep -n -i -E "telegram|chat_id"`가 예로 든 글과 기록에만 걸림 |
+| C8 | 두 DB에 참고용 DDL 적용 | `mariadb:11.4`, `postgres:17`에 기본 테이블, 리소스 임계값, 템플릿 DDL 순서로 적용 성공 |
 
 이 변경은 코드를 지우기만 하므로 새 테스트를 쓰지 않는다.
 
 ## 작업 순서
 
-- [ ] 앱 코드, 루트 compose, 앱 설정·비밀값 예시, 화면 문서, 테스트 범위 그림을 지운다
+- [x] 앱 코드, 루트 compose, 앱 설정·비밀값 예시, 화면 문서, 테스트 범위 그림을 지운다
 - [ ] AGENTS.md와 README.md를 코어 기준으로 고친다
 - [ ] ARCHITECTURE.md와 아키텍처 그림을 고친다
 - [ ] DEVELOPMENT.md와 TESTING.md를 고친다
+- [ ] 참고용 기본 테이블 DDL을 알림 수단과 무관하게 바꾸고 두 DB에 적용해 본다
 - [ ] 나머지 문서(OPERATIONS, INTEGRATION, ADMIN-SERVER, WRITING, DIAGRAMS, LICENSES, PRODUCT, TERMS, 템플릿), `.gitignore`, 문서 검사 스크립트, 지난 요구사항의 링크, ADR 0006을 고친다
 - [ ] 전체 검증(`core-dev.bat check`, 문서 검사, `start`·`stop`)을 실행하고 새 하위 에이전트에게 리뷰를 맡긴다
 - [ ] 요구사항을 구현됨으로 바꾸고 이 계획을 지운다
