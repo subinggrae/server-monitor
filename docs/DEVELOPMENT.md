@@ -18,7 +18,7 @@
 |---|---|---|
 | 전체 검증 | `monitoring-dev.bat check`, `node scripts/check-docs.mjs` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 규칙 테스트와 모니터링 시스템 설정 검사 | `monitoring-dev.bat check`(아래 [모니터링 시스템 검사와 묶음](#모니터링-시스템-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, Dockerfile, `compose.yml`, `monitoring-settings.sh`, `monitoring-server.sh`를 바꿨을 때 |
-| 모니터링 시스템 실행과 멈춤 | `monitoring-dev.bat start`, `monitoring-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `sh infrastructure/monitoring-server.sh render` 뒤 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 모니터링 시스템 설정을 바꿔 직접 띄워 확인할 때 |
+| 모니터링 시스템 실행과 멈춤 | `monitoring-dev.bat start`, `monitoring-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `monitoring` 네트워크를 만든 뒤 `sh infrastructure/monitoring-server.sh render`와 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 모니터링 시스템 설정을 바꿔 직접 띄워 확인할 때 |
 | 모니터링 시스템 묶음 | `monitoring-dev.bat build` | 내부망 서버에 옮길 모니터링 시스템과 node_exporter를 만들 때 |
 | 문서 검사 | `node scripts/check-docs.mjs` | 문서를 바꿨을 때(그림을 바꿨다면 `--render`를 붙여서) |
 
