@@ -256,7 +256,7 @@ check '설정 파일이 없으면 설치 준비를 안내하고 띄우지 않는
 # 갱신하며 .env를 옮기지 않은 경우: install로 기본값 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
 setup; prepared; rm "$ENV"; running_other v1 1761500000 "$INSTALL/monitoring-system-v1"
 run start
-check '모니터링 시스템이 이미 있는데 설정 파일이 어디에도 없으면 install 대신 쓰던 .env를 복사하라고 안내한다' \
+check '모니터링 시스템이 이미 있는데 설치 폴더에 설정 파일이 없으면 install 대신 쓰던 .env를 복사하라고 안내한다' \
   '[ $RC -ne 0 ] && contains "install 대신" && ! called "^compose"'
 
 # 다른 묶음 폴더의 설정 파일은 찾지 않는다(요구사항 0021의 S3). 떠 있는 버전의 폴더에 실제 .env가 있어도 같다.
@@ -517,7 +517,7 @@ run_with_env() {
   RC=$?
 }
 
-# 떠 있는 모니터링 시스템의 prometheus 컨테이너가 받은 보관 값. 빈 인자는 그 변수가 없는 것이다(이 기능 전의 컨테이너).
+# 떠 있는 모니터링 시스템의 prometheus 컨테이너가 받은 보관 값. 빈 인자는 그 변수가 없는 것이다.
 running_retention() {
   printf 'PATH=/bin\n' > "$FAKE/env.prometheus"
   [ -z "$1" ] || printf 'MONITORING_RETENTION_DAYS=%s\n' "$1" >> "$FAKE/env.prometheus"
@@ -588,7 +588,7 @@ check '값이 모두 비어 있으면 기본값으로 띄우고 모두 기본값
 
 setup; prepared
 run start
-check '이 기능 전의 설정 파일로 띄우면 모두 기본값이라고 보인다' \
+check '설정 파일에 보관·포트 값이 없으면 모두 기본값이라고 보인다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && contains "모두 기본값" && ! contains "기본값과 다른"'
 
 setup; prepared; with_settings CORE_RETENTION_DAYS=30 CORE_PROMETHEUS_PORT=19090
@@ -631,12 +631,12 @@ check '제한이 없던 보관 용량을 처음 정하면 줄임으로 보고 �
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings MONITORING_RETENTION_DAYS=10
 run start
-check '보관 값이 없는 예전 컨테이너는 15일로 보고, 그보다 줄이면 터미널이 아니면 띄우지 않는다' \
+check '보관 값 변수가 없는 컨테이너는 15일로 보고, 그보다 줄이면 터미널이 아니면 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "15일" && contains "10일" && ! called "^compose"'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings MONITORING_RETENTION_DAYS=30
 run start
-check '보관 값이 없는 예전 컨테이너에서 보관 기간을 늘리면 묻지 않고 띄운다' \
+check '보관 값 변수가 없는 컨테이너에서 보관 기간을 늘리면 묻지 않고 띄운다' \
   '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings MONITORING_RETENTION_DAYS=30 MONITORING_RETENTION_SIZE_GB=100
