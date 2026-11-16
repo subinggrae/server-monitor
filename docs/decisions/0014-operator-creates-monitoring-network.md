@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-11-16
-- 관련: [요구사항 0019](../requirements/0019-monitoring-external-network.md), [ADR 0007](0007-core-app-contract.md)(이 ADR이 그 결정 가운데 네트워크를 만든다는 문장과, 그에 따른 감수할 점 "코어를 먼저 띄워야 앱을 띄울 수 있다"만 대신함)
+- 관련: [요구사항 0019](../requirements/0019-monitoring-external-network.md), 지운 계획은 [PR #62](https://github.com/subinggrae/server-monitor/pull/62)에서 볼 수 있다, [ADR 0007](0007-core-app-contract.md)(이 ADR이 그 결정 가운데 네트워크를 만든다는 문장과, 그에 따른 감수할 점 "코어를 먼저 띄워야 앱을 띄울 수 있다"만 대신함)
 
 ## 배경과 문제
 
