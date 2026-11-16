@@ -340,6 +340,8 @@ function checkImages(images, specs) {
 // 모니터링 서버의 .env에서 바꾸는 값이다(요구사항 0013). 허용 범위는 저장소의 monitoring-settings.sh에서 읽는다.
 const MONITORING_SETTING_NAMES = ['MONITORING_RETENTION_DAYS', 'MONITORING_RETENTION_SIZE_GB', 'MONITORING_PROBE_TIMEOUT_SECONDS',
   'MONITORING_PROMETHEUS_PORT', 'MONITORING_ALERTMANAGER_PORT', 'MONITORING_BLACKBOX_PORT'];
+// 켜고 끄는 값이다(요구사항 0022). 허용 범위가 없어 monitoring_settings_ranges에 들지 않는다. 비우면 on이다.
+const OS_EXPORTER = 'MONITORING_OS_EXPORTER';
 // 호스트 포트 값마다 그 포트가 묶이는 컨테이너 안 포트다. 컨테이너 안 포트는 바뀌지 않는다.
 const HOST_PORT_TARGETS = { MONITORING_PROMETHEUS_PORT: 9090, MONITORING_ALERTMANAGER_PORT: 9093, MONITORING_BLACKBOX_PORT: 9115 };
 // Blackbox는 module의 timeout과 scrape_timeout에서 이 값(--timeout-offset 기본값)을 뺀 값 가운데 짧은 쪽으로 확인한다.
@@ -373,14 +375,19 @@ function readSettingRanges(tools) {
 
 // 기본값, 허용 범위 아래 끝, 위 끝의 세 벌이다. 상한이 없는 보관 용량은 받는 가장 큰 값(9자리)을 위 끝으로 쓴다.
 // 호스트 포트는 세 값이 같으면 겹친다고 거부되므로 포트끼리 1씩 다르게 둔다.
+// 서버 사용량 수집은 세 벌에 비움, off, on을 차례로 넣는다.
 function settingSets(ranges) {
   const pick = (choose) => Object.fromEntries(ranges.map((range, index) => [range.name, choose(range, index)]));
   const portOffset = (range) => Object.keys(HOST_PORT_TARGETS).indexOf(range.name);
   return [
-    { label: '값을 모두 비움', values: pick(() => '') },
-    { label: '허용 범위 아래 끝', values: pick((range) => String(range.min + Math.max(0, portOffset(range)))) },
-    { label: '허용 범위 위 끝', values: pick((range) => String(range.max - Math.max(0, portOffset(range)))) },
+    { label: '값을 모두 비움', values: { ...pick(() => ''), [OS_EXPORTER]: '' } },
+    { label: '허용 범위 아래 끝', values: { ...pick((range) => String(range.min + Math.max(0, portOffset(range)))), [OS_EXPORTER]: 'off' } },
+    { label: '허용 범위 위 끝', values: { ...pick((range) => String(range.max - Math.max(0, portOffset(range)))), [OS_EXPORTER]: 'on' } },
   ];
+}
+
+function osExporterValue(set) {
+  return set.values[OS_EXPORTER] === '' ? 'on' : set.values[OS_EXPORTER];
 }
 
 function effective(ranges, values, name) {
@@ -449,6 +456,22 @@ function checkRenderedEnv(rendered, ranges, set) {
     if (!text.split('\n').includes(`${name}=${effective(ranges, set.values, name)}`)) {
       fail(`${set.label}: 펼친 monitoring.env에 ${name}=${effective(ranges, set.values, name)}이 없습니다.`);
     }
+  }
+  if (!text.split('\n').includes(`${OS_EXPORTER}=${osExporterValue(set)}`)) {
+    fail(`${set.label}: 펼친 monitoring.env에 ${OS_EXPORTER}=${osExporterValue(set)}이 없습니다.`);
+  }
+}
+
+// 서버 사용량 수집이 off면 펼친 prometheus.yml에 manager-os 수집과 서버 감시 대상 목록 API 주소가 없고, on이면 하나씩 있는지 본다.
+// 주소 감시(manager-blackbox)는 값과 관계없이 남아야 한다.
+function checkOsExporterJob(rendered, set) {
+  const text = rendered.read('prometheus.yml');
+  const expected = osExporterValue(set) === 'off' ? 0 : 1;
+  const jobs = (text.match(/^\s+- job_name: manager-os\s*$/gm) ?? []).length;
+  const sd = (text.match(/\/api\/prometheus\/sd\/os-exporter/g) ?? []).length;
+  const blackbox = (text.match(/^\s+- job_name: manager-blackbox\s*$/gm) ?? []).length;
+  if (jobs !== expected || sd !== expected || blackbox !== 1) {
+    fail(`${set.label}: 서버 사용량 수집이 ${osExporterValue(set)}인데 펼친 prometheus.yml의 manager-os 수집이 ${jobs}개, 서버 감시 대상 목록 주소가 ${sd}개, 주소 감시가 ${blackbox}개입니다.`);
   }
 }
 
@@ -576,6 +599,7 @@ function checkSystemImages(release, tools) {
     run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
       '--entrypoint', 'promtool', tools.prometheus, 'check', 'config', '/etc/monitoring/prometheus.yml']);
     checkPrometheusRetention(rendered, ranges, set);
+    checkOsExporterJob(rendered, set);
     run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '--entrypoint', 'amtool', tools.alertmanager,
       'check-config', '/etc/monitoring/alertmanager.yml']);
     // Blackbox Exporter는 셸 없이 실행 파일만 부르므로 운영 이미지로 검사한다.

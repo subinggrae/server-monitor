@@ -64,7 +64,7 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 | API | 부르는 쪽 | 언제 | 인증 | 응답 |
 |---|---|---|---|---|
 | `GET /api/prometheus/sd/blackbox` | Prometheus | 15초마다(목록 갱신) | 없음 | 확인할 주소 목록 |
-| `GET /api/prometheus/sd/os-exporter` | Prometheus | 30초마다(목록 갱신) | 없음 | 수집할 서버 목록 |
+| `GET /api/prometheus/sd/os-exporter` | Prometheus | 30초마다(목록 갱신), 서버 사용량 수집을 켰을 때만 | 없음 | 수집할 서버 목록 |
 | `POST /api/integrations/alertmanager/webhook` | Alertmanager | Alert가 생기거나 바뀔 때, 이어지면 5분마다 | `Authorization: Bearer <token>` | `2xx` |
 
 목록 갱신 주기는 Prometheus가 목록을 다시 받아 가는 간격이다. 실제로 확인하고 수집하는 주기는 대상마다 `__scrape_interval__` label로 따로 정한다. 목록 API 두 개는 인증 없이 불린다. 그래서 앱 포트를 `monitoring` 네트워크와 `127.0.0.1`에만 열어 밖에서 부르지 못하게 한다. 목록 응답에는 감시 대상 주소와 이름이 들어가므로 비밀값을 넣지 않는다.
@@ -113,6 +113,8 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 세 방식 모두 IPv4로만 확인한다. IPv6 주소만 있는 대상은 실패한다.
 
 ### 서버 감시 대상: `GET /api/prometheus/sd/os-exporter`
+
+서버 사용량 감시를 만들지 않는 앱은 이 API를 만들지 않아도 된다. 그때는 운영자가 모니터링 시스템의 `.env`에 `MONITORING_OS_EXPORTER=off`를 적어 이 API를 부르지 않게 한다. 켜 둔 채 API가 없으면 감시와 알림은 동작하지만 Prometheus 로그에 목록 오류가 30초마다 남는다.
 
 형식은 위와 같다. `targets`는 OS exporter의 `host:port`다. node_exporter의 기본 포트는 9100, windows_exporter는 9182다. 목록에는 감시가 켜져 있고 수집도 켠 서버만 넣는다.
 

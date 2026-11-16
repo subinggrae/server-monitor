@@ -65,7 +65,7 @@ if not defined TOOLS (
   set RC=1
   goto end
 )
-docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e MONITORING_RETENTION_DAYS -e MONITORING_RETENTION_SIZE_GB -e MONITORING_PROBE_TIMEOUT_SECONDS -e MONITORING_PROMETHEUS_PORT -e MONITORING_ALERTMANAGER_PORT -e MONITORING_BLACKBOX_PORT --user 0 --entrypoint /bin/sh %TOOLS% -c "[ -f certs/ca-certificates.crt ] || { mkdir -p certs && cp /etc/ssl/certs/ca-certificates.crt certs/ && chmod 0644 certs/ca-certificates.crt; }; sh monitoring-server.sh render"
+docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e MONITORING_RETENTION_DAYS -e MONITORING_RETENTION_SIZE_GB -e MONITORING_PROBE_TIMEOUT_SECONDS -e MONITORING_PROMETHEUS_PORT -e MONITORING_ALERTMANAGER_PORT -e MONITORING_BLACKBOX_PORT -e MONITORING_OS_EXPORTER --user 0 --entrypoint /bin/sh %TOOLS% -c "[ -f certs/ca-certificates.crt ] || { mkdir -p certs && cp /etc/ssl/certs/ca-certificates.crt certs/ && chmod 0644 certs/ca-certificates.crt; }; sh monitoring-server.sh render"
 if errorlevel 1 (
   set RC=1
   goto end

@@ -26,6 +26,9 @@ CONTAINERS="prometheus alertmanager blackbox-exporter"
 TEMPLATES="prometheus.yml alertmanager.yml blackbox.yml"
 # monitoring.env의 MONITORING_CONFIG_SHA256이 이 파일들과 CA 인증서 파일의 내용을 나타낸다.
 CONFIG_FILES="$TEMPLATES"
+# prometheus.yml 템플릿에서 서버 사용량 수집(manager-os) 부분의 앞뒤 줄이다. MONITORING_OS_EXPORTER가 off면 이 사이를 빼고 펼친다.
+OS_EXPORTER_BEGIN='  # BEGIN manager-os'
+OS_EXPORTER_END='  # END manager-os'
 # 시험(tests/monitoring-server.test.sh)에서만 쓰는 값이다. 기다리는 시간을 줄이고 준비 확인 도구를 고른다.
 # 운영 문서에는 적지 않고, 운영 서버에서는 설정하지 않는다.
 WAIT_SECONDS=${MONITORING_WAIT_SECONDS:-180}
@@ -226,6 +229,18 @@ check_settings() {
       settings_ok=no
     fi
   done
+  for setting in $MONITORING_SWITCH_NAMES; do
+    if printenv "$setting" > /dev/null; then
+      hint="이 값은 셸 환경 변수 $setting에서 왔고, 셸 환경 변수는 .env의 $setting 값보다 먼저 쓰입니다. 셸에서 unset $setting 명령으로 지우거나 값을 고친 뒤 다시 실행해 주세요."
+    else
+      hint=".env의 $setting 값을 고친 뒤 다시 실행해 주세요."
+    fi
+    if monitoring_switch_check "$setting" "$(env_value "$setting")" "$hint"; then
+      export "$setting=$monitoring_value"
+    else
+      settings_ok=no
+    fi
+  done
   [ "$settings_ok" = yes ] || fail "설정 값이 틀려 아무것도 바꾸지 않았습니다. 떠 있던 모니터링 시스템은 그대로 돕니다."
 }
 
@@ -310,6 +325,16 @@ show_settings() {
       differs="${differs:+$differs, }$spec_label $shown$spec_unit"
     fi
   done
+  # 켜고 끄는 값은 prometheus 컨테이너가 받은 값으로 본다. 변수가 없으면 기본값(켜짐)으로 돈 컨테이너다.
+  for setting in $MONITORING_SWITCH_NAMES; do
+    monitoring_switch_spec "$setting"
+    raw=$(container_env prometheus "$setting")
+    case "$raw" in
+      ''|"$spec_default") ;;
+      off) differs="${differs:+$differs, }$spec_label 꺼짐" ;;
+      *) differs="${differs:+$differs, }$spec_label '$raw'(올바르지 않음)" ;;
+    esac
+  done
   if [ -n "$differs" ]; then
     say "기본값과 다른 설정 값: $differs"
   else
@@ -357,6 +382,19 @@ check_templates() {
     [ -f "$(template_file "$name")" ] \
       || fail "설정 템플릿이 없습니다: $(template_file "$name"). 묶음 폴더를 다시 옮겨 주세요."
   done
+  # 서버 사용량 수집을 끄면 펼칠 때 표시 줄 사이를 뺀다. 표시 줄이 한 쌍이 아니거나 순서가 바뀌었으면
+  # 빼다가 다른 설정까지 지우므로 미리 멈춘다(요구사항 0022). 줄 번호가 여럿이면 줄바꿈이 끼어 숫자 검사에서 걸린다.
+  if [ "$MONITORING_OS_EXPORTER" = off ]; then
+    template=$(template_file prometheus.yml)
+    begin=$(tr -d '\r' < "$template" | grep -n "^$OS_EXPORTER_BEGIN\$" | cut -d: -f1)
+    end=$(tr -d '\r' < "$template" | grep -n "^$OS_EXPORTER_END\$" | cut -d: -f1)
+    case "$begin:$end" in
+      :*|*:|*[!0123456789:]*) markers_ok=no ;;
+      *) if [ "$begin" -lt "$end" ]; then markers_ok=yes; else markers_ok=no; fi ;;
+    esac
+    [ "$markers_ok" = yes ] \
+      || fail "설정 템플릿에서 서버 사용량 수집 부분을 찾지 못했습니다: $template. 묶음 폴더를 다시 옮겨 주세요. 아무것도 바꾸지 않았습니다."
+  fi
 }
 
 # Blackbox Exporter의 HTTPS 확인이 쓸 CA 인증서 파일을 확인한다. 운영자가 운영 가이드대로 모니터링 서버 OS의 파일을 복사해 둔다.
@@ -429,7 +467,11 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
   done
   # Windows에서 받은 저장소의 템플릿은 줄 끝이 CRLF일 수 있다. 어디서 펼쳐도 같은 파일이 되게 CR을 지운다.
   for name in $TEMPLATES; do
-    tr -d '\r' < "$(template_file "$name")" | sed "$script" > "$stage/$name"
+    section=""
+    if [ "$name" = prometheus.yml ] && [ "$MONITORING_OS_EXPORTER" = off ]; then
+      section="/^$OS_EXPORTER_BEGIN\$/,/^$OS_EXPORTER_END\$/d"
+    fi
+    tr -d '\r' < "$(template_file "$name")" | sed "$section" | sed "$script" > "$stage/$name"
     if grep -q '@[A-Z][A-Z_]*@' "$stage/$name"; then
       fail "$(template_file "$name")에 채우지 못한 값이 있습니다. 묶음 폴더를 다시 옮겨 주세요. 아무것도 바꾸지 않았습니다."
     fi
@@ -442,7 +484,7 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
   # MONITORING_CONFIG_SHA256이 바뀌면 운영 명령 없이 docker compose up -d로 띄워도 Compose가 컨테이너를 다시 만든다.
   {
     printf '# sh monitoring-server.sh render가 .env로 만든 파일입니다. 펼칠 때마다 다시 만들므로, 바꿀 값은 .env에 적어 주세요.\n'
-    for setting in MONITORING_RETENTION_DAYS MONITORING_RETENTION_SIZE_GB MONITORING_PROBE_TIMEOUT_SECONDS; do
+    for setting in MONITORING_RETENTION_DAYS MONITORING_RETENTION_SIZE_GB MONITORING_PROBE_TIMEOUT_SECONDS MONITORING_OS_EXPORTER; do
       printf '%s=%s\n' "$setting" "$(printenv "$setting")"
     done
     printf 'MONITORING_CA_SHA256=%s\n' "$ca_hash"

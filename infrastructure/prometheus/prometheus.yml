@@ -69,6 +69,9 @@ scrape_configs:
       - target_label: __address__
         replacement: blackbox-exporter:9115
 
+  # BEGIN manager-os
+  # 이 줄부터 END 줄까지는 .env의 MONITORING_OS_EXPORTER가 off면 운영 명령이 펼칠 때 뺍니다(요구사항 0022).
+  # BEGIN과 END 두 줄은 지우거나 옮기지 마세요.
   # 사용자가 UI에서 OS exporter(node_exporter, windows_exporter) 수집을 켠 서버입니다.
   # Target 목록은 관리자 서버 API에서 가져옵니다. 이 파일에 Target을 적지 않습니다.
   # 수집 주기도 서버마다 SD label __scrape_interval__로 받습니다. 위의 전역 scrape_interval은 쓰지 않습니다.
@@ -93,3 +96,4 @@ scrape_configs:
         separator: ;
         regex: (node_cpu_seconds_total|windows_cpu_time_total);idle|(node_memory_MemTotal_bytes|node_memory_MemAvailable_bytes|node_filesystem_size_bytes|node_filesystem_avail_bytes|windows_memory_physical_total_bytes|windows_memory_available_bytes|windows_logical_disk_size_bytes|windows_logical_disk_free_bytes);.*
         action: keep
+  # END manager-os
