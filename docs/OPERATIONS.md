@@ -430,6 +430,8 @@ sudo sh monitoring-server.sh start
 
 설정 파일을 묶음 폴더에 두던 버전에서 처음 갱신하면, `start`가 설치 폴더로 복사하는 명령을 보이고 멈춘다([설정 파일을 설치 폴더로 옮기기](#설정-파일을-설치-폴더로-옮기기)).
 
+이름을 바꾸기 전 묶음(`monitoring-core-<버전>`)에서는 새 이름의 묶음으로 갱신할 수 없고, 거꾸로 되돌릴 수도 없다. 그 묶음을 위한 아래 절차는 지울 예정이다([#58](https://github.com/subinggrae/server-monitor/issues/58)).
+
 이전 폴더는 되돌릴 때 쓰도록 남긴다. 운영 명령은 오래된 버전을 지우지 않으므로, 띄운 버전과 직전 버전만 남기고 더 오래된 묶음 폴더와 이미지는 다음처럼 지운다. 지금 띄운 버전은 `status`로, 남은 버전은 `ls <설치 폴더>`와 `docker image ls monitoring-system-prometheus`로 본다.
 
 ```sh
@@ -458,7 +460,7 @@ sudo docker image rm monitoring-system-prometheus:<오래된 버전> monitoring-
 예전 묶음은 token을 묶음 폴더 안의 `secrets/`에 둘 수 있었다. 이런 서버에서 token을 옮기지 않고 `install`을 실행하면 새 token이 생겨 관리자 서버와 어긋난다. 그래서 다음 순서로 갱신한다.
 
 1. 설치 폴더(예: `/opt/monitoring`)를 정하고 새 묶음 폴더를 그 안에 둔다.
-2. 예전 묶음 폴더의 token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). 이전 `.env`에 `MONITORING_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
+2. 예전 묶음 폴더의 token 파일을 설치 폴더의 `secrets/`로 옮긴다(폴더 0700, 파일 0644). 이전 `.env`에 `CORE_SECRETS_DIR`를 적어 두었으면 그 경로를 그대로 쓰므로 옮기지 않는다.
 3. 관리자 서버가 읽는 token 경로를 새 위치로 바꾼다.
 4. 이전 폴더의 `.env`를 설치 폴더로 복사하고(`sudo cp <예전 묶음 폴더>/.env <설치 폴더>/.env`) `sh monitoring-server.sh start`를 실행한 뒤, 관리자 서버를 다시 띄운다.
 

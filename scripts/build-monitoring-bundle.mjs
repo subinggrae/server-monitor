@@ -442,12 +442,12 @@ function checkBlackboxConfig(rendered, ranges, set) {
   }
 }
 
-// 펼친 release.env가 검사를 통과한 값을 컨테이너에 넘기는지 본다. status와 보관 값 줄임 확인이 이 값을 읽는다.
+// 펼친 monitoring.env가 검사를 통과한 값을 컨테이너에 넘기는지 본다. status와 보관 값 줄임 확인이 이 값을 읽는다.
 function checkRenderedEnv(rendered, ranges, set) {
   const text = rendered.read('monitoring.env');
   for (const name of ['MONITORING_RETENTION_DAYS', 'MONITORING_RETENTION_SIZE_GB', 'MONITORING_PROBE_TIMEOUT_SECONDS']) {
     if (!text.split('\n').includes(`${name}=${effective(ranges, set.values, name)}`)) {
-      fail(`${set.label}: 펼친 release.env에 ${name}=${effective(ranges, set.values, name)}이 없습니다.`);
+      fail(`${set.label}: 펼친 monitoring.env에 ${name}=${effective(ranges, set.values, name)}이 없습니다.`);
     }
   }
 }
@@ -479,11 +479,11 @@ function checkSettingContracts(rendered, rulesDir, ranges) {
   }
 }
 
-// 펼친 release.env에 넣는 표시 값이다. Compose가 env_file을 펼친 결과에서 서비스마다 이 값을 받는지 본다.
+// 펼친 monitoring.env에 넣는 표시 값이다. Compose가 env_file을 펼친 결과에서 서비스마다 이 값을 받는지 본다.
 const COMPOSE_CHECK_MARK = 'MONITORING_CONFIG_SHA256=compose-check';
 
 // Compose가 펼친 compose 파일을 읽는다. env_file(rendered/monitoring.env, required: true)이 없으면 Compose가 읽지 못하므로
-// 표시 값만 든 release.env를 둔 임시 폴더를 project directory로 준다. 상대 경로는 그 폴더 기준으로 풀린다.
+// 표시 값만 든 monitoring.env를 둔 임시 폴더를 project directory로 준다. 상대 경로는 그 폴더 기준으로 풀린다.
 // withEnvFile이 false면 monitoring.env 없이 읽어 실패한 결과를 돌려준다.
 function composeConfig(composeFile, env, { withEnvFile = true } = {}) {
   const project = scratchDir('compose-check');
@@ -523,8 +523,8 @@ function checkPortBindings(composeFile, ranges) {
   }
 }
 
-// 서비스마다 붙이는 파일이 운영 명령이 펼친 설정뿐이고 읽기 전용인지, 세 서비스가 펼친 release.env를 읽는지 본다.
-// CA 인증서 파일은 Blackbox Exporter에만 붙어야 한다(요구사항 0015의 C5). release.env가 없으면 Compose가 멈춰야 한다(S16).
+// 서비스마다 붙이는 파일이 운영 명령이 펼친 설정뿐이고 읽기 전용인지, 세 서비스가 펼친 monitoring.env를 읽는지 본다.
+// CA 인증서 파일은 Blackbox Exporter에만 붙어야 한다(요구사항 0015의 C5). monitoring.env가 없으면 Compose가 멈춰야 한다(S16).
 function checkRenderedMounts(composeFile, caDir) {
   const { config, project } = composeConfig(composeFile, {});
   for (const [name, expected] of Object.entries(renderedMounts(caDir))) {
