@@ -5,7 +5,7 @@
 #
 # Windows가 아니면 OS의 CA 인증서 파일을 certs/에 복사하고 설정을 펼친 뒤 띄웁니다.
 #   mkdir -p infrastructure/certs && cp -L /etc/ssl/certs/ca-certificates.crt infrastructure/certs/
-#   docker network inspect monitoring > /dev/null 2>&1 || docker network create monitoring
+#   docker network create monitoring      (처음 한 번)
 #   sh infrastructure/monitoring-server.sh render && docker compose -f infrastructure/compose.yml up -d --build
 #
 # 모니터링 시스템 이미지에는 실행 파일과 Alert 규칙만 있고 셸이 없습니다. (docs/decisions/0012)

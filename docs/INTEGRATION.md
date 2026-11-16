@@ -14,7 +14,7 @@
 | 앱 → 모니터링 시스템 | 수집 결과 조회(Prometheus HTTP API) | 앱 |
 | 모니터링 시스템 → 감시 대상 | 주소 확인과 OS exporter 수집 | Blackbox Exporter, Prometheus |
 
-모니터링 시스템과 앱은 같은 호스트의 Docker 네트워크 `monitoring`으로 통신한다. 이 네트워크는 운영자가 미리 만들고(`docker network create monitoring`), 모니터링 시스템과 앱이 모두 `external: true`로 붙는다. 그래서 어느 쪽을 먼저 띄워도 된다. 호스트에 여는 포트는 `127.0.0.1`에만 묶는다. 다른 호스트에 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 모니터링 시스템이 부르는 앱 주소는 하나뿐이라, 모니터링 시스템 하나에는 앱 하나만 붙는다.
+모니터링 시스템과 앱은 같은 호스트의 Docker 네트워크 `monitoring`으로 통신한다. 이 네트워크는 운영자가 미리 만들고(`docker network create monitoring`), 모니터링 시스템과 앱이 모두 `external: true`로 붙는다. 그래서 어느 쪽을 먼저 띄워도 된다([ADR 0014](decisions/0014-operator-creates-monitoring-network.md)). 호스트에 여는 포트는 `127.0.0.1`에만 묶는다. 다른 호스트에 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 모니터링 시스템이 부르는 앱 주소는 하나뿐이라, 모니터링 시스템 하나에는 앱 하나만 붙는다.
 
 모니터링 시스템과 앱이 맡는 일과 설치 순서는 [운영 가이드](OPERATIONS.md)에, 앱이 만들 기능과 저장할 데이터의 쉬운 안내는 [관리자 서버 만들기](ADMIN-SERVER.md)에 있다. 이 문서는 그 안내가 기대는 약속(경로, 형식, label, series)의 기준이다.
 

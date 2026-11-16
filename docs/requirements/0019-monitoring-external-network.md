@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 작성일: 2026-11-16
-- 관련: [0011](0011-core-ops-script.md), [0018](0018-core-only-repository.md), [ADR 0007](../decisions/0007-core-app-contract.md), [INTEGRATION.md](../INTEGRATION.md), [운영 가이드](../OPERATIONS.md)
+- 관련: [0011](0011-core-ops-script.md), [0018](0018-core-only-repository.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0014](../decisions/0014-operator-creates-monitoring-network.md)(0007의 네트워크를 만든다는 결정을 대신함), [INTEGRATION.md](../INTEGRATION.md), [운영 가이드](../OPERATIONS.md)
 
 ## 배경
 
