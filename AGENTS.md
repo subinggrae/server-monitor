@@ -18,22 +18,18 @@
 | 정한 용어와 표기(글을 쓰다가 말을 고를 때 찾아봄) | [docs/TERMS.md](docs/TERMS.md) |
 | 바깥 코드, 글꼴, 이미지, AI 생성물의 라이선스(들이기 전에 읽음) | [docs/LICENSES.md](docs/LICENSES.md) |
 | 그림 작성 규칙 | [docs/DIAGRAMS.md](docs/DIAGRAMS.md) |
-| 제품의 대상, 사용 환경, 제약, 말투(요구사항과 사용자에게 보이는 글을 쓸 때 읽음) | [docs/PRODUCT.md](docs/PRODUCT.md) |
-| AI가 만드는 범위와 이 제품의 시각 체계(화면 작업마다 읽음) | [docs/design/DESIGN.md](docs/design/DESIGN.md) |
-| 모든 화면의 규칙(화면을 만들 때와 리뷰할 때 읽음) | [docs/design/RULES.md](docs/design/RULES.md) |
-| 만들기 전과 만든 뒤의 점검과 판정(화면을 만들 때와 리뷰할 때 읽음) | [docs/design/REVIEW.md](docs/design/REVIEW.md) |
-| 시각 체계 정하기, 참고 화면 찾기, 트렌드 검토(시각 체계가 없거나 바꿀 때 읽음) | [docs/design/DIRECTION.md](docs/design/DIRECTION.md) |
+| 제품의 대상, 사용 환경, 제약, 말투(요구사항과 운영자에게 보이는 글을 쓸 때 읽음) | [docs/PRODUCT.md](docs/PRODUCT.md) |
 | 기능별 요구사항과 계획 | `docs/requirements/` |
 | 되돌리기 어려운 결정과 이유 | `docs/decisions/` |
 
 ## 자주 쓰는 명령
 
 ```sh
-cd frontend && npm run check
-cd backend && ./gradlew build
-cd frontend && npm ci
+node scripts/build-core-bundle.mjs --check
 node scripts/check-docs.mjs
 ```
+
+첫 명령은 Windows 빌드 PC의 `core-dev.bat check`와 같고 Docker가 필요하다.
 
 작업하는 동안과 커밋하기 전에는 바꾼 부분의 테스트만 실행한다. 전체 검증은 완료 기준을 모두 확인한 뒤 끝내기 전에 한 번, 그리고 푸시와 병합 직전에 실행한다. 전체 검증 명령이 아직 없으면 DEVELOPMENT.md 명령 표의 전체 검증 행에 대신 적은 명령을 차례로 실행한다. 전체 명령은 [DEVELOPMENT.md의 명령](docs/DEVELOPMENT.md#명령)에 있다. 명령이 바뀌면 두 곳을 함께 고친다.
 
@@ -93,7 +89,6 @@ node scripts/check-docs.mjs
 - `git status`에 예상하지 않은 파일이 없고, 토픽 브랜치에 있다.
 - 위험 영역을 건드렸다면 보고에 따로 적었다.
 - [TESTING.md의 자동 검사](docs/TESTING.md#자동-검사) 가운데 로컬에서 실행할 수 있는 것을 실행했고, 새로 생긴 문제를 고쳤다.
-- 화면을 바꿨다면 [design/DESIGN.md](docs/design/DESIGN.md) 개요의 화면 검사 도구를 기준 폭마다 화면 주소로 실행했고, 새로 생긴 문제를 고쳤다.
 - 위험 영역을 건드렸거나 외부 입력을 다뤘다면 [TESTING.md의 점검 항목](docs/TESTING.md#점검-항목)으로 확인했고, 거부해야 하는 경우의 테스트가 있다.
 - 보고, 커밋 메시지, PR 설명에 쓴 변경과 검증이 diff, 실행 결과와 일치한다. 하지 않은 변경이나 실행하지 않은 검증을 쓰지 않았다.
 - 새로 쓴 코드 주석, 로그·오류 메시지가 [DEVELOPMENT.md의 코드 안의 글](docs/DEVELOPMENT.md#코드-안의-글)을, 테스트 이름이 [TESTING.md의 위치와 이름](docs/TESTING.md#위치와-이름)을 따른다. 바꾸지 않은 코드에 주석을 더하지 않았다.
@@ -167,8 +162,7 @@ node scripts/check-docs.mjs
 
 이 절을 고칠 때는 [WRITING.md의 AI 지침](docs/WRITING.md#ai-지침) 기준을 따른다. AI가 이 지침을 어기거나 같은 실수를 되풀이하면, 지침을 어떻게 고칠지 제안과 함께 묻는다.
 
-- 다음도 위험 영역으로 보고 큰 변경으로 다룬다. Flyway migration(`backend/src/main/resources/db/migration/`), Prometheus HTTP SD와 Alertmanager·Telegram webhook 계약, `compose.yml`과 `infrastructure/`의 Prometheus 설정과 규칙, Alertmanager·Blackbox 설정, `infrastructure/secrets/`의 비밀값과 exporter 접근 방식이다.
-- 사용자가 화면에서 바꾼 설정 때문에 `infrastructure/`의 설정 파일과 Alert 규칙을 만들거나 고치지 않는다. 사용자 설정의 기준은 Manager Database다. 자세한 경계는 [ARCHITECTURE.md의 지켜야 할 경계](docs/ARCHITECTURE.md#지켜야-할-경계)에 있다.
-- Flyway migration은 `mariadb`와 `postgresql` 디렉터리에 같은 version으로 함께 추가한다. 이미 있는 migration 파일은 고치지 않는다. 다만 사람이 승인한 요구사항이 데이터를 이어 받지 않고 기준을 새로 잡기로 했으면 기존 migration을 지우고 기준 migration을 쓴다. 이유는 [ADR 0006](docs/decisions/0006-baseline-migration.md)에 있다.
+- 다음도 위험 영역으로 보고 큰 변경으로 다룬다. Prometheus HTTP SD와 Alertmanager webhook 계약, `infrastructure/`의 compose 파일, Prometheus 설정과 규칙, Alertmanager·Blackbox 설정, `infrastructure/secrets/`의 비밀값과 exporter 접근 방식이다.
+- 사용자가 관리자 서버에서 바꾼 설정 때문에 `infrastructure/`의 설정 파일과 Alert 규칙을 만들거나 고치지 않는다. 사용자 설정의 기준은 관리자 서버의 DB이고, 코어와는 [통합 계약](docs/INTEGRATION.md)의 HTTP SD와 webhook으로만 주고받는다. 자세한 경계는 [ARCHITECTURE.md의 지켜야 할 경계](docs/ARCHITECTURE.md#지켜야-할-경계)에 있다.
 - HTTP SD 응답의 label을 더하거나 지우거나 이름을 바꾸면, 또는 Check 대상의 id가 바뀌면 Prometheus time series가 끊긴다. 바꾸기 전에 [사람에게 묻기](#사람에게-묻기)대로 묻는다.
 - 코드·설정 주석의 `(CLAUDE.md N번)`은 옛 지침의 규칙 번호이고, 그 원문은 저장소에 없다. 새 주석에 이 표기를 쓰지 않는다. 규칙은 ARCHITECTURE.md의 지켜야 할 경계로 확인한다.

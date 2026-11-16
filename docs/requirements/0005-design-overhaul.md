@@ -2,11 +2,11 @@
 
 - 상태: 구현됨
 - 작성일: 2026-10-15
-- 관련: [0002](0002-e2e-and-screen-check.md), 0004(브랜치 `feature/resource-threshold-alert`), [DESIGN.md](../design/DESIGN.md), [#7](https://github.com/subinggrae/server-monitor/issues/7), [#8](https://github.com/subinggrae/server-monitor/issues/8), [#9](https://github.com/subinggrae/server-monitor/issues/9)
+- 관련: [0002](0002-e2e-and-screen-check.md), 0004(브랜치 `feature/resource-threshold-alert`), DESIGN.md, [#7](https://github.com/subinggrae/server-monitor/issues/7), [#8](https://github.com/subinggrae/server-monitor/issues/8), [#9](https://github.com/subinggrae/server-monitor/issues/9)
 
 ## 배경
 
-지금 화면은 코드로 만든 토큰과 컴포넌트가 있을 뿐, 사람이 시각 체계로 정하고 승인한 적이 없다([DESIGN.md 개요](../design/DESIGN.md#개요)의 스타일, 원하는 인상, 참고 화면이 "아직 정하지 않았다"). 그 결과 다음 문제가 있다.
+지금 화면은 코드로 만든 토큰과 컴포넌트가 있을 뿐, 사람이 시각 체계로 정하고 승인한 적이 없다(DESIGN.md 개요의 스타일, 원하는 인상, 참고 화면이 "아직 정하지 않았다"). 그 결과 다음 문제가 있다.
 
 - 화면 검사에서 `--subtle-foreground` 글자의 대비가 3.18:1로 WCAG 2.2 AA(4.5:1)에 못 미친다. 0002에서 기준선으로 빼 두었다. 다크 모드와 오류 화면은 검사하지 않는다.
 - 글꼴로 Pretendard를 지정했지만 불러오지 않아, 대부분의 PC에서 맑은 고딕으로 보인다.
@@ -20,9 +20,9 @@
   - Check, Alert, Resource, Threshold를 영어 그대로 쓴다. "알림"이 장애 이벤트(Alert)와 Telegram 발송을 함께 가리키고, "대상"이 확인하는 주소와 알림을 받는 그룹을 함께 가리킨다.
   - 같은 개념을 화면마다 다르게 부른다. 예: 같은 목록을 "Check", "Monitoring Check", "Check 목록"으로, 같은 값을 "Message Thread ID"와 "Topic"으로, 같은 상태를 `해소`와 `복구`로 부른다.
   - 사실과 다른 안내가 다섯 곳 있다. 예: 대시보드와 서버 화면이 이미 만든 SNMP 수집을 "아직 설정하지 않았다", "사용할 예정"이라고 안내한다.
-  - [RULES.md의 화면 글](../design/RULES.md#화면-글)이 금지한 내부 용어(Backend, Prometheus, Alertmanager, Service Discovery, snmp_exporter)와 코드 값(`MEMORY`, `STORAGE`)이 화면에 나온다. 사용자를 탓하는 오류 문구("형식이 올바르지 않습니다")와 같은 오류의 다른 문구도 있다.
+  - RULES.md의 화면 글이 금지한 내부 용어(Backend, Prometheus, Alertmanager, Service Discovery, snmp_exporter)와 코드 값(`MEMORY`, `STORAGE`)이 화면에 나온다. 사용자를 탓하는 오류 문구("형식이 올바르지 않습니다")와 같은 오류의 다른 문구도 있다.
 
-조사한 참고 화면은 [DESIGN.md 개요](../design/DESIGN.md#개요)에 둔다. 시각 체계는 사람이 2026-10-15에 미리 보기 페이지로 확인했다.
+조사한 참고 화면은 DESIGN.md 개요에 둔다. 시각 체계는 사람이 2026-10-15에 미리 보기 페이지로 확인했다.
 
 ## 목표
 

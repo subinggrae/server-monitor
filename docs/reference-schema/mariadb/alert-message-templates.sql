@@ -1,7 +1,7 @@
 -- 알림 메시지 템플릿의 참고용 schema (MariaDB)
 --
--- 코어를 붙이는 관리자 서버가 알림 메시지 템플릿을 저장할 때 참고하는 DDL이다. 이 저장소의 앱은 이 테이블을 쓰지 않으므로
--- Manager Database migration에 넣지 않는다. 템플릿 종류, 변수, 검사 규칙은 docs/ADMIN-SERVER.md의 알림 메시지 템플릿에 있다.
+-- 코어를 붙이는 관리자 서버가 알림 메시지 템플릿을 저장할 때 참고하는 DDL이다.
+-- 템플릿 종류, 변수, 검사 규칙은 docs/ADMIN-SERVER.md의 알림 메시지 템플릿에 있다.
 -- postgresql/alert-message-templates.sql과 논리 schema가 같아야 한다.
 --
 -- 모든 감시 항목과 서버가 함께 쓰는 템플릿이라 다른 테이블을 외래 키로 가리키지 않는다.

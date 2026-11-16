@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 400" width="840" height="400" role="img" aria-labelledby="architecture-overview-title architecture-overview-desc">
-  <title id="architecture-overview-title">사용자 설정은 Manager API를 거쳐 Manager DB에 저장되고, Prometheus는 HTTP SD로 그 목록을 가져가 수집한다</title>
-  <desc id="architecture-overview-desc">앱(manager-web, manager-api, Manager DB)과 모니터링 코어(Prometheus, Alertmanager, Blackbox Exporter)는 따로 배포한다. 사용자는 브라우저로 manager-web에 접속하고, manager-web은 /api 요청을 manager-api로 넘긴다. manager-api는 JDBC로 Manager DB에 설정을 저장한다. Prometheus는 HTTP SD로 manager-api에서 대상 목록을 받아 Blackbox Exporter로 감시 대상이 살아 있는지 확인하고, 감시 대상 서버에 설치한 OS exporter를 직접 수집하며, manager-api는 PromQL로 Prometheus에서 상태를 조회한다. Prometheus가 보낸 Alert는 Alertmanager가 webhook으로 manager-api에 전달하고, manager-api는 Telegram Bot API로 알림을 보낸다. manager-api는 연결 시험과 리소스 찾기에서 감시 대상의 OS exporter를 한 번 읽는다. Telegram과 감시 대상은 이 시스템 밖에 있다.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 320" width="840" height="320" role="img" aria-labelledby="architecture-overview-title architecture-overview-desc">
+  <title id="architecture-overview-title">관리자 서버가 감시 대상 목록을 주면 코어가 감시 대상을 확인하고 수집해 장애를 관리자 서버에 보낸다</title>
+  <desc id="architecture-overview-desc">모니터링 코어(Prometheus, Alertmanager, Blackbox Exporter)와 관리자 서버는 따로 배포한다. 관리자 서버는 이 저장소 밖에 있다. Prometheus는 HTTP SD로 관리자 서버에서 감시 대상 목록을 받아, Blackbox Exporter로 감시 대상이 살아 있는지 확인하고 감시 대상 서버의 OS exporter를 직접 수집한다. Prometheus가 판단한 장애는 Alertmanager가 webhook으로 관리자 서버에 보낸다. 관리자 서버는 PromQL로 Prometheus에서 결과를 조회하고, 알림은 관리자 서버가 고른 수단으로 보낸다.</desc>
   <style>
     svg { --paper: #FFFFFF; --ink: #2D3142; --muted: #5C667A; --edge: #8A92A3; --hair: #D9DCE1; --band: #F5F6F8; --accent: #C2410C; --accent-fill: #FFF4EE; }
     @media (prefers-color-scheme: dark) {
@@ -29,95 +29,66 @@
     </marker>
   </defs>
 
-  <rect class="paper" width="840" height="400"/>
+  <rect class="paper" width="840" height="320"/>
 
-  <!-- 시스템 경계: 앱(compose.yml)과 모니터링 코어(infrastructure/compose.yml)를 따로 배포한다 -->
+  <!-- 시스템 경계: 모니터링 코어(infrastructure/compose.yml) -->
   <g id="boundary">
-    <rect class="band" x="136" y="16" width="536" height="216"/>
-    <text class="sub" x="152" y="36">앱</text>
-    <rect class="band" x="136" y="248" width="536" height="112"/>
-    <text class="sub" x="152" y="264">모니터링 코어</text>
+    <rect class="band" x="216" y="16" width="416" height="288"/>
+    <text class="sub" x="232" y="36">모니터링 코어</text>
   </g>
 
   <!-- 연결선 -->
   <g id="edges">
-    <path class="edge" d="M112 188 H160" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M288 188 H344" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M416 160 V112" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M488 180 H744" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M488 204 H712 Q720 204 720 212 V240 Q720 248 728 248 H776 Q784 248 784 256 V280" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge-key" d="M384 280 V216" marker-end="url(#architecture-overview-arrow-key)"/>
-    <path class="edge" d="M448 216 V280" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M256 280 V256 Q256 248 264 248 H352 Q360 248 360 240 V216" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M344 308 H288" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M488 308 H544" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M656 308 H744" marker-end="url(#architecture-overview-arrow)"/>
-    <path class="edge" d="M432 336 V344 Q432 352 440 352 H776 Q784 352 784 344 V336" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge" d="M152 112 H224 Q232 112 232 104 V80 Q232 72 240 72 H256" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge" d="M256 96 H256 Q248 96 248 104 V128 Q248 136 240 136 H152" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge-key" d="M256 228 H256 Q248 228 248 220 V168 Q248 160 240 160 H152" marker-end="url(#architecture-overview-arrow-key)"/>
+    <path class="edge" d="M332 112 V200" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge" d="M408 72 H456" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge" d="M608 84 H672" marker-end="url(#architecture-overview-arrow)"/>
+    <path class="edge" d="M408 96 H424 Q432 96 432 104 V220 Q432 228 440 228 H672" marker-end="url(#architecture-overview-arrow)"/>
   </g>
 
-  <!-- 사용자 -->
-  <g class="node" id="user">
-    <rect class="box" x="16" y="160" width="96" height="56" rx="4"/>
-    <text class="name" x="64" y="184" text-anchor="middle">사용자</text>
-    <text class="sub" x="64" y="204" text-anchor="middle">브라우저</text>
+  <!-- 외부 시스템: 관리자 서버(이 시스템을 부르는 쪽) -->
+  <g class="node" id="admin-server">
+    <rect class="box" x="16" y="108" width="136" height="56" rx="4"/>
+    <text class="name dim" x="84" y="140" text-anchor="middle">관리자 서버</text>
   </g>
 
   <!-- 실행 단위 -->
-  <g class="node" id="db">
-    <rect class="box" x="344" y="56" width="144" height="56" rx="4"/>
-    <text class="name" x="416" y="80" text-anchor="middle">Manager DB</text>
-    <text class="sub" x="416" y="100" text-anchor="middle">MariaDB, PostgreSQL</text>
-  </g>
-  <g class="node" id="web">
-    <rect class="box" x="160" y="160" width="128" height="56" rx="4"/>
-    <text class="name mono" x="224" y="184" text-anchor="middle">manager-web</text>
-    <text class="sub" x="224" y="204" text-anchor="middle">React, Nginx</text>
-  </g>
-  <g class="node" id="api">
-    <rect class="box" x="344" y="160" width="144" height="56" rx="4"/>
-    <text class="name mono" x="416" y="184" text-anchor="middle">manager-api</text>
-    <text class="sub" x="416" y="204" text-anchor="middle">Spring Boot</text>
+  <g class="node" id="prometheus">
+    <rect class="box" x="256" y="56" width="152" height="56" rx="4"/>
+    <text class="name" x="332" y="80" text-anchor="middle">Prometheus</text>
+    <text class="sub" x="332" y="100" text-anchor="middle">수집, Alert 평가</text>
   </g>
   <g class="node" id="alertmanager">
-    <rect class="box" x="160" y="280" width="128" height="56" rx="4"/>
-    <text class="name" x="224" y="304" text-anchor="middle">Alertmanager</text>
-    <text class="sub" x="224" y="324" text-anchor="middle">Alert 전달</text>
+    <rect class="box" x="256" y="200" width="152" height="56" rx="4"/>
+    <text class="name" x="332" y="224" text-anchor="middle">Alertmanager</text>
+    <text class="sub" x="332" y="244" text-anchor="middle">Alert 전달</text>
   </g>
-  <g class="node" id="prometheus">
-    <rect class="box" x="344" y="280" width="144" height="56" rx="4"/>
-    <text class="name" x="416" y="304" text-anchor="middle">Prometheus</text>
-    <text class="sub" x="416" y="324" text-anchor="middle">수집, Alert 평가</text>
-  </g>
-  <g class="node" id="exporter">
-    <rect class="box" x="544" y="280" width="112" height="56" rx="4"/>
-    <text class="name" x="600" y="304" text-anchor="middle">Blackbox</text>
-    <text class="sub" x="600" y="324" text-anchor="middle">가용성 확인</text>
+  <g class="node" id="blackbox">
+    <rect class="box" x="456" y="56" width="152" height="56" rx="4"/>
+    <text class="name" x="532" y="80" text-anchor="middle">Blackbox Exporter</text>
+    <text class="sub" x="532" y="100" text-anchor="middle">가용성 확인</text>
   </g>
 
-  <!-- 외부 시스템 -->
-  <g class="node" id="telegram">
-    <rect class="box" x="744" y="168" width="80" height="40" rx="4"/>
-    <text class="name dim" x="784" y="192" text-anchor="middle">Telegram</text>
-  </g>
+  <!-- 외부 시스템: 감시 대상 -->
   <g class="node" id="targets">
-    <rect class="box" x="744" y="280" width="80" height="56" rx="4"/>
-    <text class="name dim" x="784" y="304" text-anchor="middle">감시 대상</text>
-    <text class="sub" x="784" y="324" text-anchor="middle">OS exporter</text>
+    <rect class="box" x="672" y="56" width="152" height="56" rx="4"/>
+    <text class="name dim" x="748" y="88" text-anchor="middle">감시 대상</text>
+  </g>
+  <g class="node" id="os-exporter">
+    <rect class="box" x="672" y="200" width="152" height="56" rx="4"/>
+    <text class="name dim" x="748" y="232" text-anchor="middle">OS exporter</text>
   </g>
 
   <!-- 연결선 이름 -->
   <g id="edge-labels">
-    <text class="sub" x="136" y="176" text-anchor="middle">HTTP</text>
-    <text class="sub mono" x="316" y="176" text-anchor="middle">/api</text>
-    <text class="sub" x="424" y="140">JDBC</text>
-    <text class="sub" x="616" y="168" text-anchor="middle">Bot API</text>
-    <text class="sub" x="600" y="224" text-anchor="middle">연결 시험</text>
-    <text class="sub key" x="392" y="252">HTTP SD</text>
-    <text class="sub" x="456" y="252">PromQL</text>
-    <text class="sub" x="308" y="236" text-anchor="middle">webhook</text>
-    <text class="sub" x="316" y="296" text-anchor="middle">Alert</text>
-    <text class="sub" x="516" y="296" text-anchor="middle">수집</text>
-    <text class="sub" x="700" y="296" text-anchor="middle">probe</text>
-    <text class="sub" x="600" y="376" text-anchor="middle">자원 수집</text>
+    <text class="sub" x="164" y="100">PromQL</text>
+    <text class="sub" x="164" y="124">HTTP SD</text>
+    <text class="sub key" x="164" y="148">webhook</text>
+    <text class="sub" x="340" y="160">Alert</text>
+    <text class="sub" x="432" y="60" text-anchor="middle">probe</text>
+    <text class="sub" x="640" y="72" text-anchor="middle">확인</text>
+    <text class="sub" x="552" y="216" text-anchor="middle">수집</text>
   </g>
 </svg>

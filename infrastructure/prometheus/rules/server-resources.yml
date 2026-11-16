@@ -10,8 +10,8 @@
 # SD label(server_name, os 등)이 바뀌어도 결과 series가 끊기지 않도록 모두 by (server_id ...)로 묶습니다.
 # 규칙마다 앞쪽이 node_exporter, or 뒤쪽이 windows_exporter입니다.
 #
-# Linux에서 빼는 파일 시스템 목록(fstype!~)은 Manager의 FilesystemFilter와 같아야 합니다.
-# FilesystemFilterRuleSyncTest가 이 파일을 읽어 두 목록을 비교합니다.
+# Linux에서 빼는 파일 시스템 목록(fstype!~)에 든 파일 시스템은 Storage 리소스 후보에 나오지 않습니다.
+# 관리자 서버는 이 규칙의 결과로 후보를 고르므로 따로 거르지 않습니다(docs/INTEGRATION.md의 서버와 리소스 등록).
 
 groups:
   - name: server-resources

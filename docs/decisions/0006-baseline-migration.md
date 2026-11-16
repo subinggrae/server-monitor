@@ -1,6 +1,6 @@
 # 0006. Flyway migration V1~V9를 기준 migration 하나로 바꾼다
 
-- 상태: 승인
+- 상태: 폐기(2026-11-16, [요구사항 0018](../requirements/0018-core-only-repository.md)로 이 저장소의 Manager와 그 migration을 걷어냄)
 - 날짜: 2026-10-19
 - 관련: [요구사항 0008](../requirements/0008-embeddable-core.md), [ADR 0007](0007-core-app-contract.md), [#18](https://github.com/subinggrae/server-monitor/issues/18), 지운 계획은 [PR #26](https://github.com/subinggrae/server-monitor/pull/26)에서 볼 수 있다
 

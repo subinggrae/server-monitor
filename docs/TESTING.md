@@ -32,14 +32,13 @@
 
 이 프로젝트의 설정은 다음과 같다.
 
-- 시간대와 로케일: `Asia/Seoul`, `ko-KR`. Backend는 `build.gradle`의 test 작업, Frontend는 `frontend/vitest.config.ts`에서 정한다.
-- CI의 재시도와 `.only` 거부: CI 없음. Playwright는 `frontend/playwright.config.ts`에서 재시도를 끄고(`retries: 0`), 환경 변수 `CI`가 있으면 `.only`를 거부한다(`forbidOnly`). 시간대와 로케일도 같은 파일에서 정한다.
+- 규칙 테스트: `promtool test rules`가 입력 series와 평가 시각을 테스트 파일에서 정하므로 실행할 때의 시각과 시간대에 기대지 않는다.
+- 운영 명령 시험: 가짜 `docker`, `systemctl`, `curl`, `wget`으로 상황을 만들고, 실제 Docker와 외부 네트워크를 쓰지 않는다.
+- CI 없음
 
 ## 테스트 범위
 
-테스트 종류마다 검사하는 계층이 다르다. 범위가 넓은 테스트일수록 느리므로 적게 쓴다. 지금은 컴포넌트 테스트가 화면을, 단위 테스트가 API와 도메인 로직을 검사한다. 통합 테스트는 빈 MariaDB와 PostgreSQL을 띄워 migration과 DB를 거치는 흐름을 검사한다. DB와 외부 시스템까지 함께 검사하는 것은 핵심 흐름 두 개를 확인하는 E2E 테스트뿐이다.
-
-![DB까지 검사하는 것은 통합 테스트와 E2E 테스트이고, 외부 시스템까지 함께 검사하는 것은 E2E 테스트뿐이다](assets/test-scope.svg)
+코어에는 화면, API, DB가 없다. 자동 테스트는 코어 이미지, 설정, 규칙, 운영 명령을 검사한다. 코어를 실제로 띄워 감시하고 장애를 보내는 흐름은 요구사항의 수동 확인이 맡는다. 관리자 서버의 테스트는 관리자 서버를 만드는 쪽이 정한다.
 
 ## 종류별 기준
 
@@ -47,25 +46,12 @@
 
 | 종류 | 책임 | 쓰는 경우 | 쓰지 않는 경우 | 명령 |
 |---|---|---|---|---|
-| 정적 검사 | 타입 오류, 문법 오류, 금지 패턴 | 항상, 별도 테스트 없이 | 해당 없음 | `cd frontend && npm run lint`, `cd frontend && npm run build`(타입 검사), `cd backend && ./gradlew build`(컴파일) |
-| 단위 테스트 | Backend의 요청 검증, 응답 변환, Entity 규칙, HTTP SD 목록, exporter 응답 처리 | DB 없이 확인할 수 있는 Backend 동작 | DB 쿼리, migration, 바깥 서버로 가는 HTTP 호출 | `cd backend && ./gradlew test` |
-| 통합 테스트 | migration과 Entity가 두 DB에서 맞는지, DB를 거치는 webhook 처리 | migration, Entity, DB에 남는 결과가 걸린 변경 | DB 없이 확인할 수 있는 동작, 외부 시스템 연동 | `cd backend && ./gradlew integrationTest` |
-| 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지, Alert 규칙이 정한 label과 annotation으로 Alert를 만들고 이어 가는지 | `infrastructure/prometheus/rules/`의 규칙을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령)의 규칙 테스트와 코어 설정 검사 |
-| 운영 명령 시험 | 코어 서버 운영 명령이 띄우기 전에 잘못된 설정, token, 묶음을 막고 안내하는지 | `infrastructure/core-server.sh`를 바꿨을 때 | 실제 컨테이너를 띄우는 흐름(요구사항의 수동 확인) | `core-dev.bat check` |
-| 컴포넌트 테스트 | 화면에 보이는 값, 입력 검증, 화면이 보내는 요청 | 입력과 API 응답에 따라 바뀌는 화면 | 화면 모양, 실제 Backend 연동 | `cd frontend && npm test` |
-| E2E | 핵심 사용자 흐름이 전체 실행 환경에서 끝까지 동작하는지 | Check 등록부터 삭제까지, 수집 결과가 대시보드에 보이기까지 | 하위 테스트로 확인할 수 있는 예외와 경계값 | `cd frontend && npm run test:e2e` |
-| 화면 검사 | 기준 폭과 밝은·다크 모드마다 접근성 위반(WCAG 2.2 AA)과 가로 넘침 | 화면을 바꿨을 때 | 화면 모양과 문구 | `cd frontend && npm run test:screen` |
+| 이미지·설정 검사 | 운영 이미지의 파일 목록과 설정, Prometheus·Alertmanager·Blackbox 설정 문법, 서버에서 바꾸는 값의 약속, compose 파일의 포트와 붙이는 파일 | 항상, 별도 테스트 없이 | 해당 없음 | `core-dev.bat check` |
+| 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지, Alert 규칙이 정한 label과 annotation으로 Alert를 만들고 이어 가는지 | `infrastructure/prometheus/rules/`의 규칙을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | `core-dev.bat check` |
+| 운영 명령 시험 | 코어 서버 운영 명령이 띄우기 전에 잘못된 설정, token, 묶음을 막고 안내하는지 | `infrastructure/core-server.sh`, `core-settings.sh`를 바꿨을 때 | 실제 컨테이너를 띄우는 흐름(요구사항의 수동 확인) | `core-dev.bat check` |
+| 문서 검사 | 문서 구조, 링크, 표, 그림 | 문서를 바꿨을 때 | 문서 내용이 맞는지(리뷰) | `node scripts/check-docs.mjs` |
 
-단위 테스트는 Repository를 Mockito로 바꾸고, 컴포넌트 테스트는 `frontend/src/test/render.tsx`의 `fakeApi`로 fetch를 바꾼다. Manager가 바깥 서버로 보내는 HTTP 요청은 같은 테스트 프로세스에 `127.0.0.1`로 띄운 JDK `HttpServer`로 확인한다(예: `ExporterClientTest`). exporter 응답 표본은 `backend/src/test/resources/exporter/`에 있다. 통합 테스트는 `@Tag("integration")`을 붙이고 Testcontainers로 DB를 띄운다. Docker가 필요해서 `./gradlew build`에서는 빠지고 `integrationTest` 작업으로만 실행된다.
-
-E2E와 화면 검사는 다음처럼 실행한다.
-
-- 전체 실행 환경(코어 실행 뒤 `docker compose --profile local-db up -d --build`, [DEVELOPMENT.md의 명령](DEVELOPMENT.md#명령))을 같은 브랜치에서 띄운 뒤 실행한다. 화면 주소는 환경 변수 `E2E_BASE_URL`(기본 `http://localhost:8081`)로 바꾼다. 이 PC의 주소가 아니면 `E2E_ALLOW_REMOTE=1`을 함께 줄 때만 실행한다. 테스트 데이터를 만들고 지우기 때문이다.
-- 환경에 접속하지 못하면 10초 안에 실패한다. 테스트 데이터는 이름이 `e2e-`로 시작하고, 실행이 끝나거나 다음 실행(성능 검사 포함)이 시작될 때 지운다.
-- 실행이 중간에 멈춰 닿지 않는 대상의 `e2e-` Check가 1분 넘게 남으면 Alert가 생겨 Alert 목록에 남는다. 알림 그룹을 연결하지 않으므로 Telegram으로는 나가지 않는다.
-- 화면 검사는 모든 라우트, 감시 항목·서버·Telegram 그룹 추가 대화상자, API가 실패한 오류 상태를 기준 폭 둘과 밝은·다크 모드에서 검사한다. 빈 상태는 사람이 만든 데이터가 없을 때만 검사된다.
-- 화면 검사에는 기준선이 없다. 위반이 하나라도 생기면 실패한다.
-- 성능은 `cd frontend && npm run test:perf`로 대시보드의 Lighthouse 점수와 LCP, CLS, TBT를 본다. 점수로 실패시키지 않는다.
+검사마다 무엇을 실행하는지는 [DEVELOPMENT.md의 코어 검사와 묶음](DEVELOPMENT.md#코어-검사와-묶음)에 있다.
 
 스냅샷 테스트는 오류 메시지나 직렬화 결과처럼 짧고 리뷰할 수 있는 출력에만 쓴다.
 
@@ -89,7 +75,7 @@ E2E와 화면 검사는 다음처럼 실행한다.
 | 검사 | 찾는 것 | 언제 | 명령 |
 |---|---|---|---|
 | 비밀값 | 커밋에 들어간 API 키, 비밀번호, 토큰 | 커밋 전, CI | 아직 정하지 않음: 도구를 정한다 |
-| 의존성 | 알려진 취약점이 있는 의존성 | 의존성을 바꿨을 때, CI, 정기 실행 | `cd frontend && npm audit --audit-level=high`(Backend는 아직 정하지 않음: 도구를 정한다) |
+| 의존성 | 알려진 취약점이 있는 공식 이미지 | 이미지 버전을 바꿨을 때, 정기 실행 | 아직 정하지 않음: 도구를 정한다 |
 
 자동 검사를 운영할 때는 다음을 지킨다.
 
@@ -129,9 +115,7 @@ E2E와 화면 검사는 다음처럼 실행한다.
 - **설정**(CWE-942): 운영 설정에 디버그 모드, 기본 계정, 모든 출처를 허용하는 CORS(`*`)가 없다. 응답에 HSTS와 `X-Content-Type-Options: nosniff`를 보내고, Level 2 이상이면 CSP도 둔다.
 - **의존성**(CWE-1395): 새 의존성은 레지스트리에 실제로 있고 관리되는 패키지다. AI는 없는 패키지 이름을 지어내므로 이름을 레지스트리에서 확인한다. 설치 스크립트(`postinstall` 등)와 알려진 취약점을 확인했다. 라이선스는 [LICENSES.md의 분류](LICENSES.md#분류)를 따른다. lockfile을 함께 커밋한다.
 - **CI**: 작업 토큰은 읽기 권한을 기본으로 한다. PR 제목이나 브랜치 이름 같은 외부 입력을 스크립트에 그대로 넣지 않는다. 외부 action은 커밋 SHA로, 이미지는 digest로 고정한다. 외부 PR에 비밀값을 넘기는 트리거(`pull_request_target` 등)를 쓰지 않는다. 배포 자격 증명은 OIDC처럼 짧게 쓰는 것을 쓴다. 내려받아 실행하는 스크립트는 체크섬을 확인한다.
-- **장비 인증 정보**: DB에 장비 인증 정보를 저장하지 않는다. 저장해야 하는 기능을 더하면 암호화해 저장하고 API 응답에는 설정 여부만 돌려주며, 그 방식을 ADR로 정한다. Bot Token은 DB와 API 응답에 두지 않는다.
-- **exporter 응답**(CWE-918, CWE-400): Manager가 사용자가 입력한 주소로 보내는 요청은 경로를 고정하고, 리다이렉트를 따르지 않으며, 응답 크기와 시간에 한도를 둔다. 응답 본문, 헤더, 예외 메시지는 화면과 로그에 넣지 않는다.
-- **webhook**: Alertmanager와 Telegram webhook은 요청마다 비밀값(Bearer token, secret header)으로 호출하는 쪽을 확인한다.
+- **webhook**: Alertmanager는 관리자 서버의 webhook을 부를 때마다 token 파일의 Bearer token을 붙인다. token 값은 설정 파일, 로그, 운영 명령의 출력에 넣지 않는다.
 - **에이전트 설정**: 에이전트 권한 설정, 지침 파일, MCP와 hook 설정은 사람이 요청했을 때만 바뀌었다. 밖에서 들여온 지침과 규칙 파일에 보이지 않는 문자가 없다.
 
 ### 전체 점검
@@ -158,16 +142,15 @@ E2E와 화면 검사는 다음처럼 실행한다.
 
 테스트 파일은 다음 위치에 둔다.
 
-- Backend: `backend/src/test/java/` 아래, 검사하는 클래스와 같은 패키지에 `클래스이름Test.java`로 둔다.
-- Frontend: 검사하는 파일 옆에 `파일이름.test.tsx`로 둔다. 여러 테스트가 함께 쓰는 대역과 설정은 `frontend/src/test/`에 둔다.
-- E2E와 화면 검사: `frontend/e2e/`에 `흐름-이름.spec.ts`로 둔다. 테스트 데이터를 만드는 API 호출은 `frontend/e2e/support/`에 둔다.
+- 규칙 테스트: `infrastructure/prometheus/tests/`에 `규칙파일이름.test.yml`로 둔다. Prometheus가 `rules/`의 파일을 모두 규칙으로 읽으므로 `rules/` 안에 두지 않는다.
+- 운영 명령 시험: `infrastructure/tests/core-server.test.sh`에 둔다.
 
 실패 보고에는 테스트 이름이 가장 먼저 보인다. 그래서 이름만 읽고도 무엇이 깨졌는지 알 수 있게 다음과 같이 쓴다.
 
 - 테스트 이름은 조건과 기대 결과를 평서형 한 문장으로 쓴다. 예: `만료된 토큰이면 로그인 화면으로 보낸다`
 - 이름에 "그리고"가 필요하면 동작이 둘이므로 테스트를 나눈다.
 - 묶음(`describe`, `context`)에는 대상이나 조건을 쓰고, 테스트(`it`, `test`)에는 결과까지 담은 문장을 쓴다. 한 파일 안에서는 같은 형식을 쓴다.
-- 함수 이름에 문장을 쓸 수 없는 언어는 표시 이름 기능을 쓴다. 예: JUnit의 `@DisplayName`, Kotlin의 백틱 함수 이름
+- 규칙 테스트는 실패 출력에 묶음 이름이 보이지 않으므로, 입력 묶음 위에 그 조건과 기대 결과를 주석으로 쓴다.
 
 ## CI
 
