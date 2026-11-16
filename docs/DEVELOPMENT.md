@@ -4,47 +4,23 @@
 
 ## 준비
 
-개발을 시작하기 전에 다음 도구와 설정을 준비하고 설치 명령을 실행한다.
+개발은 Windows 빌드 PC에서 한다. 코어 서버(Linux)에서 실행하는 운영 명령은 빌드 PC에서도 공식 이미지의 셸로 시험한다. 다음 도구와 설정을 준비한다.
 
-- 필요한 도구: Node.js 22와 npm, JDK 21, Docker Compose
-- 런타임 버전을 정한 파일: Java는 `backend/build.gradle`의 toolchain(21), Node.js는 `.nvmrc`(22)가 기준이다.
-- 환경 변수: `.env.example`을 `.env`로 복사하고 `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`을 채운다. 파일 안의 예시에서 개발용 MariaDB, 외부 MariaDB, 외부 PostgreSQL 가운데 하나를 고른다. `.env`에는 노출돼도 되는 값만 둔다.
-- 코어 설정: `infrastructure/.env.example`을 `infrastructure/.env`로 복사한다. 기본값 `MONITORING_APP_ADDRESS=manager-api:8080`이 이 저장소의 앱 주소다.
-- 비밀값: `infrastructure/secrets/`의 `*.example` 파일마다 확장자를 뺀 이름으로 복사하고 값을 채운다. 이 파일들은 Git에 올리지 않는다. Docker 없이 Backend를 띄울 때는 같은 값을 환경 변수(`TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `ALERTMANAGER_WEBHOOK_TOKEN`)로 넣는다. DB 비밀번호는 Spring Boot의 환경 변수 바인딩으로 `SPRING_DATASOURCE_PASSWORD`에 넣는다.
-
-```sh
-cd frontend && npm ci
-cd frontend && npx playwright install chromium
-```
-
-Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 명령은 E2E, 화면 검사, 성능 검사가 쓰는 Chromium을 받는다.
+- 필요한 도구: Docker Desktop(Compose 포함), Node.js 22(`.nvmrc`가 기준). Node.js는 코어 빌드 스크립트와 문서 검사를 실행한다. 설치할 패키지는 없다.
+- 코어 설정: `infrastructure/.env.example`을 `infrastructure/.env`로 복사한다. `MONITORING_APP_ADDRESS`는 코어가 부를 관리자 서버의 `컨테이너 이름:포트`다. 관리자 서버 없이 코어만 띄워도 코어는 뜨고, Prometheus 로그에 감시 대상 목록을 받지 못했다는 오류가 남는다.
+- 비밀값: `infrastructure/secrets/alertmanager_webhook_token.example`을 확장자를 뺀 이름으로 복사하고 값을 채운다. 이 파일은 Git에 올리지 않는다.
 
 ## 명령
 
-개발하며 실행하는 명령과 그 명령을 쓰는 때는 다음과 같다. Backend 명령은 JDK 21에서 실행한다.
+개발하며 실행하는 명령과 그 명령을 쓰는 때는 다음과 같다. Windows가 아니면 `core-dev.bat check`, `build` 대신 같은 일을 하는 `node scripts/build-core-bundle.mjs --check`, `node scripts/build-core-bundle.mjs`를 쓴다.
 
 | 목적 | 명령 | 언제 쓰는가 |
 |---|---|---|
-| 전체 검증 | `cd frontend && npm run check`, `cd backend && ./gradlew build` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
-| 개발 서버 | `cd frontend && npm run dev`, `cd backend && ./gradlew bootRun` | 화면이나 API를 직접 확인할 때 |
-| 코어 실행과 멈춤 | `core-dev.bat start`, `core-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `sh infrastructure/core-server.sh render` 뒤 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 앱보다 먼저, 코어 설정을 바꿨을 때 |
-| 전체 실행 | 코어 실행 뒤 `docker compose --profile local-db up -d --build` | 모든 실행 단위를 함께 띄워 확인할 때 |
-| OS exporter 테스트 장비 | `docker compose --profile os-test up -d os-test-node-exporter` | OS exporter 수집 흐름을 확인할 때 |
-| 테스트 | `cd frontend && npm test`, `cd backend && ./gradlew test` | 작업 중 바꾼 부분을 확인할 때 |
-| 통합 테스트 | `cd backend && ./gradlew integrationTest`(Docker 필요) | Entity, migration, 참고용 DDL, webhook을 바꿨을 때, 전체 검증을 실행할 때 함께(Docker가 필요해 전체 검증 명령에는 넣지 않음) |
+| 전체 검증 | `core-dev.bat check`, `node scripts/check-docs.mjs` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 규칙 테스트와 코어 설정 검사 | `core-dev.bat check`(아래 [코어 검사와 묶음](#코어-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, Dockerfile, `compose.yml`, `core-settings.sh`, `core-server.sh`를 바꿨을 때 |
+| 코어 실행과 멈춤 | `core-dev.bat start`, `core-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `sh infrastructure/core-server.sh render` 뒤 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 코어 설정을 바꿔 직접 띄워 확인할 때 |
 | 코어 묶음 | `core-dev.bat build` | 내부망 서버에 옮길 코어와 node_exporter를 만들 때 |
-| E2E | `cd frontend && npm run test:e2e` | 전체 실행 환경을 띄운 뒤, 핵심 흐름이 걸린 변경을 마쳤을 때 |
-| 화면 검사 | `cd frontend && npm run test:screen` | 전체 실행 환경을 띄운 뒤, 화면을 바꿨을 때 |
-| 성능 검사 | `cd frontend && npm run test:perf` | 전체 실행 환경을 띄운 뒤, 화면의 성능을 확인할 때 |
-| 린트·타입 검사 | `cd frontend && npm run lint`(타입 검사는 빌드에 포함) | 커밋 전 |
-| 빌드 | `cd frontend && npm run build`, `cd backend && ./gradlew build` | 커밋 전, 빌드 설정이나 의존성을 바꿨을 때 |
-| 빌드 결과 미리 보기 | `cd frontend && npm run preview` | Frontend 빌드 결과를 확인할 때 |
 | 문서 검사 | `node scripts/check-docs.mjs` | 문서를 바꿨을 때(그림을 바꿨다면 `--render`를 붙여서) |
-
-개발 서버의 화면은 http://localhost:5173 이고 `/api` 요청을 `http://localhost:8080`의 Backend로 넘긴다. 전체 실행의 화면은 http://localhost:8081 이다.
-
-앱은 코어가 만든 `monitoring` 네트워크에 붙으므로, 코어를 띄우지 않고 앱을 띄우면 `network monitoring ... not found`로 실패한다. 코어와 앱을 한 `compose.yml`로 띄우던 개발 환경이면, 먼저 그 구성의 컨테이너(`prometheus`, `alertmanager`, `blackbox-exporter` 등)와 `monitoring` 네트워크를 지운다. 남아 있으면 같은 컨테이너 이름 때문에 코어가 뜨지 않는다. 그 구성에서 만든 `prometheus-data`, `alertmanager-data` volume은 옛 프로젝트 이름으로 만들어져 Compose가 `already exists but was created for project` 경고를 내지만, 이름이 같아 기록은 이어진다. 기준 migration을 적용하기 전에 만든 개발 DB(`manager-db-data` 볼륨)로는 앱이 뜨지 않는다. 그때는 데이터를 이어 받지 않으므로 볼륨을 지우고 다시 띄운다([ADR 0006](decisions/0006-baseline-migration.md)).
 
 ### 코어 검사와 묶음
 
@@ -66,25 +42,21 @@ Backend 의존성은 `./gradlew`가 처음 실행될 때 받는다. 두 번째 �
 
 Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝났는데 실행 중으로 남아 검사가 멈추는 일이 있었다(2026-11-10, 원인은 확인하지 못함). `docker ps`에 몇 분째 남은 검사 컨테이너가 있으면 `docker kill <이름>`으로 끝내고, 되풀이되면 Docker Desktop을 다시 시작한다.
 
-감시 대상 서버용 node_exporter 배포 묶음(`infrastructure/node-exporter/compose.yml`)은 Docker Desktop에서 그대로 뜨지 않는다. Docker Desktop의 VM은 `/`가 shared mount가 아니라서 `/:/host:ro,rslave`를 붙일 수 없고, host 네트워크 기능이 꺼져 있으면 다른 컨테이너가 9100에 닿지 않는다. 개발 환경에서 OS exporter 수집을 확인할 때는 `os-test-node-exporter`를 쓴다.
+감시 대상 서버용 node_exporter 배포 묶음(`infrastructure/node-exporter/compose.yml`)은 Docker Desktop에서 그대로 뜨지 않는다. Docker Desktop의 VM은 `/`가 shared mount가 아니라서 `/:/host:ro,rslave`를 붙일 수 없고, host 네트워크 기능이 꺼져 있으면 다른 컨테이너가 9100에 닿지 않는다. 개발 환경에서 OS exporter 수집을 확인하려면 node_exporter를 띄운 Linux 장비나 VM을 쓴다.
 
 ### 명령 이름
 
 새 명령을 더할 때는 다음 이름을 쓴다. 하지만 이미 있는 이름은 바꾸지 않는다. CI 설정과 사람의 습관이 그 이름에 기대고 있기 때문이다.
 
-| 목적 | npm 스크립트 | Gradle |
-|---|---|---|
-| 전체 검증 | `check` | `check` |
-| 테스트 | `test` | `test` |
-| 종류별 테스트 | `test:unit`, `test:integration`, `test:e2e` | `integrationTest` |
-| 화면 검사, 성능 검사 | `test:screen`, `test:perf` | 없음 |
-| watch 모드로 다시 실행 | `test:watch` | 없음 |
-| 린트, 타입 검사 | `lint`, `typecheck` | 없음 |
-| 빌드 | `build` | `build` |
+| 목적 | `core-dev.bat`의 작업 이름 |
+|---|---|
+| 전체 검증 | `check` |
+| 내부망 서버로 옮길 묶음 만들기 | `build` |
+| 개발용으로 띄우기와 멈추기 | `start`, `stop` |
 
 명령을 만들 때는 다음 규칙도 따른다.
 
-- 전체 검증은 정적 검사, 단위 테스트, 컴포넌트 테스트를 차례로 실행한다. E2E처럼 브라우저나 서버가 필요한 검사는 넣지 않고 따로 실행한다.
+- 전체 검증은 이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험을 차례로 실행한다. 코어를 실제로 띄워 보는 확인은 넣지 않고 요구사항의 수동 확인으로 한다.
 - 테스트 명령은 한 번 실행하고 끝나야 한다. 이 기준은 [TESTING.md의 결정적 실행](TESTING.md#결정적-실행)에 있다.
 - 여러 명령을 묶는 명령은 pre·post 훅에 기대지 않고 명시적으로 차례대로 실행한다. 패키지 관리자마다 훅을 실행하는지가 다르기 때문이다.
 - 기존 명령을 묶기만 하는 명령을 더하는 일이 위험 영역인지는 [AGENTS.md의 작업 흐름](../AGENTS.md#작업-흐름)을 따른다.
@@ -111,7 +83,7 @@ Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝�
 
 - 라이선스는 [LICENSES.md의 분류](LICENSES.md#분류)를 따른다.
 - 의존성을 바꾸면 [TESTING.md의 자동 검사](TESTING.md#자동-검사)의 의존성 검사를 실행한다.
-- Frontend 의존성을 바꾸면 `frontend/package-lock.json`을 함께 커밋한다. Dockerfile이 `npm ci`로 설치하기 때문이다.
+- 공식 이미지는 태그와 digest를 함께 고정한다. 바꾸는 방법은 위의 [코어 검사와 묶음](#코어-검사와-묶음)에 있다.
 
 ## 에이전트 실행 환경
 
@@ -159,7 +131,7 @@ JSDoc, TSDoc, Javadoc, docstring 같은 문서 주석은 코드를 읽지 않고
 
 오류 메시지와 로그는 읽는 사람에 따라 다르게 쓴다.
 
-- **사용자 오류 메시지**: 화면이나 API 응답으로 사용자에게 보이는 메시지다.
+- **사용자 오류 메시지**: 운영 명령의 출력처럼 운영자에게 보이는 메시지다.
   - 무엇이 잘못됐는지와 사용자가 어떻게 하면 되는지 쓴다. 예: `카드 유효기간이 지났습니다. 다른 카드를 선택하세요.`(합니다체), `카드 유효기간이 지났어요. 다른 카드를 골라 주세요.`(해요체)
   - 원인마다 다른 메시지를 쓴다. 원인을 모르면 추측하지 않고 무엇을 하지 못했는지만 쓴다.
   - 사용자를 탓하지 않는다. stack trace, 내부 코드, 개발 용어 대신 사용자가 아는 말로 쓴다.
@@ -274,7 +246,6 @@ Refs: #123
 - 설명에 쓴 변경이 diff에 모두 있고, diff의 변경이 설명에 모두 있는지 확인한다. 하지 않은 변경을 했다고 쓰는 것이 AI가 쓴 설명에서 가장 흔한 오류이기 때문이다. 리뷰를 반영해 코드를 바꾸면 설명을 최종 상태에 맞게 고치고, 리뷰를 반영하며 바꾼 이력은 댓글에 쓴다.
 - 검증에는 실행한 명령과 결과를 쓰고, 테스트를 더하지 않았으면 그 이유를 쓴다. 이 변경 전부터 실패하던 검사는 따로 적는다. 실행하지 못한 검증은 확인하지 못한 것에 쓴다.
 - 리뷰할 곳에는 어떤 의견을 원하는지 쓴다. 그래야 리뷰어가 어디에 집중할지 알 수 있다. 예: `캐시를 비우는 시점이 맞는지 봐 주세요.`
-- 화면이 바뀌었으면 바뀌기 전과 후의 스크린샷을 붙인다.
 - 합니다체로 쓴다. 바꾼 내용은 현재형(`추가합니다`), 검증 결과는 과거형(`통과했습니다`)으로 쓴다. 항목은 목록으로 짧게 쓴다.
 
 ### 리뷰 코멘트
