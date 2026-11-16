@@ -2,7 +2,7 @@
 
 - 상태: 구현됨
 - 작성일: 2026-11-16
-- 관련: [#58](https://github.com/subinggrae/server-monitor/issues/58), [0011](0011-core-ops-script.md), [0017](0017-core-shared-env.md), [0020](0020-rename-monitoring-system.md)
+- 관련: [#58](https://github.com/subinggrae/server-monitor/issues/58), [PR #64](https://github.com/subinggrae/server-monitor/pull/64)(구현 계획과 확인 기록 포함), [0011](0011-core-ops-script.md), [0017](0017-core-shared-env.md), [0020](0020-rename-monitoring-system.md)
 
 ## 배경
 
