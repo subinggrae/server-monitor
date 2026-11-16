@@ -44,6 +44,8 @@ EOF
   printf 'images' > "$BUNDLE/monitoring-system-images.tar"
   (cd "$BUNDLE" && sha256sum compose.yml .env.example monitoring-system-images.tar monitoring-server.sh monitoring-settings.sh templates/* > SHA256SUMS)
   printf 'enabled\n' > "$FAKE/systemctl"
+  # 운영자가 운영 가이드대로 만들어 둔 monitoring 네트워크(요구사항 0019). 없는 상황은 시험에서 지운다.
+  touch "$FAKE/network"
   printf '1761600000\n' > "$FAKE/bundle_time"
   write_fake_docker
   write_fake_systemctl
@@ -60,6 +62,11 @@ write_fake_docker() {
 echo "$*" >> "$FAKE/calls"
 case "$1" in
   info) [ ! -f "$FAKE/docker_down" ] ;;
+  network)
+    case "$2 $3" in
+      'inspect monitoring') [ -f "$FAKE/network" ] || { echo 'Error response from daemon: network monitoring not found' >&2; exit 1; } ;;
+      *) exit 1 ;;
+    esac ;;
   load) touch "$FAKE/images_loaded" ;;
   compose)
     case " $* " in
@@ -215,6 +222,22 @@ setup; prepared; touch "$FAKE/docker_down"
 run start
 check 'Docker가 꺼져 있으면 알리고 아무것도 하지 않는다' \
   '[ $RC -ne 0 ] && contains "Docker에 연결하지 못했습니다" && ! called load && ! called "^compose"'
+
+# 운영자가 만들 monitoring 네트워크(요구사항 0019): 모니터링 시스템은 네트워크를 만들지 않고 이미 있는 네트워크에 붙는다.
+setup; prepared; rm "$FAKE/network"
+run start
+check 'monitoring 네트워크가 없으면 만드는 명령을 알리고 불러오거나 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "docker network create monitoring" && ! called load && ! called "^compose" && ! called "^network create"'
+
+setup; prepared; started; rm "$FAKE/network"
+run start
+check 'monitoring 네트워크가 없으면 떠 있던 모니터링 시스템을 다시 만들지 않는다' \
+  '[ $RC -ne 0 ] && contains "docker network create monitoring" && ! called "^compose"'
+
+setup; prepared
+run start
+check 'monitoring 네트워크가 있으면 확인한 뒤 띄운다' \
+  '[ $RC -eq 0 ] && called "^network inspect monitoring" && called "^compose.* up"'
 
 # --- 체크섬 ---
 

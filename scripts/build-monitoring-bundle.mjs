@@ -684,6 +684,7 @@ function runtimeCompose(release) {
     '#   sh monitoring-server.sh install',
     '#   sh monitoring-server.sh start',
     '#',
+    '# monitoring 네트워크는 운영자가 처음 한 번 만들어 둡니다(docker network create monitoring). 이 파일은 네트워크를 만들지 않습니다.',
     '# docker compose로 직접 띄울 때는 먼저 sh monitoring-server.sh render를 실행해 주세요.',
   ], SYSTEM_IMAGES.length);
   if (!text.includes(BUNDLE_SECRETS_DEFAULT)) {

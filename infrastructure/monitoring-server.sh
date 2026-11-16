@@ -143,6 +143,12 @@ check_docker() {
     || fail "Docker에 연결하지 못했습니다. Docker가 실행 중인지, 이 사용자가 docker 명령을 쓸 수 있는지 확인해 주세요."
 }
 
+# 모니터링 시스템과 관리자 서버는 운영자가 미리 만든 monitoring 네트워크에 붙는다(요구사항 0019). 운영 명령은 만들지 않고 확인만 한다.
+check_network() {
+  docker network inspect monitoring > /dev/null 2>&1 \
+    || fail "Docker 네트워크 monitoring이 없습니다. sudo docker network create monitoring 으로 만든 뒤 다시 실행해 주세요. 아무것도 바꾸지 않았습니다."
+}
+
 check_checksums() {
   say "묶음 파일의 체크섬을 확인합니다."
   if result=$(cd "$BUNDLE_DIR" && sha256sum -c SHA256SUMS 2>&1); then
@@ -668,6 +674,7 @@ cmd_render() {
 
 cmd_start() {
   check_docker
+  check_network
   check_checksums
   check_render
   check_ready_tool

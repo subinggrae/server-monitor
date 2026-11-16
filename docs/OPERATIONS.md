@@ -10,7 +10,7 @@
 - **관리자 서버**: 무엇을 감시할지 모니터링 시스템에 알려 주고, 모니터링 시스템이 보낸 장애를 받아 담당자에게 알린다. 화면, API, DB를 갖춘 웹 서비스다.
 - **OS exporter**: 감시 대상 서버의 CPU, Memory, 디스크 사용량을 모니터링 시스템이 읽을 수 있게 내보내는 작은 프로그램이다. Linux는 node_exporter, Windows는 windows_exporter를 쓴다. 웹 주소, TCP 포트, ping으로 살아 있는지만 보는 대상에는 설치하지 않는다.
 
-모니터링 시스템과 관리자 서버는 한 서버에 각자 컨테이너로 띄우고, Docker 네트워크 `monitoring`으로만 통신한다. 서버 한 대에는 모니터링 시스템 하나와 관리자 서버 하나만 둔다. 둘을 다른 서버에 나눠 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)).
+모니터링 시스템과 관리자 서버는 한 서버에 각자 컨테이너로 띄우고, Docker 네트워크 `monitoring`으로만 통신한다. 이 네트워크는 운영자가 처음 설치할 때 한 번 만든다. 서버 한 대에는 모니터링 시스템 하나와 관리자 서버 하나만 둔다. 둘을 다른 서버에 나눠 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)).
 
 감시부터 알림까지는 다음 순서로 동작한다.
 
@@ -85,7 +85,7 @@
 |---|---|
 | 1. 묶음 만들기 | 빌드 PC |
 | 2. 묶음을 서버로 옮기기 | 빌드 PC |
-| 3. 설치 폴더 만들기 | 모니터링 서버 |
+| 3. 설치 폴더와 네트워크 만들기 | 모니터링 서버 |
 | 4. token과 설정 파일 만들기 | 모니터링 서버 |
 | 5. 설정 값 바꾸기 | 모니터링 서버 |
 | 6. 모니터링 시스템 띄우기 | 모니터링 서버 |
@@ -111,7 +111,7 @@ monitoring-dev.bat build
 scp -r dist\monitoring-system-<버전> <계정>@<서버 주소>:/tmp/
 ```
 
-### 3. 설치 폴더 만들기
+### 3. 설치 폴더와 네트워크 만들기
 
 빌드 PC의 cmd에서 모니터링 서버에 접속한다.
 
@@ -119,16 +119,17 @@ scp -r dist\monitoring-system-<버전> <계정>@<서버 주소>:/tmp/
 ssh <계정>@<서버 주소>
 ```
 
-모니터링 서버에서 설치 폴더를 만들고, 묶음 폴더와 OS의 CA 인증서 파일을 그 안에 둔다. 다음 명령은 설치 폴더를 `/opt/monitoring`으로 둔 예다. 설치 폴더는 어디든 되고, 다른 폴더를 쓰면 명령의 `/opt/monitoring`만 바꾼다.
+모니터링 서버에서 설치 폴더를 만들고, 묶음 폴더와 OS의 CA 인증서 파일을 그 안에 둔다. 모니터링 시스템과 관리자 서버가 함께 붙는 Docker 네트워크 `monitoring`도 만든다. 다음 명령은 설치 폴더를 `/opt/monitoring`으로 둔 예다. 설치 폴더는 어디든 되고, 다른 폴더를 쓰면 명령의 `/opt/monitoring`만 바꾼다.
 
 ```sh
 sudo mkdir -p /opt/monitoring/certs
 sudo mv /tmp/monitoring-system-<버전> /opt/monitoring/
 sudo cp -L /etc/ssl/certs/ca-certificates.crt /opt/monitoring/certs/ca-certificates.crt
 sudo chmod 0644 /opt/monitoring/certs/ca-certificates.crt
+sudo docker network create monitoring
 ```
 
-CA 인증서 파일은 모니터링 시스템이 HTTPS 주소를 확인할 때 쓴다. 위 경로는 Ubuntu, Debian, Amazon Linux용이고, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`를 복사한다. 이 복사는 처음 설치할 때 한 번만 한다.
+CA 인증서 파일은 모니터링 시스템이 HTTPS 주소를 확인할 때 쓴다. 위 경로는 Ubuntu, Debian, Amazon Linux용이고, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`를 복사한다. CA 인증서 복사와 네트워크 만들기는 처음 설치할 때 한 번만 한다. 네트워크가 이미 있으면 `already exists`가 나오고, 그 네트워크를 그대로 쓴다. 네트워크는 모니터링 시스템을 내리거나 갱신해도 남는다.
 
 묶음 폴더는 설치 폴더 바로 아래에 둔다. 그래야 운영 명령(`monitoring-server.sh`)이 설치 폴더의 `secrets/`와 `certs/`를 찾고, 새 버전도 같은 token과 CA 인증서 파일을 쓴다.
 
@@ -188,7 +189,7 @@ sudo sh monitoring-server.sh start
     └── rendered/                        펼친 설정(띄울 때마다 다시 만든다)
 ```
 
-모니터링 시스템은 관리자 서버 없이도 뜨고, 감시 대상 없이 기다린다. 이어서 관리자 서버를 띄운다([관리자 서버 만들기의 모니터링 시스템과 연결하는 조건](ADMIN-SERVER.md#모니터링-시스템과-연결하는-조건)). 관리자 서버가 뜨면 15~30초 안에 모니터링 시스템이 감시 대상 목록을 받아 간다. 그다음 [OS exporter를 설치](#os-exporter-설치)하고 [설치 확인](#설치-확인)대로 동작을 본다.
+모니터링 시스템은 관리자 서버 없이도 뜨고, 감시 대상 없이 기다린다. 관리자 서버도 같은 `monitoring` 네트워크에 붙여 띄운다. 어느 쪽을 먼저 띄워도 된다([관리자 서버 만들기의 모니터링 시스템과 연결하는 조건](ADMIN-SERVER.md#모니터링-시스템과-연결하는-조건)). 관리자 서버가 뜨면 15~30초 안에 모니터링 시스템이 감시 대상 목록을 받아 간다. 그다음 [OS exporter를 설치](#os-exporter-설치)하고 [설치 확인](#설치-확인)대로 동작을 본다.
 
 모니터링 시스템은 실행 중에 인터넷에 나가지 않는다. 관리자 서버가 외부 메신저로 알린다면 관리자 서버만 그 서비스에 닿으면 된다.
 
@@ -301,12 +302,13 @@ curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 
 | 보이는 것 | 원인 | 해결 |
 |---|---|---|
+| `Docker 네트워크 monitoring이 없습니다` | 처음 설치할 때 네트워크를 만들지 않음 | `sudo docker network create monitoring` 뒤 다시 실행한다 |
 | `Docker에 연결하지 못했습니다` | Docker가 꺼져 있거나 이 사용자에게 `docker` 권한이 없음 | `sudo systemctl start docker`를 실행하거나, 사용자를 `docker` 그룹에 넣는다 |
 | `서버가 켜질 때 Docker가 자동으로 켜지지 않습니다` | Docker 서비스가 자동 시작으로 설정되지 않음 | `sudo systemctl enable docker` |
 | `설정 값이 올바르지 않습니다: MONITORING_…` | 값이 숫자가 아니거나, 단위나 앞의 0이 붙었거나, 허용 범위 밖임 | 안내대로 값을 고치거나 지운다(셸 환경 변수면 `unset <변수 이름>`) |
 | `기록 보관 값을 줄이려면 터미널에서 직접 실행해 y를 입력해 주세요` | 보관 값을 줄였는데 스크립트 등에서 실행함 | 줄이려는 것이 맞으면 터미널에서 실행해 `y`를 넣고, 아니면 `.env`를 되돌린다 |
 | `port is already allocated`, `address already in use` | 다른 프로그램이 그 포트를 쓰거나, `.env`의 세 포트 가운데 둘이 같음 | `.env`의 그 포트를 비어 있는 포트로 바꾸고 `start`를 다시 실행한다 |
-| `CA 인증서 파일이 없습니다`, `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 파일을 복사하지 않음 | [3. 설치 폴더 만들기](#3-설치-폴더-만들기)대로 복사한다 |
+| `CA 인증서 파일이 없습니다`, `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 파일을 복사하지 않음 | [3. 설치 폴더와 네트워크 만들기](#3-설치-폴더와-네트워크-만들기)대로 복사한다 |
 | `CA 인증서 파일 자리에 폴더가 있습니다` | 파일을 복사하기 전에 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 파일을 복사한다 |
 | `컨테이너가 CA 인증서 파일을 읽을 수 없습니다` | 복사한 파일의 권한이 0600 등임 | 파일 권한을 0644로 바꾼다 |
 | `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `sudo rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
@@ -324,7 +326,7 @@ curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 | `alertmanager_webhook_token`이 폴더임 | `render` 뒤 token 파일을 지우고 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 token 파일을 만든다 |
 | `No such image` | 모니터링 시스템 이미지를 불러오지 않음 | `docker load -i monitoring-system-images.tar` |
 | `sha256sum`이 `FAILED` | 옮기는 중에 파일이 망가짐 | 묶음을 다시 옮긴다 |
-| 관리자 서버가 `network monitoring not found`로 뜨지 않음 | 관리자 서버를 모니터링 시스템보다 먼저 띄움 | 모니터링 시스템을 먼저 띄운 뒤 관리자 서버를 띄운다 |
+| `network monitoring declared as external, but could not be found` | 네트워크를 만들지 않고 Compose로 띄움(모니터링 시스템이나 관리자 서버) | `sudo docker network create monitoring` 뒤 다시 띄운다 |
 | 장애 수신 API가 모두 `401` | 모니터링 시스템과 관리자 서버가 서로 다른 token 파일을 읽음 | 두 쪽이 같은 파일을 읽게 하고 둘 다 다시 띄운다 |
 
 ## 보안 설정
@@ -389,7 +391,7 @@ ssh -L 9090:127.0.0.1:9090 <계정>@<모니터링 서버 주소>
 다음 값은 모니터링 시스템과 관리자 서버가 서로 약속한 값이라 바꾸지 않는다.
 
 - **모니터링 시스템 컨테이너 이름**: `prometheus`, `alertmanager`, `blackbox-exporter`. 관리자 서버의 컨테이너 이름을 이와 겹치게 짓지 않는다.
-- **네트워크 이름**: `monitoring`
+- **네트워크 이름**: `monitoring`. 운영자가 만들고 모니터링 시스템과 관리자 서버가 함께 붙는다.
 - **컨테이너 안 포트**: 9090, 9093, 9115. 관리자 서버와 모니터링 시스템이 `monitoring` 네트워크 안에서 부르는 포트이고, `.env`에서 모니터링 시스템 포트를 바꿔도 그대로다.
 - **관리자 서버 API 경로 세 개**: 관리자 서버 안의 경로가 다르면 앞단(리버스 프록시 등)에서 이 경로를 받아 넘긴다.
 
@@ -477,7 +479,7 @@ sudo docker compose up -d --force-recreate alertmanager
 
 ### CA 인증서 다시 복사
 
-OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면, [3. 설치 폴더 만들기](#3-설치-폴더-만들기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh monitoring-server.sh start`를 실행한다. 이때 세 컨테이너를 다시 만들어 잠깐 감시가 멈춘다.
+OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면, [3. 설치 폴더와 네트워크 만들기](#3-설치-폴더와-네트워크-만들기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh monitoring-server.sh start`를 실행한다. 이때 세 컨테이너를 다시 만들어 잠깐 감시가 멈춘다.
 
 ### node_exporter 갱신과 멈추기
 
@@ -529,13 +531,14 @@ openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
 chmod 0644 infrastructure/secrets/alertmanager_webhook_token
 ```
 
-Windows에서는 `monitoring-dev.bat start`로 띄우고 `monitoring-dev.bat stop`으로 멈춘다. `start`가 설정 펼치기와 CA 인증서 파일 준비까지 한다.
+Windows에서는 `monitoring-dev.bat start`로 띄우고 `monitoring-dev.bat stop`으로 멈춘다. `start`가 설정 펼치기, CA 인증서 파일 준비, `monitoring` 네트워크 만들기(없을 때)까지 한다.
 
-다른 OS에서는 같은 일을 하는 다음 명령을 쓴다. 앞의 두 줄은 그 PC의 CA 인증서 파일을 복사하는 명령이라 처음 한 번만 실행한다.
+다른 OS에서는 같은 일을 하는 다음 명령을 쓴다. 앞의 세 줄은 그 PC의 CA 인증서 파일을 복사하고 네트워크를 만드는 명령이라 처음 한 번만 실행한다.
 
 ```sh
 mkdir -p infrastructure/certs
 cp -L /etc/ssl/certs/ca-certificates.crt infrastructure/certs/   # RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt, macOS는 /etc/ssl/cert.pem
+docker network create monitoring
 sh infrastructure/monitoring-server.sh render
 docker compose -f infrastructure/compose.yml up -d --build
 docker compose -f infrastructure/compose.yml ps
