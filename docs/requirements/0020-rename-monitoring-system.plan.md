@@ -101,8 +101,7 @@ C3 절차는 다음과 같다.
 - [x] 옛 변수 이름 시험을 더하고 지금 운영 명령에서 실패하는지 확인한다
 - [x] 파일 이름을 바꾸고 이름 대응표대로 코드와 설정을 고친다. 운영 명령과 개발 명령의 안내 문구를 고친다. `monitoring-dev.bat check`로 확인한다
 - [x] 문서, TERMS.md, AGENTS.md, 그림을 고친다. `node scripts/check-docs.mjs --render`로 확인한다
-- [ ] C1 검색, C4 실행, C3 수동 확인을 하고 진행 중 발견에 적는다
-  - C1, C4는 끝났다(진행 중 발견). 다음은 C3 수동 확인이다
+- [x] C1 검색, C4 실행, C3 수동 확인을 하고 진행 중 발견에 적는다
 - [ ] 전체 검증을 실행하고 새 하위 에이전트에게 리뷰를 맡긴다
 - [ ] 요구사항을 구현됨으로 바꾸고 이 계획을 지운다
 
@@ -113,6 +112,8 @@ C3 절차는 다음과 같다.
 - 지난 요구사항 0013이 이름이 바뀐 INTEGRATION.md 제목(`#코어가-제공할-것`)으로 링크해 문서 검사가 실패했다. 본문은 그대로 두고 링크 주소만 새 제목으로 고쳤다.
 - C4(`ef37fa3`): `monitoring-dev.bat check` 통과(운영 명령 시험 통과 172, 실패 0). `start`로 compose 프로젝트 `monitoring-system`, 이미지 `monitoring-system-*:dev`, 컨테이너 환경 변수 `MONITORING_*`로 떴고 `/-/ready`가 200이었다. `stop` 뒤 컨테이너가 남지 않았다.
 - C1(`ef37fa3`): 지난 요구사항·ADR 밖에서 남은 "코어"는 TERMS.md의 쓰지 않는 말과 "CPU 코어", 남은 `core`는 `--no-core`·`CORE_DOCS`, windows `core` label, GNU coreutils, 이전 방식 묶음 폴더의 옛 이름과 옛 변수 이름 시험뿐이다. 이름에 core가 든 파일은 지난 요구사항·ADR뿐이다.
+- C3(`docker:28-dind`, Docker 28.5.2, Compose 2.40.3): `ef37fa3` 묶음으로 `install`, `start`를 하자 `.env`가 `MONITORING_*` 이름으로 생기고, compose 프로젝트 `monitoring-system`, 이미지 `monitoring-system-*:ef37fa3`으로 떴다. 볼륨 경고는 없었다. 가짜 관리자 서버(실패 주소 하나, 성공 주소 하나)가 `firing` webhook을 받았다. `c12e64b` 묶음으로 `start`하자 확인 없이 갱신됐다. 가장 오래된 표본 시각이 그대로이고(주소마다 표본 11개에서 52개), 장애가 Prometheus와 Alertmanager에서 이어졌다(fingerprint 같음). 바꾼 설정 값(보관 30일, Prometheus 포트 19090)이 이어졌고, 갱신 뒤에도 webhook을 받았다.
+- C3에서 Alertmanager의 Alert `startsAt`이 갱신 뒤 새 시각으로 바뀌었다(04:47:31 → 04:49:31). 같은 버전에서 Alertmanager만 다시 만들어도 같았다(04:49:31 → 04:56:46). Alertmanager는 떠 있는 Alert를 디스크에 남기지 않기 때문이다. 이름 변경과 무관하게 전부터 있던 동작이고, 관리자 서버는 `fingerprint`와 `startsAt`으로 장애를 구분하므로 갱신마다 새 장애로 볼 수 있다. 범위 밖이라 보고하고 처리 방법을 묻는다.
 - 일괄 치환이 `prometheus.yml` 주석의 "CPU 코어"(제품이 아님)도 바꿔 되돌렸다. 예외 목록에 적은 대로 diff를 읽어 찾았다.
 
 ## 남길 결정
