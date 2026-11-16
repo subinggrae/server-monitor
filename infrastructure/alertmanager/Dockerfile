@@ -12,7 +12,8 @@ FROM scratch
 
 ARG MONITORING_VERSION=dev
 ARG MONITORING_REVISION=unknown
-# 모니터링 서버의 monitoring-server.sh가 이 값(커밋 시각, epoch 초)으로 버전의 앞뒤를 판단합니다. 빌드 캐시 때문에 이미지의 Created는 버전마다 같을 수 있습니다.
+# 이 버전을 만든 커밋의 시각(epoch 초)을 label로 남깁니다. 빌드 캐시 때문에 이미지의 Created는 버전마다 같을 수 있어서입니다.
+# 빌드 PC의 이미지 검사가 이 값을 확인합니다. 모니터링 서버의 운영 명령은 이 값을 읽지 않습니다.
 ARG MONITORING_COMMIT_TIME=0
 LABEL org.opencontainers.image.title="monitoring-system-alertmanager" \
       org.opencontainers.image.version="${MONITORING_VERSION}" \
