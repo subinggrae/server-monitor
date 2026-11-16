@@ -31,6 +31,7 @@
 - 서버에서 바꾸는 설정 값의 약속 검사. 저장소의 `infrastructure/monitoring-settings.sh`에서 허용 범위를 읽어, 확인 제한 시간의 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값 이하인지, 보관 기간의 하한이 규칙이 읽는 가장 긴 범위보다 긴지, 포트 범위가 1024~65535 안이고 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모른다
 - 값 세 벌(모두 비움, 허용 범위 아래 끝, 위 끝. 세 포트는 서로 1씩 다르게 둔다)마다 운영 명령의 `render`로 펼친 뒤 다음 검사
   - Prometheus 설정 검사(`promtool check config`, 규칙은 운영 이미지에서 꺼냄)와, 펼친 `prometheus.yml`의 보관 항목이 보관 기간·용량인지 확인
+  - 서버 사용량 수집(`MONITORING_OS_EXPORTER`)은 세 벌에 비움, `off`, `on`을 넣어, `off`일 때만 펼친 `prometheus.yml`에 `manager-os` 수집과 서버 감시 대상 목록 주소가 없는지 확인
   - Alertmanager 설정 검사(`amtool check-config`)
   - 운영 이미지로 Blackbox 설정 검사(`blackbox_exporter --config.check`)와, module마다 `timeout`이 확인 제한 시간이고 `insecure_skip_verify`가 없는지 확인
   - 펼친 `monitoring.env`에 검사를 통과한 값이 들어 있는지 확인
