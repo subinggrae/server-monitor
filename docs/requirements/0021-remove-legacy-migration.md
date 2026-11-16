@@ -1,6 +1,6 @@
 # 0021. 이전 버전에서 옮기는 처리와 안내를 걷어냄
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-16
 - 관련: [#58](https://github.com/subinggrae/server-monitor/issues/58), [0011](0011-core-ops-script.md), [0017](0017-core-shared-env.md), [0020](0020-rename-monitoring-system.md)
 
@@ -86,10 +86,10 @@
 
 ## 완료 기준
 
-- [ ] C1. 운영 명령에 이전 방식 묶음 폴더에서 설정 파일을 찾는 처리와 옛 이름 묶음 폴더(`monitoring-core-*`)를 찾는 코드가 없다. (목표) — 확인: `git grep -n -E 'monitoring-core|previous_env' -- infrastructure/monitoring-server.sh`가 아무것도 찾지 않음(시험은 옛 이름 폴더를 무시하는지 보려고 그 이름을 쓴다)
-- [ ] C2. 운영 명령 시험이 S1~S5와 남기는 확인(보관 값 줄임, 떠 있는데 token이 없음)으로 통과한다. 옛 묶음 폴더에 `.env`가 있어도 `install`이 설치 폴더에 새로 만들고, `start`가 그 경로를 보이지 않는 시험이 있다. (S1~S5) — 확인: 운영 명령 시험
-- [ ] C3. 운영 가이드에 "설정 파일을 설치 폴더로 옮기기", "운영 명령이 없던 묶음에서 갱신" 절과 이전 버전 전용 문장·문제 해결 행이 없고, `node scripts/check-docs.mjs`가 오류 없이 통과한다. (목표) — 확인: 실행, 리뷰
-- [ ] C4. `monitoring-dev.bat check`가 통과한다. — 확인: 실행
+- [x] C1. 운영 명령에 이전 방식 묶음 폴더에서 설정 파일을 찾는 처리와 옛 이름 묶음 폴더(`monitoring-core-*`)를 찾는 코드가 없다. (목표) — 확인: `git grep -n -E 'monitoring-core|previous_env' -- infrastructure/monitoring-server.sh`가 아무것도 찾지 않음(시험은 옛 이름 폴더를 무시하는지 보려고 그 이름을 쓴다) (2026-11-16 확인. 검색 결과 없음)
+- [x] C2. 운영 명령 시험이 S1~S5와 남기는 확인(보관 값 줄임, 떠 있는데 token이 없음)으로 통과한다. 옛 묶음 폴더에 `.env`가 있어도 `install`이 설치 폴더에 새로 만들고, `start`가 그 경로를 보이지 않는 시험이 있다. (S1~S5) — 확인: 운영 명령 시험 (2026-11-16 확인. 바꾼 시험 다섯 개가 구현 전에 실패했고, 구현 뒤 운영 명령 시험 통과 173, 실패 0)
+- [x] C3. 운영 가이드에 "설정 파일을 설치 폴더로 옮기기", "운영 명령이 없던 묶음에서 갱신" 절과 이전 버전 전용 문장·문제 해결 행이 없고, `node scripts/check-docs.mjs`가 오류 없이 통과한다. (목표) — 확인: 실행, 리뷰 (2026-11-16 확인. 문서 검사 오류 0, 새 하위 에이전트 리뷰)
+- [x] C4. `monitoring-dev.bat check`가 통과한다. — 확인: 실행 (2026-11-16 확인. 통과)
 
 ## 확인 필요
 
