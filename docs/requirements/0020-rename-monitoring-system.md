@@ -2,7 +2,7 @@
 
 - 상태: 구현됨
 - 작성일: 2026-11-16
-- 관련: [#56](https://github.com/subinggrae/server-monitor/issues/56), [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md), [0017](0017-core-shared-env.md), [0018](0018-core-only-repository.md), 요구사항 0019(브랜치 `feature/core-external-network`)
+- 관련: [#56](https://github.com/subinggrae/server-monitor/issues/56), [PR #61](https://github.com/subinggrae/server-monitor/pull/61)(구현 계획과 확인 기록 포함), [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md), [0017](0017-core-shared-env.md), [0018](0018-core-only-repository.md), 요구사항 0019(브랜치 `feature/core-external-network`)
 
 ## 배경
 
