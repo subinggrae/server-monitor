@@ -1,6 +1,6 @@
 # 0019. 모니터링 시스템이 운영자가 미리 만든 monitoring 네트워크를 쓰게 함
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-16
 - 관련: [0011](0011-core-ops-script.md), [0018](0018-core-only-repository.md), [ADR 0007](../decisions/0007-core-app-contract.md), [ADR 0014](../decisions/0014-operator-creates-monitoring-network.md)(0007의 네트워크를 만든다는 결정을 대신함), [INTEGRATION.md](../INTEGRATION.md), [운영 가이드](../OPERATIONS.md)
 
@@ -85,12 +85,12 @@
 
 ## 완료 기준
 
-- [ ] C1. `infrastructure/compose.yml`의 `monitoring` 네트워크가 `external: true`이고, 모니터링 시스템 프로젝트가 네트워크를 만들거나 지우지 않는다. (S1, S3) — 확인: `docker compose config`, 개발용 모니터링 시스템을 띄우고 내린 뒤 네트워크가 남는지 수동 확인
-- [ ] C2. `monitoring` 네트워크가 없으면 `monitoring-server.sh start`가 컨테이너를 띄우기 전에 멈추고 만드는 명령을 알려 준다. 있으면 지금처럼 띄운다. (S1, S6) — 확인: 운영 명령 시험(`infrastructure/tests/monitoring-server.test.sh`)
-- [ ] C3. `monitoring-dev.bat start`가 네트워크가 없으면 만들고, 있으면 그대로 쓴다. (S5) — 확인: 빌드 PC에서 수동 확인
-- [ ] C4. 이 변경 전 모니터링 시스템이 만든 네트워크가 있는 상태에서 새 모니터링 시스템을 띄우면 그 네트워크를 그대로 쓴다. 관리자 서버를 먼저 띄운 뒤 모니터링 시스템을 띄워도 서로 닿는다. (S2, S4) — 확인: 개발 환경 수동 확인
-- [ ] C5. 운영 가이드(처음 설치, 저장소에서 실행, 문제 해결, 바꾸지 않는 값), 통합 계약, 관리자 서버 만들기, 아키텍처가 운영자가 네트워크를 만들고 모니터링 시스템과 관리자 서버가 모두 붙는다고 설명한다. (S6, S7) — 확인: 리뷰, 문서 검사
-- [ ] C6. `monitoring-dev.bat check`가 통과한다. — 확인: 실행
+- [x] C1. `infrastructure/compose.yml`의 `monitoring` 네트워크가 `external: true`이고, 모니터링 시스템 프로젝트가 네트워크를 만들거나 지우지 않는다. (S1, S3) — 확인: `docker compose config`, 개발용 모니터링 시스템을 띄우고 내린 뒤 네트워크가 남는지 수동 확인 (2026-11-16 확인. `docker compose config`에 `external: true`가 있고, 개발용 모니터링 시스템을 내린 뒤에도 네트워크와 거기 붙은 다른 컨테이너가 남았다)
+- [x] C2. `monitoring` 네트워크가 없으면 `monitoring-server.sh start`가 컨테이너를 띄우기 전에 멈추고 만드는 명령을 알려 준다. 있으면 지금처럼 띄운다. (S1, S6) — 확인: 운영 명령 시험(`infrastructure/tests/monitoring-server.test.sh`) (2026-11-16 확인. 새 시험 세 개가 구현 전에 실패했고 구현 뒤 운영 명령 시험 통과 175, 실패 0)
+- [x] C3. `monitoring-dev.bat start`가 네트워크가 없으면 만들고, 있으면 그대로 쓴다. (S5) — 확인: 빌드 PC에서 수동 확인 (2026-11-16 확인. 네트워크를 지운 빌드 PC에서 `start`가 네트워크를 만들고 세 컨테이너를 붙였다)
+- [x] C4. 이 변경 전 모니터링 시스템이 만든 네트워크가 있는 상태에서 새 모니터링 시스템을 띄우면 그 네트워크를 그대로 쓴다. 관리자 서버를 먼저 띄운 뒤 모니터링 시스템을 띄워도 서로 닿는다. (S2, S4) — 확인: 개발 환경 수동 확인 (2026-11-16 확인. 이 변경 전 compose 파일이 만든 네트워크에 가짜 관리자 서버를 먼저 붙여 두고 새 방식으로 띄우자 네트워크 경고 없이 서로 닿았다. 거꾸로 운영자가 만든 네트워크에서 이 변경 전 compose 파일로도 떴다)
+- [x] C5. 운영 가이드(처음 설치, 저장소에서 실행, 문제 해결, 바꾸지 않는 값), 통합 계약, 관리자 서버 만들기, 아키텍처가 운영자가 네트워크를 만들고 모니터링 시스템과 관리자 서버가 모두 붙는다고 설명한다. (S6, S7) — 확인: 리뷰, 문서 검사 (2026-11-16 확인. 문서 검사 오류 0, 새 하위 에이전트 리뷰)
+- [x] C6. `monitoring-dev.bat check`가 통과한다. — 확인: 실행 (2026-11-16 확인. 통과)
 
 ## 확인 필요
 
