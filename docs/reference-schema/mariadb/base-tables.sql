@@ -29,7 +29,7 @@ CREATE TABLE server_targets (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 -- 서버당 0~1행입니다. 행이 없으면 "설정 안 함"입니다.
--- 허용 범위(포트 1~65535, 수집 주기 10~240초)는 요청 DTO에서 검증합니다.
+-- 허용 범위(포트 1~65535, 수집 주기 10~240초)는 관리자 서버의 요청 검증에서 확인합니다.
 CREATE TABLE server_exporter_configs (
     id                      BIGINT      NOT NULL AUTO_INCREMENT,
     server_id               BIGINT      NOT NULL,
@@ -73,7 +73,7 @@ CREATE TABLE monitoring_checks (
     environment             VARCHAR(50)  NOT NULL,
     description             VARCHAR(500) NULL,
     enabled                 TINYINT(1)   NOT NULL DEFAULT 1,
-    -- Prometheus가 HTTP SD의 __scrape_interval__로 받습니다. 허용 범위(10~240초)는 요청 DTO에서 검증합니다.
+    -- Prometheus가 HTTP SD의 __scrape_interval__로 받습니다. 허용 범위(10~240초)는 관리자 서버의 요청 검증에서 확인합니다.
     scrape_interval_seconds INT          NOT NULL DEFAULT 15,
     created_at              DATETIME(6)  NOT NULL,
     updated_at              DATETIME(6)  NOT NULL,
@@ -143,7 +143,7 @@ CREATE TABLE monitoring_check_notification_bindings (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 -- Check마다 알림을 다시 보내는 간격입니다. 행이 없는 Check는 60분입니다.
--- 허용 범위(5~1440분)는 요청 DTO에서 검증합니다.
+-- 허용 범위(5~1440분)는 관리자 서버의 요청 검증에서 확인합니다.
 CREATE TABLE check_notification_settings (
     check_id                BIGINT      NOT NULL,
     repeat_interval_minutes INT         NOT NULL,

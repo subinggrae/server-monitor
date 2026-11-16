@@ -131,7 +131,7 @@ SD 응답은 다음을 지킨다.
 - 이름, 환경, 확인 방식, 주소(`check_name`, `server_name`, `environment`, `check_type`, `module`, `targets`)는 사용자가 바꾸면 그대로 바꿔 보낸다. 그 대상의 원래 series(`probe_success`, `up`)는 새로 시작된다. 다만 감시 항목의 Alert는 id로만 묶고 새 대상이 처음 수집되기 전까지는 최근 5분 안의 마지막 값으로 판단하므로, 진행 중인 장애는 끊기지 않는다([ADR 0010](decisions/0010-alert-labels-by-check-id.md)). 수집 주기가 150초를 넘으면 끊길 수 있다(사람 확인: 2026-11-09). 서버 사용률의 recording rule은 `server_id`로 묶어 이름과 환경을 label로 남기지 않으므로 이어진다.
 - `__scrape_interval__`은 10초보다 짧게 두지 않는다. 코어의 수집 제한 시간(`scrape_timeout`)이 10초라서, 주기가 그보다 짧으면 Prometheus가 그 대상을 수집하지 않는다.
 - 목록을 만들지 못하면(DB 오류 등) 빈 배열 `[]` 대신 `5xx`를 돌려준다. `[]`을 받으면 Prometheus가 모든 대상의 감시를 멈추지만, 오류를 받으면 마지막 목록을 유지한다.
-- label에 알림 대상(chat id 등)이나 긴 설명을 넣지 않는다. label 값은 Prometheus에 그대로 저장된다.
+- label에 알림 받을 곳(메신저 방 id 등)이나 긴 설명을 넣지 않는다. label 값은 Prometheus에 그대로 저장된다.
 - SD를 부르지 못하면 Prometheus는 마지막으로 받은 목록으로 수집을 이어 간다. 앱이 멈춰도 감시는 멈추지 않는다.
 
 ### Alert: `POST /api/integrations/alertmanager/webhook`

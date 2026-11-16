@@ -83,12 +83,12 @@
 
 - 코어 이미지, 설정, Alert 규칙, 운영 명령과 그 시험
 - 통합 계약(INTEGRATION.md)과 관리자 서버 만들기(ADMIN-SERVER.md)의 계약 내용. 이 저장소 Manager를 예로 든 설명만 고친다.
-- 참고용 DDL 파일(`docs/reference-schema/`)
+- 참고용 DDL의 테이블 구성. 알림 테이블의 이름과 열만 S6대로 알림 수단과 무관하게 바꾼다.
 - 지난 요구사항과 ADR의 내용
 
 ## 완료 기준
 
-- [ ] C1. `backend/`, `frontend/`, 루트 `compose.yml`, `.env.example`, `.nvmrc`, `docs/design/`, 앱의 비밀값 예시 파일이 저장소에 없다. (목표) — 확인: `git ls-files`
+- [ ] C1. `backend/`, `frontend/`, 루트 `compose.yml`, `.env.example`, `docs/design/`, 앱의 비밀값 예시 파일이 저장소에 없다. `.nvmrc`는 코어 빌드 스크립트와 문서 검사의 Node.js 버전 기준이라 남긴다. (목표) — 확인: `git ls-files`
 - [ ] C2. `core-dev.bat check`가 통과한다. (S1) — 확인: 실행
 - [ ] C3. `core-dev.bat start`로 코어가 뜨고 `stop`으로 멈춘다. (S2) — 확인: 실행
 - [ ] C4. `node scripts/check-docs.mjs`가 오류 0, 경고 0이다. (S3, S5) — 확인: 실행

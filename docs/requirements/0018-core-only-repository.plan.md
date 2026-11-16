@@ -16,7 +16,7 @@
 
 | 위치 | 변경 |
 |---|---|
-| `backend/`, `frontend/`, `compose.yml`(루트), `.env.example`, `.nvmrc` | 지운다 |
+| `backend/`, `frontend/`, `compose.yml`(루트), `.env.example` | 지운다(`.nvmrc`는 코어 빌드 스크립트와 문서 검사의 Node.js 버전 기준이라 남김) |
 | `infrastructure/secrets/*.example` 가운데 앱용 | `manager_db_password`, `manager_db_root_password`, `telegram_bot_token`, `telegram_webhook_secret`의 예시 파일을 지운다(`alertmanager_webhook_token.example`은 남김) |
 | `docs/design/` | 네 문서를 지운다 |
 | `docs/reference-schema/*/base-tables.sql` | `telegram_destinations`를 `notification_destinations`(이름, `channel`, `address`, 켜짐)로, `telegram_destination_id` 열을 `destination_id`로 바꾸고 Telegram을 전제로 한 주석을 고친다 |
@@ -37,7 +37,7 @@
 
 ### 데이터 모델 변경
 
-해당 없음. 이 저장소에 DB가 없어진다. 참고용 DDL은 그대로다.
+이 저장소에 DB가 없어진다. 참고용 기본 테이블 DDL의 `telegram_destinations`를 `notification_destinations`(이름, `channel`, `address`, 켜짐)로, `telegram_destination_id` 열을 `destination_id`로 바꾼다(S6).
 
 ### 계약 변경
 
@@ -57,7 +57,7 @@
 
 | 완료 기준 | 테스트 | 실행 명령과 기대 결과 |
 |---|---|---|
-| C1 | 파일 목록 | `git ls-files backend frontend compose.yml .env.example .nvmrc docs/design` 출력 없음 |
+| C1 | 파일 목록 | `git ls-files backend frontend compose.yml .env.example docs/design` 출력 없음 |
 | C2 | 코어 검사 | `core-dev.bat check` 통과 |
 | C3 | 개발용 코어 실행 | `core-dev.bat start` 뒤 세 컨테이너가 뜨고, `core-dev.bat stop`으로 멈춤 |
 | C4 | 문서 검사 | `node scripts/check-docs.mjs` 오류 0, 경고 0 |

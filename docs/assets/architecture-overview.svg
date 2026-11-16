@@ -42,7 +42,7 @@
     <path class="edge" d="M152 112 H224 Q232 112 232 104 V80 Q232 72 240 72 H256" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M256 96 H256 Q248 96 248 104 V128 Q248 136 240 136 H152" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge-key" d="M256 228 H256 Q248 228 248 220 V168 Q248 160 240 160 H152" marker-end="url(#architecture-overview-arrow-key)"/>
-    <path class="edge-key" d="M332 112 V200" marker-end="url(#architecture-overview-arrow-key)"/>
+    <path class="edge" d="M332 112 V200" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M408 72 H456" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M608 84 H672" marker-end="url(#architecture-overview-arrow)"/>
     <path class="edge" d="M408 96 H424 Q432 96 432 104 V220 Q432 228 440 228 H672" marker-end="url(#architecture-overview-arrow)"/>
@@ -50,9 +50,8 @@
 
   <!-- 외부 시스템: 관리자 서버(이 시스템을 부르는 쪽) -->
   <g class="node" id="admin-server">
-    <rect class="box" x="16" y="96" width="136" height="80" rx="4"/>
-    <text class="name dim" x="84" y="132" text-anchor="middle">관리자 서버</text>
-    <text class="sub" x="84" y="152" text-anchor="middle">이 저장소 밖</text>
+    <rect class="box" x="16" y="108" width="136" height="56" rx="4"/>
+    <text class="name dim" x="84" y="140" text-anchor="middle">관리자 서버</text>
   </g>
 
   <!-- 실행 단위 -->
@@ -75,23 +74,21 @@
   <!-- 외부 시스템: 감시 대상 -->
   <g class="node" id="targets">
     <rect class="box" x="672" y="56" width="152" height="56" rx="4"/>
-    <text class="name dim" x="748" y="80" text-anchor="middle">감시 대상</text>
-    <text class="sub" x="748" y="100" text-anchor="middle">주소, 서비스</text>
+    <text class="name dim" x="748" y="88" text-anchor="middle">감시 대상</text>
   </g>
   <g class="node" id="os-exporter">
     <rect class="box" x="672" y="200" width="152" height="56" rx="4"/>
-    <text class="name dim" x="748" y="224" text-anchor="middle">OS exporter</text>
-    <text class="sub" x="748" y="244" text-anchor="middle">감시 대상 서버</text>
+    <text class="name dim" x="748" y="232" text-anchor="middle">OS exporter</text>
   </g>
 
   <!-- 연결선 이름 -->
   <g id="edge-labels">
-    <text class="sub" x="164" y="104">PromQL</text>
-    <text class="sub" x="164" y="128">HTTP SD</text>
-    <text class="sub key" x="164" y="152">webhook</text>
-    <text class="sub key" x="340" y="160">Alert</text>
-    <text class="sub" x="432" y="64" text-anchor="middle">probe</text>
-    <text class="sub" x="640" y="76" text-anchor="middle">확인</text>
-    <text class="sub" x="552" y="220" text-anchor="middle">수집</text>
+    <text class="sub" x="164" y="100">PromQL</text>
+    <text class="sub" x="164" y="124">HTTP SD</text>
+    <text class="sub key" x="164" y="148">webhook</text>
+    <text class="sub" x="340" y="160">Alert</text>
+    <text class="sub" x="432" y="60" text-anchor="middle">probe</text>
+    <text class="sub" x="640" y="72" text-anchor="middle">확인</text>
+    <text class="sub" x="552" y="216" text-anchor="middle">수집</text>
   </g>
 </svg>
