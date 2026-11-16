@@ -4,7 +4,7 @@
 *.local
 
 # Secret 파일
-# Bot Token과 Webhook Token은 Git에 올리지 않습니다.
+# webhook token 같은 비밀값은 Git에 올리지 않습니다.
 infrastructure/secrets/*
 !infrastructure/secrets/*.example
 
@@ -19,17 +19,6 @@ infrastructure/alertmanager/secrets/
 
 # 내부망 서버로 옮길 코어 묶음(scripts/build-core-bundle.mjs)
 dist/
-
-# Backend
-backend/build/
-backend/.gradle/
-backend/bin/
-backend/out/
-
-# Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
 
 # IDE
 .idea/

@@ -71,17 +71,20 @@
 ## 작업 순서
 
 - [x] 앱 코드, 루트 compose, 앱 설정·비밀값 예시, 화면 문서, 테스트 범위 그림을 지운다
-- [ ] AGENTS.md와 README.md를 코어 기준으로 고친다
-- [ ] ARCHITECTURE.md와 아키텍처 그림을 고친다
-- [ ] DEVELOPMENT.md와 TESTING.md를 고친다
-- [ ] 참고용 기본 테이블 DDL을 알림 수단과 무관하게 바꾸고 두 DB에 적용해 본다
-- [ ] 나머지 문서(OPERATIONS, INTEGRATION, ADMIN-SERVER, WRITING, DIAGRAMS, LICENSES, PRODUCT, TERMS, 템플릿), `.gitignore`, 문서 검사 스크립트, 지난 요구사항의 링크, ADR 0006을 고친다
+- [x] AGENTS.md와 README.md를 코어 기준으로 고친다
+- [x] ARCHITECTURE.md와 아키텍처 그림을 고친다
+- [x] DEVELOPMENT.md와 TESTING.md를 고친다
+- [x] 참고용 기본 테이블 DDL을 알림 수단과 무관하게 바꾸고 두 DB에 적용해 본다
+- [x] 나머지 문서(OPERATIONS, INTEGRATION, ADMIN-SERVER, WRITING, DIAGRAMS, LICENSES, PRODUCT, TERMS, 템플릿), `.gitignore`, 문서 검사 스크립트, 지난 요구사항의 링크, ADR 0006을 고친다
 - [ ] 전체 검증(`core-dev.bat check`, 문서 검사, `start`·`stop`)을 실행하고 새 하위 에이전트에게 리뷰를 맡긴다
 - [ ] 요구사항을 구현됨으로 바꾸고 이 계획을 지운다
 
 ## 진행 중 발견
 
-없음
+- `.nvmrc`는 앱만이 아니라 코어 빌드 스크립트와 문서 검사의 Node.js 버전 기준이라 지우지 않고 남겼다.
+- `scripts/check-docs.mjs`는 화면 문서가 하나도 없으면 그 검사를 건너뛰어 고치지 않았다.
+- `server-resources.yml` 주석이 지운 백엔드 클래스(`FilesystemFilter`)와 테스트를 가리켰다. 관리자 서버는 리소스 후보를 recording rule 결과에서 고르므로(INTEGRATION.md의 서버와 리소스 등록) 따로 거르지 않는다고 고쳤다.
+- 참고용 DDL 세 파일을 `mariadb:11.4`, `postgres:17`에 차례로 적용했다(2026-11-16). 두 DB 모두 15개 테이블이 생겼고, 열 이름, NULL 허용, 길이 115개가 두 DB에서 같았다.
 
 ## 남길 결정
 

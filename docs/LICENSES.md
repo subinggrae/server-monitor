@@ -70,10 +70,7 @@ AI 생성물과 생성 AI 서비스는 다음처럼 다룬다.
 
 출처 표시와 라이선스 파일은 다음처럼 다룬다.
 
-- 출처 표시가 필요한 것(Apache-2.0의 NOTICE, CC BY, 공공누리, OFL)은 오픈소스 고지 화면에 싣고, 고지 화면은 설정이나 서비스 정보 화면에서 링크한다. lockfile은 기록만 대신하므로 패키지로 들인 것도 고지는 필요하다. 고지 화면이 아직 없으면 고지가 필요한 것을 들인 변경의 보고에 적고, 고지 화면을 만들지 [AGENTS.md의 사람에게 묻기](../AGENTS.md#사람에게-묻기)대로 묻는다.
-- 프로덕션 빌드는 번들한 패키지의 라이선스 파일을 만든다. 그래서 라이선스 주석을 지우는 설정(esbuild `legalComments: 'none'` 등)을 쓰지 않는다.
-- 라이선스 파일 설정: Vite의 `build.license`로 번들한 패키지 라이선스를 `dist/licenses.txt`에 낸다(`frontend/vite.config.ts`).
-- 고지 화면: 설정 화면의 "오픈소스 고지" 절이 `/licenses.txt`와 직접 넣은 라이선스 전문(`frontend/public/licenses/`)을 링크한다.
+- 출처 표시가 필요한 것(Apache-2.0의 NOTICE, CC BY, 공공누리, OFL)은 배포하는 묶음의 `licenses/`에 싣는다. 이미지에 넣은 프로그램도 고지는 필요하다.
 - 라이선스 검사: 아직 정하지 않았다. 도구를 정한다.
 - 코어 묶음: 코어와 node_exporter 묶음은 회사 밖(다른 회사의 프로젝트)에도 준다(사람 확인: 2026-10-22). 묶음에는 그 묶음의 프로그램(코어는 Prometheus, Alertmanager, Blackbox Exporter, node_exporter 묶음은 node_exporter, 모두 Apache-2.0) 밖의 라이선스를 더하지 않는다(사람 확인: 2026-11-09). 그래서 이미지는 공식 이미지에서 실행 파일만 빈 이미지로 옮겨 만들고, 셸(BusyBox), CA 인증서 묶음, 시간대 자료를 담지 않는다. Blackbox Exporter의 CA 인증서는 코어 서버 OS의 파일을 쓰므로 묶음에 들어가지 않는다([요구사항 0015](requirements/0015-core-minimal-image.md), [ADR 0012](decisions/0012-core-render-outside-image.md)). `scripts/build-core-bundle.mjs`는 묶음의 `licenses/`에 그 묶음 프로그램의 라이선스 전문과 고지, 안내 파일(코어는 `infrastructure/licenses/README.txt`, node_exporter는 `node-exporter-README.txt`)만 싣고, 빌드 검사가 이미지의 파일이 정해진 것뿐인지 본다. 이 결정은 BusyBox를 두고 소스를 `sources/`에 싣던 2026-10-22의 방법을 대신한다. 이 처리는 라이선스 문구를 읽고 내린 실무 판단이고 법률 검토를 대신하지 않는다.
 
@@ -99,4 +96,3 @@ AI는 라이선스를 찾고, 분류 표와 대조하고, 기록과 고지 파�
 | `infrastructure/licenses/alertmanager-LICENSE`, `alertmanager-NOTICE` | https://github.com/prometheus/alertmanager 의 v0.34.1 `LICENSE`, `NOTICE`(2026-10-22 받음) | Apache-2.0 원문과 고지 | The Prometheus Authors | 코어 이미지 묶음을 배포할 때 함께 싣는 라이선스와 고지 |
 | `infrastructure/licenses/blackbox-exporter-LICENSE`, `blackbox-exporter-NOTICE` | https://github.com/prometheus/blackbox_exporter 의 v0.28.0 `LICENSE`, `NOTICE`(2026-10-22 받음) | Apache-2.0 원문과 고지 | The Prometheus Authors | 코어 이미지 묶음을 배포할 때 함께 싣는 라이선스와 고지 |
 | `infrastructure/licenses/node-exporter-LICENSE`, `node-exporter-NOTICE` | https://github.com/prometheus/node_exporter 의 v1.12.1 `LICENSE`, `NOTICE`(2026-10-22 받음) | Apache-2.0 원문과 고지 | The Prometheus Authors | node_exporter 묶음을 배포할 때 함께 싣는 라이선스와 고지 |
-| `frontend/public/licenses/pretendard-OFL.txt` | https://github.com/orioncactus/pretendard 의 `LICENSE`(2026-10-15 받음) | OFL-1.1 원문 | Kil Hyung-jin 외 | 글꼴 패키지 `pretendard`를 웹 폰트로 배포할 때 함께 싣는 라이선스 전문 |

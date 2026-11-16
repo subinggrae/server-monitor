@@ -8,7 +8,7 @@
 
 지금 테스트는 Backend 단위 테스트와 Frontend 컴포넌트 테스트뿐이다. 컴포넌트 테스트는 fetch를 대역(`fakeApi`)으로 바꾸므로, 화면, Manager API, Manager Database, Prometheus를 함께 거치는 흐름은 사람이 띄워서 손으로 확인한다. 예를 들어 [0001](0001-per-target-scrape-interval.md)의 C9는 수동 확인이었다.
 
-화면 점검도 끝낼 수 없다. [REVIEW.md의 화면 점검](../design/REVIEW.md#화면-점검)은 [DESIGN.md](../design/DESIGN.md) 개요의 화면 검사 도구를 기준 폭마다 실행하라고 하고, 도구를 정하지 않았으면 화면 점검을 마친 것으로 보지 않는다. 그런데 DESIGN.md에는 화면 검사 도구와 기준 폭이 모두 정해지지 않았다.
+화면 점검도 끝낼 수 없다. REVIEW.md의 화면 점검은 DESIGN.md 개요의 화면 검사 도구를 기준 폭마다 실행하라고 하고, 도구를 정하지 않았으면 화면 점검을 마친 것으로 보지 않는다. 그런데 DESIGN.md에는 화면 검사 도구와 기준 폭이 모두 정해지지 않았다.
 
 ## 목표
 
@@ -19,7 +19,7 @@
   - E2E: Playwright(Apache-2.0)
   - 접근성과 넘침: Playwright에 axe-core를 붙인 검사. axe-core는 MPL-2.0이라 [LICENSES.md의 분류](../LICENSES.md#분류)에서 조건 확인이다. 개발 도구로만 쓰고 배포하는 화면에 넣지 않아 소스 공개 조건이 생기지 않으므로 쓰기로 했다.
   - 성능: Lighthouse(Apache-2.0, 내부에서 axe-core를 쓴다)
-  - 흔한 기본값: 도구 없이 [REVIEW.md의 코드 점검](../design/REVIEW.md#코드-점검) 목록을 코드 검색으로 확인한다. Impeccable은 함께 설치되는 실행 파일 패키지의 라이선스를 레지스트리에서 확인하지 못했고 Node.js 22.18 이상이 필요해 쓰지 않는다.
+  - 흔한 기본값: 도구 없이 REVIEW.md의 코드 점검 목록을 코드 검색으로 확인한다. Impeccable은 함께 설치되는 실행 파일 패키지의 라이선스를 레지스트리에서 확인하지 못했고 Node.js 22.18 이상이 필요해 쓰지 않는다.
 
 ## 하지 않는 것
 

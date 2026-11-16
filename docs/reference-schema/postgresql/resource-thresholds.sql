@@ -1,7 +1,6 @@
 -- 서버 리소스 임계값 알림의 참고용 schema (PostgreSQL)
 --
--- 코어를 붙이는 앱이 리소스 임계값을 판단할 때 참고하는 DDL입니다. 이 저장소의 앱은 이 테이블을 쓰지 않으므로
--- Manager Database migration에 넣지 않습니다. 결정과 이유는 docs/decisions/0008-resource-threshold-in-app.md,
+-- 코어를 붙이는 관리자 서버가 리소스 임계값을 판단할 때 참고하는 DDL입니다. 결정과 이유는 docs/decisions/0008-resource-threshold-in-app.md,
 -- 판단 규칙은 docs/INTEGRATION.md에 있습니다.
 -- mariadb/resource-thresholds.sql과 논리 schema가 같아야 합니다.
 --

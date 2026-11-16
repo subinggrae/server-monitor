@@ -54,7 +54,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 | `scripts/build-core-bundle.mjs` | 코어 이미지 빌드와 검사, 내부망 서버로 옮길 코어·node_exporter 묶음 |
 | `core-dev.bat` | Windows 빌드 PC에서 묶음 만들기, 설정 검사, 개발용 코어 띄우기·멈추기 |
 | `scripts/check-docs.mjs` | 문서 구조, 링크, 표, 그림 검사 |
-| `docs/reference-schema/` | 관리자 서버가 참고하는 기본 테이블(`base-tables.sql`), 리소스 임계값(`resource-thresholds.sql`), 알림 메시지 템플릿(`alert-message-templates.sql`) DDL. 자동 검사는 없다 |
+| `docs/reference-schema/` | 관리자 서버가 참고하는 기본 테이블(`base-tables.sql`), 리소스 임계값(`resource-thresholds.sql`), 알림 메시지 템플릿(`alert-message-templates.sql`) DDL(자동 검사 없음) |
 
 ## 지켜야 할 경계
 
