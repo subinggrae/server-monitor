@@ -38,7 +38,7 @@
 
 ## 테스트 범위
 
-코어에는 화면, API, DB가 없다. 자동 테스트는 코어 이미지, 설정, 규칙, 운영 명령을 검사한다. 코어를 실제로 띄워 감시하고 장애를 보내는 흐름은 요구사항의 수동 확인이 맡는다. 관리자 서버의 테스트는 관리자 서버를 만드는 쪽이 정한다.
+모니터링 시스템에는 화면, API, DB가 없다. 자동 테스트는 모니터링 시스템 이미지, 설정, 규칙, 운영 명령을 검사한다. 모니터링 시스템을 실제로 띄워 감시하고 장애를 보내는 흐름은 요구사항의 수동 확인이 맡는다. 관리자 서버의 테스트는 관리자 서버를 만드는 쪽이 정한다.
 
 ## 종류별 기준
 
@@ -46,12 +46,12 @@
 
 | 종류 | 책임 | 쓰는 경우 | 쓰지 않는 경우 | 명령 |
 |---|---|---|---|---|
-| 이미지·설정 검사 | 운영 이미지의 파일 목록과 설정, Prometheus·Alertmanager·Blackbox 설정 문법, 서버에서 바꾸는 값의 약속, compose 파일의 포트와 붙이는 파일 | 항상, 별도 테스트 없이 | 해당 없음 | `core-dev.bat check` |
-| 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지, Alert 규칙이 정한 label과 annotation으로 Alert를 만들고 이어 가는지 | `infrastructure/prometheus/rules/`의 규칙을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | `core-dev.bat check` |
-| 운영 명령 시험 | 코어 서버 운영 명령이 띄우기 전에 잘못된 설정, token, 묶음을 막고 안내하는지 | `infrastructure/core-server.sh`, `core-settings.sh`를 바꿨을 때 | 실제 컨테이너를 띄우는 흐름(요구사항의 수동 확인) | `core-dev.bat check` |
+| 이미지·설정 검사 | 운영 이미지의 파일 목록과 설정, Prometheus·Alertmanager·Blackbox 설정 문법, 서버에서 바꾸는 값의 약속, compose 파일의 포트와 붙이는 파일 | 항상, 별도 테스트 없이 | 해당 없음 | `monitoring-dev.bat check` |
+| 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지, Alert 규칙이 정한 label과 annotation으로 Alert를 만들고 이어 가는지 | `infrastructure/prometheus/rules/`의 규칙을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | `monitoring-dev.bat check` |
+| 운영 명령 시험 | 모니터링 서버 운영 명령이 띄우기 전에 잘못된 설정, token, 묶음을 막고 안내하는지 | `infrastructure/monitoring-server.sh`, `monitoring-settings.sh`를 바꿨을 때 | 실제 컨테이너를 띄우는 흐름(요구사항의 수동 확인) | `monitoring-dev.bat check` |
 | 문서 검사 | 문서 구조, 링크, 표, 그림 | 문서를 바꿨을 때 | 문서 내용이 맞는지(리뷰) | `node scripts/check-docs.mjs` |
 
-검사마다 무엇을 실행하는지는 [DEVELOPMENT.md의 코어 검사와 묶음](DEVELOPMENT.md#코어-검사와-묶음)에 있다.
+검사마다 무엇을 실행하는지는 [DEVELOPMENT.md의 모니터링 시스템 검사와 묶음](DEVELOPMENT.md#모니터링-시스템-검사와-묶음)에 있다.
 
 스냅샷 테스트는 오류 메시지나 직렬화 결과처럼 짧고 리뷰할 수 있는 출력에만 쓴다.
 
@@ -143,7 +143,7 @@
 테스트 파일은 다음 위치에 둔다.
 
 - 규칙 테스트: `infrastructure/prometheus/tests/`에 `규칙파일이름.test.yml`로 둔다. Prometheus가 `rules/`의 파일을 모두 규칙으로 읽으므로 `rules/` 안에 두지 않는다.
-- 운영 명령 시험: `infrastructure/tests/core-server.test.sh`에 둔다.
+- 운영 명령 시험: `infrastructure/tests/monitoring-server.test.sh`에 둔다.
 
 실패 보고에는 테스트 이름이 가장 먼저 보인다. 그래서 이름만 읽고도 무엇이 깨졌는지 알 수 있게 다음과 같이 쓴다.
 

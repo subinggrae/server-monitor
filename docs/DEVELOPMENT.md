@@ -4,41 +4,41 @@
 
 ## 준비
 
-개발은 Windows 빌드 PC에서 한다. 코어 서버(Linux)에서 실행하는 운영 명령은 빌드 PC에서도 공식 이미지의 셸로 시험한다. 다음 도구와 설정을 준비한다.
+개발은 Windows 빌드 PC에서 한다. 모니터링 서버(Linux)에서 실행하는 운영 명령은 빌드 PC에서도 공식 이미지의 셸로 시험한다. 다음 도구와 설정을 준비한다.
 
-- 필요한 도구: Docker Desktop(Compose 포함), Node.js 18 이상(`.nvmrc`의 22를 권장). Node.js는 코어 빌드 스크립트와 문서 검사를 실행한다. 설치할 패키지는 없다.
-- 코어 설정: `infrastructure/.env.example`을 `infrastructure/.env`로 복사한다. `MONITORING_APP_ADDRESS`는 코어가 부를 관리자 서버의 `컨테이너 이름:포트`다. 관리자 서버 없이 코어만 띄워도 코어는 뜨고, Prometheus 로그에 감시 대상 목록을 받지 못했다는 오류가 남는다.
+- 필요한 도구: Docker Desktop(Compose 포함), Node.js 18 이상(`.nvmrc`의 22를 권장). Node.js는 모니터링 시스템 빌드 스크립트와 문서 검사를 실행한다. 설치할 패키지는 없다.
+- 모니터링 시스템 설정: `infrastructure/.env.example`을 `infrastructure/.env`로 복사한다. `MONITORING_APP_ADDRESS`는 모니터링 시스템이 부를 관리자 서버의 `컨테이너 이름:포트`다. 관리자 서버 없이 모니터링 시스템만 띄워도 모니터링 시스템은 뜨고, Prometheus 로그에 감시 대상 목록을 받지 못했다는 오류가 남는다.
 - 비밀값: `infrastructure/secrets/alertmanager_webhook_token.example`을 확장자를 뺀 이름으로 복사하고 값을 채운다. 이 파일은 Git에 올리지 않는다.
 
 ## 명령
 
-개발하며 실행하는 명령과 그 명령을 쓰는 때는 다음과 같다. Windows가 아니면 `core-dev.bat check`, `build` 대신 같은 일을 하는 `node scripts/build-core-bundle.mjs --check`, `node scripts/build-core-bundle.mjs`를 쓴다.
+개발하며 실행하는 명령과 그 명령을 쓰는 때는 다음과 같다. Windows가 아니면 `monitoring-dev.bat check`, `build` 대신 같은 일을 하는 `node scripts/build-monitoring-bundle.mjs --check`, `node scripts/build-monitoring-bundle.mjs`를 쓴다.
 
 | 목적 | 명령 | 언제 쓰는가 |
 |---|---|---|
-| 전체 검증 | `core-dev.bat check`, `node scripts/check-docs.mjs` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
-| 규칙 테스트와 코어 설정 검사 | `core-dev.bat check`(아래 [코어 검사와 묶음](#코어-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, Dockerfile, `compose.yml`, `core-settings.sh`, `core-server.sh`를 바꿨을 때 |
-| 코어 실행과 멈춤 | `core-dev.bat start`, `core-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `sh infrastructure/core-server.sh render` 뒤 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 코어 설정을 바꿔 직접 띄워 확인할 때 |
-| 코어 묶음 | `core-dev.bat build` | 내부망 서버에 옮길 코어와 node_exporter를 만들 때 |
+| 전체 검증 | `monitoring-dev.bat check`, `node scripts/check-docs.mjs` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
+| 규칙 테스트와 모니터링 시스템 설정 검사 | `monitoring-dev.bat check`(아래 [모니터링 시스템 검사와 묶음](#모니터링-시스템-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, Dockerfile, `compose.yml`, `monitoring-settings.sh`, `monitoring-server.sh`를 바꿨을 때 |
+| 모니터링 시스템 실행과 멈춤 | `monitoring-dev.bat start`, `monitoring-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `sh infrastructure/monitoring-server.sh render` 뒤 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 모니터링 시스템 설정을 바꿔 직접 띄워 확인할 때 |
+| 모니터링 시스템 묶음 | `monitoring-dev.bat build` | 내부망 서버에 옮길 모니터링 시스템과 node_exporter를 만들 때 |
 | 문서 검사 | `node scripts/check-docs.mjs` | 문서를 바꿨을 때(그림을 바꿨다면 `--render`를 붙여서) |
 
-### 코어 검사와 묶음
+### 모니터링 시스템 검사와 묶음
 
-코어 이미지에는 실행 파일과 Alert 규칙만 있고, 설정은 운영 명령이 띄우기 전에 펼친다([ADR 0009](decisions/0009-core-config-in-image.md), [ADR 0012](decisions/0012-core-render-outside-image.md)). 운영 이미지에는 셸과 `promtool`, `amtool`이 없으므로, 검사는 각 Dockerfile의 첫 단계(`src`, 태그와 digest로 고정한 공식 이미지)에 든 도구와 BusyBox `sh`로 한다. `core-dev.bat check`(`node scripts/build-core-bundle.mjs --check`와 같다)는 코어 이미지와 node_exporter 이미지를 빌드한 뒤 다음을 실행하고, 하나라도 실패하면 종료 코드 1로 멈춘다.
+모니터링 시스템 이미지에는 실행 파일과 Alert 규칙만 있고, 설정은 운영 명령이 띄우기 전에 펼친다([ADR 0009](decisions/0009-core-config-in-image.md), [ADR 0012](decisions/0012-core-render-outside-image.md)). 운영 이미지에는 셸과 `promtool`, `amtool`이 없으므로, 검사는 각 Dockerfile의 첫 단계(`src`, 태그와 digest로 고정한 공식 이미지)에 든 도구와 BusyBox `sh`로 한다. `monitoring-dev.bat check`(`node scripts/build-monitoring-bundle.mjs --check`와 같다)는 모니터링 시스템 이미지와 node_exporter 이미지를 빌드한 뒤 다음을 실행하고, 하나라도 실패하면 종료 코드 1로 멈춘다.
 
 - 운영 이미지 네 개의 파일 목록 검사. `docker export`로 꺼낸 파일이 실행 파일, Alert 규칙, 빈 기록 폴더, Docker가 컨테이너마다 만드는 파일뿐인지, 기록 폴더의 소유자가 `nobody`(65534)인지 본다. 셸, BusyBox, `promtool`, `amtool`, CA 묶음, 시간대 자료가 들어가면 실패한다
 - 운영 이미지 네 개의 설정 검사. 실행 사용자, 작업 폴더, 포트, volume, 실행 인자(`Entrypoint`, `Cmd`), 버전·커밋·커밋 시각 label을 기대값과 비교한다
-- 서버에서 바꾸는 코어 값의 약속 검사. 저장소의 `infrastructure/core-settings.sh`에서 허용 범위를 읽어, 확인 제한 시간의 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값 이하인지, 보관 기간의 하한이 규칙이 읽는 가장 긴 범위보다 긴지, 포트 범위가 1024~65535 안이고 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모른다
+- 서버에서 바꾸는 설정 값의 약속 검사. 저장소의 `infrastructure/monitoring-settings.sh`에서 허용 범위를 읽어, 확인 제한 시간의 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값 이하인지, 보관 기간의 하한이 규칙이 읽는 가장 긴 범위보다 긴지, 포트 범위가 1024~65535 안이고 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모른다
 - 값 세 벌(모두 비움, 허용 범위 아래 끝, 위 끝. 세 포트는 서로 1씩 다르게 둔다)마다 운영 명령의 `render`로 펼친 뒤 다음 검사
   - Prometheus 설정 검사(`promtool check config`, 규칙은 운영 이미지에서 꺼냄)와, 펼친 `prometheus.yml`의 보관 항목이 보관 기간·용량인지 확인
   - Alertmanager 설정 검사(`amtool check-config`)
   - 운영 이미지로 Blackbox 설정 검사(`blackbox_exporter --config.check`)와, module마다 `timeout`이 확인 제한 시간이고 `insecure_skip_verify`가 없는지 확인
-  - 펼친 `core.env`에 검사를 통과한 값이 들어 있는지 확인
-- `infrastructure/compose.yml`의 모든 포트가 값 세 벌에서 `127.0.0.1`에만 열리는지, 서비스마다 펼친 설정만 읽기 전용으로 붙고 CA 인증서 파일은 Blackbox Exporter에만 붙는지, healthcheck가 없고 `rendered/core.env`가 없으면 Compose가 멈추는지 확인. 묶음을 만들 때는 실행용 `compose.yml`도 같은 확인을 한다
+  - 펼친 `monitoring.env`에 검사를 통과한 값이 들어 있는지 확인
+- `infrastructure/compose.yml`의 모든 포트가 값 세 벌에서 `127.0.0.1`에만 열리는지, 서비스마다 펼친 설정만 읽기 전용으로 붙고 CA 인증서 파일은 Blackbox Exporter에만 붙는지, healthcheck가 없고 `rendered/monitoring.env`가 없으면 Compose가 멈추는지 확인. 묶음을 만들 때는 실행용 `compose.yml`도 같은 확인을 한다
 - 운영 이미지에서 꺼낸 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
-- 코어 서버 운영 명령(`infrastructure/core-server.sh`)의 자동 시험(`infrastructure/tests/core-server.test.sh`). 공식 Prometheus 이미지의 BusyBox `sh`에서 가짜 `docker`, `systemctl`, `curl`, `wget`으로 실행한다. 범위 밖이거나 형식이 틀린 값과 관리자 서버 주소를 `render`와 `start`가 거부하는지도 여기서 본다
+- 모니터링 서버 운영 명령(`infrastructure/monitoring-server.sh`)의 자동 시험(`infrastructure/tests/monitoring-server.test.sh`). 공식 Prometheus 이미지의 BusyBox `sh`에서 가짜 `docker`, `systemctl`, `curl`, `wget`으로 실행한다. 범위 밖이거나 형식이 틀린 값과 관리자 서버 주소를 `render`와 `start`가 거부하는지도 여기서 본다
 
-`core-dev.bat build`(`node scripts/build-core-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `core-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 코어 설치](OPERATIONS.md#코어-설치)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-core-bundle.mjs`의 버전·체크섬을 함께 바꾼다.
+`monitoring-dev.bat build`(`node scripts/build-monitoring-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `monitoring-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 모니터링 시스템 설치](OPERATIONS.md#모니터링-시스템-설치)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-monitoring-bundle.mjs`의 버전·체크섬을 함께 바꾼다.
 
 Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝났는데 실행 중으로 남아 검사가 멈추는 일이 있었다(2026-11-10, 원인은 확인하지 못함). `docker ps`에 몇 분째 남은 검사 컨테이너가 있으면 `docker kill <이름>`으로 끝내고, 되풀이되면 Docker Desktop을 다시 시작한다.
 
@@ -48,7 +48,7 @@ Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝�
 
 새 명령을 더할 때는 다음 이름을 쓴다. 하지만 이미 있는 이름은 바꾸지 않는다. CI 설정과 사람의 습관이 그 이름에 기대고 있기 때문이다.
 
-| 목적 | `core-dev.bat`의 작업 이름 |
+| 목적 | `monitoring-dev.bat`의 작업 이름 |
 |---|---|
 | 전체 검증 | `check` |
 | 내부망 서버로 옮길 묶음 만들기 | `build` |
@@ -56,7 +56,7 @@ Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝�
 
 명령을 만들 때는 다음 규칙도 따른다.
 
-- 전체 검증은 이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험을 차례로 실행한다. 코어를 실제로 띄워 보는 확인은 넣지 않고 요구사항의 수동 확인으로 한다.
+- 전체 검증은 이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험을 차례로 실행한다. 모니터링 시스템을 실제로 띄워 보는 확인은 넣지 않고 요구사항의 수동 확인으로 한다.
 - 테스트 명령은 한 번 실행하고 끝나야 한다. 이 기준은 [TESTING.md의 결정적 실행](TESTING.md#결정적-실행)에 있다.
 - 여러 명령을 묶는 명령은 pre·post 훅에 기대지 않고 명시적으로 차례대로 실행한다. 패키지 관리자마다 훅을 실행하는지가 다르기 때문이다.
 - 기존 명령을 묶기만 하는 명령을 더하는 일이 위험 영역인지는 [AGENTS.md의 작업 흐름](../AGENTS.md#작업-흐름)을 따른다.
@@ -83,7 +83,7 @@ Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝�
 
 - 라이선스는 [LICENSES.md의 분류](LICENSES.md#분류)를 따른다.
 - 의존성을 바꾸면 [TESTING.md의 자동 검사](TESTING.md#자동-검사)의 의존성 검사를 실행한다.
-- 공식 이미지는 태그와 digest를 함께 고정한다. 바꾸는 방법은 위의 [코어 검사와 묶음](#코어-검사와-묶음)에 있다.
+- 공식 이미지는 태그와 digest를 함께 고정한다. 바꾸는 방법은 위의 [모니터링 시스템 검사와 묶음](#모니터링-시스템-검사와-묶음)에 있다.
 
 ## 에이전트 실행 환경
 

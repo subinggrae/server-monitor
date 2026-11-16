@@ -25,11 +25,11 @@
 ## 자주 쓰는 명령
 
 ```sh
-node scripts/build-core-bundle.mjs --check
+node scripts/build-monitoring-bundle.mjs --check
 node scripts/check-docs.mjs
 ```
 
-첫 명령은 Windows 빌드 PC의 `core-dev.bat check`와 같고 Docker가 필요하다.
+첫 명령은 Windows 빌드 PC의 `monitoring-dev.bat check`와 같고 Docker가 필요하다.
 
 작업하는 동안과 커밋하기 전에는 바꾼 부분의 테스트만 실행한다. 전체 검증은 완료 기준을 모두 확인한 뒤 끝내기 전에 한 번, 그리고 푸시와 병합 직전에 실행한다. 전체 검증 명령이 아직 없으면 DEVELOPMENT.md 명령 표의 전체 검증 행에 대신 적은 명령을 차례로 실행한다. 전체 명령은 [DEVELOPMENT.md의 명령](docs/DEVELOPMENT.md#명령)에 있다. 명령이 바뀌면 두 곳을 함께 고친다.
 
@@ -163,6 +163,6 @@ node scripts/check-docs.mjs
 이 절을 고칠 때는 [WRITING.md의 AI 지침](docs/WRITING.md#ai-지침) 기준을 따른다. AI가 이 지침을 어기거나 같은 실수를 되풀이하면, 지침을 어떻게 고칠지 제안과 함께 묻는다.
 
 - 다음도 위험 영역으로 보고 큰 변경으로 다룬다. Prometheus HTTP SD와 Alertmanager webhook 계약, `infrastructure/`의 compose 파일, Prometheus 설정과 규칙, Alertmanager·Blackbox 설정, `infrastructure/secrets/`의 비밀값과 exporter 접근 방식이다.
-- 사용자가 관리자 서버에서 바꾼 설정 때문에 `infrastructure/`의 설정 파일과 Alert 규칙을 만들거나 고치지 않는다. 사용자 설정의 기준은 관리자 서버의 DB이고, 코어와는 [통합 계약](docs/INTEGRATION.md)의 HTTP SD와 webhook으로만 주고받는다. 자세한 경계는 [ARCHITECTURE.md의 지켜야 할 경계](docs/ARCHITECTURE.md#지켜야-할-경계)에 있다.
+- 사용자가 관리자 서버에서 바꾼 설정 때문에 `infrastructure/`의 설정 파일과 Alert 규칙을 만들거나 고치지 않는다. 사용자 설정의 기준은 관리자 서버의 DB이고, 모니터링 시스템과는 [통합 계약](docs/INTEGRATION.md)의 HTTP SD와 webhook으로만 주고받는다. 자세한 경계는 [ARCHITECTURE.md의 지켜야 할 경계](docs/ARCHITECTURE.md#지켜야-할-경계)에 있다.
 - HTTP SD 응답의 label을 더하거나 지우거나 이름을 바꾸면, 또는 Check 대상의 id가 바뀌면 Prometheus time series가 끊긴다. 바꾸기 전에 [사람에게 묻기](#사람에게-묻기)대로 묻는다.
 - 코드·설정 주석의 `(CLAUDE.md N번)`은 옛 지침의 규칙 번호이고, 그 원문은 저장소에 없다. 새 주석에 이 표기를 쓰지 않는다. 규칙은 ARCHITECTURE.md의 지켜야 할 경계로 확인한다.

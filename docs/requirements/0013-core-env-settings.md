@@ -19,7 +19,7 @@ YAML을 열지 않는 이유는 두 가지다. 첫째, 빌드할 때 돌리는 P
 | 기록 보관 15일 | `infrastructure/prometheus/Dockerfile`의 실행 인자 `--storage.tsdb.retention.time=15d` | 운영 가이드의 디스크 안내, 요구사항 0010·0011의 바뀌지 않는 것 |
 | 코어 포트 9090, 9093, 9115 | `infrastructure/compose.yml`의 `ports`(`127.0.0.1:9090:9090` 등) | 아래 문단의 컨테이너 안 포트 |
 
-코어 포트는 두 가지로 나뉜다. 코어 서버의 `127.0.0.1`에 열리는 호스트 쪽 포트는 운영자가 브라우저, SSH 터널, `curl`로 쓴다. 반면 `monitoring` 네트워크 안의 컨테이너 포트는 약속이다. 관리자 서버가 `http://prometheus:9090`을 부르고([ADR 0007](../decisions/0007-core-app-contract.md), [통합 계약](../INTEGRATION.md#코어가-제공할-것)), `prometheus.yml`이 `alertmanager:9093`과 `blackbox-exporter:9115`를 부르며, 세 컨테이너의 healthcheck가 컨테이너 안에서 같은 포트를 부른다.
+코어 포트는 두 가지로 나뉜다. 코어 서버의 `127.0.0.1`에 열리는 호스트 쪽 포트는 운영자가 브라우저, SSH 터널, `curl`로 쓴다. 반면 `monitoring` 네트워크 안의 컨테이너 포트는 약속이다. 관리자 서버가 `http://prometheus:9090`을 부르고([ADR 0007](../decisions/0007-core-app-contract.md), [통합 계약](../INTEGRATION.md#모니터링-시스템이-제공할-것)), `prometheus.yml`이 `alertmanager:9093`과 `blackbox-exporter:9115`를 부르며, 세 컨테이너의 healthcheck가 컨테이너 안에서 같은 포트를 부른다.
 
 확인 제한 시간에는 Prometheus 쪽 상한이 있다. Blackbox Exporter는 module의 `timeout`과 Prometheus `scrape_timeout`에서 0.5초(`--timeout-offset` 기본값)를 뺀 값 가운데 짧은 쪽으로 확인한다([Blackbox Exporter README](https://github.com/prometheus/blackbox_exporter/blob/v0.28.0/README.md), [v0.28.0 `main.go`](https://github.com/prometheus/blackbox_exporter/blob/v0.28.0/main.go), 확인일 2026-10-29). `scrape_timeout`은 수집 주기 하한(10초)보다 길 수 없으므로([ADR 0002](../decisions/0002-scrape-interval-via-http-sd.md)), 확인 제한 시간을 9.5초보다 길게 적어도 실제로는 9.5초에서 끊긴다. 이 동작은 문서와 코드를 읽어 확인했고, 이 저장소에서 실행해 확인하지는 않았다.
 

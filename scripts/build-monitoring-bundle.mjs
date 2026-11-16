@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// 인터넷이 없는 내부망 서버로 옮길 코어 묶음과 node_exporter 묶음을 만든다. 의존성 없이 Node 18 이상에서 동작한다.
+// 인터넷이 없는 내부망 서버로 옮길 모니터링 시스템 묶음과 node_exporter 묶음을 만든다. 의존성 없이 Node 18 이상에서 동작한다.
 // 결정과 이유는 docs/decisions/0009-core-config-in-image.md와 0012-core-render-outside-image.md, 옮겨 설치하는 방법은 docs/OPERATIONS.md에 있다.
 //
-//   node scripts/build-core-bundle.mjs           이미지를 빌드해 검사하고 묶음을 만든다
-//   node scripts/build-core-bundle.mjs --check   이미지를 빌드해 설정 검사와 규칙 테스트만 한다(묶음을 만들지 않음)
+//   node scripts/build-monitoring-bundle.mjs           이미지를 빌드해 검사하고 묶음을 만든다
+//   node scripts/build-monitoring-bundle.mjs --check   이미지를 빌드해 설정 검사와 규칙 테스트만 한다(묶음을 만들지 않음)
 //
 // 옵션: --allow-dirty  커밋하지 않은 변경이 있어도 시험용 묶음을 만든다(버전 끝에 -dirty가 붙음)
 //
-// 저장소 최상위에서 실행하고, Docker와 인터넷이 필요하다. 결과는 dist/monitoring-core-<버전>/, dist/node-exporter-<버전>/에 생긴다.
+// 저장소 최상위에서 실행하고, Docker와 인터넷이 필요하다. 결과는 dist/monitoring-system-<버전>/, dist/node-exporter-<버전>/에 생긴다.
 // 운영 이미지에는 셸과 도구가 없으므로, 설정 검사는 Dockerfile의 첫 단계(src, 공식 이미지)에 든 promtool, amtool, 셸로 한다.
 // 종료 코드: 빌드, 검사, 비밀값 확인 가운데 하나라도 실패하면 1.
 
@@ -17,17 +17,17 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const CORE_DIR = path.join(ROOT, 'infrastructure');
-const CORE_COMPOSE = path.join(CORE_DIR, 'compose.yml');
-const NODE_EXPORTER_DIR = path.join(CORE_DIR, 'node-exporter');
+const INFRA_DIR = path.join(ROOT, 'infrastructure');
+const SYSTEM_COMPOSE = path.join(INFRA_DIR, 'compose.yml');
+const NODE_EXPORTER_DIR = path.join(INFRA_DIR, 'node-exporter');
 const NODE_EXPORTER_COMPOSE = path.join(NODE_EXPORTER_DIR, 'compose.yml');
-const LICENSES_DIR = path.join(CORE_DIR, 'licenses');
+const LICENSES_DIR = path.join(INFRA_DIR, 'licenses');
 const DIST = path.join(ROOT, 'dist');
 
 // 내부망 서버는 x86-64만 쓴다(요구사항 0010).
 const PLATFORM = 'linux/amd64';
 
-const CORE_IMAGES = ['prometheus', 'alertmanager', 'blackbox-exporter'];
+const SYSTEM_IMAGES = ['prometheus', 'alertmanager', 'blackbox-exporter'];
 
 // 설정 검사에 쓰는 앱 주소다. 빌드한 이미지에는 들어가지 않고, 서버에서 펼칠 때 진짜 주소를 쓴다.
 const CHECK_APP_ADDRESS = 'manager-api:8080';
@@ -43,7 +43,7 @@ const NODE_EXPORTER = {
 
 // 묶음마다 싣는 라이선스 파일이다. 묶음에 든 프로그램의 것만 싣는다(요구사항 0015). README는 묶음의 licenses/README.txt가 된다.
 const BUNDLE_LICENSES = {
-  core: {
+  system: {
     readme: 'README.txt',
     files: ['prometheus-LICENSE', 'prometheus-NOTICE', 'alertmanager-LICENSE', 'alertmanager-NOTICE',
       'blackbox-exporter-LICENSE', 'blackbox-exporter-NOTICE'],
@@ -160,21 +160,21 @@ function version({ allowDirty }) {
   return { describe, revision, commitTime };
 }
 
-function composeEnv(core) {
+function composeEnv(release) {
   return {
-    CORE_VERSION: core.describe,
-    CORE_REVISION: core.revision,
-    CORE_COMMIT_TIME: core.commitTime,
+    MONITORING_VERSION: release.describe,
+    MONITORING_REVISION: release.revision,
+    MONITORING_COMMIT_TIME: release.commitTime,
     DOCKER_DEFAULT_PLATFORM: PLATFORM,
   };
 }
 
-function imageName(name, core) {
-  return `monitoring-core-${name}:${core.describe}`;
+function imageName(name, release) {
+  return `monitoring-system-${name}:${release.describe}`;
 }
 
-function nodeExporterImage(core) {
-  return `monitoring-node-exporter:${core.describe}`;
+function nodeExporterImage(release) {
+  return `monitoring-node-exporter:${release.describe}`;
 }
 
 // Dockerfile의 첫 단계(src)만 빌드해 공식 이미지를 돌려준다. 운영 이미지와 같은 digest의 도구로 검사하기 위해서다.
@@ -232,45 +232,45 @@ function exportImage(image) {
 }
 
 function ruleFiles() {
-  return fs.readdirSync(path.join(CORE_DIR, 'prometheus', 'rules')).filter((name) => name.endsWith('.yml')).sort();
+  return fs.readdirSync(path.join(INFRA_DIR, 'prometheus', 'rules')).filter((name) => name.endsWith('.yml')).sort();
 }
 
 // 운영 이미지마다 담는 것과 이미지 설정이다(요구사항 0015의 C1, C2). 실행 사용자, 작업 폴더, 포트, volume, 실행 인자는
-// 공식 이미지에서 읽은 값과 같고, 설정 파일 위치만 펼친 설정을 붙이는 /etc/core/로 바뀐다.
+// 공식 이미지에서 읽은 값과 같고, 설정 파일 위치만 펼친 설정을 붙이는 /etc/monitoring/로 바뀐다.
 // 작업 폴더가 없던 공식 이미지("")는 빈 이미지에서 "/"로 보이고, 컨테이너의 작업 폴더는 둘 다 /다.
-function imageSpecs(core) {
+function imageSpecs(release) {
   const labels = (title, commitTime = true) => ({
     'org.opencontainers.image.title': title,
-    'org.opencontainers.image.version': core.describe,
-    'org.opencontainers.image.revision': core.revision,
+    'org.opencontainers.image.version': release.describe,
+    'org.opencontainers.image.revision': release.revision,
     'org.opencontainers.image.source': 'https://github.com/subinggrae/server-monitor',
-    ...(commitTime ? { 'monitoring-core.commit-time': core.commitTime } : {}),
+    ...(commitTime ? { 'monitoring-system.commit-time': release.commitTime } : {}),
   });
   return {
-    [imageName('prometheus', core)]: {
+    [imageName('prometheus', release)]: {
       files: ['bin/', 'bin/prometheus', 'etc/prometheus/', 'etc/prometheus/rules/',
         ...ruleFiles().map((name) => `etc/prometheus/rules/${name}`), 'prometheus/'],
       owners: { 'prometheus/': NOBODY },
       config: { User: NOBODY, WorkingDir: '/prometheus', ExposedPorts: ['9090/tcp'], Volumes: ['/prometheus'],
-        Entrypoint: ['/bin/prometheus'], Cmd: ['--config.file=/etc/core/prometheus.yml', '--storage.tsdb.path=/prometheus'] },
-      labels: labels('monitoring-core-prometheus'),
+        Entrypoint: ['/bin/prometheus'], Cmd: ['--config.file=/etc/monitoring/prometheus.yml', '--storage.tsdb.path=/prometheus'] },
+      labels: labels('monitoring-system-prometheus'),
     },
-    [imageName('alertmanager', core)]: {
+    [imageName('alertmanager', release)]: {
       files: ['bin/', 'bin/alertmanager', 'alertmanager/'],
       owners: { 'alertmanager/': NOBODY },
       config: { User: NOBODY, WorkingDir: '/alertmanager', ExposedPorts: ['9093/tcp'], Volumes: ['/alertmanager'],
         Entrypoint: ['/bin/alertmanager'],
-        Cmd: ['--config.file=/etc/core/alertmanager.yml', '--storage.path=/alertmanager', '--enable-feature=utf8-strict-mode'] },
-      labels: labels('monitoring-core-alertmanager'),
+        Cmd: ['--config.file=/etc/monitoring/alertmanager.yml', '--storage.path=/alertmanager', '--enable-feature=utf8-strict-mode'] },
+      labels: labels('monitoring-system-alertmanager'),
     },
-    [imageName('blackbox-exporter', core)]: {
+    [imageName('blackbox-exporter', release)]: {
       files: ['bin/', 'bin/blackbox_exporter'],
       owners: {},
       config: { User: '0:0', WorkingDir: '/', ExposedPorts: ['9115/tcp'], Volumes: [],
-        Entrypoint: ['/bin/blackbox_exporter'], Cmd: ['--config.file=/etc/core/blackbox.yml'] },
-      labels: labels('monitoring-core-blackbox-exporter'),
+        Entrypoint: ['/bin/blackbox_exporter'], Cmd: ['--config.file=/etc/monitoring/blackbox.yml'] },
+      labels: labels('monitoring-system-blackbox-exporter'),
     },
-    [nodeExporterImage(core)]: {
+    [nodeExporterImage(release)]: {
       files: ['bin/', 'bin/node_exporter'],
       owners: {},
       config: { User: NOBODY, WorkingDir: '/', ExposedPorts: ['9100/tcp'], Volumes: [], Entrypoint: ['/bin/node_exporter'], Cmd: [] },
@@ -337,11 +337,11 @@ function checkImages(images, specs) {
 
 // --- 설정 검사 ---
 
-// 코어 서버의 .env에서 바꾸는 값이다(요구사항 0013). 허용 범위는 저장소의 core-settings.sh에서 읽는다.
-const CORE_SETTING_NAMES = ['CORE_RETENTION_DAYS', 'CORE_RETENTION_SIZE_GB', 'CORE_PROBE_TIMEOUT_SECONDS',
-  'CORE_PROMETHEUS_PORT', 'CORE_ALERTMANAGER_PORT', 'CORE_BLACKBOX_PORT'];
+// 모니터링 서버의 .env에서 바꾸는 값이다(요구사항 0013). 허용 범위는 저장소의 monitoring-settings.sh에서 읽는다.
+const MONITORING_SETTING_NAMES = ['MONITORING_RETENTION_DAYS', 'MONITORING_RETENTION_SIZE_GB', 'MONITORING_PROBE_TIMEOUT_SECONDS',
+  'MONITORING_PROMETHEUS_PORT', 'MONITORING_ALERTMANAGER_PORT', 'MONITORING_BLACKBOX_PORT'];
 // 호스트 포트 값마다 그 포트가 묶이는 컨테이너 안 포트다. 컨테이너 안 포트는 바뀌지 않는다.
-const HOST_PORT_TARGETS = { CORE_PROMETHEUS_PORT: 9090, CORE_ALERTMANAGER_PORT: 9093, CORE_BLACKBOX_PORT: 9115 };
+const HOST_PORT_TARGETS = { MONITORING_PROMETHEUS_PORT: 9090, MONITORING_ALERTMANAGER_PORT: 9093, MONITORING_BLACKBOX_PORT: 9115 };
 // Blackbox는 module의 timeout과 scrape_timeout에서 이 값(--timeout-offset 기본값)을 뺀 값 가운데 짧은 쪽으로 확인한다.
 const BLACKBOX_TIMEOUT_OFFSET_SECONDS = 0.5;
 // 포트 번호의 범위다. 1024 아래는 시스템이 쓰는 포트다.
@@ -350,23 +350,23 @@ const PORT_RANGE = { min: 1024, max: 65535 };
 // CA 인증서 파일은 운영자가 복사해 두는 곳(caDir: 저장소는 certs, 묶음은 설치 폴더의 ../certs)에서 붙인다.
 function renderedMounts(caDir) {
   return {
-    prometheus: { 'rendered/prometheus.yml': '/etc/core/prometheus.yml' },
-    alertmanager: { 'rendered/alertmanager.yml': '/etc/core/alertmanager.yml' },
-    'blackbox-exporter': { 'rendered/blackbox.yml': '/etc/core/blackbox.yml',
+    prometheus: { 'rendered/prometheus.yml': '/etc/monitoring/prometheus.yml' },
+    alertmanager: { 'rendered/alertmanager.yml': '/etc/monitoring/alertmanager.yml' },
+    'blackbox-exporter': { 'rendered/blackbox.yml': '/etc/monitoring/blackbox.yml',
       [`${caDir}/ca-certificates.crt`]: '/etc/ssl/certs/ca-certificates.crt' },
   };
 }
 
 function readSettingRanges(tools) {
-  const out = run('docker', ['run', '--rm', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
-    '. /src/core-settings.sh && core_settings_ranges'], { capture: true });
+  const out = run('docker', ['run', '--rm', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
+    '. /src/monitoring-settings.sh && monitoring_settings_ranges'], { capture: true });
   const ranges = out.split(/\r?\n/).map((line) => {
     const [name, defaultValue, min, max] = line.split('|');
     return { name, defaultValue, min: Number(min), max: Number(max) };
   });
   const names = ranges.map((range) => range.name).sort();
-  if (names.join() !== [...CORE_SETTING_NAMES].sort().join()) {
-    fail(`core-settings.sh의 값 목록(${names.join(', ')})이 이 스크립트의 CORE_SETTING_NAMES와 다릅니다. 두 곳을 함께 고쳐 주세요.`);
+  if (names.join() !== [...MONITORING_SETTING_NAMES].sort().join()) {
+    fail(`monitoring-settings.sh의 값 목록(${names.join(', ')})이 이 스크립트의 MONITORING_SETTING_NAMES와 다릅니다. 두 곳을 함께 고쳐 주세요.`);
   }
   return ranges;
 }
@@ -397,13 +397,13 @@ function durationSeconds(text) {
   return parts.reduce((sum, [, amount, unit]) => sum + Number(amount) * units[unit], 0);
 }
 
-// 코어 서버와 같은 운영 명령(core-server.sh render)으로 설정을 펼친다. 저장소 배치를 본뜬 임시 폴더에서 공식 이미지의 셸로 실행한다.
+// 모니터링 서버와 같은 운영 명령(monitoring-server.sh render)으로 설정을 펼친다. 저장소 배치를 본뜬 임시 폴더에서 공식 이미지의 셸로 실행한다.
 // token과 CA 인증서 파일은 검사용 값이고 비밀값이 아니다.
 function renderConfigs(tools, values) {
   const work = scratchDir('render-check');
-  for (const name of ['core-server.sh', 'core-settings.sh', 'prometheus/prometheus.yml', 'alertmanager/alertmanager.yml',
+  for (const name of ['monitoring-server.sh', 'monitoring-settings.sh', 'prometheus/prometheus.yml', 'alertmanager/alertmanager.yml',
     'blackbox/blackbox.yml']) {
-    copy(path.join(CORE_DIR, name), path.join(work, name));
+    copy(path.join(INFRA_DIR, name), path.join(work, name));
   }
   const env = Object.entries({ MONITORING_APP_ADDRESS: CHECK_APP_ADDRESS, ...values }).map(([key, value]) => `${key}=${value}`);
   writeText(path.join(work, '.env'), `${env.join('\n')}\n`);
@@ -412,7 +412,7 @@ function renderConfigs(tools, values) {
   writeText(path.join(work, 'certs', 'ca-certificates.crt'), 'build-check-ca\n');
   fs.chmodSync(path.join(work, 'certs', 'ca-certificates.crt'), 0o644);
   run('docker', ['run', '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work',
-    '--entrypoint', '/bin/sh', tools.prometheus, 'core-server.sh', 'render'], { capture: true });
+    '--entrypoint', '/bin/sh', tools.prometheus, 'monitoring-server.sh', 'render'], { capture: true });
   const rendered = path.join(work, 'rendered');
   return { dir: rendered, work, read: (name) => fs.readFileSync(path.join(rendered, name), 'utf8') };
 }
@@ -420,8 +420,8 @@ function renderConfigs(tools, values) {
 // 펼친 prometheus.yml의 보관 항목(storage.tsdb.retention)이 보관 기간과 용량인지 본다. 용량이 비면 0B(제한 없음)다.
 function checkPrometheusRetention(rendered, ranges, set) {
   const text = rendered.read('prometheus.yml');
-  const size = effective(ranges, set.values, 'CORE_RETENTION_SIZE_GB');
-  const expected = { time: `${effective(ranges, set.values, 'CORE_RETENTION_DAYS')}d`, size: size === '' ? '0B' : `${size}GB` };
+  const size = effective(ranges, set.values, 'MONITORING_RETENTION_SIZE_GB');
+  const expected = { time: `${effective(ranges, set.values, 'MONITORING_RETENTION_DAYS')}d`, size: size === '' ? '0B' : `${size}GB` };
   const found = /^storage:\s*\n\s+tsdb:\s*\n\s+retention:\s*\n\s+time:\s*(\S+)\s*\n\s+size:\s*(\S+)\s*$/m.exec(text);
   if (!found || (text.match(/^\s+retention:/gm) ?? []).length !== 1 || found[1] !== expected.time || found[2] !== expected.size) {
     fail(`${set.label}: 펼친 prometheus.yml의 보관 항목이 time ${expected.time}, size ${expected.size}가 아닙니다. 받은 값: ${found ? `${found[1]}, ${found[2]}` : '찾지 못함'}`);
@@ -433,7 +433,7 @@ function checkBlackboxConfig(rendered, ranges, set) {
   const text = rendered.read('blackbox.yml');
   const modules = (text.match(/^\s+prober:/gm) ?? []).length;
   const timeouts = [...text.matchAll(/^\s+timeout:\s*(\S+)\s*$/gm)].map((match) => match[1]);
-  const expected = `${effective(ranges, set.values, 'CORE_PROBE_TIMEOUT_SECONDS')}s`;
+  const expected = `${effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS')}s`;
   if (modules === 0 || timeouts.length !== modules || timeouts.some((timeout) => timeout !== expected)) {
     fail(`${set.label}: 펼친 Blackbox 설정의 timeout이 module마다 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ')}`);
   }
@@ -442,17 +442,17 @@ function checkBlackboxConfig(rendered, ranges, set) {
   }
 }
 
-// 펼친 core.env가 검사를 통과한 값을 컨테이너에 넘기는지 본다. status와 보관 값 줄임 확인이 이 값을 읽는다.
-function checkCoreEnv(rendered, ranges, set) {
-  const text = rendered.read('core.env');
-  for (const name of ['CORE_RETENTION_DAYS', 'CORE_RETENTION_SIZE_GB', 'CORE_PROBE_TIMEOUT_SECONDS']) {
+// 펼친 monitoring.env가 검사를 통과한 값을 컨테이너에 넘기는지 본다. status와 보관 값 줄임 확인이 이 값을 읽는다.
+function checkRenderedEnv(rendered, ranges, set) {
+  const text = rendered.read('monitoring.env');
+  for (const name of ['MONITORING_RETENTION_DAYS', 'MONITORING_RETENTION_SIZE_GB', 'MONITORING_PROBE_TIMEOUT_SECONDS']) {
     if (!text.split('\n').includes(`${name}=${effective(ranges, set.values, name)}`)) {
-      fail(`${set.label}: 펼친 core.env에 ${name}=${effective(ranges, set.values, name)}이 없습니다.`);
+      fail(`${set.label}: 펼친 monitoring.env에 ${name}=${effective(ranges, set.values, name)}이 없습니다.`);
     }
   }
 }
 
-// promtool과 amtool이 모르는 약속을 본다. 허용 범위가 이 약속을 깨면 코어가 검사를 통과한 채로 잘못 돈다.
+// promtool과 amtool이 모르는 약속을 본다. 허용 범위가 이 약속을 깨면 모니터링 시스템이 검사를 통과한 채로 잘못 돈다.
 function checkSettingContracts(rendered, rulesDir, ranges) {
   const range = (name) => ranges.find((item) => item.name === name);
   const scrapeTimeout = /^global:\s*$[\s\S]*?^\s+scrape_timeout:\s*(\S+)/m.exec(rendered.read('prometheus.yml'));
@@ -460,13 +460,13 @@ function checkSettingContracts(rendered, rulesDir, ranges) {
     fail('펼친 prometheus.yml에서 전역 scrape_timeout을 찾지 못했습니다.');
   }
   const probeLimit = durationSeconds(scrapeTimeout[1]) - BLACKBOX_TIMEOUT_OFFSET_SECONDS;
-  if (range('CORE_PROBE_TIMEOUT_SECONDS').max > probeLimit) {
-    fail(`주소 확인 제한 시간의 상한(${range('CORE_PROBE_TIMEOUT_SECONDS').max}초)이 scrape_timeout(${scrapeTimeout[1]})에서 ${BLACKBOX_TIMEOUT_OFFSET_SECONDS}초를 뺀 ${probeLimit}초보다 깁니다.`);
+  if (range('MONITORING_PROBE_TIMEOUT_SECONDS').max > probeLimit) {
+    fail(`주소 확인 제한 시간의 상한(${range('MONITORING_PROBE_TIMEOUT_SECONDS').max}초)이 scrape_timeout(${scrapeTimeout[1]})에서 ${BLACKBOX_TIMEOUT_OFFSET_SECONDS}초를 뺀 ${probeLimit}초보다 깁니다.`);
   }
   const rules = fs.readdirSync(rulesDir).map((name) => fs.readFileSync(path.join(rulesDir, name), 'utf8')).join('\n');
   const longestRange = Math.max(0, ...[...rules.matchAll(/\[((?:\d+(?:ms|s|m|h|d|w|y))+)(?::[^\]]*)?\]/g)].map((match) => durationSeconds(match[1])));
-  if (range('CORE_RETENTION_DAYS').min * 86400 <= longestRange) {
-    fail(`보관 기간의 하한(${range('CORE_RETENTION_DAYS').min}일)이 규칙이 읽는 가장 긴 범위(${longestRange}초)보다 길지 않습니다.`);
+  if (range('MONITORING_RETENTION_DAYS').min * 86400 <= longestRange) {
+    fail(`보관 기간의 하한(${range('MONITORING_RETENTION_DAYS').min}일)이 규칙이 읽는 가장 긴 범위(${longestRange}초)보다 길지 않습니다.`);
   }
   const ports = ranges.filter((item) => HOST_PORT_TARGETS[item.name]);
   for (const port of ports) {
@@ -479,16 +479,16 @@ function checkSettingContracts(rendered, rulesDir, ranges) {
   }
 }
 
-// 펼친 core.env에 넣는 표시 값이다. Compose가 env_file을 펼친 결과에서 서비스마다 이 값을 받는지 본다.
-const COMPOSE_CHECK_MARK = 'CORE_CONFIG_SHA256=compose-check';
+// 펼친 monitoring.env에 넣는 표시 값이다. Compose가 env_file을 펼친 결과에서 서비스마다 이 값을 받는지 본다.
+const COMPOSE_CHECK_MARK = 'MONITORING_CONFIG_SHA256=compose-check';
 
-// Compose가 펼친 compose 파일을 읽는다. env_file(rendered/core.env, required: true)이 없으면 Compose가 읽지 못하므로
-// 표시 값만 든 core.env를 둔 임시 폴더를 project directory로 준다. 상대 경로는 그 폴더 기준으로 풀린다.
-// withEnvFile이 false면 core.env 없이 읽어 실패한 결과를 돌려준다.
+// Compose가 펼친 compose 파일을 읽는다. env_file(rendered/monitoring.env, required: true)이 없으면 Compose가 읽지 못하므로
+// 표시 값만 든 monitoring.env를 둔 임시 폴더를 project directory로 준다. 상대 경로는 그 폴더 기준으로 풀린다.
+// withEnvFile이 false면 monitoring.env 없이 읽어 실패한 결과를 돌려준다.
 function composeConfig(composeFile, env, { withEnvFile = true } = {}) {
   const project = scratchDir('compose-check');
   if (withEnvFile) {
-    writeText(path.join(project, 'rendered', 'core.env'), `${COMPOSE_CHECK_MARK}
+    writeText(path.join(project, 'rendered', 'monitoring.env'), `${COMPOSE_CHECK_MARK}
 `);
   }
   const result = runResult('docker', ['compose', '--project-directory', project, '-f', composeFile, 'config', '--format', 'json'],
@@ -523,8 +523,8 @@ function checkPortBindings(composeFile, ranges) {
   }
 }
 
-// 서비스마다 붙이는 파일이 운영 명령이 펼친 설정뿐이고 읽기 전용인지, 세 서비스가 펼친 core.env를 읽는지 본다.
-// CA 인증서 파일은 Blackbox Exporter에만 붙어야 한다(요구사항 0015의 C5). core.env가 없으면 Compose가 멈춰야 한다(S16).
+// 서비스마다 붙이는 파일이 운영 명령이 펼친 설정뿐이고 읽기 전용인지, 세 서비스가 펼친 monitoring.env를 읽는지 본다.
+// CA 인증서 파일은 Blackbox Exporter에만 붙어야 한다(요구사항 0015의 C5). monitoring.env가 없으면 Compose가 멈춰야 한다(S16).
 function checkRenderedMounts(composeFile, caDir) {
   const { config, project } = composeConfig(composeFile, {});
   for (const [name, expected] of Object.entries(renderedMounts(caDir))) {
@@ -538,15 +538,15 @@ function checkRenderedMounts(composeFile, caDir) {
     }
     const [key, value] = COMPOSE_CHECK_MARK.split('=');
     if ((service.environment ?? {})[key] !== value) {
-      fail(`${composeFile}의 ${name}가 펼친 rendered/core.env를 env_file로 읽지 않습니다.`);
+      fail(`${composeFile}의 ${name}가 펼친 rendered/monitoring.env를 env_file로 읽지 않습니다.`);
     }
     if (service.healthcheck && service.healthcheck.disable !== true) {
-      fail(`${composeFile}의 ${name}에 healthcheck가 있습니다. 코어 이미지에는 healthcheck를 실행할 명령이 없습니다.`);
+      fail(`${composeFile}의 ${name}에 healthcheck가 있습니다. 모니터링 시스템 이미지에는 healthcheck를 실행할 명령이 없습니다.`);
     }
   }
   const { result } = composeConfig(composeFile, {}, { withEnvFile: false });
-  if (result.status === 0 || !result.stderr.includes('core.env')) {
-    fail(`${composeFile}을 펼친 설정(rendered/core.env) 없이 Compose가 읽었습니다. env_file에 required: true가 있어야 Docker가 빈 폴더를 만들지 않습니다.`);
+  if (result.status === 0 || !result.stderr.includes('monitoring.env')) {
+    fail(`${composeFile}을 펼친 설정(rendered/monitoring.env) 없이 Compose가 읽었습니다. env_file에 required: true가 있어야 Docker가 빈 폴더를 만들지 않습니다.`);
   }
 }
 
@@ -562,65 +562,65 @@ function extractRules(prometheus) {
   return { root: dir, rules: path.join(dir, 'rules') };
 }
 
-function checkCoreImages(core, tools) {
-  const images = Object.fromEntries(CORE_IMAGES.map((name) => [name, imageName(name, core)]));
+function checkSystemImages(release, tools) {
+  const images = Object.fromEntries(SYSTEM_IMAGES.map((name) => [name, imageName(name, release)]));
   const ranges = readSettingRanges(tools);
   const extracted = extractRules(images.prometheus);
   for (const [index, set] of settingSets(ranges).entries()) {
     console.log(`운영 명령으로 펼친 설정을 공식 이미지의 도구로 검사합니다(${set.label}): ${Object.entries(set.values).map(([key, value]) => `${key}=${value}`).join(' ')}`);
     const rendered = renderConfigs(tools, set.values);
     if (index === 0) {
-      console.log('설정 값의 허용 범위가 코어의 약속(주소 확인 제한 시간, 규칙의 범위, 포트)을 지키는지 확인합니다.');
+      console.log('설정 값의 허용 범위가 모니터링 시스템의 약속(주소 확인 제한 시간, 규칙의 범위, 포트)을 지키는지 확인합니다.');
       checkSettingContracts(rendered, extracted.rules, ranges);
     }
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/core:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
-      '--entrypoint', 'promtool', tools.prometheus, 'check', 'config', '/etc/core/prometheus.yml']);
+    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
+      '--entrypoint', 'promtool', tools.prometheus, 'check', 'config', '/etc/monitoring/prometheus.yml']);
     checkPrometheusRetention(rendered, ranges, set);
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/core:ro`, '--entrypoint', 'amtool', tools.alertmanager,
-      'check-config', '/etc/core/alertmanager.yml']);
+    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '--entrypoint', 'amtool', tools.alertmanager,
+      'check-config', '/etc/monitoring/alertmanager.yml']);
     // Blackbox Exporter는 셸 없이 실행 파일만 부르므로 운영 이미지로 검사한다.
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/core:ro`, images['blackbox-exporter'],
-      '--config.file=/etc/core/blackbox.yml', '--config.check']);
+    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, images['blackbox-exporter'],
+      '--config.file=/etc/monitoring/blackbox.yml', '--config.check']);
     checkBlackboxConfig(rendered, ranges, set);
-    checkCoreEnv(rendered, ranges, set);
+    checkRenderedEnv(rendered, ranges, set);
     fs.rmSync(rendered.work, { recursive: true, force: true });
   }
   console.log('compose.yml의 포트가 127.0.0.1에만 열리고, 펼친 설정만 읽기 전용으로 붙는지 확인합니다.');
-  checkPortBindings(CORE_COMPOSE, ranges);
-  checkRenderedMounts(CORE_COMPOSE, CERTS_DIR);
+  checkPortBindings(SYSTEM_COMPOSE, ranges);
+  checkRenderedMounts(SYSTEM_COMPOSE, CERTS_DIR);
   // 테스트 파일은 ../rules/를 읽으므로 꺼낸 규칙 바로 옆에 붙여, 이미지에 들어간 규칙을 그대로 시험한다.
   console.log('운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 실행합니다.');
-  const tests = path.join(CORE_DIR, 'prometheus', 'tests');
+  const tests = path.join(INFRA_DIR, 'prometheus', 'tests');
   for (const testFile of fs.readdirSync(tests).filter((name) => name.endsWith('.test.yml'))) {
     run('docker', ['run', '--rm', '-v', `${extracted.rules}:/etc/prometheus/rules:ro`, '-v', `${tests}:/etc/prometheus/tests:ro`,
       '-w', '/etc/prometheus/tests', '--entrypoint', 'promtool', tools.prometheus, 'test', 'rules', testFile]);
   }
   fs.rmSync(extracted.root, { recursive: true, force: true });
-  // 코어 서버의 sh가 BusyBox일 수도 있어, 공식 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
+  // 모니터링 서버의 sh가 BusyBox일 수도 있어, 공식 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
   // 확인 질문 시험이 가상 터미널을 여는데, 이미지의 기본 사용자(nobody)는 열 수 없어 root로 실행한다.
-  console.log('코어 서버 운영 명령(core-server.sh)의 자동 시험을 실행합니다.');
-  run('docker', ['run', '--rm', '--user', '0', '-v', `${CORE_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus,
-    '/src/tests/core-server.test.sh', '/src/core-server.sh']);
+  console.log('모니터링 서버 운영 명령(monitoring-server.sh)의 자동 시험을 실행합니다.');
+  run('docker', ['run', '--rm', '--user', '0', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus,
+    '/src/tests/monitoring-server.test.sh', '/src/monitoring-server.sh']);
   return ranges;
 }
 
-// 코어 이미지와 node_exporter 이미지를 빌드하고, 검사에 쓸 공식 이미지(Dockerfile의 src 단계)를 받는다.
-function buildImages(core, { pull }) {
-  console.log(`코어 이미지와 node_exporter 이미지를 빌드합니다(버전 ${core.describe}, ${PLATFORM}).`);
+// 모니터링 시스템 이미지와 node_exporter 이미지를 빌드하고, 검사에 쓸 공식 이미지(Dockerfile의 src 단계)를 받는다.
+function buildImages(release, { pull }) {
+  console.log(`모니터링 시스템 이미지와 node_exporter 이미지를 빌드합니다(버전 ${release.describe}, ${PLATFORM}).`);
   const pullFlag = pull ? ['--pull'] : [];
-  run('docker', ['compose', '-f', CORE_COMPOSE, 'build', ...pullFlag], { env: composeEnv(core) });
-  run('docker', ['compose', '-f', NODE_EXPORTER_COMPOSE, 'build', ...pullFlag], { env: composeEnv(core) });
+  run('docker', ['compose', '-f', SYSTEM_COMPOSE, 'build', ...pullFlag], { env: composeEnv(release) });
+  run('docker', ['compose', '-f', NODE_EXPORTER_COMPOSE, 'build', ...pullFlag], { env: composeEnv(release) });
   return {
-    prometheus: sourceImage(path.join(CORE_DIR, 'prometheus', 'Dockerfile'), CORE_DIR),
-    alertmanager: sourceImage(path.join(CORE_DIR, 'alertmanager', 'Dockerfile'), CORE_DIR),
+    prometheus: sourceImage(path.join(INFRA_DIR, 'prometheus', 'Dockerfile'), INFRA_DIR),
+    alertmanager: sourceImage(path.join(INFRA_DIR, 'alertmanager', 'Dockerfile'), INFRA_DIR),
   };
 }
 
 // --- 묶음 ---
 
 // 저장소에서는 infrastructure/secrets/를 쓰고, 묶음은 버전 폴더가 바뀌어도 같은 token을 쓰도록 설치 폴더의 secrets/를 쓴다(요구사항 0011).
-const SECRETS_DEFAULT = '${CORE_SECRETS_DIR:-./secrets}';
-const BUNDLE_SECRETS_DEFAULT = '${CORE_SECRETS_DIR:-../secrets}';
+const SECRETS_DEFAULT = '${MONITORING_SECRETS_DIR:-./secrets}';
+const BUNDLE_SECRETS_DEFAULT = '${MONITORING_SECRETS_DIR:-../secrets}';
 // CA 인증서 파일도 token처럼, 묶음에서는 버전이 바뀌어도 그대로인 설치 폴더의 certs/에 둔다(요구사항 0015).
 const CERTS_DIR = 'certs';
 const BUNDLE_CERTS_DIR = '../certs';
@@ -632,13 +632,13 @@ function forBundle(text) {
     .replaceAll('infrastructure/.env.example', '.env.example')
     .replaceAll('infrastructure/.env', '.env')
     .replaceAll('infrastructure/compose.yml', 'compose.yml')
-    .replaceAll('infrastructure/core-server.sh', 'core-server.sh');
+    .replaceAll('infrastructure/monitoring-server.sh', 'monitoring-server.sh');
 }
 
 // 저장소의 compose 파일에서 build 항목만 pull_policy: never로 바꾼다. 서비스 정의의 출처를 하나로 두기 위해서다.
 // 이미지를 불러오지 않고 띄우면 Compose가 받거나 빌드하지 않고 이미지가 없다는 오류로 멈춘다.
 // 파일 머리의 개발용 안내 주석은 내부망에서 맞지 않으므로 빼고 묶음용 안내(header)로 바꾼다.
-function bundleCompose(sourceFile, core, header, services) {
+function bundleCompose(sourceFile, release, header, services) {
   const lines = forBundle(fs.readFileSync(sourceFile, 'utf8')).split(/\r?\n/);
   while (lines.length > 0 && (lines[0].startsWith('#') || lines[0].trim() === '')) {
     lines.shift();
@@ -653,7 +653,7 @@ function bundleCompose(sourceFile, core, header, services) {
       }
       skipIndent = -1;
     }
-    if (/^x-core-build-args:/.test(line)) {
+    if (/^x-build-args:/.test(line)) {
       skipIndent = 0;
       continue;
     }
@@ -662,11 +662,11 @@ function bundleCompose(sourceFile, core, header, services) {
       skipIndent = indent;
       continue;
     }
-    out.push(line.replaceAll('${CORE_VERSION:-dev}', core.describe).replaceAll(SECRETS_DEFAULT, BUNDLE_SECRETS_DEFAULT)
+    out.push(line.replaceAll('${MONITORING_VERSION:-dev}', release.describe).replaceAll(SECRETS_DEFAULT, BUNDLE_SECRETS_DEFAULT)
       .replaceAll(`./${CERTS_DIR}/`, `${BUNDLE_CERTS_DIR}/`));
   }
   const text = `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
-  if (/^\s+build:/m.test(text) || /CORE_VERSION|CORE_REVISION|x-core-build-args|core-build-args/.test(text)) {
+  if (/^\s+build:/m.test(text) || /MONITORING_VERSION|MONITORING_REVISION|x-build-args|build-args/.test(text)) {
     fail(`${sourceFile}로 만든 실행용 compose 파일에 빌드 항목이 남았습니다. 형식이 바뀌었는지 확인해 주세요.`);
   }
   if ((text.match(/^\s+pull_policy:/gm) ?? []).length !== services) {
@@ -675,17 +675,17 @@ function bundleCompose(sourceFile, core, header, services) {
   return text;
 }
 
-function runtimeCompose(core) {
-  const text = bundleCompose(CORE_COMPOSE, core, [
-    '# 내부망 서버에서 모니터링 코어를 띄우는 파일입니다. 저장소의 infrastructure/compose.yml로 만들었습니다.',
-    `# 버전 ${core.describe}, 커밋 ${core.revision}`,
+function runtimeCompose(release) {
+  const text = bundleCompose(SYSTEM_COMPOSE, release, [
+    '# 내부망 서버에서 모니터링 시스템을 띄우는 파일입니다. 저장소의 infrastructure/compose.yml로 만들었습니다.',
+    `# 버전 ${release.describe}, 커밋 ${release.revision}`,
     '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있습니다. 이 파일은 고치지 말고, 바꿀 값은 설치 폴더의 .env에 적어 주세요.',
     '#',
-    '#   sh core-server.sh install',
-    '#   sh core-server.sh start',
+    '#   sh monitoring-server.sh install',
+    '#   sh monitoring-server.sh start',
     '#',
-    '# docker compose로 직접 띄울 때는 먼저 sh core-server.sh render를 실행해 주세요.',
-  ], CORE_IMAGES.length);
+    '# docker compose로 직접 띄울 때는 먼저 sh monitoring-server.sh render를 실행해 주세요.',
+  ], SYSTEM_IMAGES.length);
   if (!text.includes(BUNDLE_SECRETS_DEFAULT)) {
     fail(`실행용 compose 파일에 token 폴더 기본값 ${SECRETS_DEFAULT}가 없습니다. infrastructure/compose.yml의 secrets 항목을 확인해 주세요.`);
   }
@@ -695,10 +695,10 @@ function runtimeCompose(core) {
   return text;
 }
 
-function runtimeNodeExporterCompose(core) {
-  return bundleCompose(NODE_EXPORTER_COMPOSE, core, [
+function runtimeNodeExporterCompose(release) {
+  return bundleCompose(NODE_EXPORTER_COMPOSE, release, [
     '# 감시 대상 Linux 서버에서 node_exporter를 띄우는 파일입니다. 저장소의 infrastructure/node-exporter/compose.yml로 만들었습니다.',
-    `# 버전 ${core.describe}, 커밋 ${core.revision}`,
+    `# 버전 ${release.describe}, 커밋 ${release.revision}`,
     '# 설치 방법은 저장소의 docs/OPERATIONS.md에 있습니다.',
     '#',
     '#   docker load -i node-exporter-image.tar',
@@ -716,7 +716,7 @@ function validateRuntimeCompose(dir, ranges) {
 
 // infrastructure/secrets/의 실제 비밀값이다. Docker가 없는 secret 자리에 만든 폴더는 건너뛴다. 값은 출력하지 않는다.
 function localSecretValues() {
-  const secretsDir = path.join(CORE_DIR, 'secrets');
+  const secretsDir = path.join(INFRA_DIR, 'secrets');
   if (!fs.existsSync(secretsDir)) {
     return [];
   }
@@ -772,29 +772,29 @@ function addLicenses(out, bundle) {
   }
 }
 
-function buildCoreBundle(core, ranges, secrets, exported) {
-  const out = path.join(DIST, `monitoring-core-${core.describe}`);
+function buildSystemBundle(release, ranges, secrets, exported) {
+  const out = path.join(DIST, `monitoring-system-${release.describe}`);
   freshDir(out);
-  const images = CORE_IMAGES.map((name) => imageName(name, core));
+  const images = SYSTEM_IMAGES.map((name) => imageName(name, release));
   assertImagesHaveNoSecrets(Object.fromEntries(images.map((image) => [image, exported[image]])), secrets);
 
-  console.log('코어 이미지를 묶음 파일로 내보냅니다.');
-  run('docker', ['save', '-o', path.join(out, 'core-images.tar'), ...images]);
+  console.log('모니터링 시스템 이미지를 묶음 파일로 내보냅니다.');
+  run('docker', ['save', '-o', path.join(out, 'monitoring-system-images.tar'), ...images]);
 
-  writeText(path.join(out, 'compose.yml'), runtimeCompose(core));
+  writeText(path.join(out, 'compose.yml'), runtimeCompose(release));
   validateRuntimeCompose(out, ranges);
-  writeText(path.join(out, '.env.example'), forBundle(fs.readFileSync(path.join(CORE_DIR, '.env.example'), 'utf8')));
-  // token은 core-server.sh install이 설치 폴더에 만들므로 묶음에는 token 예시를 싣지 않는다.
-  writeText(path.join(out, 'core-server.sh'), fs.readFileSync(path.join(CORE_DIR, 'core-server.sh'), 'utf8'));
-  fs.chmodSync(path.join(out, 'core-server.sh'), 0o755);
-  // core-server.sh가 . 으로 읽는 값 검사 규칙이다.
-  writeText(path.join(out, 'core-settings.sh'), fs.readFileSync(path.join(CORE_DIR, 'core-settings.sh'), 'utf8'));
-  // core-server.sh render가 펼치는 설정 템플릿이다. 이미지와 같은 커밋에서 만들고 SHA256SUMS가 함께 지킨다(ADR 0012).
+  writeText(path.join(out, '.env.example'), forBundle(fs.readFileSync(path.join(INFRA_DIR, '.env.example'), 'utf8')));
+  // token은 monitoring-server.sh install이 설치 폴더에 만들므로 묶음에는 token 예시를 싣지 않는다.
+  writeText(path.join(out, 'monitoring-server.sh'), fs.readFileSync(path.join(INFRA_DIR, 'monitoring-server.sh'), 'utf8'));
+  fs.chmodSync(path.join(out, 'monitoring-server.sh'), 0o755);
+  // monitoring-server.sh가 . 으로 읽는 값 검사 규칙이다.
+  writeText(path.join(out, 'monitoring-settings.sh'), fs.readFileSync(path.join(INFRA_DIR, 'monitoring-settings.sh'), 'utf8'));
+  // monitoring-server.sh render가 펼치는 설정 템플릿이다. 이미지와 같은 커밋에서 만들고 SHA256SUMS가 함께 지킨다(ADR 0012).
   for (const [from, name] of [['prometheus/prometheus.yml', 'prometheus.yml'], ['alertmanager/alertmanager.yml', 'alertmanager.yml'],
     ['blackbox/blackbox.yml', 'blackbox.yml']]) {
-    writeText(path.join(out, 'templates', name), forBundle(fs.readFileSync(path.join(CORE_DIR, from), 'utf8')));
+    writeText(path.join(out, 'templates', name), forBundle(fs.readFileSync(path.join(INFRA_DIR, from), 'utf8')));
   }
-  addLicenses(out, 'core');
+  addLicenses(out, 'system');
 
   assertNoSecrets(out, secrets);
   writeChecksums(out);
@@ -829,10 +829,10 @@ async function download(urls, file) {
   }
 }
 
-async function buildNodeExporterBundle(core, secrets, exported) {
-  const out = path.join(DIST, `node-exporter-${core.describe}`);
+async function buildNodeExporterBundle(release, secrets, exported) {
+  const out = path.join(DIST, `node-exporter-${release.describe}`);
   freshDir(out);
-  const image = nodeExporterImage(core);
+  const image = nodeExporterImage(release);
   assertImagesHaveNoSecrets({ [image]: exported[image] }, secrets);
 
   console.log('node_exporter 이미지를 묶음 파일로 내보냅니다.');
@@ -847,7 +847,7 @@ async function buildNodeExporterBundle(core, secrets, exported) {
     fail(`${NODE_EXPORTER.archive}의 체크섬이 공식 값과 다릅니다. 받은 파일을 지웠습니다.`);
   }
 
-  const compose = runtimeNodeExporterCompose(core);
+  const compose = runtimeNodeExporterCompose(release);
   writeText(path.join(out, 'compose.yml'), compose);
   run('docker', ['compose', '--project-directory', out, '-f', path.join(out, 'compose.yml'), 'config', '--quiet']);
   writeText(path.join(out, 'node_exporter.service'), fs.readFileSync(path.join(NODE_EXPORTER_DIR, 'node_exporter.service'), 'utf8'));
@@ -859,18 +859,18 @@ async function buildNodeExporterBundle(core, secrets, exported) {
 }
 
 const CHECK_ONLY = process.argv.includes('--check');
-const core = version({ allowDirty: CHECK_ONLY || process.argv.includes('--allow-dirty') });
-const tools = buildImages(core, { pull: !CHECK_ONLY });
-const specs = imageSpecs(core);
+const release = version({ allowDirty: CHECK_ONLY || process.argv.includes('--allow-dirty') });
+const tools = buildImages(release, { pull: !CHECK_ONLY });
+const specs = imageSpecs(release);
 const exported = checkImages(Object.keys(specs), specs);
-const ranges = checkCoreImages(core, tools);
+const ranges = checkSystemImages(release, tools);
 if (CHECK_ONLY) {
   console.log('\n이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험을 통과했습니다.');
   process.exit(0);
 }
 const secrets = localSecretValues();
-const coreOut = buildCoreBundle(core, ranges, secrets, exported);
-const nodeOut = await buildNodeExporterBundle(core, secrets, exported);
+const bundleOut = buildSystemBundle(release, ranges, secrets, exported);
+const nodeOut = await buildNodeExporterBundle(release, secrets, exported);
 console.log('\n묶음을 만들었습니다. 다음 두 폴더를 내부망 서버로 옮겨 주세요.');
-console.log(`  ${path.relative(ROOT, coreOut)}`);
+console.log(`  ${path.relative(ROOT, bundleOut)}`);
 console.log(`  ${path.relative(ROOT, nodeOut)}`);
