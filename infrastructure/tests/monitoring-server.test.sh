@@ -1004,6 +1004,17 @@ for value in yes false 0 ON Off 'o n'; do
     '[ $RC -ne 0 ] && contains "MONITORING_OS_EXPORTER" && contains "on, off" && contains ".env의 MONITORING_OS_EXPORTER" && ! called load && ! called "^compose" && [ ! -e "$RENDERED" ]'
 done
 
+setup; prepared; with_settings 'MONITORING_OS_EXPORTER=$(touch '"$T"'/injected)'
+run start
+check '서버 사용량 수집 값에 든 셸 명령은 실행하지 않고 틀린 값으로 거부한다' \
+  '[ $RC -ne 0 ] && [ ! -e "$T/injected" ] && contains "MONITORING_OS_EXPORTER" && ! called "^compose"'
+
+setup; prepared
+run_with_env "MONITORING_OS_EXPORTER=off
+  - job_name: injected" start
+check '셸 환경 변수의 서버 사용량 수집 값에 줄바꿈과 YAML을 넣으면 거부하고 unset 방법을 보인다' \
+  '[ $RC -ne 0 ] && contains "unset MONITORING_OS_EXPORTER" && ! called "^compose" && [ ! -e "$RENDERED" ]'
+
 setup; prepared; with_settings MONITORING_OS_EXPORTER=yes
 run render
 check '설정 펼치기도 틀린 서버 사용량 수집 값을 거부하고 펼치지 않는다' \
@@ -1031,6 +1042,13 @@ sed -i '/# BEGIN manager-os/d' "$BUNDLE/templates/prometheus.yml"
 (cd "$BUNDLE" && sha256sum compose.yml .env.example monitoring-system-images.tar monitoring-server.sh monitoring-settings.sh templates/* > SHA256SUMS)
 run start
 check '서버 사용량 수집을 끄는데 템플릿의 표시 줄이 맞지 않으면 묶음을 다시 옮기라고 안내하고 펼치거나 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "묶음 폴더를 다시 옮겨" && ! called "^compose" && [ ! -e "$RENDERED/prometheus.yml" ]'
+
+setup; prepared; with_settings MONITORING_OS_EXPORTER=off
+sed -i 's/# BEGIN manager-os/# SWAP-BEGIN/; s/# END manager-os/# BEGIN manager-os/; s/# SWAP-BEGIN/# END manager-os/' "$BUNDLE/templates/prometheus.yml"
+(cd "$BUNDLE" && sha256sum compose.yml .env.example monitoring-system-images.tar monitoring-server.sh monitoring-settings.sh templates/* > SHA256SUMS)
+run start
+check '서버 사용량 수집을 끄는데 템플릿의 표시 줄 순서가 바뀌었으면 펼치거나 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "묶음 폴더를 다시 옮겨" && ! called "^compose" && [ ! -e "$RENDERED/prometheus.yml" ]'
 
 printf '\n통과 %s, 실패 %s\n' "$PASSED" "$FAILED"

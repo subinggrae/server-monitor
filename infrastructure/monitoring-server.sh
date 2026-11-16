@@ -382,13 +382,18 @@ check_templates() {
     [ -f "$(template_file "$name")" ] \
       || fail "설정 템플릿이 없습니다: $(template_file "$name"). 묶음 폴더를 다시 옮겨 주세요."
   done
-  # 서버 사용량 수집을 끄면 펼칠 때 표시 줄 사이를 뺀다. 표시 줄이 한 쌍이 아니면 빼다가 설정이 깨지므로 미리 멈춘다(요구사항 0022).
+  # 서버 사용량 수집을 끄면 펼칠 때 표시 줄 사이를 뺀다. 표시 줄이 한 쌍이 아니거나 순서가 바뀌었으면
+  # 빼다가 다른 설정까지 지우므로 미리 멈춘다(요구사항 0022). 줄 번호가 여럿이면 줄바꿈이 끼어 숫자 검사에서 걸린다.
   if [ "$MONITORING_OS_EXPORTER" = off ]; then
     template=$(template_file prometheus.yml)
-    if [ "$(tr -d '\r' < "$template" | grep -c "^$OS_EXPORTER_BEGIN\$")" != 1 ] \
-      || [ "$(tr -d '\r' < "$template" | grep -c "^$OS_EXPORTER_END\$")" != 1 ]; then
-      fail "설정 템플릿에서 서버 사용량 수집 부분을 찾지 못했습니다: $template. 묶음 폴더를 다시 옮겨 주세요. 아무것도 바꾸지 않았습니다."
-    fi
+    begin=$(tr -d '\r' < "$template" | grep -n "^$OS_EXPORTER_BEGIN\$" | cut -d: -f1)
+    end=$(tr -d '\r' < "$template" | grep -n "^$OS_EXPORTER_END\$" | cut -d: -f1)
+    case "$begin:$end" in
+      :*|*:|*[!0123456789:]*) markers_ok=no ;;
+      *) if [ "$begin" -lt "$end" ]; then markers_ok=yes; else markers_ok=no; fi ;;
+    esac
+    [ "$markers_ok" = yes ] \
+      || fail "설정 템플릿에서 서버 사용량 수집 부분을 찾지 못했습니다: $template. 묶음 폴더를 다시 옮겨 주세요. 아무것도 바꾸지 않았습니다."
   fi
 }
 
