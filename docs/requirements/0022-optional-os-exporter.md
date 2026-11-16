@@ -2,7 +2,7 @@
 
 - 상태: 구현됨
 - 작성일: 2026-11-16
-- 관련: [#63](https://github.com/subinggrae/server-monitor/issues/63), [0006](0006-os-exporter.md), [0013](0013-core-env-settings.md), [INTEGRATION.md](../INTEGRATION.md)
+- 관련: [#63](https://github.com/subinggrae/server-monitor/issues/63), [PR #65](https://github.com/subinggrae/server-monitor/pull/65)(구현 계획과 확인 기록 포함), [0006](0006-os-exporter.md), [0013](0013-core-env-settings.md), [INTEGRATION.md](../INTEGRATION.md)
 
 ## 배경
 
