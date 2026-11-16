@@ -971,5 +971,67 @@ RC=$?
 check 'curl과 wget이 없으면 curl을 설치하라고 안내하고 이미지를 불러오거나 컨테이너를 바꾸지 않는다' \
   '[ $RC -ne 0 ] && contains "curl" && contains "설치" && ! called load && ! called "^compose" && [ ! -e "$RENDERED" ]'
 
+# --- 서버 사용량 수집 끄기(요구사항 0022) ---
+
+# 펼친 Prometheus 설정에 서버 사용량 수집 부분과 서버 감시 대상 목록 API 주소가 몇 번 나오는지
+os_job() { grep -c 'job_name: manager-os' "$RENDERED/prometheus.yml"; }
+os_sd() { grep -c '/api/prometheus/sd/os-exporter' "$RENDERED/prometheus.yml"; }
+
+setup; prepared
+run start
+check '서버 사용량 수집 값이 없으면 수집 부분을 펼치고 꺼짐을 보이지 않는다' \
+  '[ $RC -eq 0 ] && [ "$(os_job)" = 1 ] && [ "$(os_sd)" = 1 ] && ! contains "서버 사용량 수집"'
+
+setup; prepared; with_settings MONITORING_OS_EXPORTER=on
+run start
+check '서버 사용량 수집 값이 on이면 수집 부분을 펼친다' \
+  '[ $RC -eq 0 ] && [ "$(os_job)" = 1 ] && [ "$(os_sd)" = 1 ] && ! contains "서버 사용량 수집"'
+
+setup; prepared; with_settings 'MONITORING_OS_EXPORTER= off '
+run start
+check '서버 사용량 수집 값이 off면 수집 부분을 빼고 펼치고 꺼짐을 보인다' \
+  '[ $RC -eq 0 ] && [ "$(os_job)" = 0 ] && [ "$(os_sd)" = 0 ] && grep -q "job_name: manager-blackbox" "$RENDERED/prometheus.yml" && grep -q "^MONITORING_OS_EXPORTER=off$" "$RENDERED/monitoring.env" && contains "서버 사용량 수집 꺼짐"'
+
+setup; prepared; with_settings MONITORING_OS_EXPORTER=off; started
+run status
+check '상태를 보면 서버 사용량 수집이 꺼졌다고 보인다' \
+  '[ $RC -eq 0 ] && contains "서버 사용량 수집 꺼짐"'
+
+for value in yes false 0 ON Off 'o n'; do
+  setup; prepared; with_settings "MONITORING_OS_EXPORTER=$value"
+  run start
+  check "서버 사용량 수집 값이 '$value'이면 허용 값과 고치는 방법을 보이고 펼치거나 띄우지 않는다" \
+    '[ $RC -ne 0 ] && contains "MONITORING_OS_EXPORTER" && contains "on, off" && contains ".env의 MONITORING_OS_EXPORTER" && ! called load && ! called "^compose" && [ ! -e "$RENDERED" ]'
+done
+
+setup; prepared; with_settings MONITORING_OS_EXPORTER=yes
+run render
+check '설정 펼치기도 틀린 서버 사용량 수집 값을 거부하고 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_OS_EXPORTER" && [ ! -e "$RENDERED" ]'
+
+setup; prepared; with_settings MONITORING_RETENTION_DAYS=abc MONITORING_OS_EXPORTER=yes
+run start
+check '숫자 값과 서버 사용량 수집 값이 함께 틀리면 모두 한 번에 보인다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_RETENTION_DAYS" && contains "MONITORING_OS_EXPORTER" && ! called "^compose"'
+
+setup; prepared; with_settings MONITORING_OS_EXPORTER=on
+run_with_env MONITORING_OS_EXPORTER=off start
+check '셸 환경 변수의 서버 사용량 수집 값이 설정 파일보다 먼저 쓰인다' \
+  '[ $RC -eq 0 ] && [ "$(os_job)" = 0 ] && contains "서버 사용량 수집 꺼짐"'
+
+setup; prepared
+run start
+rm "$FAKE/calls"; with_settings MONITORING_OS_EXPORTER=off
+run start
+check '서버 사용량 수집을 끄면 묻지 않고 컨테이너를 다시 만든다' \
+  '[ $RC -eq 0 ] && called "^compose.* up -d --force-recreate" && ! contains "계속할까요" && [ "$(os_job)" = 0 ]'
+
+setup; prepared; with_settings MONITORING_OS_EXPORTER=off
+sed -i '/# BEGIN manager-os/d' "$BUNDLE/templates/prometheus.yml"
+(cd "$BUNDLE" && sha256sum compose.yml .env.example monitoring-system-images.tar monitoring-server.sh monitoring-settings.sh templates/* > SHA256SUMS)
+run start
+check '서버 사용량 수집을 끄는데 템플릿의 표시 줄이 맞지 않으면 묶음을 다시 옮기라고 안내하고 펼치거나 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "묶음 폴더를 다시 옮겨" && ! called "^compose" && [ ! -e "$RENDERED/prometheus.yml" ]'
+
 printf '\n통과 %s, 실패 %s\n' "$PASSED" "$FAILED"
 [ "$FAILED" -eq 0 ]
