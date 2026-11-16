@@ -88,14 +88,14 @@
 
 ## 완료 기준
 
-- [ ] C1. `backend/`, `frontend/`, 루트 `compose.yml`, `.env.example`, `docs/design/`, 앱의 비밀값 예시 파일이 저장소에 없다. `.nvmrc`는 코어 빌드 스크립트와 문서 검사의 Node.js 버전 기준이라 남긴다. (목표) — 확인: `git ls-files`
-- [ ] C2. `core-dev.bat check`가 통과한다. (S1) — 확인: 실행
-- [ ] C3. `core-dev.bat start`로 코어가 뜨고 `stop`으로 멈춘다. (S2) — 확인: 실행
-- [ ] C4. `node scripts/check-docs.mjs`가 오류 0, 경고 0이다. (S3, S5) — 확인: 실행
-- [ ] C5. AGENTS.md, README.md, DEVELOPMENT.md, TESTING.md, ARCHITECTURE.md, OPERATIONS.md, INTEGRATION.md, ADMIN-SERVER.md, WRITING.md, DIAGRAMS.md, LICENSES.md, PRODUCT.md, TERMS.md와 `.gitignore`, 그림이 코어만 기준으로 쓰여 있고 지운 경로를 가리키지 않는다. 전체 검증 명령은 코어 검사와 문서 검사다. (목표, S5) — 확인: `git grep`으로 지운 경로 이름을 찾고 리뷰
-- [ ] C6. ADR 0006의 상태가 폐기다. (S4) — 확인: 리뷰
-- [ ] C7. `git grep -i telegram`과 `chat_id`가 지난 요구사항·ADR과 용어 근거(TERMS.md) 밖에서는 예로 든 글에만 걸린다. 비밀값 예시 파일은 `alertmanager_webhook_token.example` 하나다. (목표) — 확인: `git grep`, `git ls-files infrastructure/secrets`
-- [ ] C8. 바꾼 참고용 기본 테이블 DDL이 빈 MariaDB와 PostgreSQL에 적용되고, 그 뒤에 리소스 임계값·알림 메시지 템플릿 DDL도 적용된다. 두 DB의 열 정의가 같다. (S6) — 확인: 두 DB에 한 번 적용
+- [x] C1. `backend/`, `frontend/`, 루트 `compose.yml`, `.env.example`, `docs/design/`, 앱의 비밀값 예시 파일이 저장소에 없다. `.nvmrc`는 코어 빌드 스크립트와 문서 검사의 Node.js 버전 기준이라 남긴다. (목표) — 확인: `git ls-files`
+- [x] C2. `core-dev.bat check`가 통과한다. (S1) — 확인: 실행
+- [x] C3. `core-dev.bat start`로 코어가 뜨고 `stop`으로 멈춘다. (S2) — 확인: 실행
+- [x] C4. `node scripts/check-docs.mjs`가 오류 0, 경고 0이다. (S3, S5) — 확인: 실행
+- [x] C5. AGENTS.md, README.md, DEVELOPMENT.md, TESTING.md, ARCHITECTURE.md, OPERATIONS.md, INTEGRATION.md, ADMIN-SERVER.md, WRITING.md, DIAGRAMS.md, LICENSES.md, PRODUCT.md, TERMS.md와 `.gitignore`, 그림이 코어만 기준으로 쓰여 있고 지운 경로를 가리키지 않는다. 전체 검증 명령은 코어 검사와 문서 검사다. (목표, S5) — 확인: `git grep`으로 지운 경로 이름을 찾고 리뷰
+- [x] C6. ADR 0006의 상태가 폐기다. (S4) — 확인: 리뷰
+- [x] C7. `git grep -i telegram`과 `chat_id`가 지난 요구사항·ADR과 용어 근거(TERMS.md) 밖에서는 예로 든 글에만 걸린다. 비밀값 예시 파일은 `alertmanager_webhook_token.example` 하나다. (목표) — 확인: `git grep`, `git ls-files infrastructure/secrets`
+- [x] C8. 바꾼 참고용 기본 테이블 DDL이 빈 MariaDB와 PostgreSQL에 적용되고, 그 뒤에 리소스 임계값·알림 메시지 템플릿 DDL도 적용된다. 두 DB의 열 정의가 같다. (S6) — 확인: 두 DB에 한 번 적용
 
 ## 확인 필요
 
