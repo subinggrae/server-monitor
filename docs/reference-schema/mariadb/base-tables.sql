@@ -179,7 +179,8 @@ CREATE TABLE alert_events (
     created_at       DATETIME(6)  NOT NULL,
     PRIMARY KEY (id),
     -- 장애 한 번을 한 줄로 둡니다. Alertmanager는 해소된 뒤 다시 발생하면 starts_at을 새로 줍니다.
-    -- fingerprint만으로 묶으면 같은 대상의 다음 장애가 이전 기록을 덮습니다.
+    -- 모니터링 시스템을 갱신하면 이어지던 장애도 starts_at이 새로 오므로, 같은 fingerprint의 열린 줄(resolved_at이 빈 줄)이
+    -- 있으면 그 줄을 이어 씁니다. fingerprint만으로 묶으면 같은 대상의 다음 장애가 이전 기록을 덮습니다.
     CONSTRAINT uk_alert_events_fingerprint_starts_at UNIQUE (fingerprint, starts_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
