@@ -1,22 +1,22 @@
 # 통합 계약
 
-모니터링 코어와 그 코어에 붙는 앱 사이의 약속을 설명한다. 다른 앱의 개발자가 이 문서만 보고 코어에 붙을 수 있게 하는 것이 목적이다. 이렇게 나눈 결정과 이유는 [ADR 0007](decisions/0007-core-app-contract.md)에 있다.
+모니터링 시스템과 여기에 붙는 앱 사이의 약속을 설명한다. 다른 앱의 개발자가 이 문서만 보고 모니터링 시스템에 붙을 수 있게 하는 것이 목적이다. 이렇게 나눈 결정과 이유는 [ADR 0007](decisions/0007-core-app-contract.md)에 있다.
 
-## 코어와 앱
+## 모니터링 시스템과 앱
 
-코어는 Prometheus, Blackbox Exporter, Alertmanager다. `infrastructure/compose.yml`로 앱과 따로 띄운다. 코어만으로는 감시와 알림이 동작하지 않는다. 무엇을 감시할지는 앱이 HTTP SD로 알려 주고, Alert를 누구에게 보낼지는 앱이 webhook을 받아 정한다.
+모니터링 시스템은 Prometheus, Blackbox Exporter, Alertmanager다. `infrastructure/compose.yml`로 앱과 따로 띄운다. 모니터링 시스템만으로는 감시와 알림이 동작하지 않는다. 무엇을 감시할지는 앱이 HTTP SD로 알려 주고, Alert를 누구에게 보낼지는 앱이 webhook을 받아 정한다.
 
 | 방향 | 무엇 | 누가 부르는가 |
 |---|---|---|
-| 코어 → 앱 | 주소 감시 대상 목록(HTTP SD) | Prometheus, 15초마다 목록 갱신 |
-| 코어 → 앱 | 서버 감시 대상 목록(HTTP SD) | Prometheus, 30초마다 목록 갱신 |
-| 코어 → 앱 | Alert(webhook) | Alertmanager |
-| 앱 → 코어 | 수집 결과 조회(Prometheus HTTP API) | 앱 |
-| 코어 → 감시 대상 | 주소 확인과 OS exporter 수집 | Blackbox Exporter, Prometheus |
+| 모니터링 시스템 → 앱 | 주소 감시 대상 목록(HTTP SD) | Prometheus, 15초마다 목록 갱신 |
+| 모니터링 시스템 → 앱 | 서버 감시 대상 목록(HTTP SD) | Prometheus, 30초마다 목록 갱신 |
+| 모니터링 시스템 → 앱 | Alert(webhook) | Alertmanager |
+| 앱 → 모니터링 시스템 | 수집 결과 조회(Prometheus HTTP API) | 앱 |
+| 모니터링 시스템 → 감시 대상 | 주소 확인과 OS exporter 수집 | Blackbox Exporter, Prometheus |
 
-코어와 앱은 같은 호스트의 Docker 네트워크 `monitoring`으로 통신한다. 코어가 이 네트워크를 만들고, 앱은 `external: true`로 붙는다. 그래서 코어를 먼저 띄운다. 호스트에 여는 포트는 `127.0.0.1`에만 묶는다. 다른 호스트에 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 코어가 부르는 앱 주소는 하나뿐이라, 코어 하나에는 앱 하나만 붙는다.
+모니터링 시스템과 앱은 같은 호스트의 Docker 네트워크 `monitoring`으로 통신한다. 모니터링 시스템이 이 네트워크를 만들고, 앱은 `external: true`로 붙는다. 그래서 모니터링 시스템을 먼저 띄운다. 호스트에 여는 포트는 `127.0.0.1`에만 묶는다. 다른 호스트에 두는 구성은 지원하지 않는다([#15](https://github.com/subinggrae/server-monitor/issues/15)). 모니터링 시스템이 부르는 앱 주소는 하나뿐이라, 모니터링 시스템 하나에는 앱 하나만 붙는다.
 
-코어와 앱이 맡는 일과 설치 순서는 [운영 가이드](OPERATIONS.md)에, 앱이 만들 기능과 저장할 데이터의 쉬운 안내는 [관리자 서버 만들기](ADMIN-SERVER.md)에 있다. 이 문서는 그 안내가 기대는 약속(경로, 형식, label, series)의 기준이다.
+모니터링 시스템과 앱이 맡는 일과 설치 순서는 [운영 가이드](OPERATIONS.md)에, 앱이 만들 기능과 저장할 데이터의 쉬운 안내는 [관리자 서버 만들기](ADMIN-SERVER.md)에 있다. 이 문서는 그 안내가 기대는 약속(경로, 형식, label, series)의 기준이다.
 
 ### 용어
 
@@ -27,39 +27,39 @@
 - **series**: 같은 label을 가진 값을 시간 순서로 쌓은 기록이다. label 값이 바뀌면 다른 series가 되어 이전 기록과 이어지지 않는다.
 - **exporter**: 감시 대상의 값을 Prometheus가 읽을 수 있게 내보내는 프로그램이다. 서버에는 OS exporter(node_exporter, windows_exporter)를 설치한다.
 - **PromQL**: Prometheus 조회 언어다. 앱은 이 문서의 예에 있는 식(series 이름, label 조건, `max by (server_id)` 같은 묶음)만 쓰면 된다.
-- **job**: 코어 설정이 수집 방식마다 붙인 이름이다. `manager-blackbox`는 주소 확인, `manager-os`는 OS exporter 수집이다.
+- **job**: 모니터링 시스템 설정이 수집 방식마다 붙인 이름이다. `manager-blackbox`는 주소 확인, `manager-os`는 OS exporter 수집이다.
 - **instance**: 확인하거나 수집한 대상이다. 주소 확인은 확인한 주소, OS exporter 수집은 `host:port`다.
 - **probe, module**: Blackbox Exporter가 주소 하나를 한 번 확인하는 일을 probe라고 한다. module은 그 확인 방식(ping, TCP 연결, HTTP 요청)의 이름이다.
-- **recording rule**: 코어가 원본 값을 미리 계산해 새 이름으로 저장하는 규칙이다. `manager:`로 시작하는 series가 그 결과다.
-- **Alert**: 코어의 규칙이 "문제가 있다"고 판단한 상태다. Alertmanager가 앱의 webhook으로 보낸다. `fingerprint`는 Alertmanager가 label로 만든 Alert의 식별자다.
+- **recording rule**: 모니터링 시스템이 원본 값을 미리 계산해 새 이름으로 저장하는 규칙이다. `manager:`로 시작하는 series가 그 결과다.
+- **Alert**: 모니터링 시스템의 규칙이 "문제가 있다"고 판단한 상태다. Alertmanager가 앱의 webhook으로 보낸다. `fingerprint`는 Alertmanager가 label로 만든 Alert의 식별자다.
 - **리소스**: 서버에서 감시하는 CPU, Memory, 디스크 하나하나다. 사용자가 서버마다 고른다.
 
-## 코어 설정
+## 모니터링 시스템 설정
 
-코어 설정은 세 가지다. 저장소에서는 `infrastructure/.env`와 `infrastructure/secrets/`에, 내부망 묶음에서는 설치 폴더의 `.env`와 token 폴더에 둔다. 바꾼 뒤 다시 띄우는 방법은 [운영 가이드의 운영 작업](OPERATIONS.md#운영-작업)에 있다.
+모니터링 시스템 설정은 세 가지다. 저장소에서는 `infrastructure/.env`와 `infrastructure/secrets/`에, 내부망 묶음에서는 설치 폴더의 `.env`와 token 폴더에 둔다. 바꾼 뒤 다시 띄우는 방법은 [운영 가이드의 운영 작업](OPERATIONS.md#운영-작업)에 있다.
 
-- `MONITORING_APP_ADDRESS`: 코어가 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
-- `CORE_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 저장소에서는 `infrastructure/secrets/`를, 내부망 묶음에서는 설치 폴더(묶음 폴더의 상위 폴더)의 `secrets/`를 쓴다.
+- `MONITORING_APP_ADDRESS`: 모니터링 시스템이 부를 앱 주소다. `monitoring` 네트워크 안에서 닿는 `host:port`이고, 예는 `manager-api:8080`이다. `http://`를 붙이지 않는다.
+- `MONITORING_SECRETS_DIR`: webhook token 파일이 있는 폴더다. 비우면 저장소에서는 `infrastructure/secrets/`를, 내부망 묶음에서는 설치 폴더(묶음 폴더의 상위 폴더)의 `secrets/`를 쓴다.
 - `alertmanager_webhook_token`: webhook에 붙는 Bearer token 파일이다. 앱도 같은 파일을 Docker secret으로 받아 비교한다. 설정 파일, 이 문서, 로그에 값을 쓰지 않는다.
 
-Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 코어 묶음의 `templates/`에 들어 있다. 코어를 띄우기 전에 운영 명령(`core-server.sh`)이 주소를 검사해 넣고, 펼친 설정을 컨테이너에 읽기 전용으로 붙인다. 코어를 설치하고 서버마다 바꾸는 값은 [운영 가이드의 설치 전에 정할 값](OPERATIONS.md#설치-전에-정할-값)에 있다.
+Prometheus와 Alertmanager의 설정 파일은 앱 주소를 `@MONITORING_APP_ADDRESS@`로 둔 템플릿이고, 모니터링 시스템 묶음의 `templates/`에 들어 있다. 모니터링 시스템을 띄우기 전에 운영 명령(`monitoring-server.sh`)이 주소를 검사해 넣고, 펼친 설정을 컨테이너에 읽기 전용으로 붙인다. 모니터링 시스템을 설치하고 서버마다 바꾸는 값은 [운영 가이드의 설치 전에 정할 값](OPERATIONS.md#설치-전에-정할-값)에 있다.
 
 ### 경로와 주소 바꾸기
 
-앱 주소(호스트와 포트)는 코어 설정의 `MONITORING_APP_ADDRESS`로 바꾼다. 반면 API 경로는 바꾸지 않는다. 코어는 앱 주소 뒤에 정해진 경로를 붙여 부르고, 경로는 코어 설정 파일에 적혀 있기 때문이다.
+앱 주소(호스트와 포트)는 모니터링 시스템 설정의 `MONITORING_APP_ADDRESS`로 바꾼다. 반면 API 경로는 바꾸지 않는다. 모니터링 시스템은 앱 주소 뒤에 정해진 경로를 붙여 부르고, 경로는 모니터링 시스템 설정 파일에 적혀 있기 때문이다.
 
 | 바꾸려는 것 | 방법 | 고치는 곳 |
 |---|---|---|
-| 앱 호스트, 포트 | 코어 설정의 앱 주소를 바꾸고 코어를 다시 띄움 | 코어의 `.env` |
-| webhook token | token 파일을 바꾸고 코어의 Alertmanager와 앱을 다시 만듦(내부망 묶음은 [운영 가이드의 token 바꾸기](OPERATIONS.md#token-바꾸기)) | token 폴더의 `alertmanager_webhook_token` |
+| 앱 호스트, 포트 | 모니터링 시스템 설정의 앱 주소를 바꾸고 모니터링 시스템을 다시 띄움 | 모니터링 시스템의 `.env` |
+| webhook token | token 파일을 바꾸고 모니터링 시스템의 Alertmanager와 앱을 다시 만듦(내부망 묶음은 [운영 가이드의 token 바꾸기](OPERATIONS.md#token-바꾸기)) | token 폴더의 `alertmanager_webhook_token` |
 | API 경로 | 바꾸지 않고, 앱 앞단(리버스 프록시 등)에서 받아 넘김 | 앱 쪽 |
 | `http`를 `https`로 | 지원하지 않음(같은 호스트의 Docker 네트워크 안에서만 부름) | 없음 |
 
-API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의 `http_sd_configs.url` 두 곳과 `infrastructure/alertmanager/alertmanager.yml`의 `webhook_configs.url`을 고친 뒤 코어 이미지를 다시 빌드하고 모든 코어 서버를 갱신한다. 이는 코어 변경이라 이 저장소에서는 큰 변경으로 다루고, 이 문서도 함께 고친다.
+API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의 `http_sd_configs.url` 두 곳과 `infrastructure/alertmanager/alertmanager.yml`의 `webhook_configs.url`을 고친 뒤 모니터링 시스템 이미지를 다시 빌드하고 모든 모니터링 서버를 갱신한다. 이는 모니터링 시스템 변경이라 이 저장소에서는 큰 변경으로 다루고, 이 문서도 함께 고친다.
 
 ## 앱이 제공할 API
 
-코어가 부르는 앱의 API는 다음 세 개뿐이다. 이 세 API의 경로와 형식은 코어와의 약속이라 바꾸지 않는다. 화면용 API, 설정 API, 리소스 임계값 판단은 코어가 부르지 않으므로 앱이 자유롭게 만든다.
+모니터링 시스템이 부르는 앱의 API는 다음 세 개뿐이다. 이 세 API의 경로와 형식은 모니터링 시스템과의 약속이라 바꾸지 않는다. 화면용 API, 설정 API, 리소스 임계값 판단은 모니터링 시스템이 부르지 않으므로 앱이 자유롭게 만든다.
 
 | API | 부르는 쪽 | 언제 | 인증 | 응답 |
 |---|---|---|---|---|
@@ -102,7 +102,7 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 
 이 label 가운데 Alert에 들어가는 것은 `check_id`, `check_target_id`뿐이다. 나머지는 수집 기록(series)에만 남는다. 이유는 [Alert](#alert-post-apiintegrationsalertmanagerwebhook)에 있다.
 
-확인 방식마다 `targets`에 넣는 값, `module` 값, 성공으로 보는 조건은 다음과 같다. 확인마다 제한 시간(기본 5초, 코어 서버에서 1~9초) 안에 응답이 없으면 실패다.
+확인 방식마다 `targets`에 넣는 값, `module` 값, 성공으로 보는 조건은 다음과 같다. 확인마다 제한 시간(기본 5초, 모니터링 서버에서 1~9초) 안에 응답이 없으면 실패다.
 
 | `check_type` | `targets` 값 | `module` | 성공 조건 |
 |---|---|---|---|
@@ -129,7 +129,7 @@ SD 응답은 다음을 지킨다.
 - label 값은 모두 JSON 문자열로 보낸다. id를 숫자로 보내면 Prometheus가 응답 전체를 거부한다.
 - label 이름을 더하거나 지우거나 바꾸지 않는다. id 값도 대상마다 바뀌지 않게 둔다. label과 id가 time series의 이름표라서 바뀌면 쌓아 온 series가 끊긴다.
 - 이름, 환경, 확인 방식, 주소(`check_name`, `server_name`, `environment`, `check_type`, `module`, `targets`)는 사용자가 바꾸면 그대로 바꿔 보낸다. 그 대상의 원래 series(`probe_success`, `up`)는 새로 시작된다. 다만 감시 항목의 Alert는 id로만 묶고 새 대상이 처음 수집되기 전까지는 최근 5분 안의 마지막 값으로 판단하므로, 진행 중인 장애는 끊기지 않는다([ADR 0010](decisions/0010-alert-labels-by-check-id.md)). 수집 주기가 150초를 넘으면 끊길 수 있다(사람 확인: 2026-11-09). 서버 사용률의 recording rule은 `server_id`로 묶어 이름과 환경을 label로 남기지 않으므로 이어진다.
-- `__scrape_interval__`은 10초보다 짧게 두지 않는다. 코어의 수집 제한 시간(`scrape_timeout`)이 10초라서, 주기가 그보다 짧으면 Prometheus가 그 대상을 수집하지 않는다.
+- `__scrape_interval__`은 10초보다 짧게 두지 않는다. 모니터링 시스템의 수집 제한 시간(`scrape_timeout`)이 10초라서, 주기가 그보다 짧으면 Prometheus가 그 대상을 수집하지 않는다.
 - 목록을 만들지 못하면(DB 오류 등) 빈 배열 `[]` 대신 `5xx`를 돌려준다. `[]`을 받으면 Prometheus가 모든 대상의 감시를 멈추지만, 오류를 받으면 마지막 목록을 유지한다.
 - label에 알림 받을 곳(메신저 방 id 등)이나 긴 설명을 넣지 않는다. label 값은 Prometheus에 그대로 저장된다.
 - SD를 부르지 못하면 Prometheus는 마지막으로 받은 목록으로 수집을 이어 간다. 앱이 멈춰도 감시는 멈추지 않는다.
@@ -170,11 +170,11 @@ Alertmanager가 [webhook payload](https://prometheus.io/docs/alerting/latest/con
 3. `status`가 `firing`이면 장애, `resolved`면 복구다. 복구 시각은 `endsAt`이다. 장애 중에는 `endsAt`이 `0001-01-01`이라 복구 시각으로 쓰지 않는다.
 4. 같은 장애가 다시 오면, 마지막으로 알림을 보낸 뒤 그 감시 항목의 알림 다시 보내는 간격이 지났을 때만 다시 보낸다. 이 간격은 5~1440분으로 받고, 정하지 않은 감시 항목은 60분으로 보기를 권한다. Alertmanager는 이어지는 Alert를 5분마다 보내므로, 간격을 5분보다 짧게 두지 않는다([ADR 0001](decisions/0001-alert-repeat-in-manager.md)).
 
-`alertname`이 `MonitoringCheckProbeFailed`인 Alert는 대상이 아니라 코어 쪽 문제다. Blackbox Exporter가 멈췄거나 응답하지 않아 확인 결과를 받지 못한 상태다. label은 `MonitoringCheckDown`과 같아서 어느 감시 항목의 확인이 멈췄는지 알 수 있고, annotation 문구는 다르다. 앱은 두 Alert를 같은 방식으로 기록하고 알려도 된다.
+`alertname`이 `MonitoringCheckProbeFailed`인 Alert는 대상이 아니라 모니터링 시스템 쪽 문제다. Blackbox Exporter가 멈췄거나 응답하지 않아 확인 결과를 받지 못한 상태다. label은 `MonitoringCheckDown`과 같아서 어느 감시 항목의 확인이 멈췄는지 알 수 있고, annotation 문구는 다르다. 앱은 두 Alert를 같은 방식으로 기록하고 알려도 된다.
 
 앱은 다음도 지킨다.
 
-- `Authorization: Bearer <token>`이 코어 설정의 token과 다르면 `401`을 돌려주고 Alert를 기록하지 않는다. 비교는 고정 시간 비교로 한다.
+- `Authorization: Bearer <token>`이 모니터링 시스템 설정의 token과 다르면 `401`을 돌려주고 Alert를 기록하지 않는다. 비교는 고정 시간 비교로 한다.
 - 처리하면 `2xx`를 돌려준다. 알림 전송에 실패해도 `2xx`를 돌려준다. 실패를 돌려주면 Alertmanager가 같은 payload를 계속 다시 보낸다.
 - 모르는 필드가 있어도 실패하지 않는다. Alertmanager 버전이 올라가면 필드가 늘어난다.
 - 앱이 멈춘 동안의 Alert는 Alertmanager가 다시 보낸다. 앱이 뜬 뒤 다음 전송에서 받는다.
@@ -199,9 +199,9 @@ Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보�
 
 이때 앱이 장애 기록을 직접 닫지 않는다. 직접 닫아도 그 뒤 오는 같은 장애가 기록을 다시 연다. 복구 Alert가 오면 닫는다.
 
-## 코어가 제공할 것
+## 모니터링 시스템이 제공할 것
 
-코어가 앱에 주는 것은 수집 결과 조회 API 하나다. 앱은 `monitoring` 네트워크 안에서 `http://prometheus:9090`으로 부르고, 인증은 없다. 조회는 `GET /api/v1/query`에 PromQL을 `query` 파라미터로 넘긴다. 다음은 서버 7의 사용률을 읽는 요청이다.
+모니터링 시스템이 앱에 주는 것은 수집 결과 조회 API 하나다. 앱은 `monitoring` 네트워크 안에서 `http://prometheus:9090`으로 부르고, 인증은 없다. 조회는 `GET /api/v1/query`에 PromQL을 `query` 파라미터로 넘긴다. 다음은 서버 7의 사용률을 읽는 요청이다.
 
 ```http
 GET http://prometheus:9090/api/v1/query?query=manager%3Aresource_usage_percent%7Bserver_id%3D%227%22%7D
@@ -250,22 +250,22 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 | `manager:resource_used_bytes` | 사용량(byte), CPU는 없음 |
 | `manager:resource_size_bytes` | 전체 크기(byte), CPU는 없음 |
 
-`manager:resource_*`의 label은 `server_id`, `resource_type`(`CPU`, `MEMORY`, `STORAGE`), `resource_key`뿐이다. `resource_key`는 CPU가 `cpu`, Memory가 `memory`, Storage가 Linux mountpoint나 Windows 드라이브 이름(`C:`)이다. OS별 계산은 코어의 `infrastructure/prometheus/rules/server-resources.yml`에만 있다([ADR 0005](decisions/0005-common-resource-recording-rules.md)).
+`manager:resource_*`의 label은 `server_id`, `resource_type`(`CPU`, `MEMORY`, `STORAGE`), `resource_key`뿐이다. `resource_key`는 CPU가 `cpu`, Memory가 `memory`, Storage가 Linux mountpoint나 Windows 드라이브 이름(`C:`)이다. OS별 계산은 모니터링 시스템의 `infrastructure/prometheus/rules/server-resources.yml`에만 있다([ADR 0005](decisions/0005-common-resource-recording-rules.md)).
 
-코어는 앱의 metric(`/actuator/prometheus` 등)을 수집하지 않는다.
+모니터링 시스템은 앱의 metric(`/actuator/prometheus` 등)을 수집하지 않는다.
 
 ## 리소스 임계값 판단
 
-코어에는 CPU, Memory, Storage의 임계값 Alert 규칙이 없다. 임계값은 사용자가 화면에서 바꾸는 설정이라서, 앱이 `manager:resource_usage_percent`를 읽어 임계값과 비교하고 직접 알린다. 그래서 리소스 알림은 Alertmanager webhook으로 오지 않는다. 이 결정과 이유는 [ADR 0008](decisions/0008-resource-threshold-in-app.md)에, 동작의 기준은 [요구사항 0009](requirements/0009-resource-threshold-schema.md)에 있다.
+모니터링 시스템에는 CPU, Memory, Storage의 임계값 Alert 규칙이 없다. 임계값은 사용자가 화면에서 바꾸는 설정이라서, 앱이 `manager:resource_usage_percent`를 읽어 임계값과 비교하고 직접 알린다. 그래서 리소스 알림은 Alertmanager webhook으로 오지 않는다. 이 결정과 이유는 [ADR 0008](decisions/0008-resource-threshold-in-app.md)에, 동작의 기준은 [요구사항 0009](requirements/0009-resource-threshold-schema.md)에 있다.
 
 ### 앱이 만들 것
 
-리소스 임계값 판단에는 코어와 주고받는 API가 새로 없다. 코어는 사용률만 주고, 나머지는 모두 앱 안에서 만든다. 경로와 형식은 앱이 정한다.
+리소스 임계값 판단에는 모니터링 시스템과 주고받는 API가 새로 없다. 모니터링 시스템은 사용률만 주고, 나머지는 모두 앱 안에서 만든다. 경로와 형식은 앱이 정한다.
 
 | 만들 것 | 하는 일 | 쓰는 것 |
 |---|---|---|
 | 설정 저장과 화면 | 리소스마다 임계값과 지속 시간, 서버마다 알림 다시 보내는 간격을 받는다 | `resource_thresholds`, `server_resource_alert_settings` |
-| 판단 작업 | 앱 안에서 주기적으로 실행해 사용률을 읽고 [판단 규칙](#판단-규칙)대로 상태를 바꾼다 | [코어가 제공할 것](#코어가-제공할-것)의 조회 API, `resource_alert_states`, `resource_alert_events` |
+| 판단 작업 | 앱 안에서 주기적으로 실행해 사용률을 읽고 [판단 규칙](#판단-규칙)대로 상태를 바꾼다 | [모니터링 시스템이 제공할 것](#모니터링-시스템이-제공할-것)의 조회 API, `resource_alert_states`, `resource_alert_events` |
 | 알림 보내기 | 판단 작업이 발생, 다시 보내기, 복구를 정하면 사람에게 보낸다 | 앱이 고른 알림 방법(문자, Telegram 등), 문구는 [알림 메시지 템플릿](ADMIN-SERVER.md#알림-메시지-템플릿) |
 
 판단 작업은 앱이 하나만 띄워져 있다고 보고 만든다. 앱을 여러 개 띄우면 같은 리소스를 두 번 판단해 알림이 두 번 갈 수 있다([ADR 0008](decisions/0008-resource-threshold-in-app.md)).

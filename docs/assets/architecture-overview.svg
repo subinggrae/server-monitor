@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 320" width="840" height="320" role="img" aria-labelledby="architecture-overview-title architecture-overview-desc">
-  <title id="architecture-overview-title">관리자 서버가 감시 대상 목록을 주면 코어가 감시 대상을 확인하고 수집해 장애를 관리자 서버에 보낸다</title>
-  <desc id="architecture-overview-desc">모니터링 코어(Prometheus, Alertmanager, Blackbox Exporter)와 관리자 서버는 따로 배포한다. 관리자 서버는 이 저장소 밖에 있다. Prometheus는 HTTP SD로 관리자 서버에서 감시 대상 목록을 받아, Blackbox Exporter로 감시 대상이 살아 있는지 확인하고 감시 대상 서버의 OS exporter를 직접 수집한다. Prometheus가 판단한 장애는 Alertmanager가 webhook으로 관리자 서버에 보낸다. 관리자 서버는 PromQL로 Prometheus에서 결과를 조회하고, 알림은 관리자 서버가 고른 수단으로 보낸다.</desc>
+  <title id="architecture-overview-title">관리자 서버가 감시 대상 목록을 주면 모니터링 시스템이 감시 대상을 확인하고 수집해 장애를 관리자 서버에 보낸다</title>
+  <desc id="architecture-overview-desc">모니터링 시스템(Prometheus, Alertmanager, Blackbox Exporter)과 관리자 서버는 따로 배포한다. 관리자 서버는 이 저장소 밖에 있다. Prometheus는 HTTP SD로 관리자 서버에서 감시 대상 목록을 받아, Blackbox Exporter로 감시 대상이 살아 있는지 확인하고 감시 대상 서버의 OS exporter를 직접 수집한다. Prometheus가 판단한 장애는 Alertmanager가 webhook으로 관리자 서버에 보낸다. 관리자 서버는 PromQL로 Prometheus에서 결과를 조회하고, 알림은 관리자 서버가 고른 수단으로 보낸다.</desc>
   <style>
     svg { --paper: #FFFFFF; --ink: #2D3142; --muted: #5C667A; --edge: #8A92A3; --hair: #D9DCE1; --band: #F5F6F8; --accent: #C2410C; --accent-fill: #FFF4EE; }
     @media (prefers-color-scheme: dark) {
@@ -31,10 +31,10 @@
 
   <rect class="paper" width="840" height="320"/>
 
-  <!-- 시스템 경계: 모니터링 코어(infrastructure/compose.yml) -->
+  <!-- 시스템 경계: 모니터링 시스템(infrastructure/compose.yml) -->
   <g id="boundary">
     <rect class="band" x="216" y="16" width="416" height="288"/>
-    <text class="sub" x="232" y="36">모니터링 코어</text>
+    <text class="sub" x="232" y="36">모니터링 시스템</text>
   </g>
 
   <!-- 연결선 -->

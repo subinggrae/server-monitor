@@ -1,17 +1,17 @@
 #!/bin/sh
-# core-server.sh의 사전 검사, 설정 펼치기, 설치 준비를 가짜 docker, systemctl, curl, wget으로 상황을 만들어 확인한다.
+# monitoring-server.sh의 사전 검사, 설정 펼치기, 설치 준비를 가짜 docker, systemctl, curl, wget으로 상황을 만들어 확인한다.
 # 실제 Docker는 쓰지 않는다. 컨테이너를 띄우는 흐름은 요구사항 0011, 0015의 수동 확인이 맡는다.
 #
-#   sh core-server.test.sh <core-server.sh 경로>
+#   sh monitoring-server.test.sh <monitoring-server.sh 경로>
 #
 # 저장소의 infrastructure/에 있는 설정 템플릿을 묶음의 templates/에 넣어 펼친다.
 # 종료 코드: 실패한 시험이 하나라도 있으면 1.
 set -u
 
 SCRIPT=$1
-# 묶음에서 core-server.sh 옆에 있는 공용 검사 파일이다.
+# 묶음에서 monitoring-server.sh 옆에 있는 공용 검사 파일이다.
 SOURCE_DIR=$(dirname "$SCRIPT")
-SETTINGS="$SOURCE_DIR/core-settings.sh"
+SETTINGS="$SOURCE_DIR/monitoring-settings.sh"
 FAILED=0
 PASSED=0
 
@@ -19,7 +19,7 @@ PASSED=0
 setup() {
   T=$(mktemp -d)
   INSTALL="$T/install"
-  BUNDLE="$INSTALL/monitoring-core-v2"
+  BUNDLE="$INSTALL/monitoring-system-v2"
   FAKE="$T/fake"
   TOKEN="$INSTALL/secrets/alertmanager_webhook_token"
   # 묶음에서 설정 파일은 설치 폴더의 .env 하나다(요구사항 0017). 묶음 폴더의 .env는 운영 명령이 만드는 ../.env 링크다.
@@ -27,22 +27,22 @@ setup() {
   RENDERED="$BUNDLE/rendered"
   CA="$INSTALL/certs/ca-certificates.crt"
   mkdir -p "$BUNDLE/templates" "$FAKE" "$T/bin"
-  cp "$SCRIPT" "$BUNDLE/core-server.sh"
-  cp "$SETTINGS" "$BUNDLE/core-settings.sh"
+  cp "$SCRIPT" "$BUNDLE/monitoring-server.sh"
+  cp "$SETTINGS" "$BUNDLE/monitoring-settings.sh"
   cp "$SOURCE_DIR/prometheus/prometheus.yml" "$SOURCE_DIR/alertmanager/alertmanager.yml" "$SOURCE_DIR/blackbox/blackbox.yml" \
     "$BUNDLE/templates/"
   cat > "$BUNDLE/compose.yml" <<'EOF'
 services:
   prometheus:
-    image: monitoring-core-prometheus:v2
+    image: monitoring-system-prometheus:v2
   alertmanager:
-    image: monitoring-core-alertmanager:v2
+    image: monitoring-system-alertmanager:v2
   blackbox-exporter:
-    image: monitoring-core-blackbox-exporter:v2
+    image: monitoring-system-blackbox-exporter:v2
 EOF
   printf '# 예시\nMONITORING_APP_ADDRESS=manager-api:8080\n' > "$BUNDLE/.env.example"
-  printf 'images' > "$BUNDLE/core-images.tar"
-  (cd "$BUNDLE" && sha256sum compose.yml .env.example core-images.tar core-server.sh core-settings.sh templates/* > SHA256SUMS)
+  printf 'images' > "$BUNDLE/monitoring-system-images.tar"
+  (cd "$BUNDLE" && sha256sum compose.yml .env.example monitoring-system-images.tar monitoring-server.sh monitoring-settings.sh templates/* > SHA256SUMS)
   printf 'enabled\n' > "$FAKE/systemctl"
   printf '1761600000\n' > "$FAKE/bundle_time"
   write_fake_docker
@@ -50,8 +50,8 @@ EOF
   write_fake_http curl 22
   write_fake_http wget 1
   PATH="$T/bin:$ORIGINAL_PATH"
-  unset CORE_READY_TOOLS
-  export PATH FAKE CORE_WAIT_SECONDS=2 CORE_WAIT_INTERVAL=1
+  unset MONITORING_READY_TOOLS
+  export PATH FAKE MONITORING_WAIT_SECONDS=2 MONITORING_WAIT_INTERVAL=1
 }
 
 write_fake_docker() {
@@ -65,8 +65,8 @@ case "$1" in
     case " $* " in
       *" up "*)
         # Compose처럼 펼친 설정(env_file, required: true)이 없으면 컨테이너를 만들지 않는다.
-        if [ ! -f "$PWD/rendered/core.env" ]; then
-          echo "env file $PWD/rendered/core.env not found" >&2
+        if [ ! -f "$PWD/rendered/monitoring.env" ]; then
+          echo "env file $PWD/rendered/monitoring.env not found" >&2
           exit 1
         fi
         touch "$FAKE/running"; printf 'v2\n' > "$FAKE/running_version"; printf '%s\n' "$PWD" > "$FAKE/running_workdir"
@@ -77,11 +77,11 @@ case "$1" in
           exit 1
         fi
         # Compose처럼 env_file의 값을 컨테이너 환경 변수로, 셸 환경 변수의 값을 호스트 포트로 남긴다. 이 가짜는 .env를 읽지 않는다.
-        { printf 'PATH=/bin\n'; grep -v '^#' "$PWD/rendered/core.env"; } > "$FAKE/env.prometheus"
+        { printf 'PATH=/bin\n'; grep -v '^#' "$PWD/rendered/monitoring.env"; } > "$FAKE/env.prometheus"
         cp "$FAKE/env.prometheus" "$FAKE/env.blackbox-exporter"
-        printf '{"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_PROMETHEUS_PORT:-9090}" > "$FAKE/ports.prometheus"
-        printf '{"9093/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_ALERTMANAGER_PORT:-9093}" > "$FAKE/ports.alertmanager"
-        printf '{"9115/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${CORE_BLACKBOX_PORT:-9115}" > "$FAKE/ports.blackbox-exporter"
+        printf '{"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${MONITORING_PROMETHEUS_PORT:-9090}" > "$FAKE/ports.prometheus"
+        printf '{"9093/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${MONITORING_ALERTMANAGER_PORT:-9093}" > "$FAKE/ports.alertmanager"
+        printf '{"9115/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${MONITORING_BLACKBOX_PORT:-9115}" > "$FAKE/ports.blackbox-exporter"
         ;;
     esac ;;
   image)
@@ -159,7 +159,7 @@ started() {
   rm -f "$FAKE/calls" "$FAKE/ready_calls"
 }
 
-# 다른 버전의 코어가 떠 있는 상태. 두 번째 인자는 그 이미지의 커밋 시각 label 값이다.
+# 다른 버전의 모니터링 시스템이 떠 있는 상태. 두 번째 인자는 그 이미지의 커밋 시각 label 값이다.
 running_other() {
   touch "$FAKE/running" "$FAKE/images_loaded"
   printf '%s\n' "$1" > "$FAKE/running_version"
@@ -168,7 +168,7 @@ running_other() {
 }
 
 run() {
-  OUT=$(cd "$BUNDLE" && sh ./core-server.sh "$@" 2>&1 < "${STDIN:-/dev/null}")
+  OUT=$(cd "$BUNDLE" && sh ./monitoring-server.sh "$@" 2>&1 < "${STDIN:-/dev/null}")
   RC=$?
 }
 
@@ -177,7 +177,7 @@ run() {
 run_in_terminal() {
   answer=$1
   shift
-  OUT=$(cd "$BUNDLE" && { printf '%s\n' "$answer"; sleep 3; } | script -q -c "sh ./core-server.sh $*" /dev/null 2>&1)
+  OUT=$(cd "$BUNDLE" && { printf '%s\n' "$answer"; sleep 3; } | script -q -c "sh ./monitoring-server.sh $*" /dev/null 2>&1)
   RC=$?
 }
 
@@ -218,22 +218,22 @@ check 'Docker가 꺼져 있으면 알리고 아무것도 하지 않는다' \
 
 # --- 체크섬 ---
 
-setup; prepared; printf 'broken' > "$BUNDLE/core-images.tar"
+setup; prepared; printf 'broken' > "$BUNDLE/monitoring-system-images.tar"
 run start
 check '묶음 파일이 바뀌었으면 그 파일을 알리고 불러오거나 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "core-images.tar" && contains "체크섬" && ! called load && ! called "^compose"'
+  '[ $RC -ne 0 ] && contains "monitoring-system-images.tar" && contains "체크섬" && ! called load && ! called "^compose"'
 
 # --- 설정 파일 ---
 
 setup; prepared; rm "$ENV"
 run start
 check '설정 파일이 없으면 설치 준비를 안내하고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && ! contains "install 대신" && ! contains "sudo cp" && ! called "^compose"'
+  '[ $RC -ne 0 ] && contains "sh monitoring-server.sh install" && ! contains "install 대신" && ! contains "sudo cp" && ! called "^compose"'
 
 # 갱신하며 .env를 옮기지 않은 경우: install로 기본값 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
-setup; prepared; rm "$ENV"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+setup; prepared; rm "$ENV"; running_other v1 1761500000 "$INSTALL/monitoring-system-v1"
 run start
-check '코어가 이미 있는데 설정 파일이 어디에도 없으면 install 대신 쓰던 .env를 복사하라고 안내한다' \
+check '모니터링 시스템이 이미 있는데 설정 파일이 어디에도 없으면 install 대신 쓰던 .env를 복사하라고 안내한다' \
   '[ $RC -ne 0 ] && contains "install 대신" && ! called "^compose"'
 
 # 이전 방식 서버에서 처음 갱신(S5): 떠 있는 버전의 묶음 폴더에만 .env가 있다. 직접 복사하지 않고 명령만 보인다.
@@ -245,7 +245,7 @@ check '설치 폴더에 설정 파일이 없고 떠 있는 버전의 폴더에 �
 
 setup; prepared; mkdir "$INSTALL/monitoring-core-v1"; mv "$ENV" "$INSTALL/monitoring-core-v1/.env"
 run start
-check '코어가 없어도 이전 묶음 폴더에 설정 파일이 있으면 그 파일을 복사하는 명령을 보인다' \
+check '모니터링 시스템이 없어도 이전 묶음 폴더에 설정 파일이 있으면 그 파일을 복사하는 명령을 보인다' \
   '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && [ ! -e "$ENV" ] && ! called "^compose"'
 
 # 지금 묶음 폴더에 이전 방식으로 .env를 둔 경우(S5): 설치 폴더로 옮기라고 안내한다.
@@ -280,7 +280,7 @@ run start
 check '이전 폴더가 여럿이면 떠 있는 버전의 폴더에서 설정 파일을 고른다' \
   '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "monitoring-core-a0" && ! called "^compose"'
 
-# 코어가 없으면 코어 묶음 폴더 가운데 가장 최근에 고친 파일을 고르고, 코어가 아닌 폴더의 .env는 보지 않는다.
+# 모니터링 시스템이 없으면 이전 방식 묶음 폴더(옛 이름 monitoring-core-<버전>) 가운데 가장 최근에 고친 파일을 고르고, 모니터링 시스템이 아닌 폴더의 .env는 보지 않는다.
 setup; prepared; rm "$ENV"; mkdir "$INSTALL/manager" "$INSTALL/monitoring-core-a0" "$INSTALL/monitoring-core-v1"
 printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-a0/.env"
 touch -t 202001010000 "$INSTALL/monitoring-core-a0/.env"
@@ -288,7 +288,7 @@ printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-v
 touch -t 202101010000 "$INSTALL/monitoring-core-v1/.env"
 printf 'DB_PASSWORD=x\n' > "$INSTALL/manager/.env"
 run start
-check '코어가 없으면 코어 묶음 폴더 가운데 가장 최근 설정 파일을 고르고 다른 폴더의 .env는 고르지 않는다' \
+check '모니터링 시스템이 없으면 이전 방식 묶음 폴더 가운데 가장 최근 설정 파일을 고르고 다른 폴더의 .env는 고르지 않는다' \
   '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "$INSTALL/manager" && ! called "^compose"'
 
 # 설치 폴더의 .env가 링크면 따라가지 않는다(CWE-59).
@@ -317,14 +317,14 @@ done
 
 setup; prepared
 OUT=$(cd "$BUNDLE" && env "MONITORING_APP_ADDRESS=x
-manager-api:8080" sh ./core-server.sh start 2>&1 < /dev/null)
+manager-api:8080" sh ./monitoring-server.sh start 2>&1 < /dev/null)
 RC=$?
 check '셸 환경 변수의 관리자 서버 주소가 여러 줄이면 한 줄이 맞아도 거부한다' \
   '[ $RC -ne 0 ] && contains "관리자 서버 주소" && ! called "^compose"'
 
 setup; prepared
 OUT=$(cd "$BUNDLE" && env "MONITORING_APP_ADDRESS=manager-api:8080
-" sh ./core-server.sh start 2>&1 < /dev/null)
+" sh ./monitoring-server.sh start 2>&1 < /dev/null)
 RC=$?
 check '셸 환경 변수의 관리자 서버 주소 끝에 줄바꿈이 있으면 검사한 값 그대로 설정에 펼친다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && [ "$(rendered_address)" = "manager-api:8080" ]'
@@ -345,10 +345,10 @@ run start
 check 'token 파일이 없으면 알리고 그 자리에 폴더를 만들지 않는다' \
   '[ $RC -ne 0 ] && contains "token 파일이 없습니다" && [ ! -e "$INSTALL/secrets/alertmanager_webhook_token" ] && ! called "^compose"'
 
-# 코어가 이미 있으면 관리자 서버가 그 코어의 token을 쓰고 있다. install로 새 token을 만들면 장애 알림이 모두 거부된다.
-setup; prepared; rm "$TOKEN"; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+# 모니터링 시스템이 이미 있으면 관리자 서버가 그 모니터링 시스템의 token을 쓰고 있다. install로 새 token을 만들면 장애 알림이 모두 거부된다.
+setup; prepared; rm "$TOKEN"; running_other v1 1761500000 "$INSTALL/monitoring-system-v1"
 run start
-check '코어가 이미 있는데 token 파일이 없으면 새 token을 만들지 말고 쓰던 파일을 두라고 안내한다' \
+check '모니터링 시스템이 이미 있는데 token 파일이 없으면 새 token을 만들지 말고 쓰던 파일을 두라고 안내한다' \
   '[ $RC -ne 0 ] && contains "token 파일이 없습니다" && contains "관리자 서버의 token과 어긋납니다" && ! called "^compose"'
 
 setup; prepared; : > "$INSTALL/secrets/alertmanager_webhook_token"
@@ -382,7 +382,7 @@ check 'find가 없는 서버에서도 다른 사용자가 읽을 수 없는 toke
   '[ $RC -ne 0 ] && contains "읽을 수 없습니다" && ! called "^compose"'
 
 setup; prepared; mkdir "$T/custom"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/custom/"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/custom" > "$ENV"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\nMONITORING_SECRETS_DIR=%s\n' "$T/custom" > "$ENV"
 run start
 check '설정 파일에 token 폴더를 적었으면 그 폴더를 쓴다' '[ $RC -eq 0 ] && called "^compose"'
 
@@ -417,7 +417,7 @@ check '정해진 시간 안에 준비되지 않으면 그 컨테이너와 로그
 # 직전 버전으로 되돌리기(요구사항 0015의 S21): 버전의 앞뒤와 관계없이 묻지 않고 이 묶음의 버전으로 띄운다.
 for other in 'v3 1761700000' 'v1 1761500000'; do
   set -- $other
-  setup; prepared; running_other "$1" "$2" "$INSTALL/monitoring-core-$1"
+  setup; prepared; running_other "$1" "$2" "$INSTALL/monitoring-system-$1"
   run start
   check "다른 버전($1)이 떠 있어도 묻지 않고 이 묶음의 버전으로 띄운다" \
     '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up" && contains "버전 v2"'
@@ -481,7 +481,7 @@ run start
 check 'export, 작은따옴표, 줄 끝 주석이 있는 설정 파일을 Compose처럼 읽는다' '[ $RC -eq 0 ] && called "^compose.* up"'
 
 setup; prepared; mkdir "$T/fromshell"; mv "$INSTALL/secrets/alertmanager_webhook_token" "$T/fromshell/"
-OUT=$(cd "$BUNDLE" && CORE_SECRETS_DIR="$T/fromshell" sh ./core-server.sh start 2>&1 < /dev/null)
+OUT=$(cd "$BUNDLE" && MONITORING_SECRETS_DIR="$T/fromshell" sh ./monitoring-server.sh start 2>&1 < /dev/null)
 RC=$?
 check '셸 환경 변수에 token 폴더가 있으면 Compose처럼 그 값을 쓴다' '[ $RC -eq 0 ] && called "^compose.* up"'
 
@@ -492,12 +492,12 @@ check 'Docker가 꺼져 있으면 설치 준비에서 아무것도 만들지 않
   '[ $RC -ne 0 ] && contains "Docker에 연결하지 못했습니다" && [ ! -e "$INSTALL/secrets" ] && [ ! -e "$ENV" ]'
 
 setup; mkdir "$T/shared"; chmod 0755 "$T/shared"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\nCORE_SECRETS_DIR=%s\n' "$T/shared" > "$ENV"
+printf 'MONITORING_APP_ADDRESS=manager-api:8080\nMONITORING_SECRETS_DIR=%s\n' "$T/shared" > "$ENV"
 run install
 check 'token을 이미 있는 폴더에 만들면 그 폴더의 권한을 바꾸지 않는다' \
   '[ $RC -eq 0 ] && [ "$(mode "$T/shared")" = drwxr-xr-x ] && [ -s "$T/shared/alertmanager_webhook_token" ]'
 
-# --- 서버에서 바꾸는 코어 설정 값(요구사항 0013) ---
+# --- 서버에서 바꾸는 설정 값(요구사항 0013) ---
 
 # 설정 파일에 줄을 더한다. 인자 하나가 한 줄이다.
 with_settings() {
@@ -510,15 +510,15 @@ with_settings() {
 run_with_env() {
   assignment=$1
   shift
-  OUT=$(cd "$BUNDLE" && env "$assignment" sh ./core-server.sh "$@" 2>&1 < /dev/null)
+  OUT=$(cd "$BUNDLE" && env "$assignment" sh ./monitoring-server.sh "$@" 2>&1 < /dev/null)
   RC=$?
 }
 
-# 떠 있는 코어의 prometheus 컨테이너가 받은 보관 값. 빈 인자는 그 변수가 없는 것이다(이 기능 전의 컨테이너).
+# 떠 있는 모니터링 시스템의 prometheus 컨테이너가 받은 보관 값. 빈 인자는 그 변수가 없는 것이다(이 기능 전의 컨테이너).
 running_retention() {
   printf 'PATH=/bin\n' > "$FAKE/env.prometheus"
-  [ -z "$1" ] || printf 'CORE_RETENTION_DAYS=%s\n' "$1" >> "$FAKE/env.prometheus"
-  [ -z "$2" ] || printf 'CORE_RETENTION_SIZE_GB=%s\n' "$2" >> "$FAKE/env.prometheus"
+  [ -z "$1" ] || printf 'MONITORING_RETENTION_DAYS=%s\n' "$1" >> "$FAKE/env.prometheus"
+  [ -z "$2" ] || printf 'MONITORING_RETENTION_SIZE_GB=%s\n' "$2" >> "$FAKE/env.prometheus"
 }
 
 # 틀린 값이 보이고, 불러오거나 띄우지 않았는지 본다. 조건은 check가 그 자리에서 eval한다.
@@ -533,52 +533,52 @@ reject_in_env_file() {
 }
 
 for value in 15d abc -1 7.5 015 '1 5' '15 --web.enable-admin-api' '３０'; do
-  reject_in_env_file CORE_RETENTION_DAYS "$value" '1~365' '앞의 0 없이'
+  reject_in_env_file MONITORING_RETENTION_DAYS "$value" '1~365' '앞의 0 없이'
 done
-reject_in_env_file CORE_RETENTION_DAYS 0 '1~365'
-reject_in_env_file CORE_RETENTION_DAYS 366 '1~365'
-reject_in_env_file CORE_RETENTION_SIZE_GB 50GB '1 이상'
-reject_in_env_file CORE_RETENTION_SIZE_GB 0 '1 이상'
-reject_in_env_file CORE_RETENTION_SIZE_GB 1000000000 '999999999'
+reject_in_env_file MONITORING_RETENTION_DAYS 0 '1~365'
+reject_in_env_file MONITORING_RETENTION_DAYS 366 '1~365'
+reject_in_env_file MONITORING_RETENTION_SIZE_GB 50GB '1 이상'
+reject_in_env_file MONITORING_RETENTION_SIZE_GB 0 '1 이상'
+reject_in_env_file MONITORING_RETENTION_SIZE_GB 1000000000 '999999999'
 for value in 5s '5|g' '5&' 'prober:'; do
-  reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS "$value" '1~9'
+  reject_in_env_file MONITORING_PROBE_TIMEOUT_SECONDS "$value" '1~9'
 done
-reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 0 '1~9' '10초 안에'
-reject_in_env_file CORE_PROBE_TIMEOUT_SECONDS 10 '1~9' '10초 안에'
-reject_in_env_file CORE_PROMETHEUS_PORT 65536 '1024~65535'
-reject_in_env_file CORE_ALERTMANAGER_PORT 80 '1024~65535'
-reject_in_env_file CORE_BLACKBOX_PORT 1023 '1024~65535'
-reject_in_env_file CORE_PROMETHEUS_PORT '0.0.0.0:9090' '1024~65535'
-reject_in_env_file CORE_BLACKBOX_PORT '9115-9120' '1024~65535'
+reject_in_env_file MONITORING_PROBE_TIMEOUT_SECONDS 0 '1~9' '10초 안에'
+reject_in_env_file MONITORING_PROBE_TIMEOUT_SECONDS 10 '1~9' '10초 안에'
+reject_in_env_file MONITORING_PROMETHEUS_PORT 65536 '1024~65535'
+reject_in_env_file MONITORING_ALERTMANAGER_PORT 80 '1024~65535'
+reject_in_env_file MONITORING_BLACKBOX_PORT 1023 '1024~65535'
+reject_in_env_file MONITORING_PROMETHEUS_PORT '0.0.0.0:9090' '1024~65535'
+reject_in_env_file MONITORING_BLACKBOX_PORT '9115-9120' '1024~65535'
 
-setup; prepared; with_settings 'CORE_RETENTION_DAYS=$(touch '"$T"'/injected)' 'CORE_PROBE_TIMEOUT_SECONDS=`touch '"$T"'/injected`'
+setup; prepared; with_settings 'MONITORING_RETENTION_DAYS=$(touch '"$T"'/injected)' 'MONITORING_PROBE_TIMEOUT_SECONDS=`touch '"$T"'/injected`'
 run start
 check '설정 값에 든 셸 명령은 실행하지 않고 형식 오류로 거부한다' \
-  '[ $RC -ne 0 ] && [ ! -e "$T/injected" ] && contains "CORE_RETENTION_DAYS" && contains "CORE_PROBE_TIMEOUT_SECONDS" && ! called "^compose"'
+  '[ $RC -ne 0 ] && [ ! -e "$T/injected" ] && contains "MONITORING_RETENTION_DAYS" && contains "MONITORING_PROBE_TIMEOUT_SECONDS" && ! called "^compose"'
 
-name=CORE_PROBE_TIMEOUT_SECONDS value='prober: tcp' range='1~9' extra=''
+name=MONITORING_PROBE_TIMEOUT_SECONDS value='prober: tcp' range='1~9' extra=''
 setup; prepared
-run_with_env "CORE_PROBE_TIMEOUT_SECONDS=5
+run_with_env "MONITORING_PROBE_TIMEOUT_SECONDS=5
 prober: tcp" start
 check '셸 환경 변수의 값에 줄바꿈과 YAML을 넣으면 거부한다' "$REJECTED"
 
-setup; prepared; with_settings CORE_RETENTION_DAYS=30
-name=CORE_RETENTION_DAYS value=abc range='1~365' extra=''
-run_with_env CORE_RETENTION_DAYS=abc start
+setup; prepared; with_settings MONITORING_RETENTION_DAYS=30
+name=MONITORING_RETENTION_DAYS value=abc range='1~365' extra=''
+run_with_env MONITORING_RETENTION_DAYS=abc start
 check '셸 환경 변수가 설정 파일 값을 덮으면 셸 환경 변수의 값을 검사한다' "$REJECTED"
 
-setup; prepared; with_settings CORE_RETENTION_DAYS=abc
-run_with_env CORE_RETENTION_DAYS=30 start
+setup; prepared; with_settings MONITORING_RETENTION_DAYS=abc
+run_with_env MONITORING_RETENTION_DAYS=30 start
 check '셸 환경 변수의 값이 맞으면 설정 파일의 틀린 값과 관계없이 그 값으로 띄운다' \
-  '[ $RC -eq 0 ] && called "^compose.* up" && grep -q "^CORE_RETENTION_DAYS=30$" "$FAKE/env.prometheus"'
+  '[ $RC -eq 0 ] && called "^compose.* up" && grep -q "^MONITORING_RETENTION_DAYS=30$" "$FAKE/env.prometheus"'
 
-setup; prepared; with_settings 'CORE_RETENTION_DAYS=abc' 'CORE_PROBE_TIMEOUT_SECONDS=10'
+setup; prepared; with_settings 'MONITORING_RETENTION_DAYS=abc' 'MONITORING_PROBE_TIMEOUT_SECONDS=10'
 run start
 check '틀린 값이 여럿이면 모두 한 번에 보인다' \
-  '[ $RC -ne 0 ] && contains "CORE_RETENTION_DAYS" && contains "CORE_PROBE_TIMEOUT_SECONDS" && ! called "^compose"'
+  '[ $RC -ne 0 ] && contains "MONITORING_RETENTION_DAYS" && contains "MONITORING_PROBE_TIMEOUT_SECONDS" && ! called "^compose"'
 
-setup; prepared; with_settings CORE_RETENTION_DAYS= CORE_RETENTION_SIZE_GB= CORE_PROBE_TIMEOUT_SECONDS= \
-  CORE_PROMETHEUS_PORT= CORE_ALERTMANAGER_PORT= CORE_BLACKBOX_PORT=
+setup; prepared; with_settings MONITORING_RETENTION_DAYS= MONITORING_RETENTION_SIZE_GB= MONITORING_PROBE_TIMEOUT_SECONDS= \
+  MONITORING_PROMETHEUS_PORT= MONITORING_ALERTMANAGER_PORT= MONITORING_BLACKBOX_PORT=
 run start
 check '값이 모두 비어 있으면 기본값으로 띄우고 모두 기본값이라고 보인다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && contains "모두 기본값"'
@@ -588,13 +588,18 @@ run start
 check '이 기능 전의 설정 파일로 띄우면 모두 기본값이라고 보인다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && contains "모두 기본값" && ! contains "기본값과 다른"'
 
-setup; prepared; with_settings 'CORE_RETENTION_DAYS=" 30 "' CORE_PROMETHEUS_PORT=19090
+setup; prepared; with_settings CORE_RETENTION_DAYS=30 CORE_PROMETHEUS_PORT=19090
+run start
+check '옛 이름(CORE_)으로 적은 값은 쓰지 않고 기본값으로 띄운다(요구사항 0020)' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && grep -q "^MONITORING_RETENTION_DAYS=15$" "$FAKE/env.prometheus" && ! grep -q "CORE_" "$FAKE/env.prometheus" && contains "모두 기본값"'
+
+setup; prepared; with_settings 'MONITORING_RETENTION_DAYS=" 30 "' MONITORING_PROMETHEUS_PORT=19090
 run start
 check '허용 범위 안의 값이면 앞뒤 공백을 지운 값으로 띄우고 기본값과 다른 값만 보인다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && contains "30일" && contains "19090" && ! contains "확인 제한 시간" && ! contains "모두 기본값"'
 
-setup; prepared; with_settings CORE_RETENTION_DAYS=365 CORE_RETENTION_SIZE_GB=999999999 CORE_PROBE_TIMEOUT_SECONDS=9 \
-  CORE_PROMETHEUS_PORT=65535 CORE_ALERTMANAGER_PORT=1024 CORE_BLACKBOX_PORT=1025
+setup; prepared; with_settings MONITORING_RETENTION_DAYS=365 MONITORING_RETENTION_SIZE_GB=999999999 MONITORING_PROBE_TIMEOUT_SECONDS=9 \
+  MONITORING_PROMETHEUS_PORT=65535 MONITORING_ALERTMANAGER_PORT=1024 MONITORING_BLACKBOX_PORT=1025
 run start
 check '허용 범위 양 끝의 값이면 띄운다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && contains "365일" && contains "999999999GB" && contains "9초" && contains "65535"'
@@ -602,53 +607,53 @@ check '허용 범위 양 끝의 값이면 띄운다' \
 setup; prepared; touch "$FAKE/port_taken"
 run start
 check '다른 프로그램이 쓰는 포트라 띄우지 못하면 포트를 바꾸는 방법, 정상이 아닌 컨테이너, 로그 명령을 보인다' \
-  '[ $RC -ne 0 ] && contains "port is already allocated" && contains "CORE_PROMETHEUS_PORT" && contains "prometheus: created" && contains "docker logs prometheus" && ! contains "docker logs alertmanager"'
+  '[ $RC -ne 0 ] && contains "port is already allocated" && contains "MONITORING_PROMETHEUS_PORT" && contains "prometheus: created" && contains "docker logs prometheus" && ! contains "docker logs alertmanager"'
 
 # --- 기록 보관 값을 줄일 때의 확인 ---
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings CORE_RETENTION_DAYS=15 CORE_RETENTION_SIZE_GB=100
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings MONITORING_RETENTION_DAYS=15 MONITORING_RETENTION_SIZE_GB=100
 run start
 check '보관 기간을 줄이는데 터미널이 아니면 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "30일" && contains "15일" && contains "되돌릴 수 없습니다" && ! called "^compose"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings MONITORING_RETENTION_DAYS=30 MONITORING_RETENTION_SIZE_GB=50
 run start
 check '보관 용량을 줄이는데 터미널이 아니면 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "100GB" && contains "50GB" && ! called "^compose"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''; with_settings MONITORING_RETENTION_DAYS=30 MONITORING_RETENTION_SIZE_GB=50
 run start
 check '제한이 없던 보관 용량을 처음 정하면 줄임으로 보고 터미널이 아니면 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "제한 없음" && contains "50GB" && ! called "^compose"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings CORE_RETENTION_DAYS=10
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings MONITORING_RETENTION_DAYS=10
 run start
 check '보관 값이 없는 예전 컨테이너는 15일로 보고, 그보다 줄이면 터미널이 아니면 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "15일" && contains "10일" && ! called "^compose"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings CORE_RETENTION_DAYS=30
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings MONITORING_RETENTION_DAYS=30
 run start
 check '보관 값이 없는 예전 컨테이너에서 보관 기간을 늘리면 묻지 않고 띄운다' \
   '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=100
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings MONITORING_RETENTION_DAYS=30 MONITORING_RETENTION_SIZE_GB=100
 run start
-check '보관 값이 떠 있는 코어와 같으면 묻지 않고 띄운다' \
+check '보관 값이 떠 있는 모니터링 시스템과 같으면 묻지 않고 띄운다' \
   '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
 
-setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 50; with_settings CORE_RETENTION_DAYS=30
+setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 50; with_settings MONITORING_RETENTION_DAYS=30
 run start
 check '보관 용량 제한을 없애면 줄임이 아니므로 묻지 않고 띄운다' \
   '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''; touch "$FAKE/stopped"
 run start
-check '멈춘 코어의 보관 기간보다 줄여도 확인을 묻는다' '[ $RC -ne 0 ] && contains "되돌릴 수 없습니다" && ! called "^compose"'
+check '멈춘 모니터링 시스템의 보관 기간보다 줄여도 확인을 묻는다' '[ $RC -ne 0 ] && contains "되돌릴 수 없습니다" && ! called "^compose"'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
 run_in_terminal n start
 check '보관 기간을 줄일지 물었을 때 n이면 띄우지 않고 정상 종료한다' \
-  '[ $RC -eq 0 ] && contains "계속할까요" && contains "코어는 바꾸지 않았습니다" && ! called "^compose"'
+  '[ $RC -eq 0 ] && contains "계속할까요" && contains "모니터링 시스템은 바꾸지 않았습니다" && ! called "^compose"'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
 run_in_terminal y start
@@ -657,9 +662,9 @@ check '보관 기간을 줄일지 물었을 때 y이면 띄운다' \
 
 # --- 상태 보기 ---
 
-setup; running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
+setup; running_other v1 1761500000 "$INSTALL/monitoring-system-v1"
 run status
-check '상태를 보면 코어의 버전, 커밋, 컨테이너 상태와 준비 여부, 묶음과의 버전 차이를 보인다' \
+check '상태를 보면 모니터링 시스템의 버전, 커밋, 컨테이너 상태와 준비 여부, 묶음과의 버전 차이를 보인다' \
   '[ $RC -eq 0 ] && contains "떠 있는 버전: v1" && contains "abc1234" && contains "prometheus: running, 준비됨" && contains "버전(v2)"'
 
 setup; running_other v2 1761600000 "$BUNDLE"; printf '9093\n' > "$FAKE/not_ready_ports"
@@ -675,18 +680,18 @@ check '상태를 보면 바꾼 호스트 포트로 준비 확인 주소를 부�
 
 setup; running_other v2 1761600000 "$BUNDLE"; touch "$FAKE/stopped"
 run status
-check '코어가 멈춰 있으면 떠 있다고 보이지 않고 준비 확인 주소를 부르지 않는다' \
+check '모니터링 시스템이 멈춰 있으면 떠 있다고 보이지 않고 준비 확인 주소를 부르지 않는다' \
   'contains "멈춰 있습니다" && ! contains "떠 있는 버전" && contains "prometheus: exited" && [ ! -f "$FAKE/ready_calls" ]'
 
 setup; running_other v2 1761600000 "$BUNDLE"
-OUT=$(cd "$BUNDLE" && CORE_READY_TOOLS="" sh ./core-server.sh status 2>&1 < /dev/null)
+OUT=$(cd "$BUNDLE" && MONITORING_READY_TOOLS="" sh ./monitoring-server.sh status 2>&1 < /dev/null)
 RC=$?
 check 'curl과 wget이 없으면 상태에서 준비 여부를 확인하지 못했다고 보인다' \
   '[ $RC -eq 0 ] && contains "prometheus: running, 준비 확인 못 함"'
 
 setup
 run status
-check '코어가 없으면 없다고 보인다' '[ $RC -eq 0 ] && contains "코어가 없습니다"'
+check '모니터링 시스템이 없으면 없다고 보인다' '[ $RC -eq 0 ] && contains "모니터링 시스템이 없습니다"'
 
 setup; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
 printf '{"9090/tcp":[{"HostIp":"127.0.0.1","HostPort":"19090"}]}\n' > "$FAKE/ports.prometheus"
@@ -697,13 +702,13 @@ check '상태를 보면 컨테이너가 받은 값 가운데 기본값과 다른
 setup; running_other v2 1761600000 "$BUNDLE"; touch "$FAKE/stopped"
 printf '{"9115/tcp":[{"HostIp":"127.0.0.1","HostPort":"19115"}]}\n' > "$FAKE/ports.blackbox-exporter"
 run status
-check '코어가 멈춰 있어도 바꾼 포트를 보인다' '[ $RC -eq 0 ] && contains "멈춰 있습니다" && contains "127.0.0.1:19115"'
+check '모니터링 시스템이 멈춰 있어도 바꾼 포트를 보인다' '[ $RC -eq 0 ] && contains "멈춰 있습니다" && contains "127.0.0.1:19115"'
 
 setup; running_other v2 1761600000 "$BUNDLE"
 run status
 check '상태를 보면 값이 모두 기본값일 때 기본값이라고 보인다' '[ $RC -eq 0 ] && contains "모두 기본값"'
 
-setup; running_other v2 1761600000 "$BUNDLE"; printf 'CORE_PROBE_TIMEOUT_SECONDS=10\n' > "$FAKE/env.blackbox-exporter"
+setup; running_other v2 1761600000 "$BUNDLE"; printf 'MONITORING_PROBE_TIMEOUT_SECONDS=10\n' > "$FAKE/env.blackbox-exporter"
 run status
 check '컨테이너가 받은 값이 틀리면 기본값이라고 하지 않고 그 값을 올바르지 않다고 보인다' \
   '[ $RC -eq 0 ] && contains "확인 제한 시간 '"'"'10'"'"'(올바르지 않음)" && ! contains "모두 기본값"'
@@ -713,14 +718,14 @@ check '컨테이너가 받은 값이 틀리면 기본값이라고 하지 않고 
 # 이전에 펼친 설정이 있는 상태와, 그 설정이 그대로인지 보는 조건
 previously_rendered() {
   mkdir -p "$RENDERED"
-  for name in prometheus.yml alertmanager.yml blackbox.yml core.env; do
+  for name in prometheus.yml alertmanager.yml blackbox.yml monitoring.env; do
     printf 'previous\n' > "$RENDERED/$name"
   done
 }
 unchanged() {
   [ "$(ls -A "$RENDERED" | wc -l | tr -d ' ')" -eq 4 ] && [ "$(cat "$RENDERED"/* | sort -u)" = previous ]
 }
-config_hash() { sed -n 's/^CORE_CONFIG_SHA256=//p' "$RENDERED/core.env"; }
+config_hash() { sed -n 's/^MONITORING_CONFIG_SHA256=//p' "$RENDERED/monitoring.env"; }
 
 setup; prepared
 run render
@@ -731,11 +736,11 @@ check '설정을 펼치면 Compose로 띄우는 방법과 .env를 바꾸면 다�
 check '펼친 설정에 자리표시와 token 값이 남지 않는다' \
   '! grep -rq "@[A-Z][A-Z_]*@" "$RENDERED" && ! grep -rq "secret-value-for-test" "$RENDERED" && ! contains "secret-value-for-test"'
 check '펼친 설정은 운영자만 고칠 수 있고 컨테이너 사용자가 읽을 수 있다' \
-  '[ "$(mode "$RENDERED")" = drwxr-xr-x ] && [ "$(mode "$RENDERED/prometheus.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/alertmanager.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/blackbox.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/core.env")" = -rw-r--r-- ]'
-check '설정을 펼치면 컨테이너에 넘길 값을 core.env에 쓰고 CA 인증서 파일은 옮기지 않는다' \
-  '[ ! -e "$RENDERED/ca-certificates.crt" ] && [ "$(cat "$CA")" = "TEST CA 1" ] && grep -q "^CORE_RETENTION_DAYS=15$" "$RENDERED/core.env" && grep -q "^CORE_RETENTION_SIZE_GB=$" "$RENDERED/core.env" && grep -q "^CORE_PROBE_TIMEOUT_SECONDS=5$" "$RENDERED/core.env" && [ "$(config_hash | grep -c "^[0-9a-f]\{64\}$")" -eq 1 ]'
+  '[ "$(mode "$RENDERED")" = drwxr-xr-x ] && [ "$(mode "$RENDERED/prometheus.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/alertmanager.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/blackbox.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/monitoring.env")" = -rw-r--r-- ]'
+check '설정을 펼치면 컨테이너에 넘길 값을 monitoring.env에 쓰고 CA 인증서 파일은 옮기지 않는다' \
+  '[ ! -e "$RENDERED/ca-certificates.crt" ] && [ "$(cat "$CA")" = "TEST CA 1" ] && grep -q "^MONITORING_RETENTION_DAYS=15$" "$RENDERED/monitoring.env" && grep -q "^MONITORING_RETENTION_SIZE_GB=$" "$RENDERED/monitoring.env" && grep -q "^MONITORING_PROBE_TIMEOUT_SECONDS=5$" "$RENDERED/monitoring.env" && [ "$(config_hash | grep -c "^[0-9a-f]\{64\}$")" -eq 1 ]'
 check '설정을 펼친 뒤 임시 파일을 남기지 않는다' \
-  '[ "$(ls -A "$RENDERED" | sort | tr "\n" " ")" = "alertmanager.yml blackbox.yml core.env prometheus.yml " ]'
+  '[ "$(ls -A "$RENDERED" | sort | tr "\n" " ")" = "alertmanager.yml blackbox.yml monitoring.env prometheus.yml " ]'
 
 # umask가 좁은 서버에서도 컨테이너 사용자(nobody)가 읽을 수 있어야 한다.
 setup; prepared
@@ -743,41 +748,41 @@ umask 077
 run render
 umask 022
 check 'umask가 077이어도 펼친 설정은 컨테이너 사용자가 읽을 수 있다' \
-  '[ $RC -eq 0 ] && [ "$(mode "$RENDERED")" = drwxr-xr-x ] && [ "$(mode "$RENDERED/prometheus.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/core.env")" = -rw-r--r-- ]'
+  '[ $RC -eq 0 ] && [ "$(mode "$RENDERED")" = drwxr-xr-x ] && [ "$(mode "$RENDERED/prometheus.yml")" = -rw-r--r-- ] && [ "$(mode "$RENDERED/monitoring.env")" = -rw-r--r-- ]'
 
 # 펼친 설정은 떠 있는 컨테이너가 다시 시작할 때 읽을 수 있어, 보관 값을 줄이면 설정 펼치기도 확인을 묻는다.
 setup; prepared; previously_rendered; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
 run render
-check '떠 있는 코어보다 보관 기간을 줄여 펼치는데 터미널이 아니면 펼치지 않는다' \
+check '떠 있는 모니터링 시스템보다 보관 기간을 줄여 펼치는데 터미널이 아니면 펼치지 않는다' \
   '[ $RC -ne 0 ] && contains "되돌릴 수 없습니다" && unchanged'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 ''
 run_in_terminal y render
-check '떠 있는 코어보다 보관 기간을 줄여 펼칠지 물었을 때 y이면 펼친다' \
+check '떠 있는 모니터링 시스템보다 보관 기간을 줄여 펼칠지 물었을 때 y이면 펼친다' \
   '[ $RC -eq 0 ] && contains "계속할까요" && grep -q "^      time: 15d$" "$RENDERED/prometheus.yml"'
 
-# Docker에 닿지 못하면 떠 있는 코어의 보관 값과 비교할 수 없다. 그 사실을 알린다.
+# Docker에 닿지 못하면 떠 있는 모니터링 시스템의 보관 값과 비교할 수 없다. 그 사실을 알린다.
 setup; prepared; touch "$FAKE/docker_down"
 run render
 check 'Docker에 연결하지 못하면 설정 펼치기가 보관 값을 줄였는지 확인하지 못했다고 경고한다' \
-  '[ $RC -eq 0 ] && contains "줄였는지 확인하지 못했습니다" && [ -f "$RENDERED/core.env" ]'
+  '[ $RC -eq 0 ] && contains "줄였는지 확인하지 못했습니다" && [ -f "$RENDERED/monitoring.env" ]'
 
-setup; prepared; with_settings CORE_RETENTION_DAYS=30 CORE_RETENTION_SIZE_GB=50 CORE_PROBE_TIMEOUT_SECONDS=9
+setup; prepared; with_settings MONITORING_RETENTION_DAYS=30 MONITORING_RETENTION_SIZE_GB=50 MONITORING_PROBE_TIMEOUT_SECONDS=9
 run render
-check '바꾼 코어 값으로 보관 항목과 확인 제한 시간을 펼치고 core.env에도 쓴다' \
-  '[ $RC -eq 0 ] && grep -q "^      time: 30d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 50GB$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 9s$" "$RENDERED/blackbox.yml")" -eq 3 ] && grep -q "^CORE_RETENTION_SIZE_GB=50$" "$RENDERED/core.env"'
+check '바꾼 설정 값으로 보관 항목과 확인 제한 시간을 펼치고 monitoring.env에도 쓴다' \
+  '[ $RC -eq 0 ] && grep -q "^      time: 30d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 50GB$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 9s$" "$RENDERED/blackbox.yml")" -eq 3 ] && grep -q "^MONITORING_RETENTION_SIZE_GB=50$" "$RENDERED/monitoring.env"'
 
 setup; prepared; rm "$ENV"
 run render
 check '설정 파일이 없으면 설정 펼치기도 설치 준비를 안내하고 펼치지 않는다' \
-  '[ $RC -ne 0 ] && contains "sh core-server.sh install" && [ ! -e "$RENDERED" ]'
+  '[ $RC -ne 0 ] && contains "sh monitoring-server.sh install" && [ ! -e "$RENDERED" ]'
 
 setup; prepared; printf 'x' >> "$BUNDLE/templates/prometheus.yml"
 run render
 check '묶음의 템플릿이 바뀌었으면 체크섬 오류를 보이고 펼치지 않는다' \
   '[ $RC -ne 0 ] && contains "templates/prometheus.yml" && contains "체크섬" && [ ! -e "$RENDERED" ]'
 
-# 형식이 틀린 관리자 서버 주소와 코어 값: 빌드 PC의 설정 검사가 시작 스크립트로 확인하던 목록이다.
+# 형식이 틀린 관리자 서버 주소와 설정 값: 빌드 PC의 설정 검사가 시작 스크립트로 확인하던 목록이다.
 for address in '' 'manager-api' 'http://manager-api:8080' 'manager-api:0' 'manager-api:70000' 'a:b:8080' '-manager:8080' \
   'manager api:8080' 'manager|api:8080' 'manager&api:8080' 'manager;api:8080' '$(touch${IFS}injected):8080'; do
   setup; prepared; previously_rendered; printf 'MONITORING_APP_ADDRESS=%s\n' "$address" > "$ENV"
@@ -793,18 +798,18 @@ x' 'manager-api:8080
   check '설정 펼치기는 셸 환경 변수의 관리자 서버 주소에 줄바꿈과 YAML이 있으면 거부한다' \
     '[ $RC -ne 0 ] && contains "관리자 서버 주소" && unchanged'
 done
-for pair in 'CORE_RETENTION_DAYS=0' 'CORE_RETENTION_DAYS=15 --web.enable-admin-api' 'CORE_RETENTION_SIZE_GB=abc' \
-  'CORE_PROBE_TIMEOUT_SECONDS=10' 'CORE_PROBE_TIMEOUT_SECONDS=5|g' 'CORE_PROBE_TIMEOUT_SECONDS=5&'; do
+for pair in 'MONITORING_RETENTION_DAYS=0' 'MONITORING_RETENTION_DAYS=15 --web.enable-admin-api' 'MONITORING_RETENTION_SIZE_GB=abc' \
+  'MONITORING_PROBE_TIMEOUT_SECONDS=10' 'MONITORING_PROBE_TIMEOUT_SECONDS=5|g' 'MONITORING_PROBE_TIMEOUT_SECONDS=5&'; do
   setup; prepared; previously_rendered; with_settings "$pair"
   run render
   check "설정 펼치기는 $pair 값을 거부하고 이전에 펼친 설정을 바꾸지 않는다" \
     '[ $RC -ne 0 ] && contains "${pair%%=*}" && contains "허용 범위" && unchanged'
 done
 setup; prepared; previously_rendered
-run_with_env "CORE_PROBE_TIMEOUT_SECONDS=5
+run_with_env "MONITORING_PROBE_TIMEOUT_SECONDS=5
 prober: tcp" render
 check '설정 펼치기는 셸 환경 변수의 값에 줄바꿈과 YAML이 있으면 거부한다' \
-  '[ $RC -ne 0 ] && contains "CORE_PROBE_TIMEOUT_SECONDS" && unchanged'
+  '[ $RC -ne 0 ] && contains "MONITORING_PROBE_TIMEOUT_SECONDS" && unchanged'
 # token: 운영 명령 없이 Compose로 띄울 때 token 없이 Alertmanager가 뜨지 않게 펼치기 전에 확인한다(요구사항 0015의 S14).
 setup; prepared; rm "$TOKEN"
 run render
@@ -858,7 +863,7 @@ run render
 first=$(config_hash)
 printf 'TEST CA 2\n' > "$CA"
 run render
-check '운영자가 CA 인증서 파일을 다시 복사하면 다시 펼칠 때 core.env의 설정 값이 바뀐다' \
+check '운영자가 CA 인증서 파일을 다시 복사하면 다시 펼칠 때 monitoring.env의 설정 값이 바뀐다' \
   '[ $RC -eq 0 ] && [ "$(config_hash)" != "$first" ]'
 
 setup; prepared; started; printf 'TEST CA 2\n' > "$CA"
@@ -871,7 +876,7 @@ run render
 first=$(config_hash)
 printf 'MONITORING_APP_ADDRESS=other-api:9000\n' > "$ENV"
 run render
-check '관리자 서버 주소를 바꿔 다시 펼치면 Compose가 컨테이너를 다시 만들도록 core.env의 설정 값이 바뀐다' \
+check '관리자 서버 주소를 바꿔 다시 펼치면 Compose가 컨테이너를 다시 만들도록 monitoring.env의 설정 값이 바뀐다' \
   '[ $RC -eq 0 ] && [ "$(rendered_address)" = "other-api:9000" ] && [ "$(config_hash)" != "$first" ]'
 
 # --- 펼친 설정 폴더(요구사항 0015의 S16, S17) ---
@@ -928,10 +933,10 @@ cp "$SOURCE_DIR/blackbox/blackbox.yml" "$REPO/blackbox/"
 printf 'repo-token-for-test\n' > "$REPO/secrets/alertmanager_webhook_token"
 mkdir -p "$REPO/certs"; printf 'REPO CA\n' > "$REPO/certs/ca-certificates.crt"; chmod 0644 "$REPO/certs/ca-certificates.crt"
 printf 'MONITORING_APP_ADDRESS=dev-api:8080\n' > "$REPO/.env"
-OUT=$(cd "$REPO" && sh ./core-server.sh render 2>&1 < /dev/null)
+OUT=$(cd "$REPO" && sh ./monitoring-server.sh render 2>&1 < /dev/null)
 RC=$?
 check '저장소의 infrastructure/에서 펼치면 저장소의 템플릿, ./secrets의 token, ./certs의 CA 인증서 파일로 rendered/에 쓴다' \
-  '[ $RC -eq 0 ] && grep -q "url: http://dev-api:8080/api/prometheus/sd/blackbox" "$REPO/rendered/prometheus.yml" && [ -f "$REPO/rendered/core.env" ]'
+  '[ $RC -eq 0 ] && grep -q "url: http://dev-api:8080/api/prometheus/sd/blackbox" "$REPO/rendered/prometheus.yml" && [ -f "$REPO/rendered/monitoring.env" ]'
 
 # --- 준비 확인(요구사항 0015의 S7, S15) ---
 
@@ -940,25 +945,25 @@ run start
 check '띄운 뒤 curl로 세 프로그램의 준비 확인 주소를 부른다' \
   '[ $RC -eq 0 ] && ready_called "^curl .*http://127.0.0.1:9090/-/ready" && ready_called "^curl .*http://127.0.0.1:9093/-/ready" && ready_called "^curl .*http://127.0.0.1:9115/-/healthy"'
 
-setup; prepared; with_settings CORE_PROMETHEUS_PORT=19090 CORE_ALERTMANAGER_PORT=19093 CORE_BLACKBOX_PORT=19115
+setup; prepared; with_settings MONITORING_PROMETHEUS_PORT=19090 MONITORING_ALERTMANAGER_PORT=19093 MONITORING_BLACKBOX_PORT=19115
 run start
 check '호스트 포트를 바꿨으면 바꾼 포트로 준비 확인 주소를 부른다' \
   '[ $RC -eq 0 ] && ready_called "http://127.0.0.1:19090/-/ready" && ready_called "http://127.0.0.1:19093/-/ready" && ready_called "http://127.0.0.1:19115/-/healthy" && ! ready_called ":9090/"'
 
 setup; prepared
-OUT=$(cd "$BUNDLE" && CORE_READY_TOOLS=wget sh ./core-server.sh start 2>&1 < /dev/null)
+OUT=$(cd "$BUNDLE" && MONITORING_READY_TOOLS=wget sh ./monitoring-server.sh start 2>&1 < /dev/null)
 RC=$?
 check 'curl을 쓸 수 없으면 wget으로 준비 확인 주소를 부른다' \
   '[ $RC -eq 0 ] && ready_called "^wget .*http://127.0.0.1:9090/-/ready" && ! ready_called "^curl"'
 
 setup; prepared; printf '9115\n' > "$FAKE/not_ready_ports"
-OUT=$(cd "$BUNDLE" && CORE_READY_TOOLS=wget sh ./core-server.sh start 2>&1 < /dev/null)
+OUT=$(cd "$BUNDLE" && MONITORING_READY_TOOLS=wget sh ./monitoring-server.sh start 2>&1 < /dev/null)
 RC=$?
 check 'wget으로 부른 준비 확인 주소가 실패하면 그 컨테이너와 로그 명령을 보인다' \
   '[ $RC -ne 0 ] && contains "docker logs blackbox-exporter" && ! contains "docker logs prometheus"'
 
 setup; prepared
-OUT=$(cd "$BUNDLE" && CORE_READY_TOOLS="" sh ./core-server.sh start 2>&1 < /dev/null)
+OUT=$(cd "$BUNDLE" && MONITORING_READY_TOOLS="" sh ./monitoring-server.sh start 2>&1 < /dev/null)
 RC=$?
 check 'curl과 wget이 없으면 curl을 설치하라고 안내하고 이미지를 불러오거나 컨테이너를 바꾸지 않는다' \
   '[ $RC -ne 0 ] && contains "curl" && contains "설치" && ! called load && ! called "^compose" && [ ! -e "$RENDERED" ]'

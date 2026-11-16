@@ -1,6 +1,6 @@
 -- 감시 대상과 알림의 참고용 기본 schema (MariaDB)
 --
--- 코어를 붙이는 관리자 서버가 DB에 둘 기본 테이블의 참고용 DDL입니다. 빈 DB에 이 파일을 먼저 적용하고,
+-- 모니터링 시스템을 붙이는 관리자 서버가 DB에 둘 기본 테이블의 참고용 DDL입니다. 빈 DB에 이 파일을 먼저 적용하고,
 -- 리소스 임계값 알림을 만들면 같은 폴더의 resource-thresholds.sql을 이어서 적용합니다.
 -- 테이블과 열 이름은 관리자 서버의 용어사전에 맞게 바꿔도 됩니다. 바꾸면 resource-thresholds.sql의 외래 키도 함께 바꿉니다.
 -- 담는 것과 지킬 규칙은 docs/ADMIN-SERVER.md에 있습니다. postgresql/base-tables.sql과 논리 schema가 같아야 합니다.

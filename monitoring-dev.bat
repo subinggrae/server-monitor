@@ -1,26 +1,26 @@
 @echo off
-if not defined CORE_DEV_UTF8 (
+if not defined MONITORING_DEV_UTF8 (
   setlocal EnableDelayedExpansion
-  for /f "tokens=2 delims=:." %%c in ('chcp') do set "CORE_DEV_OLD_CODEPAGE=%%c"
+  for /f "tokens=2 delims=:." %%c in ('chcp') do set "MONITORING_DEV_OLD_CODEPAGE=%%c"
   chcp 65001 >nul
-  set "CORE_DEV_UTF8=1"
+  set "MONITORING_DEV_UTF8=1"
   cmd /d /c ""%~f0" %*"
-  set "CORE_DEV_RC=!ERRORLEVEL!"
-  chcp !CORE_DEV_OLD_CODEPAGE! >nul
-  exit /b !CORE_DEV_RC!
+  set "MONITORING_DEV_RC=!ERRORLEVEL!"
+  chcp !MONITORING_DEV_OLD_CODEPAGE! >nul
+  exit /b !MONITORING_DEV_RC!
 )
 setlocal
 rem 위 블록은 콘솔 코드 페이지를 UTF-8(65001)로 바꾼 뒤 이 파일을 새 cmd로 다시 실행하고, 끝나면 코드 페이지를 되돌린다.
 rem 한 cmd 안에서 코드 페이지를 바꾸면 cmd가 한글 줄의 위치를 잘못 세어 줄 중간부터 실행한다(PowerShell 기본 949에서 생김).
 rem 그래서 블록 안에는 ASCII만 둔다.
-rem Windows 빌드 PC에서 모니터링 코어를 빌드하고 개발용으로 띄우는 명령이다. 저장소 어디에서 실행해도 된다.
+rem Windows 빌드 PC에서 모니터링 시스템을 빌드하고 개발용으로 띄우는 명령이다. 저장소 어디에서 실행해도 된다.
 rem
-rem   core-dev.bat build   내부망 서버로 옮길 묶음을 dist\에 만든다(추가 옵션은 빌드 스크립트로 넘긴다. 예: --allow-dirty)
-rem   core-dev.bat check   이미지를 빌드해 이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험만 한다
-rem   core-dev.bat start   infrastructure\.env로 설정을 펼치고, 개발용 코어를 바뀐 설정으로 다시 빌드해 띄운다
-rem   core-dev.bat stop    개발용 코어를 멈춘다(쌓은 기록은 남는다)
+rem   monitoring-dev.bat build   내부망 서버로 옮길 묶음을 dist\에 만든다(추가 옵션은 빌드 스크립트로 넘긴다. 예: --allow-dirty)
+rem   monitoring-dev.bat check   이미지를 빌드해 이미지 검사, 설정 검사, 규칙 테스트, 운영 명령 시험만 한다
+rem   monitoring-dev.bat start   infrastructure\.env로 설정을 펼치고, 개발용 모니터링 시스템을 바뀐 설정으로 다시 빌드해 띄운다
+rem   monitoring-dev.bat stop    개발용 모니터링 시스템을 멈춘다(쌓은 기록은 남는다)
 rem
-rem 빌드와 검사는 scripts\build-core-bundle.mjs가 맡는다. 코어 서버(Linux)의 운영 명령은 infrastructure\core-server.sh다.
+rem 빌드와 검사는 scripts\build-monitoring-bundle.mjs가 맡는다. 모니터링 서버(Linux)의 운영 명령은 infrastructure\monitoring-server.sh다.
 
 pushd "%~dp0"
 
@@ -29,32 +29,32 @@ if "%~1"=="check" goto check
 if "%~1"=="start" goto start
 if "%~1"=="stop" goto stop
 
->&2 echo 사용법: core-dev.bat ^<작업^>
+>&2 echo 사용법: monitoring-dev.bat ^<작업^>
 >&2 echo.
 >&2 echo   build   내부망 서버로 옮길 묶음을 만듭니다
 >&2 echo   check   묶음을 만들지 않고 검사와 시험만 실행합니다
->&2 echo   start   설정을 펼쳐 개발용 코어를 띄웁니다
->&2 echo   stop    개발용 코어를 멈춥니다
+>&2 echo   start   설정을 펼쳐 개발용 모니터링 시스템을 띄웁니다
+>&2 echo   stop    개발용 모니터링 시스템을 멈춥니다
 set RC=1
 goto end
 
 :build
 call :require_docker || goto end
 call :require_node || goto end
-node scripts\build-core-bundle.mjs %2 %3
+node scripts\build-monitoring-bundle.mjs %2 %3
 set RC=%ERRORLEVEL%
 goto end
 
 :check
 call :require_docker || goto end
 call :require_node || goto end
-node scripts\build-core-bundle.mjs --check
+node scripts\build-monitoring-bundle.mjs --check
 set RC=%ERRORLEVEL%
 goto end
 
 :start
 call :require_docker || goto end
-rem 코어 이미지에는 셸이 없고 Windows에는 POSIX sh가 없다. 그래서 Prometheus Dockerfile의 첫 단계(공식 이미지)를 빌드해
+rem 모니터링 시스템 이미지에는 셸이 없고 Windows에는 POSIX sh가 없다. 그래서 Prometheus Dockerfile의 첫 단계(공식 이미지)를 빌드해
 rem 그 BusyBox sh로 운영 명령의 render를 실행한다. 이 셸은 빌드 PC에서만 쓰고 묶음에 들어가지 않는다(docs/decisions/0012).
 rem 운영 명령처럼 셸 환경 변수가 .env보다 먼저 쓰이도록 같은 이름을 넘긴다.
 rem Windows에는 Blackbox Exporter가 읽을 CA 인증서 파일이 없어, infrastructure\certs\에 없을 때만 그 공식 이미지 안의 파일을 꺼내 둔다.
@@ -65,7 +65,7 @@ if not defined TOOLS (
   set RC=1
   goto end
 )
-docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e CORE_RETENTION_DAYS -e CORE_RETENTION_SIZE_GB -e CORE_PROBE_TIMEOUT_SECONDS -e CORE_PROMETHEUS_PORT -e CORE_ALERTMANAGER_PORT -e CORE_BLACKBOX_PORT --user 0 --entrypoint /bin/sh %TOOLS% -c "[ -f certs/ca-certificates.crt ] || { mkdir -p certs && cp /etc/ssl/certs/ca-certificates.crt certs/ && chmod 0644 certs/ca-certificates.crt; }; sh core-server.sh render"
+docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e MONITORING_RETENTION_DAYS -e MONITORING_RETENTION_SIZE_GB -e MONITORING_PROBE_TIMEOUT_SECONDS -e MONITORING_PROMETHEUS_PORT -e MONITORING_ALERTMANAGER_PORT -e MONITORING_BLACKBOX_PORT --user 0 --entrypoint /bin/sh %TOOLS% -c "[ -f certs/ca-certificates.crt ] || { mkdir -p certs && cp /etc/ssl/certs/ca-certificates.crt certs/ && chmod 0644 certs/ca-certificates.crt; }; sh monitoring-server.sh render"
 if errorlevel 1 (
   set RC=1
   goto end

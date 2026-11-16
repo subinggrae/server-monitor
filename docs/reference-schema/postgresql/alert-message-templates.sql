@@ -1,6 +1,6 @@
 -- 알림 메시지 템플릿의 참고용 schema (PostgreSQL)
 --
--- 코어를 붙이는 관리자 서버가 알림 메시지 템플릿을 저장할 때 참고하는 DDL이다.
+-- 모니터링 시스템을 붙이는 관리자 서버가 알림 메시지 템플릿을 저장할 때 참고하는 DDL이다.
 -- 템플릿 종류, 변수, 검사 규칙은 docs/ADMIN-SERVER.md의 알림 메시지 템플릿에 있다.
 -- mariadb/alert-message-templates.sql과 논리 schema가 같아야 한다.
 --

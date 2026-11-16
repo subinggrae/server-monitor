@@ -9,14 +9,14 @@
 #
 # timeout은 module 단위 설정입니다. Check마다 다르게 줄 수 없습니다.
 # Blackbox는 probe 요청의 query parameter로 timeout이나 status 조건을 받지 않습니다.
-# @CORE_PROBE_TIMEOUT_SECONDS@는 운영 명령이 띄우기 전에 코어 설정 파일(.env)의 확인 제한 시간
-# (기본 5초, 1~9초)으로 바꿉니다. 세 module이 같은 값을 씁니다. 펼치는 방법은 infrastructure/core-server.sh의 render에 있습니다.
+# @MONITORING_PROBE_TIMEOUT_SECONDS@는 운영 명령이 띄우기 전에 모니터링 시스템 설정 파일(.env)의 확인 제한 시간
+# (기본 5초, 1~9초)으로 바꿉니다. 세 module이 같은 값을 씁니다. 펼치는 방법은 infrastructure/monitoring-server.sh의 render에 있습니다.
 
 modules:
 
   icmp:
     prober: icmp
-    timeout: @CORE_PROBE_TIMEOUT_SECONDS@
+    timeout: @MONITORING_PROBE_TIMEOUT_SECONDS@
 
     icmp:
       preferred_ip_protocol: ip4
@@ -25,7 +25,7 @@ modules:
   # 연결만 확인합니다. 연결 후 주고받는 내용은 확인하지 않습니다.
   tcp_connect:
     prober: tcp
-    timeout: @CORE_PROBE_TIMEOUT_SECONDS@
+    timeout: @MONITORING_PROBE_TIMEOUT_SECONDS@
 
     tcp:
       preferred_ip_protocol: ip4
@@ -34,7 +34,7 @@ modules:
   # HTTPS는 별도 module 없이 URL scheme으로 구분됩니다.
   http_2xx:
     prober: http
-    timeout: @CORE_PROBE_TIMEOUT_SECONDS@
+    timeout: @MONITORING_PROBE_TIMEOUT_SECONDS@
 
     http:
       method: GET
