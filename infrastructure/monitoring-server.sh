@@ -6,7 +6,7 @@
 #   sh monitoring-server.sh start     확인하고 설정을 펼친 뒤 이미지를 불러와 띄우고 정상 상태까지 기다린다
 #   sh monitoring-server.sh status    떠 있는 버전, 컨테이너 상태와 준비 여부, 기본값과 다른 설정 값을 보인다
 #
-# 최소 기능만 둔다. token 바꾸기, 이전 방식의 .env를 설치 폴더로 처음 옮기기, 오래된 버전 정리는 운영 가이드의 절차로 한다(요구사항 0015).
+# 최소 기능만 둔다. token 바꾸기와 오래된 버전 정리는 운영 가이드의 절차로 한다(요구사항 0015).
 #
 # 묶음 폴더들은 한 설치 폴더에 나란히 두고, token은 설치 폴더의 secrets/에, 설정 파일은 설치 폴더의 .env에 둔다(요구사항 0011, 0017).
 # .env에서 바꾸는 설정 값(보관 기간·용량, 확인 제한 시간, 호스트 포트)의 규칙은 같은 폴더의 monitoring-settings.sh에 있다(요구사항 0013).
@@ -166,7 +166,8 @@ env_link_ok() {
   [ -L "$ENV_LINK" ] && [ "$(readlink "$ENV_LINK")" = ../.env ]
 }
 
-# 이전 방식으로 묶음 폴더에 둔 설정 파일이 있으면, 어느 값을 쓰는지 헷갈리지 않게 멈추고 옮기거나 지우라고 안내한다.
+# 묶음 폴더의 .env가 운영 명령이 만든 링크가 아니면(편집기가 링크를 파일로 바꿔 저장한 경우 등) 어느 값을 쓰는지 헷갈리지 않게
+# 멈추고, 설치 폴더의 .env에 옮겨 적은 뒤 지우라고 안내한다. 운영 명령은 옮기거나 지우지 않는다(요구사항 0021의 S4).
 # 링크는 따라가지 않는다. 설치 폴더의 .env가 링크면 다른 곳의 파일을 읽거나 install이 그 파일에 쓰게 된다(CWE-59).
 check_env_location() {
   [ "$LAYOUT" = bundle ] || return 0
@@ -174,28 +175,7 @@ check_env_location() {
     fail "설치 폴더의 설정 파일이 링크입니다: $ENV_FILE. 링크를 지우고 실제 파일을 둔 뒤 다시 실행해 주세요."
   fi
   env_link_ok && return 0
-  if [ -L "$ENV_LINK" ] || [ -e "$ENV_FILE" ]; then
-    fail "묶음 폴더의 설정 파일은 쓰지 않습니다: $ENV_LINK. 고친 값이 있으면 $ENV_FILE 에 옮긴 뒤, sudo rm $ENV_LINK 로 지우고 다시 실행해 주세요."
-  fi
-  fail "설정 파일(.env)을 설치 폴더로 옮겨 주세요: sudo mv $ENV_LINK $ENV_FILE"
-}
-
-# 이전 방식으로 쓰던 설정 파일을 찾는다. 떠 있거나 멈춘 모니터링 시스템의 묶음 폴더를 먼저 보고, 없으면 설치 폴더의 이전 방식 묶음 폴더
-# 가운데 가장 최근에 고친 파일을 고른다. 이전 방식 묶음 폴더는 옛 이름(monitoring-core-<버전>)이다. 관리자 서버처럼 모니터링 시스템이 아닌 폴더의 .env는 보지 않는다.
-previous_env() {
-  dir=$(running_label com.docker.compose.project.working_dir) || dir=""
-  if [ -n "$dir" ] && [ -f "$dir/.env" ] && [ ! -L "$dir/.env" ]; then
-    printf '%s' "$dir/.env"
-    return 0
-  fi
-  newest=""
-  for old in "$INSTALL_DIR"/monitoring-core-*/.env; do
-    if [ -f "$old" ] && [ ! -L "$old" ] && { [ -z "$newest" ] || [ "$old" -nt "$newest" ]; }; then
-      newest=$old
-    fi
-  done
-  [ -n "$newest" ] || return 1
-  printf '%s' "$newest"
+  fail "묶음 폴더의 설정 파일은 쓰지 않습니다: $ENV_LINK. 설정은 $ENV_FILE 에 둡니다. 고친 값이 있으면 그 파일에 옮겨 적은 뒤, sudo rm $ENV_LINK 로 지우고 다시 실행해 주세요."
 }
 
 # 묶음 폴더에 설치 폴더의 설정 파일을 가리키는 링크를 둔다. 확인을 기다리는 동안 바뀌었을 수 있어 쓰기 직전에 다시 본다.
@@ -208,10 +188,6 @@ link_env() {
 check_env() {
   check_env_location
   if [ ! -f "$ENV_FILE" ]; then
-    # 운영 명령이 직접 복사하지 않는다. 쓰던 파일을 찾으면 복사하는 명령만 보인다(요구사항 0017의 S5).
-    if [ "$LAYOUT" = bundle ] && old=$(previous_env); then
-      fail "설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp $old $ENV_FILE 를 실행하고 다시 실행해 주세요."
-    fi
     # 갱신하며 install로 새 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
     if monitoring_exists; then
       fail "설정 파일(.env)이 없습니다. 새 버전으로 갱신하는 중이면 install 대신 쓰던 .env를 $ENV_FILE 로 복사해 주세요. 처음 설치하면 sh monitoring-server.sh install을 실행해 주세요."
@@ -259,7 +235,6 @@ container_env() {
 }
 
 # 컨테이너가 받은 값을 검사해 쓸 값으로 돌려준다. 변수가 없거나 틀리면 기본값을 돌려준다.
-# 이 기능 전의 컨테이너에는 변수가 없고, 그 모니터링 시스템은 늘 기본값(15일, 제한 없음, 5초)으로 돌았다.
 # 틀린 값을 받은 컨테이너는 시작하지 못하므로, 지난 기록은 기본값이나 그 전의 값으로 남아 있다.
 running_setting() {
   raw=$(container_env "$1" "$2")
@@ -611,10 +586,6 @@ cmd_install() {
   check_docker
   load_settings
   check_env_location
-  # 이전 방식 서버에서 기본값 .env를 새로 만들면 바꿔 둔 값이 사라진다. 쓰던 파일을 찾으면 복사하는 명령만 보인다(요구사항 0017의 S8).
-  if [ "$LAYOUT" = bundle ] && [ ! -f "$ENV_FILE" ] && old=$(previous_env); then
-    fail "설치 폴더에 설정 파일(.env)이 없습니다. 쓰던 설정을 이어 쓰려면 sudo cp $old $ENV_FILE 를 실행하고 다시 실행해 주세요."
-  fi
   file=$(token_file)
 
   address=""

@@ -256,26 +256,27 @@ check '설정 파일이 없으면 설치 준비를 안내하고 띄우지 않는
 # 갱신하며 .env를 옮기지 않은 경우: install로 기본값 .env를 만들면 바꿔 둔 값이 조용히 기본값으로 돌아간다.
 setup; prepared; rm "$ENV"; running_other v1 1761500000 "$INSTALL/monitoring-system-v1"
 run start
-check '모니터링 시스템이 이미 있는데 설정 파일이 어디에도 없으면 install 대신 쓰던 .env를 복사하라고 안내한다' \
+check '모니터링 시스템이 이미 있는데 설치 폴더에 설정 파일이 없으면 install 대신 쓰던 .env를 복사하라고 안내한다' \
   '[ $RC -ne 0 ] && contains "install 대신" && ! called "^compose"'
 
-# 이전 방식 서버에서 처음 갱신(S5): 떠 있는 버전의 묶음 폴더에만 .env가 있다. 직접 복사하지 않고 명령만 보인다.
+# 다른 묶음 폴더의 설정 파일은 찾지 않는다(요구사항 0021의 S3). 떠 있는 버전의 폴더에 실제 .env가 있어도 같다.
 setup; prepared; mkdir "$INSTALL/monitoring-core-v1"; mv "$ENV" "$INSTALL/monitoring-core-v1/.env"
 running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
 run start
-check '설치 폴더에 설정 파일이 없고 떠 있는 버전의 폴더에 있으면 그 파일을 복사하는 명령을 보이고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && [ ! -e "$ENV" ] && ! called "^compose"'
+check '떠 있는데 설치 폴더에 설정 파일이 없으면 다른 묶음 폴더의 파일을 찾지 않고 쓰던 .env를 복사하라고 안내한다' \
+  '[ $RC -ne 0 ] && contains "install 대신" && ! contains "monitoring-core-v1" && ! contains "sudo cp" && [ ! -e "$ENV" ] && ! called "^compose"'
 
+# 처음 설치(요구사항 0021의 S1): 옛 이름 묶음 폴더에 .env가 남아 있어도 보지 않는다.
 setup; prepared; mkdir "$INSTALL/monitoring-core-v1"; mv "$ENV" "$INSTALL/monitoring-core-v1/.env"
 run start
-check '모니터링 시스템이 없어도 이전 묶음 폴더에 설정 파일이 있으면 그 파일을 복사하는 명령을 보인다' \
-  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && [ ! -e "$ENV" ] && ! called "^compose"'
+check '모니터링 시스템이 없으면 다른 묶음 폴더의 설정 파일을 찾지 않고 설치 준비를 안내한다' \
+  '[ $RC -ne 0 ] && contains "sh monitoring-server.sh install" && ! contains "monitoring-core-v1" && ! contains "sudo cp" && [ ! -e "$ENV" ] && ! called "^compose"'
 
-# 지금 묶음 폴더에 이전 방식으로 .env를 둔 경우(S5): 설치 폴더로 옮기라고 안내한다.
+# 묶음 폴더에 실제 설정 파일만 있는 경우(요구사항 0021의 S4): 설치 폴더의 .env가 없어도 같은 안내로 멈추고 옮기지 않는다.
 setup; prepared; mv "$ENV" "$BUNDLE/.env"
 run start
-check '설정 파일이 묶음 폴더에만 있으면 설치 폴더로 옮기는 명령을 보이고 띄우지 않는다' \
-  '[ $RC -ne 0 ] && contains "sudo mv $BUNDLE/.env $ENV" && [ ! -e "$ENV" ] && [ ! -L "$BUNDLE/.env" ] && ! called "^compose"'
+check '설정 파일이 묶음 폴더에만 있으면 묶음 폴더의 파일은 쓰지 않는다고 안내하고 옮기거나 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "묶음 폴더의 설정 파일은 쓰지 않습니다" && contains "$ENV" && ! contains "sudo mv" && [ ! -e "$ENV" ] && [ -f "$BUNDLE/.env" ] && ! called "^compose"'
 
 # 양쪽에 설정 파일이 있는 경우(S6): 어느 값을 쓰는지 헷갈리지 않게 멈춘다.
 setup; prepared; printf 'MONITORING_APP_ADDRESS=other-admin:9000\n' > "$BUNDLE/.env"
@@ -292,27 +293,6 @@ setup; prepared; printf 'MONITORING_APP_ADDRESS=other-admin:9000\n' > "$T/other.
 run start
 check '묶음 폴더의 .env가 다른 곳을 가리키는 링크면 따라가지 않고 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "sudo rm $BUNDLE/.env" && [ "$(cat "$T/other.env")" = "MONITORING_APP_ADDRESS=other-admin:9000" ] && ! called "^compose"'
-
-# 이전 폴더가 여럿이면 떠 있는 버전의 폴더를 먼저 고른다. 이름순으로 앞서고 더 최근에 고친 폴더가 있어도 같다.
-setup; prepared; rm "$ENV"; mkdir "$INSTALL/monitoring-core-a0" "$INSTALL/monitoring-core-v1"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-v1/.env"
-touch -t 202001010000 "$INSTALL/monitoring-core-v1/.env"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-a0/.env"
-running_other v1 1761500000 "$INSTALL/monitoring-core-v1"
-run start
-check '이전 폴더가 여럿이면 떠 있는 버전의 폴더에서 설정 파일을 고른다' \
-  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "monitoring-core-a0" && ! called "^compose"'
-
-# 모니터링 시스템이 없으면 이전 방식 묶음 폴더(옛 이름 monitoring-core-<버전>) 가운데 가장 최근에 고친 파일을 고르고, 모니터링 시스템이 아닌 폴더의 .env는 보지 않는다.
-setup; prepared; rm "$ENV"; mkdir "$INSTALL/manager" "$INSTALL/monitoring-core-a0" "$INSTALL/monitoring-core-v1"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-a0/.env"
-touch -t 202001010000 "$INSTALL/monitoring-core-a0/.env"
-printf 'MONITORING_APP_ADDRESS=manager-api:8080\n' > "$INSTALL/monitoring-core-v1/.env"
-touch -t 202101010000 "$INSTALL/monitoring-core-v1/.env"
-printf 'DB_PASSWORD=x\n' > "$INSTALL/manager/.env"
-run start
-check '모니터링 시스템이 없으면 이전 방식 묶음 폴더 가운데 가장 최근 설정 파일을 고르고 다른 폴더의 .env는 고르지 않는다' \
-  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "$INSTALL/manager" && ! called "^compose"'
 
 # 설치 폴더의 .env가 링크면 따라가지 않는다(CWE-59).
 setup; prepared; mv "$ENV" "$T/real.env"; ln -s "$T/real.env" "$ENV"
@@ -478,18 +458,18 @@ check '설치 준비를 다시 하면 token과 설정 파일을 덮어쓰지 않
 setup; prepared; mv "$ENV" "$BUNDLE/.env"; STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
 run install
 unset STDIN
-check '설치 준비에서 설정 파일이 묶음 폴더에만 있으면 옮기라고 안내하고 새로 만들지 않는다' \
-  '[ $RC -ne 0 ] && contains "sudo mv $BUNDLE/.env $ENV" && [ ! -e "$ENV" ]'
+check '설치 준비에서 설정 파일이 묶음 폴더에만 있으면 묶음 폴더의 파일은 쓰지 않는다고 안내하고 새로 만들지 않는다' \
+  '[ $RC -ne 0 ] && contains "묶음 폴더의 설정 파일은 쓰지 않습니다" && ! contains "sudo mv" && [ ! -e "$ENV" ]'
 
+# 처음 설치(요구사항 0021의 S1): 옛 이름 묶음 폴더에 .env가 남아 있어도 보지 않고 설치 폴더에 새로 만든다.
 setup; prepared; rm "$ENV"; mkdir "$INSTALL/monitoring-core-v1"
 printf 'MONITORING_APP_ADDRESS=old-admin:9000\n' > "$INSTALL/monitoring-core-v1/.env"
-running_other v1 1761500000 "$INSTALL/monitoring-core-v1"; before=$(cat "$TOKEN")
+before=$(cat "$TOKEN")
 STDIN="$T/answer"; printf 'manager-api:8080\n' > "$STDIN"
 run install
 unset STDIN
-# 이전 방식 서버에서 install(요구사항 0017의 S8): 기본값 .env를 새로 만들면 바꿔 둔 값이 사라지므로 복사 명령을 보이고 멈춘다.
-check '설치 준비는 쓰던 설정 파일이 있으면 새로 만들지 않고 복사하는 명령을 보이며 token은 그대로 둔다' \
-  '[ $RC -ne 0 ] && contains "sudo cp $INSTALL/monitoring-core-v1/.env $ENV" && ! contains "관리자 서버 주소(" && [ ! -e "$ENV" ] && [ "$(cat "$TOKEN")" = "$before" ]'
+check '설치 준비는 다른 묶음 폴더의 설정 파일을 보지 않고 설치 폴더에 새로 만들며 token은 그대로 둔다' \
+  '[ $RC -eq 0 ] && ! contains "monitoring-core-v1" && grep -q "^MONITORING_APP_ADDRESS=manager-api:8080$" "$ENV" && [ "$(cat "$TOKEN")" = "$before" ]'
 
 setup; STDIN="$T/answer"; printf 'bad address\n' > "$STDIN"
 run install
@@ -537,7 +517,7 @@ run_with_env() {
   RC=$?
 }
 
-# 떠 있는 모니터링 시스템의 prometheus 컨테이너가 받은 보관 값. 빈 인자는 그 변수가 없는 것이다(이 기능 전의 컨테이너).
+# 떠 있는 모니터링 시스템의 prometheus 컨테이너가 받은 보관 값. 빈 인자는 그 변수가 없는 것이다.
 running_retention() {
   printf 'PATH=/bin\n' > "$FAKE/env.prometheus"
   [ -z "$1" ] || printf 'MONITORING_RETENTION_DAYS=%s\n' "$1" >> "$FAKE/env.prometheus"
@@ -608,7 +588,7 @@ check '값이 모두 비어 있으면 기본값으로 띄우고 모두 기본값
 
 setup; prepared
 run start
-check '이 기능 전의 설정 파일로 띄우면 모두 기본값이라고 보인다' \
+check '설정 파일에 보관·포트 값이 없으면 모두 기본값이라고 보인다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && contains "모두 기본값" && ! contains "기본값과 다른"'
 
 setup; prepared; with_settings CORE_RETENTION_DAYS=30 CORE_PROMETHEUS_PORT=19090
@@ -651,12 +631,12 @@ check '제한이 없던 보관 용량을 처음 정하면 줄임으로 보고 �
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings MONITORING_RETENTION_DAYS=10
 run start
-check '보관 값이 없는 예전 컨테이너는 15일로 보고, 그보다 줄이면 터미널이 아니면 띄우지 않는다' \
+check '보관 값 변수가 없는 컨테이너는 15일로 보고, 그보다 줄이면 터미널이 아니면 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "15일" && contains "10일" && ! called "^compose"'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention '' ''; with_settings MONITORING_RETENTION_DAYS=30
 run start
-check '보관 값이 없는 예전 컨테이너에서 보관 기간을 늘리면 묻지 않고 띄운다' \
+check '보관 값 변수가 없는 컨테이너에서 보관 기간을 늘리면 묻지 않고 띄운다' \
   '[ $RC -eq 0 ] && ! contains "계속할까요" && called "^compose.* up"'
 
 setup; prepared; running_other v2 1761600000 "$BUNDLE"; running_retention 30 100; with_settings MONITORING_RETENTION_DAYS=30 MONITORING_RETENTION_SIZE_GB=100
