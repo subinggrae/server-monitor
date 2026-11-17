@@ -3,10 +3,12 @@
 #
 #   sh monitoring-server.sh install   token과 설정 파일(.env)이 없으면 만든다
 #   sh monitoring-server.sh render    설정 값을 검사해 설정을 rendered/에 펼친다. 컨테이너는 바꾸지 않는다
-#   sh monitoring-server.sh start     확인하고 설정을 펼친 뒤 이미지를 불러와 띄우고 정상 상태까지 기다린다
+#   sh monitoring-server.sh start     확인하고 설정을 펼친 뒤 이미지를 불러와 띄우고 정상 상태까지 기다린다. 성공하면 오래된 버전을 지운다
+#   sh monitoring-server.sh rollback  직전 버전의 묶음 폴더에서 start를 실행한다
 #   sh monitoring-server.sh status    떠 있는 버전, 컨테이너 상태와 준비 여부, 기본값과 다른 설정 값을 보인다
 #
-# 최소 기능만 둔다. token 바꾸기와 오래된 버전 정리는 운영 가이드의 절차로 한다(요구사항 0015).
+# 최소 기능만 둔다. token 바꾸기는 운영 가이드의 절차로 한다(요구사항 0015).
+# start가 성공하면 설치 폴더의 monitoring-versions에 지금 버전과 직전 버전을 적고, 두 버전 밖의 묶음 폴더와 이미지를 지운다(요구사항 0023).
 #
 # 묶음 폴더들은 한 설치 폴더에 나란히 두고, token은 설치 폴더의 secrets/에, 설정 파일은 설치 폴더의 .env에 둔다(요구사항 0011, 0017).
 # .env에서 바꾸는 설정 값(보관 기간·용량, 확인 제한 시간, 호스트 포트)의 규칙은 같은 폴더의 monitoring-settings.sh에 있다(요구사항 0013).
@@ -52,6 +54,8 @@ else
   ENV_FILE="$INSTALL_DIR/.env"
   ENV_LINK="$BUNDLE_DIR/.env"
 fi
+# 버전 기록 파일이다. 묶음 폴더를 지워도 남도록 설치 폴더에 둔다.
+VERSIONS_FILE="$INSTALL_DIR/monitoring-versions"
 
 say() {
   printf '%s\n' "$*"
@@ -68,7 +72,8 @@ usage() {
 
   install   token과 설정 파일(.env)을 준비합니다
   render    설정 값을 검사해 설정을 펼칩니다(docker compose로 직접 띄울 때만 씁니다)
-  start     설정 값을 검사하고 모니터링 시스템을 띄웁니다
+  start     설정 값을 검사하고 모니터링 시스템을 띄웁니다. 지금 버전과 직전 버전 밖의 오래된 버전은 지웁니다
+  rollback  직전 버전으로 되돌립니다
   status    떠 있는 버전, 상태, 기본값과 다른 설정 값을 보입니다
 EOF
 }
@@ -137,8 +142,12 @@ monitoring_running() {
   [ "$(docker inspect -f '{{.State.Running}}' prometheus 2>/dev/null)" = true ]
 }
 
+compose_version() {
+  sed -n 's/^ *image: monitoring-system-prometheus:\(.*\)$/\1/p' "$1" | head -n 1 | tr -d '\r'
+}
+
 bundle_version() {
-  sed -n 's/^ *image: monitoring-system-prometheus:\(.*\)$/\1/p' "$BUNDLE_DIR/compose.yml" | head -n 1 | tr -d '\r'
+  compose_version "$BUNDLE_DIR/compose.yml"
 }
 
 check_docker() {
@@ -623,6 +632,173 @@ check_autostart() {
   fi
 }
 
+# --- 버전 기록과 오래된 버전 정리(요구사항 0023) ---
+
+# Docker 태그 형식(128자 이하)이면 0이다. 경로 구분자, 공백, 셸이 특별하게 읽는 글자가 없어 경로와 인자에 그대로 쓸 수 있다.
+# 글자 범위(a-z)는 locale에 따라 다른 글자를 포함할 수 있어 글자를 모두 적는다.
+valid_version() {
+  case "$1" in
+    ''|[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_]*) return 1 ;;
+    *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-]*) return 1 ;;
+  esac
+  [ ${#1} -le 128 ]
+}
+
+# 버전 기록 파일의 값(첫 번째 인자: current나 previous). 파일이 없거나 링크이거나 값의 형식이 틀리면 빈 값이다.
+recorded_version() {
+  if [ ! -f "$VERSIONS_FILE" ] || [ -L "$VERSIONS_FILE" ]; then
+    return 0
+  fi
+  recorded=$(sed -n "s/^$1=//p" "$VERSIONS_FILE" | tail -n 1 | tr -d '\r')
+  if valid_version "$recorded"; then
+    printf '%s' "$recorded"
+  fi
+}
+
+# 버전(첫 번째 인자)으로 바꾸기 전에 띄워 두었던 버전. 기록의 지금 버전이 그 버전과 다르면 기록의 지금 버전이고, 같으면 기록의 직전 버전이다.
+# 새 버전을 띄웠다가 준비 확인에서 실패하면 기록이 바뀌지 않으므로, 그 버전을 다시 띄우거나 되돌려도 그 전 버전을 잃지 않는다.
+previous_of() {
+  recorded_current=$(recorded_version current)
+  if [ -n "$recorded_current" ] && [ "$recorded_current" != "$1" ]; then
+    printf '%s' "$recorded_current"
+  else
+    recorded_version previous
+  fi
+}
+
+# 떠 있는(멈춘 것도 포함) 모니터링 시스템의 버전. 없거나 형식이 틀리면 빈 값이다.
+running_version() {
+  monitoring_exists || return 0
+  label=$(running_label org.opencontainers.image.version) || return 0
+  if valid_version "$label"; then
+    printf '%s' "$label"
+  fi
+}
+
+# 설치 폴더 바로 아래의 묶음 폴더(첫 번째 인자)의 버전. 링크, 버전 형식이 아닌 이름, compose.yml이 없거나 그 버전이 이름과 다른 폴더는
+# 묶음으로 보지 않고 1을 돌려준다. 정리와 rollback은 이 검사를 통과한 폴더만 다룬다.
+bundle_dir_version() {
+  if [ ! -d "$1" ] || [ -L "$1" ] || [ ! -f "$1/compose.yml" ] || [ -L "$1/compose.yml" ]; then
+    return 1
+  fi
+  dir_version=${1##*/}
+  dir_version=${dir_version#monitoring-system-}
+  valid_version "$dir_version" && [ "$(compose_version "$1/compose.yml")" = "$dir_version" ] || return 1
+  printf '%s' "$dir_version"
+}
+
+# 같은 폴더의 임시 파일에 쓴 뒤 이름을 바꾼다. 이름 바꾸기는 그 자리가 링크여도 링크를 따라가지 않는다.
+# 모니터링 시스템은 이미 떠 있으므로 쓰지 못해도 실패로 끝내지 않고 경고한다.
+write_versions() {
+  if [ -L "$VERSIONS_FILE" ] || { [ -e "$VERSIONS_FILE" ] && [ ! -f "$VERSIONS_FILE" ]; }; then
+    say "경고: 버전 기록 파일 자리에 링크나 폴더가 있어 기록하지 않았습니다: $VERSIONS_FILE. 그것을 지운 뒤 다시 띄우면 기록합니다. 기록이 없으면 rollback으로 되돌릴 수 없습니다."
+    return 0
+  fi
+  if versions_tmp=$(mktemp "$VERSIONS_FILE.XXXXXX") \
+    && printf '# sh monitoring-server.sh start가 쓰는 파일입니다. 고치지 마세요.\ncurrent=%s\nprevious=%s\n' "$1" "$2" > "$versions_tmp" \
+    && chmod 0644 "$versions_tmp" && mv -f "$versions_tmp" "$VERSIONS_FILE"; then
+    return 0
+  fi
+  rm -f "$versions_tmp"
+  say "경고: 버전 기록 파일을 쓰지 못했습니다: $VERSIONS_FILE. 기록이 없으면 rollback으로 되돌릴 수 없습니다."
+}
+
+# 지금 폴더 안의 모든 것을 지운다. 안쪽 폴더는 들어간 뒤 실제 위치가 들어가려던 위치와 같을 때만 지우고, 링크는 링크만 지운다.
+clear_dir() {
+  for entry in * .[!.]* ..?*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    if [ -d "$entry" ] && [ ! -L "$entry" ]; then
+      (
+        expected="$(pwd -P)/$entry"
+        cd -P -- "$entry" && [ "$(pwd -P)" = "$expected" ] && clear_dir
+      ) || return 1
+      rmdir -- "$entry" || return 1
+    else
+      rm -f -- "$entry" || return 1
+    fi
+  done
+}
+
+# 폴더(첫 번째 인자, 설치 폴더 아래의 실제 경로)를 지운다. rm -rf를 쓰지 않고 폴더마다 들어가 실제 위치를 확인한 뒤 그 안에서 이름으로만 지운다.
+# 셸의 지금 폴더는 들어간 뒤 경로가 링크로 바뀌어도 그대로라 확인과 지우기 사이에 틈이 없고(CWE-367), 링크를 따라가지 않는다(CWE-59).
+remove_bundle_dir() (
+  cd -P -- "$1" 2>/dev/null && [ "$(pwd -P)" = "$1" ] || exit 1
+  clear_dir || exit 1
+  cd .. && rmdir -- "${1##*/}"
+) 2>/dev/null
+
+# 지금 버전(첫 번째 인자)과 직전 버전(두 번째 인자) 밖의 묶음 폴더와 모니터링 시스템 이미지를 지운다.
+# 지우지 못한 것은 경고만 하고, 다음에 정리할 때 다시 지운다.
+clean_old_versions() {
+  cleaned=""
+  not_cleaned=""
+  for candidate in "$INSTALL_DIR"/monitoring-system-*; do
+    old=$(bundle_dir_version "$candidate") || continue
+    if [ "$old" = "$1" ] || [ "$old" = "$2" ]; then
+      continue
+    fi
+    if remove_bundle_dir "$candidate"; then
+      case " $cleaned " in *" $old "*) ;; *) cleaned="${cleaned:+$cleaned }$old" ;; esac
+    else
+      not_cleaned="${not_cleaned:+$not_cleaned, }$candidate(폴더 안의 파일을 모두 지우지 못함)"
+    fi
+  done
+  images=$(docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null) || images=""
+  while IFS= read -r image; do
+    case "$image" in
+      monitoring-system-prometheus:*|monitoring-system-alertmanager:*|monitoring-system-blackbox-exporter:*) ;;
+      *) continue ;;
+    esac
+    old=${image#*:}
+    if ! valid_version "$old" || [ "$old" = "$1" ] || [ "$old" = "$2" ]; then
+      continue
+    fi
+    if reason=$(docker image rm "$image" 2>&1 > /dev/null); then
+      case " $cleaned " in *" $old "*) ;; *) cleaned="${cleaned:+$cleaned }$old" ;; esac
+    else
+      not_cleaned="${not_cleaned:+$not_cleaned, }$image($(printf '%s' "$reason" | head -n 1))"
+    fi
+  done <<EOF
+$images
+EOF
+  if [ -n "$cleaned" ]; then
+    say "지금 버전($1)과 직전 버전($2)만 남기고 오래된 버전을 지웠습니다: $cleaned"
+  fi
+  if [ -n "$not_cleaned" ]; then
+    say "경고: 오래된 버전 가운데 지우지 못했습니다: $not_cleaned. 다음에 띄울 때 다시 지웁니다."
+  fi
+}
+
+# start가 성공한 뒤에 부른다. 첫 번째 인자는 띄우기 전에 떠 있던 버전이다.
+# 직전 버전은 띄우기 전에 떠 있던 버전, 기록의 지금 버전, 기록의 직전 버전 가운데 지금 버전과 다른 첫 값이다.
+# 직전 버전을 모르면 어느 버전을 남길지 알 수 없으므로 지우지 않는다(요구사항 0023의 S6).
+record_and_clean() {
+  [ "$LAYOUT" = bundle ] || return 0
+  now_version=$(bundle_version)
+  if ! valid_version "$now_version"; then
+    say "경고: 이 묶음의 버전을 읽지 못해 버전을 기록하거나 오래된 버전을 지우지 않았습니다. 묶음 폴더를 다시 옮겨 주세요."
+    return 0
+  fi
+  if [ -n "$1" ] && [ "$1" != "$now_version" ]; then
+    before_now=$1
+  else
+    before_now=$(previous_of "$now_version")
+  fi
+  write_versions "$now_version" "$before_now"
+  if [ -n "$before_now" ]; then
+    clean_old_versions "$now_version" "$before_now"
+    return 0
+  fi
+  others=""
+  for candidate in "$INSTALL_DIR"/monitoring-system-*; do
+    old=$(bundle_dir_version "$candidate") || continue
+    [ "$old" = "$now_version" ] || others="${others:+$others }$old"
+  done
+  if [ -n "$others" ]; then
+    say "직전 버전을 알 수 없어 오래된 버전을 지우지 않았습니다: $others. 필요 없으면 docs/OPERATIONS.md의 새 버전으로 갱신대로 지워 주세요. 다음에 새 버전을 띄우면 자동으로 지웁니다."
+  fi
+}
+
 # 없는 것만 만들고, 있는 token과 .env는 그대로 둔다.
 cmd_install() {
   check_docker
@@ -697,6 +873,8 @@ cmd_start() {
   check_token
   link_env
   write_rendered
+  # 띄우면 컨테이너의 버전이 바뀌므로 직전 버전을 정할 값을 미리 읽어 둔다.
+  version_before_start=$(running_version)
   if [ "$render_changed" = yes ]; then
     compose_up --force-recreate
   else
@@ -705,7 +883,33 @@ cmd_start() {
   wait_ready $CONTAINERS
   check_autostart
   show_settings
+  record_and_clean "$version_before_start"
   say "모니터링 시스템이 떠 있습니다: 버전 $(running_label org.opencontainers.image.version), 커밋 $(running_label org.opencontainers.image.revision)"
+}
+
+# 직전 버전의 묶음 폴더에서 start를 실행한다. 검사, 띄우기, 버전 기록, 정리는 그 버전의 start가 한다(요구사항 0023).
+# 지금 버전은 떠 있는(멈춘 것도 포함) 모니터링 시스템의 버전이고, 없으면 기록의 지금 버전이다.
+cmd_rollback() {
+  [ "$LAYOUT" = bundle ] \
+    || fail "rollback은 모니터링 서버의 묶음 폴더에서만 실행합니다."
+  check_docker
+  rollback_from=$(running_version)
+  if [ -z "$rollback_from" ]; then
+    rollback_from=$(recorded_version current)
+  fi
+  rollback_to=""
+  if [ -n "$rollback_from" ]; then
+    rollback_to=$(previous_of "$rollback_from")
+  fi
+  [ -n "$rollback_to" ] \
+    || fail "되돌릴 버전이 없습니다. 지금 버전 전에 띄운 버전의 기록이 없습니다($VERSIONS_FILE). 남아 있는 다른 묶음 폴더에서 sh monitoring-server.sh start를 실행하면 그 버전으로 바뀝니다. 아무것도 바꾸지 않았습니다."
+  rollback_dir="$INSTALL_DIR/monitoring-system-$rollback_to"
+  if [ "$(bundle_dir_version "$rollback_dir")" != "$rollback_to" ] || [ ! -f "$rollback_dir/monitoring-server.sh" ]; then
+    fail "직전 버전($rollback_to)의 묶음 폴더가 없습니다: $rollback_dir. 그 버전의 묶음을 이 위치로 다시 옮긴 뒤 실행해 주세요. 아무것도 바꾸지 않았습니다."
+  fi
+  say "직전 버전으로 되돌립니다: $rollback_from → $rollback_to"
+  sh "$rollback_dir/monitoring-server.sh" start
+  say "되돌렸습니다: $rollback_from → $rollback_to"
 }
 
 cmd_status() {
@@ -746,6 +950,7 @@ case "${1:-}" in
   install) cmd_install ;;
   render) cmd_render ;;
   start) cmd_start ;;
+  rollback) cmd_rollback ;;
   status) cmd_status ;;
   *) usage; exit 1 ;;
 esac
