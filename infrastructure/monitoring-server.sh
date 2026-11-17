@@ -655,8 +655,8 @@ recorded_version() {
   fi
 }
 
-# 버전(첫 번째 인자)으로 바꾸기 전에 띄워 두었던 버전. 기록의 지금 버전이 그 버전과 다르면 기록의 지금 버전이고, 같으면 기록의 직전 버전이다.
-# 새 버전을 띄웠다가 준비 확인에서 실패하면 기록이 바뀌지 않으므로, 그 버전을 다시 띄우거나 되돌려도 그 전 버전을 잃지 않는다.
+# 버전(첫 번째 인자)으로 바꾸기 전에 마지막으로 start가 성공한 버전. 기록의 지금 버전이 그 버전과 다르면 기록의 지금 버전이고,
+# 같으면 기록의 직전 버전이다. 띄우기에 실패한 버전은 기록되지 않으므로 직전 버전이 되지 않는다(요구사항 0023의 S5, S10).
 previous_of() {
   recorded_current=$(recorded_version current)
   if [ -n "$recorded_current" ] && [ "$recorded_current" != "$1" ]; then
@@ -687,7 +687,7 @@ bundle_dir_version() {
   printf '%s' "$dir_version"
 }
 
-# 같은 폴더의 임시 파일에 쓴 뒤 이름을 바꾼다. 이름 바꾸기는 그 자리가 링크여도 링크를 따라가지 않는다.
+# 같은 폴더의 임시 파일에 쓴 뒤 이름을 바꾼다. mv -T는 검사 뒤 그 자리가 폴더나 폴더를 가리키는 링크로 바뀌어도 그 안으로 옮기지 않는다.
 # 모니터링 시스템은 이미 떠 있으므로 쓰지 못해도 실패로 끝내지 않고 경고한다.
 write_versions() {
   if [ -L "$VERSIONS_FILE" ] || { [ -e "$VERSIONS_FILE" ] && [ ! -f "$VERSIONS_FILE" ]; }; then
@@ -696,21 +696,28 @@ write_versions() {
   fi
   if versions_tmp=$(mktemp "$VERSIONS_FILE.XXXXXX") \
     && printf '# sh monitoring-server.sh start가 쓰는 파일입니다. 고치지 마세요.\ncurrent=%s\nprevious=%s\n' "$1" "$2" > "$versions_tmp" \
-    && chmod 0644 "$versions_tmp" && mv -f "$versions_tmp" "$VERSIONS_FILE"; then
+    && chmod 0644 "$versions_tmp" && mv -f -T "$versions_tmp" "$VERSIONS_FILE"; then
     return 0
   fi
   rm -f "$versions_tmp"
   say "경고: 버전 기록 파일을 쓰지 못했습니다: $VERSIONS_FILE. 기록이 없으면 rollback으로 되돌릴 수 없습니다."
 }
 
-# 지금 폴더 안의 모든 것을 지운다. 안쪽 폴더는 들어간 뒤 실제 위치가 들어가려던 위치와 같을 때만 지우고, 링크는 링크만 지운다.
+# 지금 폴더 안의 것을 지운다. 첫 번째 인자로 준 이름은 남긴다. 안쪽 폴더는 들어간 뒤 실제 위치가 들어가려던 위치와 같을 때만 지우고,
+# 링크는 링크만 지운다. 지우지 못하면 그 이유를 표준 오류에 쓰고 1을 돌려준다.
 clear_dir() {
   for entry in * .[!.]* ..?*; do
     [ -e "$entry" ] || [ -L "$entry" ] || continue
+    [ "$entry" != "${1-}" ] || continue
     if [ -d "$entry" ] && [ ! -L "$entry" ]; then
       (
         expected="$(pwd -P)/$entry"
-        cd -P -- "$entry" && [ "$(pwd -P)" = "$expected" ] && clear_dir
+        cd -P -- "$entry" || exit 1
+        if [ "$(pwd -P)" != "$expected" ]; then
+          printf '실제 위치가 달라 지우지 않았습니다: %s\n' "$expected" >&2
+          exit 1
+        fi
+        clear_dir
       ) || return 1
       rmdir -- "$entry" || return 1
     else
@@ -721,26 +728,34 @@ clear_dir() {
 
 # 폴더(첫 번째 인자, 설치 폴더 아래의 실제 경로)를 지운다. rm -rf를 쓰지 않고 폴더마다 들어가 실제 위치를 확인한 뒤 그 안에서 이름으로만 지운다.
 # 셸의 지금 폴더는 들어간 뒤 경로가 링크로 바뀌어도 그대로라 확인과 지우기 사이에 틈이 없고(CWE-367), 링크를 따라가지 않는다(CWE-59).
+# compose.yml은 마지막에 지운다. 중간에 실패해도 남은 폴더를 다음 정리 때 묶음으로 알아보고 다시 지우게 하기 위해서다.
 remove_bundle_dir() (
-  cd -P -- "$1" 2>/dev/null && [ "$(pwd -P)" = "$1" ] || exit 1
-  clear_dir || exit 1
-  cd .. && rmdir -- "${1##*/}"
-) 2>/dev/null
+  cd -P -- "$1" || exit 1
+  if [ "$(pwd -P)" != "$1" ]; then
+    printf '실제 위치가 달라 지우지 않았습니다: %s\n' "$1" >&2
+    exit 1
+  fi
+  clear_dir compose.yml || exit 1
+  rm -f -- compose.yml && cd .. && rmdir -- "${1##*/}"
+)
 
 # 지금 버전(첫 번째 인자)과 직전 버전(두 번째 인자) 밖의 묶음 폴더와 모니터링 시스템 이미지를 지운다.
 # 지우지 못한 것은 경고만 하고, 다음에 정리할 때 다시 지운다.
 clean_old_versions() {
   cleaned=""
   not_cleaned=""
-  for candidate in "$INSTALL_DIR"/monitoring-system-*; do
+  # 묶음 폴더를 지우지 못한 버전은 이미지를 지워도 지웠다고 보이지 않는다.
+  dir_failed=""
+  for candidate in "${INSTALL_DIR%/}"/monitoring-system-*; do
     old=$(bundle_dir_version "$candidate") || continue
     if [ "$old" = "$1" ] || [ "$old" = "$2" ]; then
       continue
     fi
-    if remove_bundle_dir "$candidate"; then
-      case " $cleaned " in *" $old "*) ;; *) cleaned="${cleaned:+$cleaned }$old" ;; esac
+    if reason=$(remove_bundle_dir "$candidate" 2>&1 > /dev/null); then
+      cleaned="${cleaned:+$cleaned }$old"
     else
-      not_cleaned="${not_cleaned:+$not_cleaned, }$candidate(폴더 안의 파일을 모두 지우지 못함)"
+      dir_failed="$dir_failed $old "
+      not_cleaned="${not_cleaned:+$not_cleaned, }$candidate($(printf '%s' "$reason" | head -n 1))"
     fi
   done
   images=$(docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null) || images=""
@@ -754,7 +769,7 @@ clean_old_versions() {
       continue
     fi
     if reason=$(docker image rm "$image" 2>&1 > /dev/null); then
-      case " $cleaned " in *" $old "*) ;; *) cleaned="${cleaned:+$cleaned }$old" ;; esac
+      case " $cleaned $dir_failed " in *" $old "*) ;; *) cleaned="${cleaned:+$cleaned }$old" ;; esac
     else
       not_cleaned="${not_cleaned:+$not_cleaned, }$image($(printf '%s' "$reason" | head -n 1))"
     fi
@@ -770,7 +785,7 @@ EOF
 }
 
 # start가 성공한 뒤에 부른다. 첫 번째 인자는 띄우기 전에 떠 있던 버전이다.
-# 직전 버전은 띄우기 전에 떠 있던 버전, 기록의 지금 버전, 기록의 직전 버전 가운데 지금 버전과 다른 첫 값이다.
+# 직전 버전은 기록이 있으면 previous_of로 정한다. 떠 있던 버전은 띄우기에 실패한 버전일 수 있어 기록이 없을 때만 쓴다.
 # 직전 버전을 모르면 어느 버전을 남길지 알 수 없으므로 지우지 않는다(요구사항 0023의 S6).
 record_and_clean() {
   [ "$LAYOUT" = bundle ] || return 0
@@ -779,7 +794,7 @@ record_and_clean() {
     say "경고: 이 묶음의 버전을 읽지 못해 버전을 기록하거나 오래된 버전을 지우지 않았습니다. 묶음 폴더를 다시 옮겨 주세요."
     return 0
   fi
-  if [ -n "$1" ] && [ "$1" != "$now_version" ]; then
+  if [ -z "$(recorded_version current)" ] && [ -n "$1" ] && [ "$1" != "$now_version" ]; then
     before_now=$1
   else
     before_now=$(previous_of "$now_version")
@@ -790,7 +805,7 @@ record_and_clean() {
     return 0
   fi
   others=""
-  for candidate in "$INSTALL_DIR"/monitoring-system-*; do
+  for candidate in "${INSTALL_DIR%/}"/monitoring-system-*; do
     old=$(bundle_dir_version "$candidate") || continue
     [ "$old" = "$now_version" ] || others="${others:+$others }$old"
   done
@@ -903,12 +918,16 @@ cmd_rollback() {
   fi
   [ -n "$rollback_to" ] \
     || fail "되돌릴 버전이 없습니다. 지금 버전 전에 띄운 버전의 기록이 없습니다($VERSIONS_FILE). 남아 있는 다른 묶음 폴더에서 sh monitoring-server.sh start를 실행하면 그 버전으로 바뀝니다. 아무것도 바꾸지 않았습니다."
-  rollback_dir="$INSTALL_DIR/monitoring-system-$rollback_to"
+  rollback_dir="${INSTALL_DIR%/}/monitoring-system-$rollback_to"
   if [ "$(bundle_dir_version "$rollback_dir")" != "$rollback_to" ] || [ ! -f "$rollback_dir/monitoring-server.sh" ]; then
     fail "직전 버전($rollback_to)의 묶음 폴더가 없습니다: $rollback_dir. 그 버전의 묶음을 이 위치로 다시 옮긴 뒤 실행해 주세요. 아무것도 바꾸지 않았습니다."
   fi
   say "직전 버전으로 되돌립니다: $rollback_from → $rollback_to"
   sh "$rollback_dir/monitoring-server.sh" start
+  # 그 start가 기록 보관 값 줄임 확인에서 멈추면 아무것도 바꾸지 않고 성공으로 끝난다. 그래서 떠 있는 버전으로 확인한다.
+  if [ "$(running_version)" != "$rollback_to" ]; then
+    fail "되돌리지 않았습니다. 떠 있는 버전: $(running_version)"
+  fi
   say "되돌렸습니다: $rollback_from → $rollback_to"
 }
 
