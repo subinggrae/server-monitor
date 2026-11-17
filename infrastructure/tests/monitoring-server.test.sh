@@ -67,7 +67,12 @@ case "$1" in
       'inspect monitoring') [ -f "$FAKE/network" ] || { echo 'Error response from daemon: network monitoring not found' >&2; exit 1; } ;;
       *) exit 1 ;;
     esac ;;
-  load) touch "$FAKE/images_loaded" ;;
+  # 불러온 묶음의 버전으로 이미지 세 개를 이미지 목록(images)에 더한다.
+  load)
+    version=$(sed -n 's/^ *image: monitoring-system-prometheus://p' "$(dirname "$3")/compose.yml")
+    for name in prometheus alertmanager blackbox-exporter; do
+      printf 'monitoring-system-%s:%s\n' "$name" "$version" >> "$FAKE/images"
+    done ;;
   compose)
     case " $* " in
       *" up "*)
@@ -76,7 +81,8 @@ case "$1" in
           echo "env file $PWD/rendered/monitoring.env not found" >&2
           exit 1
         fi
-        touch "$FAKE/running"; printf 'v2\n' > "$FAKE/running_version"; printf '%s\n' "$PWD" > "$FAKE/running_workdir"
+        touch "$FAKE/running"; printf '%s\n' "$PWD" > "$FAKE/running_workdir"
+        sed -n 's/^ *image: monitoring-system-prometheus://p' "$PWD/compose.yml" > "$FAKE/running_version"
         # 다른 프로그램이 쓰는 포트: Docker처럼 그 컨테이너만 만들어 두고 띄우지 못한다.
         if [ -f "$FAKE/port_taken" ]; then
           printf 'created\n' > "$FAKE/status.prometheus"
@@ -91,8 +97,25 @@ case "$1" in
         printf '{"9115/tcp":[{"HostIp":"127.0.0.1","HostPort":"%s"}]}\n' "${MONITORING_BLACKBOX_PORT:-9115}" > "$FAKE/ports.blackbox-exporter"
         ;;
     esac ;;
+  # images_loaded가 있으면 어느 버전의 이미지든 있다고 본다. 없으면 이미지 목록(images)에 있는 것만 있다.
+  # images_in_use에 적은 이미지는 Docker처럼 컨테이너가 쓰고 있어 지우지 못한다.
   image)
-    [ -f "$FAKE/images_loaded" ] || exit 1
+    case "$2" in
+      ls) cat "$FAKE/images" 2>/dev/null; exit 0 ;;
+      rm)
+        shift 2
+        for ref; do
+          if grep -qx "$ref" "$FAKE/images_in_use" 2>/dev/null; then
+            echo "Error response from daemon: conflict: unable to remove repository reference \"$ref\" (must force) - container 1a2b3c is using its referenced image" >&2
+            exit 1
+          fi
+          grep -qx "$ref" "$FAKE/images" 2>/dev/null || { echo "Error response from daemon: No such image: $ref" >&2; exit 1; }
+          grep -vx "$ref" "$FAKE/images" > "$FAKE/images.tmp"; mv "$FAKE/images.tmp" "$FAKE/images"
+        done
+        exit 0 ;;
+    esac
+    for ref; do :; done
+    [ -f "$FAKE/images_loaded" ] || grep -qx "$ref" "$FAKE/images" 2>/dev/null || exit 1
     case "$*" in
       *commit-time*running-image*) cat "$FAKE/running_time" ;;
       *commit-time*) cat "$FAKE/bundle_time" ;;
@@ -204,14 +227,46 @@ ready_called() { [ -f "$FAKE/ready_calls" ] && grep -q "$1" "$FAKE/ready_calls";
 # 펼친 Prometheus 설정이 HTTP SD를 부르는 주소
 rendered_address() { sed -n 's|^ *- url: http://\(.*\)/api/prometheus/sd/blackbox$|\1|p' "$RENDERED/prometheus.yml"; }
 
+# 설치 폴더에 다른 버전(첫 번째 인자)의 묶음 폴더를 만든다. 이 묶음(v2)의 파일을 쓰고 이미지 태그만 바꾼다.
+add_bundle() {
+  dir="$INSTALL/monitoring-system-$1"
+  mkdir -p "$dir/templates"
+  cp "$BUNDLE/monitoring-server.sh" "$BUNDLE/monitoring-settings.sh" "$BUNDLE/.env.example" "$BUNDLE/monitoring-system-images.tar" "$dir/"
+  cp "$BUNDLE"/templates/* "$dir/templates/"
+  sed "s/:v2\$/:$1/" "$BUNDLE/compose.yml" > "$dir/compose.yml"
+  (cd "$dir" && sha256sum compose.yml .env.example monitoring-system-images.tar monitoring-server.sh monitoring-settings.sh templates/* > SHA256SUMS)
+}
+
+# 설치 폴더의 다른 묶음 폴더(첫 번째 인자는 버전)에서 운영 명령을 실행한다.
+run_at() {
+  dir="$INSTALL/monitoring-system-$1"
+  shift
+  OUT=$(cd "$dir" && sh ./monitoring-server.sh "$@" 2>&1 < "${STDIN:-/dev/null}")
+  RC=$?
+}
+
+# 버전 기록 파일(설치 폴더의 monitoring-versions)에 적힌 current나 previous 값
+recorded() { sed -n "s/^$1=//p" "$INSTALL/monitoring-versions" 2>/dev/null; }
+has_image() { [ -f "$FAKE/images" ] && grep -qx "$1" "$FAKE/images"; }
+# 버전(첫 번째 인자)의 이미지 세 개가 모두 있으면 0, 하나도 없으면 1, 일부만 있으면 2
+version_images() {
+  count=0
+  for name in prometheus alertmanager blackbox-exporter; do
+    has_image "monitoring-system-$name:$1" && count=$((count + 1))
+  done
+  case "$count" in 3) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+}
+kept() { [ -d "$INSTALL/monitoring-system-$1" ] && version_images "$1"; }
+removed() { [ ! -e "$INSTALL/monitoring-system-$1" ] && { version_images "$1"; [ $? -eq 1 ]; }; }
+
 ORIGINAL_PATH=$PATH
 
 # --- 명령과 Docker ---
 
 setup
 run deploy
-check '알 수 없는 작업이면 쓸 수 있는 네 작업을 보이고 실패한다' \
-  '[ $RC -ne 0 ] && contains "install" && contains "render" && contains "start" && contains "status" && ! contains "rotate-token" && ! called "^compose"'
+check '알 수 없는 작업이면 쓸 수 있는 다섯 작업을 보이고 실패한다' \
+  '[ $RC -ne 0 ] && contains "install" && contains "render" && contains "start" && contains "rollback" && contains "status" && ! contains "rotate-token" && ! called "^compose"'
 
 setup; prepared; started; before=$(cat "$TOKEN")
 run rotate-token
@@ -1050,6 +1105,202 @@ sed -i 's/# BEGIN manager-os/# SWAP-BEGIN/; s/# END manager-os/# BEGIN manager-o
 run start
 check '서버 사용량 수집을 끄는데 템플릿의 표시 줄 순서가 바뀌었으면 펼치거나 띄우지 않는다' \
   '[ $RC -ne 0 ] && contains "묶음 폴더를 다시 옮겨" && ! called "^compose" && [ ! -e "$RENDERED/prometheus.yml" ]'
+
+# --- 오래된 버전 정리와 되돌리기(요구사항 0023) ---
+# v1, v2(이 묶음), v3, v4는 이 순서로 배포한 버전이다.
+running_is() { [ "$(cat "$FAKE/running_version")" = "$1" ]; }
+
+setup; prepared
+run start
+check '처음 띄우면 아무것도 지우지 않고 지금 버전을 기록한다(S1)' \
+  '[ $RC -eq 0 ] && [ "$(recorded current)" = v2 ] && [ -z "$(recorded previous)" ] && ! called "^image rm" && kept v2 && ! contains "지웠습니다" && ! contains "지우지 않았습니다"'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start
+check '두 번째 버전을 띄우면 처음 버전을 직전 버전으로 남긴다(S2)' \
+  '[ $RC -eq 0 ] && [ "$(recorded current)" = v2 ] && [ "$(recorded previous)" = v1 ] && kept v1 && kept v2 && ! called "^image rm"'
+printf 'other-app:v1\nmonitoring-node-exporter:v1\n' >> "$FAKE/images"
+printf 'keep\n' > "$INSTALL/notes.txt"
+add_bundle v3; run_at v3 start
+check '세 번째 버전을 띄우면 지금과 직전 버전 밖의 묶음 폴더와 이미지를 지운다(S2)' \
+  '[ $RC -eq 0 ] && removed v1 && kept v2 && kept v3 && [ "$(recorded current)" = v3 ] && [ "$(recorded previous)" = v2 ]'
+check '오래된 버전을 지우면 지운 버전을 보인다(S2)' 'contains "지웠습니다: v1"'
+check '정리해도 기록, 설정 파일, token, CA 인증서 파일, 다른 이미지, 묶음이 아닌 파일을 지우지 않는다(S2)' \
+  '[ -f "$ENV" ] && [ -f "$TOKEN" ] && [ -f "$CA" ] && has_image other-app:v1 && has_image monitoring-node-exporter:v1 && [ -f "$INSTALL/notes.txt" ] && ! called "volume"'
+rm -f "$FAKE/calls"
+run_at v3 start
+check '같은 버전을 다시 띄우면 직전 버전을 그대로 두고 아무것도 지우지 않는다(S3)' \
+  '[ $RC -eq 0 ] && [ "$(recorded current)" = v3 ] && [ "$(recorded previous)" = v2 ] && kept v2 && ! called "^image rm"'
+
+# 새 버전을 띄웠다가 준비 확인에서 실패하면 컨테이너는 새 버전이지만 기록은 그대로다.
+setup; prepared; add_bundle v1
+run_at v1 start; run start; printf '9090\n' > "$FAKE/not_ready_ports"
+add_bundle v3; run_at v3 start
+check '띄우기가 실패하면 아무것도 지우지 않고 버전 기록을 바꾸지 않는다(S5)' \
+  '[ $RC -ne 0 ] && kept v1 && [ "$(recorded current)" = v2 ] && [ "$(recorded previous)" = v1 ] && ! called "^image rm"'
+rm "$FAKE/not_ready_ports"
+run_at v3 start
+check '실패한 버전을 다시 띄워 성공하면 마지막으로 성공한 버전을 직전 버전으로 기록한다(S5)' \
+  '[ $RC -eq 0 ] && [ "$(recorded current)" = v3 ] && [ "$(recorded previous)" = v2 ] && kept v2 && removed v1'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; printf '9090\n' > "$FAKE/not_ready_ports"
+add_bundle v3; run_at v3 start; rm "$FAKE/not_ready_ports"
+add_bundle v4; run_at v4 start
+check '띄우기에 실패한 버전 뒤에 새 버전을 띄우면 마지막으로 성공한 버전을 직전 버전으로 기록한다(S10)' \
+  '[ $RC -eq 0 ] && [ "$(recorded current)" = v4 ] && [ "$(recorded previous)" = v2 ]'
+check '띄우기에 실패한 버전 뒤에 새 버전을 띄우면 마지막으로 성공한 버전을 남긴다(S10)' 'kept v2 && kept v4'
+check '띄우기에 실패한 버전 뒤에 새 버전을 띄우면 실패한 버전을 지운다(S10)' 'removed v3 && removed v1'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; printf '9090\n' > "$FAKE/not_ready_ports"
+add_bundle v3; run_at v3 start; rm "$FAKE/not_ready_ports"
+run start
+check '성공했던 버전을 실패한 버전 뒤에 다시 띄우면 직전 버전을 그대로 둔다(S3)' \
+  '[ $RC -eq 0 ] && [ "$(recorded current)" = v2 ] && [ "$(recorded previous)" = v1 ] && kept v1'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; add_bundle v3; run_at v3 start; rm -f "$FAKE/calls"
+run_at v3 rollback
+check '되돌리면 직전 버전의 묶음 폴더에서 띄운다(S4)' \
+  '[ $RC -eq 0 ] && running_is v2 && [ "$(cat "$FAKE/running_workdir")" = "$BUNDLE" ]'
+check '되돌리면 되돌린 버전을 보인다(S4)' 'contains "되돌렸습니다: v3 → v2"'
+check '되돌린 뒤에는 되돌리기 전의 버전을 직전 버전으로 기록한다(S4)' \
+  '[ "$(recorded current)" = v2 ] && [ "$(recorded previous)" = v3 ]'
+check '되돌린 뒤 정리할 때 되돌리기 전의 버전을 지우지 않는다(S4)' 'kept v2 && kept v3 && ! called "^image rm"'
+run rollback
+check '되돌린 뒤 다시 되돌리면 되돌리기 전의 버전으로 돌아간다(S4)' \
+  '[ $RC -eq 0 ] && running_is v3 && contains "되돌렸습니다: v2 → v3" && [ "$(recorded current)" = v3 ] && [ "$(recorded previous)" = v2 ]'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start
+run_at v1 rollback
+check '되돌릴 버전의 묶음 폴더에서 실행해도 그 버전으로 되돌린다(S4)' \
+  '[ $RC -eq 0 ] && running_is v1 && contains "되돌렸습니다: v2 → v1"'
+
+# docker compose down으로 컨테이너를 지운 상태: 기록의 지금 버전을 기준으로 되돌린다.
+setup; prepared; add_bundle v1
+run_at v1 start; run start; rm "$FAKE/running"
+run rollback
+check '모니터링 시스템 컨테이너가 없으면 기록의 지금 버전의 직전 버전으로 되돌린다(S4)' \
+  '[ $RC -eq 0 ] && running_is v1 && contains "되돌렸습니다: v2 → v1"'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start
+run_in_terminal '' rollback
+check '터미널에서 되돌려도 되돌릴지 묻지 않는다(S4)' \
+  '[ $RC -eq 0 ] && ! contains "[y/N]" && running_is v1'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; add_bundle v3; run_at v3 start; rm -f "$FAKE/calls"; printf '9090\n' > "$FAKE/not_ready_ports"
+run_at v3 rollback
+check '되돌리다 준비 확인에서 실패하면 되돌렸다고 보이지 않는다(S4)' \
+  '[ $RC -ne 0 ] && ! contains "되돌렸습니다" && [ "$(recorded current)" = v3 ]'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; with_settings MONITORING_RETENTION_DAYS=10
+# BusyBox script는 안쪽 명령의 종료 코드를 넘기지 않으므로 터미널 안에서 종료 코드를 출력한다.
+run_in_terminal n 'rollback; echo "rollback-exit=$?"'
+check '되돌리다 기록 보관 값 줄임 확인을 거절하면 되돌리지 않았다고 알린다(S11)' \
+  'contains "되돌리지 않았습니다" && ! contains "되돌렸습니다" && running_is v2'
+check '되돌리다 기록 보관 값 줄임 확인을 거절하면 실패 종료 코드로 끝난다(S11)' 'contains "rollback-exit=1"'
+
+# 이 기능 전 묶음으로 install만 해 둔 서버: 기록도 떠 있는 버전도 없다.
+setup; prepared; add_bundle v1
+run start
+check '직전 버전을 알 수 없으면 아무것도 지우지 않는다(S6)' \
+  '[ $RC -eq 0 ] && kept v2 && [ -d "$INSTALL/monitoring-system-v1" ] && ! called "^image rm" && [ "$(recorded current)" = v2 ]'
+check '직전 버전을 알 수 없으면 손으로 지우는 방법을 안내한다(S6)' 'contains "지우지 않았습니다" && contains "OPERATIONS.md"'
+add_bundle v3
+run_at v3 start
+check '직전 버전을 알게 된 뒤 새 버전을 띄우면 띄운 적 없는 묶음 폴더도 지운다(S6)' \
+  '[ $RC -eq 0 ] && [ ! -e "$INSTALL/monitoring-system-v1" ] && kept v2 && kept v3'
+
+setup; prepared; run start; rm -f "$FAKE/calls"
+run rollback
+check '띄운 버전이 하나뿐이면 되돌릴 버전이 없다고 알리고 아무것도 바꾸지 않는다(S7)' \
+  '[ $RC -ne 0 ] && contains "되돌릴 버전이 없습니다" && ! called "^compose" && [ "$(recorded current)" = v2 ]'
+
+setup; prepared
+run rollback
+check '띄운 적이 없으면 되돌릴 버전이 없다고 알린다(S7)' \
+  '[ $RC -ne 0 ] && contains "되돌릴 버전이 없습니다" && ! called "^compose"'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; rm -rf "$INSTALL/monitoring-system-v1"; rm -f "$FAKE/calls"
+run rollback
+check '직전 버전의 묶음 폴더가 없으면 그 폴더를 알리고 떠 있는 모니터링 시스템을 건드리지 않는다(S7)' \
+  '[ $RC -ne 0 ] && contains "monitoring-system-v1" && ! called "^compose" && running_is v2'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; printf 'monitoring-system-alertmanager:v1\n' > "$FAKE/images_in_use"
+add_bundle v3; run_at v3 start
+check '이미지를 지우지 못하면 그 이미지와 이유를 경고하고 성공으로 끝난다(S8)' \
+  '[ $RC -eq 0 ] && contains "지우지 못했습니다" && contains "monitoring-system-alertmanager:v1" && contains "is using"'
+check '이미지 하나를 지우지 못해도 나머지 이미지와 묶음 폴더는 지운다(S8)' \
+  'has_image monitoring-system-alertmanager:v1 && ! has_image monitoring-system-prometheus:v1 && [ ! -e "$INSTALL/monitoring-system-v1" ]'
+rm "$FAKE/images_in_use"
+run_at v3 start
+check '다음에 띄울 때 지우지 못했던 이미지를 다시 지운다(S8)' \
+  '[ $RC -eq 0 ] && ! has_image monitoring-system-alertmanager:v1'
+
+# 이름이 줄바꿈으로 끝나는 폴더는 명령 치환이 끝의 줄바꿈을 지워 실제 위치가 늘 다르게 나온다. 이것으로 묶음 폴더를 지우지 못하는 경우를 만든다.
+setup; prepared; add_bundle v1
+run_at v1 start; run start
+odd="$INSTALL/monitoring-system-v1/odd
+"
+mkdir "$odd"
+add_bundle v3; run_at v3 start
+check '묶음 폴더를 지우지 못하면 그 폴더와 이유를 경고한다(S8)' \
+  '[ $RC -eq 0 ] && contains "지우지 못했습니다" && contains "monitoring-system-v1" && contains "실제 위치가 달라"'
+check '묶음 폴더를 지우지 못한 버전은 지웠다고 보이지 않는다(S8)' '! contains "지웠습니다: v1"'
+check '묶음 폴더를 지우다 실패해도 그 폴더의 compose.yml은 남긴다(S8)' '[ -f "$INSTALL/monitoring-system-v1/compose.yml" ]'
+run_at v3 start
+check '지우지 못한 묶음 폴더는 다음에 띄울 때 다시 지우려 한다(S8)' \
+  '[ $RC -eq 0 ] && contains "지우지 못했습니다" && contains "monitoring-system-v1"'
+rmdir "$odd"
+run_at v3 start
+check '지우지 못한 까닭이 없어지면 다음에 띄울 때 그 묶음 폴더를 지운다(S8)' \
+  '[ $RC -eq 0 ] && [ ! -e "$INSTALL/monitoring-system-v1" ]'
+
+# 지우면 안 되는 대상(S9). outside는 설치 폴더 밖이다.
+setup; prepared; add_bundle v1
+mkdir -p "$T/outside/link-target" "$T/outside/templates"
+printf 'services:\n  prometheus:\n    image: monitoring-system-prometheus:v0\n' > "$T/outside/link-target/compose.yml"
+printf 'keep\n' > "$T/outside/templates/keep"
+ln -s "$T/outside/link-target" "$INSTALL/monitoring-system-v0"
+mkdir "$INSTALL/monitoring-system-x y"; cp "$INSTALL/monitoring-system-v1/compose.yml" "$INSTALL/monitoring-system-x y/"
+mkdir "$INSTALL/monitoring-system-v8"; printf 'keep\n' > "$INSTALL/monitoring-system-v8/keep"
+mkdir "$INSTALL/monitoring-system-v9"; cp "$INSTALL/monitoring-system-v1/compose.yml" "$INSTALL/monitoring-system-v9/"
+run_at v1 start; run start
+# 띄울 때는 체크섬 확인을 통과해야 하므로, v1을 띄운 뒤에 그 안의 폴더를 링크로 바꾼다.
+rm -r "$INSTALL/monitoring-system-v1/templates"; ln -s "$T/outside/templates" "$INSTALL/monitoring-system-v1/templates"
+add_bundle v3; run_at v3 start
+check '정리할 때 링크인 묶음 폴더는 지우려 하지 않는다(S9)' \
+  '[ $RC -eq 0 ] && [ -L "$INSTALL/monitoring-system-v0" ] && [ -f "$T/outside/link-target/compose.yml" ] && ! contains "지우지 못했습니다"'
+check '정리할 때 버전 형식이 아닌 이름, compose.yml이 없는 폴더, 이름과 compose.yml의 버전이 다른 폴더를 지우지 않는다(S9)' \
+  '[ -f "$INSTALL/monitoring-system-x y/compose.yml" ] && [ -f "$INSTALL/monitoring-system-v8/keep" ] && [ -f "$INSTALL/monitoring-system-v9/compose.yml" ]'
+check '지우는 묶음 폴더 안의 링크는 링크만 지운다(S9)' \
+  '[ ! -e "$INSTALL/monitoring-system-v1" ] && [ -f "$T/outside/templates/keep" ]'
+
+setup; prepared; printf 'keep\n' > "$T/elsewhere"; ln -s "$T/elsewhere" "$INSTALL/monitoring-versions"
+run start
+check '버전 기록 파일이 링크면 링크가 가리키는 파일에 쓰지 않는다(보안)' \
+  '[ $RC -eq 0 ] && contains "monitoring-versions" && [ -L "$INSTALL/monitoring-versions" ] && [ "$(cat "$T/elsewhere")" = keep ]'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start
+cp "$INSTALL/monitoring-versions" "$T/versions-copy"; rm "$INSTALL/monitoring-versions"; ln -s "$T/versions-copy" "$INSTALL/monitoring-versions"
+rm -f "$FAKE/calls"
+run rollback
+check '버전 기록 파일이 링크면 읽지 않는다(보안)' \
+  '[ $RC -ne 0 ] && contains "되돌릴 버전이 없습니다" && ! called "^compose"'
+
+setup; prepared; add_bundle v1
+run_at v1 start; run start; printf 'current=v2\nprevious=../../outside\n' > "$INSTALL/monitoring-versions"; rm -f "$FAKE/calls"
+run rollback
+check '버전 기록의 값이 버전 형식이 아니면 그 값으로 경로를 만들지 않는다(보안)' \
+  '[ $RC -ne 0 ] && contains "되돌릴 버전이 없습니다" && ! called "^compose"'
 
 printf '\n통과 %s, 실패 %s\n' "$PASSED" "$FAILED"
 [ "$FAILED" -eq 0 ]

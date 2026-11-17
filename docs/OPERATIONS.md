@@ -185,7 +185,8 @@ sudo sh monitoring-server.sh start
 ├── .env                                 설정 값(모든 버전이 함께 읽는다)
 ├── secrets/alertmanager_webhook_token   모니터링 시스템과 관리자 서버가 함께 읽는 token
 ├── certs/ca-certificates.crt            OS에서 복사한 CA 인증서 파일
-├── monitoring-system-<이전 버전>/          되돌릴 때 쓰도록 남겨 둔다
+├── monitoring-versions                  지금 버전과 직전 버전의 기록(start가 쓴다)
+├── monitoring-system-<직전 버전>/          되돌릴 때 쓴다(더 오래된 버전은 start가 지운다)
 └── monitoring-system-<새 버전>/
     ├── .env -> ../.env                  운영 명령이 만드는 링크
     ├── templates/                       설정 템플릿(고치지 않는다)
@@ -408,6 +409,7 @@ ssh -L 9090:127.0.0.1:9090 <계정>@<모니터링 서버 주소>
 | 설정 값 바꾸기 | 설치 폴더의 `.env`를 고친 뒤 `sh monitoring-server.sh start` |
 | 멈추기 | `docker compose down` |
 | 다시 띄우기 | `sh monitoring-server.sh start` |
+| 직전 버전으로 되돌리기 | `sh monitoring-server.sh rollback` |
 | 로그 보기 | `docker logs -f prometheus`(다른 프로그램은 컨테이너 이름만 바꿈) |
 | 기록까지 지우기 | `docker compose down -v`(되돌릴 수 없음) |
 
@@ -431,7 +433,16 @@ Docker 자동 시작이 켜져 있으면 서버를 재시작해도 모니터링 
 sudo sh monitoring-server.sh start
 ```
 
-이전 폴더는 되돌릴 때 쓰도록 남긴다. 운영 명령은 오래된 버전을 지우지 않으므로, 띄운 버전과 직전 버전만 남기고 더 오래된 묶음 폴더와 이미지는 다음처럼 지운다. 지금 띄운 버전은 `status`로, 남은 버전은 `ls <설치 폴더>`와 `docker image ls monitoring-system-prometheus`로 본다.
+`start`가 성공하면 지금 버전과 직전 버전만 남기고, 더 오래된 묶음 폴더와 그 버전의 이미지를 지운 뒤 지운 버전을 보여 준다. 직전 버전은 이번 버전 전에 마지막으로 `start`가 성공한 버전이고, 운영 명령이 설치 폴더의 `monitoring-versions`에 적어 둔다. 띄우기에 실패한 버전은 직전 버전이 되지 않는다. 쌓은 기록, `.env`, token, CA 인증서 파일은 지우지 않는다.
+
+새 묶음 폴더는 띄우기 직전에 옮긴다. 미리 옮겨 둔 다른 버전의 묶음 폴더도 지금 버전이나 직전 버전이 아니면 지워진다.
+
+다음 메시지가 나오면 운영 명령이 지우지 않은 것이 있다.
+
+- **`직전 버전을 알 수 없어 오래된 버전을 지우지 않았습니다`**: 이 기능이 없던 묶음으로 `install`만 해 두었거나 `monitoring-versions`를 지운 경우다. 다음에 새 버전을 띄우면 자동으로 지운다.
+- **`오래된 버전 가운데 지우지 못했습니다`**: 메시지에 나온 대상과 이유를 확인한다. 다음에 띄울 때 다시 지운다.
+
+그 전에 지우려면 다음 명령을 쓴다. 지금 띄운 버전은 `status`로, 남은 버전은 `ls <설치 폴더>`와 `docker image ls monitoring-system-prometheus`로 본다.
 
 ```sh
 sudo rm -rf <설치 폴더>/monitoring-system-<오래된 버전>
@@ -440,7 +451,20 @@ sudo docker image rm monitoring-system-prometheus:<오래된 버전> monitoring-
 
 ### 이전 버전으로 되돌리기
 
-이전 묶음 폴더에서 `sh monitoring-server.sh start`를 실행한다. 확인 없이 바로 이전 버전으로 바뀌고, 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 설정은 설치 폴더의 `.env`를 함께 쓰므로 되돌아가지 않는다.
+설치 폴더의 아무 묶음 폴더에서 다음을 실행한다. 직전 버전의 묶음 폴더를 찾아 그 버전으로 띄운다.
+
+```sh
+sudo sh monitoring-server.sh rollback
+```
+
+마지막 줄에 `되돌렸습니다: <되돌리기 전 버전> → <직전 버전>`이 보이면 성공이다. 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 설정은 설치 폴더의 `.env`를 함께 쓰므로 되돌아가지 않는다. 되돌린 뒤에는 되돌리기 전 버전이 직전 버전이 되므로, 다시 `rollback`하면 원래 버전으로 돌아간다.
+
+되돌릴지는 묻지 않는다. 다만 되돌리면 기록 보관 값이 줄어드는 경우에는 `start`처럼 확인을 묻고([기록 보관 값 줄이기](#기록-보관-값-줄이기)), `y`를 넣지 않으면 `되돌리지 않았습니다`를 보이고 그대로 둔다.
+
+결과에 따라 다음과 같이 한다.
+
+- **`되돌릴 버전이 없습니다`나 `묶음 폴더가 없습니다`가 나온다**: 아무것도 바뀌지 않았다. 남아 있는 다른 버전으로 바꾸려면 그 묶음 폴더에서 `sudo sh monitoring-server.sh start`를 실행한다.
+- **되돌리다 실패한다**(예: `정상 상태가 되지 않았습니다`): `rollback`을 다시 실행하지 않는다. 기록은 되돌리기 전 그대로라서, 다시 실행하면 되돌리기 전 버전으로 간다. 나온 원인을 고친 뒤 되돌릴 버전의 묶음 폴더에서 `sudo sh monitoring-server.sh start`를 실행한다.
 
 ### token 바꾸기
 

@@ -49,7 +49,7 @@ API 명세와 데이터 모델의 원본 위치는 다음과 같다.
 | 위치 | 책임 |
 |---|---|
 | `infrastructure/` | 모니터링 시스템(`compose.yml`, 구성 요소마다 `Dockerfile`), Prometheus 설정 템플릿과 규칙(규칙 테스트는 `prometheus/tests/`), Alertmanager, Blackbox 설정, 묶음에 싣는 라이선스 파일(`licenses/`), node_exporter 배포 묶음(`node-exporter/`), 비밀값 예시 파일 |
-| `infrastructure/monitoring-server.sh` | 묶음에 들어가 모니터링 서버(Linux)에서 설치 준비, 설정 펼치기, 띄우기, 상태 보기(시험은 `infrastructure/tests/`) |
+| `infrastructure/monitoring-server.sh` | 묶음에 들어가 모니터링 서버(Linux)에서 설치 준비, 설정 펼치기, 띄우기와 오래된 버전 정리, 직전 버전으로 되돌리기, 상태 보기(시험은 `infrastructure/tests/`) |
 | `infrastructure/monitoring-settings.sh` | 서버에서 바꾸는 설정 값의 기본값, 허용 범위, 검사 |
 | `scripts/build-monitoring-bundle.mjs` | 모니터링 시스템 이미지 빌드와 검사, 내부망 서버로 옮길 모니터링 시스템·node_exporter 묶음 |
 | `monitoring-dev.bat` | Windows 빌드 PC에서 묶음 만들기, 설정 검사, 개발용 모니터링 시스템 띄우기·멈추기 |
