@@ -1,8 +1,8 @@
 # 0023. 오래된 버전 자동 정리와 직전 버전으로 되돌리는 명령
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-17
-- 관련: [0015](0015-core-minimal-image.md), [0017](0017-core-shared-env.md), [OPERATIONS.md의 새 버전으로 갱신](../OPERATIONS.md#새-버전으로-갱신)
+- 관련: [PR #67](https://github.com/subinggrae/server-monitor/pull/67)(구현 계획과 확인 기록 포함), [0015](0015-core-minimal-image.md), [0017](0017-core-shared-env.md), [OPERATIONS.md의 새 버전으로 갱신](../OPERATIONS.md#새-버전으로-갱신)
 
 ## 배경
 
