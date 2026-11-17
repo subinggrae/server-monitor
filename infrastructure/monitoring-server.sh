@@ -120,13 +120,14 @@ real_path() {
 }
 
 # 같은 폴더의 임시 파일에 쓴 뒤 이름을 옮겨, 쓰는 도중의 파일을 컨테이너가 읽지 않게 한다. 값은 출력하지 않는다.
+# mv -T는 그 자리가 폴더나 폴더를 가리키는 링크로 바뀌어 있어도 그 안으로 옮기지 않는다(CWE-59).
 write_token() {
   tmp=$(umask 077 && mktemp "$1.XXXXXX")
   od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "$tmp"
   printf '\n' >> "$tmp"
   # 컨테이너 사용자(nobody)가 읽어야 한다. 다른 사용자는 0700인 폴더에 막힌다.
   chmod 0644 "$tmp"
-  mv -f "$tmp" "$1"
+  mv -f -T "$tmp" "$1"
 }
 
 running_label() {
@@ -504,8 +505,9 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
   done
   # 이전과 내용이 달라졌으면 render_changed=yes다. 파일 단위로 붙인 컨테이너는 이름을 바꿔 옮긴 새 파일을
   # 다시 시작할 때까지 보지 못하기 때문이다.
+  # mv -T는 검사 뒤 그 자리가 폴더나 폴더를 가리키는 링크로 바뀌어도 그 안으로 옮기지 않는다(CWE-59).
   for name in $CONFIG_FILES monitoring.env; do
-    mv -f "$stage/$name" "$RENDER_DIR/$name"
+    mv -f -T "$stage/$name" "$RENDER_DIR/$name"
   done
   rmdir "$stage"
   trap - EXIT
@@ -845,11 +847,11 @@ cmd_install() {
   fi
 
   if [ -n "$address" ]; then
-    # 같은 폴더에 쓴 뒤 이름을 바꾼다. 주소를 묻는 사이 그 자리에 링크가 생겨도 링크를 따라 쓰지 않는다.
+    # 같은 폴더에 쓴 뒤 이름을 바꾼다. 주소를 묻는 사이 그 자리에 링크나 폴더가 생겨도 링크를 따라 쓰거나 그 안으로 옮기지 않는다(mv -T).
     tmp=$(mktemp "$ENV_FILE.XXXXXX")
     sed "s/^MONITORING_APP_ADDRESS=.*/MONITORING_APP_ADDRESS=$address/" "$BUNDLE_DIR/.env.example" > "$tmp"
     chmod 0644 "$tmp"
-    mv -f "$tmp" "$ENV_FILE"
+    mv -f -T "$tmp" "$ENV_FILE"
     say "설정 파일을 만들었습니다: $ENV_FILE"
   fi
   link_env
