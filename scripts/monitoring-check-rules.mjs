@@ -29,6 +29,12 @@ const RULES = [
 ];
 
 // 아래 세 조건은 모두 기준을 채웠을 때만 참이므로, 판정이 기준보다 이르지 않다.
+// 네 번째 조건은 이미 장애로 판정한 대상을 이어 가기만 한다.
+
+// 확인 결과의 수집 시각을 보는 subquery의 범위와 간격. 간격은 가장 짧은 수집 주기(10초)보다 짧아야
+// 각 확인 결과가 다음 결과나 stale 표시로 가려지기 전에 한 번은 보인다.
+const TIMESTAMP_RANGE = `${WINDOWS[WINDOWS.length - 1]}s`;
+const TIMESTAMP_STEP = '5s';
 
 // 대상의 확인 결과를 두 id로 묶어 본다. 값을 바꿔 series가 바뀌어도 이어서 센다.
 function windowAll(m, w) {
@@ -41,9 +47,9 @@ function windowAll(m, w) {
 
 // series마다 본다. 성공 중에 값을 바꾼 직후 실패하면 옛 series의 마지막 성공이 새 series의 첫 실패와 붙어,
 // 두 id로 묶은 창은 그 사이에 걸리지 않는다. 새 series만 보면 성공이 없으므로 걸린다.
-// 대상마다 가장 최근에 수집한 series만 본다. 실패 중에 값을 바꿨는데 새 series가 성공하면, 옛 series만 보고
-// 장애를 이어 가지 않게 하기 위해서다. Prometheus는 SD가 바뀌면 옛 target 수집을 멈추므로, 한 대상의 두 series가
-// 번갈아 수집되지 않는다. 그래서 가장 최근 series의 연속 실패 사이에 다른 series의 성공이 끼지 않는다.
+// 대상마다 가장 최근에 수집한 series이고, 최근 15분 안의 확인 결과가 같은 대상의 다른 series보다 모두 나중일 때만 본다.
+// 실패 중에 값을 바꿨는데 새 series가 성공하거나, 값을 A에서 B로 바꿨다가 A로 되돌리면, 한 series의 실패 사이에
+// 다른 series의 성공이 낀다. 그 series만 보면 그 성공을 보지 못해 기준보다 이르게 장애가 된다.
 function windowPerSeries(m, w) {
   return [
     `max_over_time(${m}[${w}s]) == 0`,
@@ -62,6 +68,15 @@ function bandBeyond(m, w, next) {
   ];
 }
 
+// 이미 장애인 대상은 장애로 판정한 뒤 성공이 없는 동안 이어 간다. 확인 결과가 더 오지 않는 대상은 시간이 지나며
+// 위 조건의 창이 창 간격 사이로 빠져, 마지막 결과 5분 전에 복구됐다가 다시 장애가 될 수 있기 때문이다.
+// 장애 시작 시각은 직전 평가까지의 ALERTS_FOR_STATE 값이고, 그 뒤에 수집한 성공이 하나라도 있으면 잇지 않는다.
+function continuing(m, alert) {
+  const since = `max ${BY} (ALERTS_FOR_STATE{alertname="${alert}"})`;
+  const lastSuccess = `max ${BY} (max_over_time((timestamp(${m}) and ${m} == 1)[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}]))`;
+  return [`  ${since} > ${lastSuccess}`, '  or', `  ${since} unless ${lastSuccess}`];
+}
+
 function block(lines, indent) {
   return [`${indent}(`, ...lines.map((line) => `${indent}  ${line}`), `${indent})`];
 }
@@ -70,14 +85,24 @@ function joinOr(blocks, indent) {
   return blocks.flatMap((lines, index) => (index === 0 ? lines : [`${indent}or`, ...lines]));
 }
 
-export function expression(metric) {
+export function expression(metric, alert) {
   const bands = [MIN_SECONDS, ...WINDOWS];
   const perSeries = joinOr(WINDOWS.map((w) => block(windowPerSeries(metric, w), '      ')), '      ');
   const latest = `(timestamp(${metric}) - on (check_id, check_target_id) group_left max ${BY} (timestamp(${metric}))) == 0`;
+  const first = `min_over_time(timestamp(${metric})[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}])`;
+  const othersLast = `max ${BY} (max_over_time(timestamp(${metric})[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}]) unless ${latest})`;
+  const onlyAfterOthers = [
+    '    (',
+    `      (${first} and ${latest}) > on (check_id, check_target_id) group_left ${othersLast}`,
+    '      or',
+    `      ${latest} unless on (check_id, check_target_id) ${othersLast}`,
+    '    )',
+  ];
   const parts = [
-    [`  max ${BY} (`, '    (', ...perSeries, '    )', '    and', `    ${latest}`, '  )'],
+    [`  max ${BY} (`, '    (', ...perSeries, '    )', '    and', ...onlyAfterOthers, '  )'],
     ...WINDOWS.map((w) => block(windowAll(metric, w), '  ')),
     ...bands.slice(0, -1).map((w, index) => block(bandBeyond(metric, w, bands[index + 1]), '  ')),
+    block(continuing(metric, alert).map((line) => line.trimStart()), '  '),
   ];
   return ['(', ...joinOr(parts, '  '), ')', 'and', `sum ${BY} (count_over_time(${metric}[${RECENT}])) > 0`];
 }
@@ -102,9 +127,32 @@ export function render(text) {
   const lines = text.split(/\r?\n/);
   for (const { alert, metric } of RULES) {
     const { from, to, indent } = exprRange(lines, alert);
-    lines.splice(from, to - from, ...expression(metric).map((line) => indent + line));
+    lines.splice(from, to - from, ...expression(metric, alert).map((line) => indent + line));
   }
   return lines.join(eol);
+}
+
+// alert 규칙의 `annotations:` 아래 줄들을 앞뒤 공백을 지워 돌려준다. 다음 규칙이나 더 얕은 키가 나오면 끝난다.
+function annotationLines(lines, alert) {
+  const start = lines.findIndex((line) => line.trim() === `- alert: ${alert}`);
+  const ruleIndent = lines[start].search(/\S/);
+  let index = start + 1;
+  while (index < lines.length && !(lines[index].trim() === 'annotations:') && !(lines[index].trim() !== '' && lines[index].search(/\S/) <= ruleIndent)) {
+    index += 1;
+  }
+  if (index >= lines.length || lines[index].trim() !== 'annotations:') {
+    return [];
+  }
+  const keyIndent = lines[index].search(/\S/);
+  const result = [];
+  for (index += 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.trim() !== '' && line.search(/\S/) <= keyIndent) {
+      break;
+    }
+    result.push(line.trim());
+  }
+  return result;
 }
 
 // 규칙 파일이 이 스크립트와 다르면 고칠 방법을 담은 메시지를, 같으면 null을 돌려준다.
@@ -113,11 +161,13 @@ export function checkRuleFile(root) {
   if (render(text) !== text) {
     return `${RULE_FILE}의 판정 식이 scripts/monitoring-check-rules.mjs의 결과와 다릅니다. node scripts/monitoring-check-rules.mjs를 실행해 다시 만드세요.`;
   }
-  const lines = text.split(/\r?\n/).map((line) => line.trim());
-  for (const [name, value] of [['judgment_failures', FAILURES], ['judgment_min_seconds', MIN_SECONDS]]) {
-    const count = lines.filter((line) => line === `${name}: "${value}"`).length;
-    if (count !== RULES.length) {
-      return `${RULE_FILE}에 ${name}: "${value}"가 규칙마다 있어야 하는데 ${count}개입니다. 판정 기준과 annotation을 함께 고치세요.`;
+  const lines = text.split(/\r?\n/);
+  for (const { alert } of RULES) {
+    const annotations = annotationLines(lines, alert);
+    for (const [name, value] of [['judgment_failures', FAILURES], ['judgment_min_seconds', MIN_SECONDS]]) {
+      if (!annotations.includes(`${name}: "${value}"`)) {
+        return `${RULE_FILE}의 ${alert} annotations에 ${name}: "${value}"가 없습니다. 판정 기준과 annotation을 함께 고치세요.`;
+      }
     }
   }
   return null;

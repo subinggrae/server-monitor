@@ -16,22 +16,25 @@
 # 장애 판정 기준은 "연속 3번 실패하고 첫 실패 뒤 1분이 지남"입니다. 수집 주기(10~240초)와 관계없이 같고,
 # 첫 실패부터 판정까지 max(60초, 주기 × 2)가 걸립니다. 주기는 series label로 남지 않아 규칙이 읽을 수 없으므로,
 # for로 기다리지 않고 최근 확인 결과를 길이가 다른 창(70초~900초) 여러 개로 봅니다. (docs/decisions/0015)
-# 900초(15분)보다 오래된 확인 결과는 세지 않습니다. 식은 다음 셋을 or로 묶습니다.
+# 900초(15분)보다 오래된 확인 결과는 세지 않습니다. 식은 다음 넷을 or로 묶습니다.
 #
 #   두 id로 묶은 창: 창 안의 결과가 모두 실패이고, 3개 이상이며, 60초보다 오래된 결과가 있습니다.
-#   가장 최근 series의 창: 위와 같고, 대상마다 가장 최근에 수집한 series만 봅니다.
+#   가장 최근 series의 창: 위와 같고, 대상마다 가장 최근에 수집한 series만 봅니다. 그 series의 최근 15분 결과가
+#     같은 대상의 다른 series보다 모두 나중일 때만 씁니다.
 #   창 바깥 띠: 창 안의 결과가 모두 실패이고 2개 이상이며, 창 바로 바깥 띠의 가장 최근 결과도 실패입니다.
+#   장애 잇기: 직전 평가까지 장애였고, 장애로 판정한 뒤 수집한 성공이 없습니다.
 #
-# 셋 다 기준을 채웠을 때만 참이라 판정이 기준보다 이르지 않습니다. 주기나 값을 바꾼 직후에는
-# 마지막 성공과 첫 실패가 창 간격보다 가까울 수 있어, 아래 둘이 그 경우를 맡습니다. 그래도 드물게
-# 규칙 평가 몇 번 늦을 수 있습니다. 각 조건의 이유는 scripts/monitoring-check-rules.mjs에 있습니다.
+# 앞의 셋은 기준을 채웠을 때만 참이라 판정이 기준보다 이르지 않고, 넷째는 이미 판정한 장애만 이어 갑니다.
+# 주기나 값을 바꾼 직후에는 마지막 성공과 첫 실패가 창 간격보다 가까울 수 있어, 둘째와 셋째가 그 경우를 맡습니다.
+# 그래도 드물게 규칙 평가 몇 번 늦을 수 있습니다. 각 조건의 이유는 scripts/monitoring-check-rules.mjs에 있습니다.
 #
 # 이름, 환경, 확인 방식, 주소를 바꿔 옛 series가 끝나고 새 series가 시작해도 한 대상의 확인 결과로 이어서 셉니다.
 # range 함수는 수집한 표본만 세고 stale 표시는 세지 않으므로, 옛 series에 stale 표시가 늦게 쓰여도
 # 옛 series의 마지막 성공이 뒤의 실패를 가리지 않습니다.
 #
 # 마지막 줄은 최근 5분 안에 확인 결과가 있어야 장애로 둡니다. 5분은 가장 긴 수집 주기(240초)보다 길게 잡은 값입니다.
-# 그래서 지우거나 끈 대상의 Alert는 마지막 확인 결과가 5분 창에서 빠질 때 복구됩니다.
+# 그래서 지우거나 끈 대상의 Alert는 마지막 확인 결과가 5분 창에서 빠질 때 복구됩니다. 끊기기 전에 연속 3번
+# 실패했으면, 끊긴 뒤라도 첫 실패 뒤 1분이 지나면 장애가 됩니다.
 # 살아난 대상은 성공한 확인 결과가 가장 최근 결과라서 바로 복구됩니다.
 #
 # for를 쓰지 않으므로 Alert의 시작 시각(Alertmanager의 startsAt)은 장애로 판정한 평가 시각입니다.
@@ -138,7 +141,11 @@ groups:
                 )
               )
               and
-              (timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0
+              (
+                (min_over_time(timestamp(probe_success{job="manager-blackbox"})[900s:5s]) and (timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0) > on (check_id, check_target_id) group_left max by (check_id, check_target_id) (max_over_time(timestamp(probe_success{job="manager-blackbox"})[900s:5s]) unless (timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0)
+                or
+                (timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0 unless on (check_id, check_target_id) max by (check_id, check_target_id) (max_over_time(timestamp(probe_success{job="manager-blackbox"})[900s:5s]) unless (timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0)
+              )
             )
             or
             (
@@ -308,6 +315,12 @@ groups:
               and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[700s])) >= 2
               and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[200s] offset 700s)) == 0
             )
+            or
+            (
+              max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckDown"}) > max by (check_id, check_target_id) (max_over_time((timestamp(probe_success{job="manager-blackbox"}) and probe_success{job="manager-blackbox"} == 1)[900s:5s]))
+              or
+              max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckDown"}) unless max by (check_id, check_target_id) (max_over_time((timestamp(probe_success{job="manager-blackbox"}) and probe_success{job="manager-blackbox"} == 1)[900s:5s]))
+            )
           )
           and
           sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[5m])) > 0
@@ -410,7 +423,11 @@ groups:
                 )
               )
               and
-              (timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0
+              (
+                (min_over_time(timestamp(up{job="manager-blackbox"})[900s:5s]) and (timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0) > on (check_id, check_target_id) group_left max by (check_id, check_target_id) (max_over_time(timestamp(up{job="manager-blackbox"})[900s:5s]) unless (timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0)
+                or
+                (timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0 unless on (check_id, check_target_id) max by (check_id, check_target_id) (max_over_time(timestamp(up{job="manager-blackbox"})[900s:5s]) unless (timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0)
+              )
             )
             or
             (
@@ -579,6 +596,12 @@ groups:
               max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[700s])) == 0
               and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[700s])) >= 2
               and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[200s] offset 700s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed"}) > max by (check_id, check_target_id) (max_over_time((timestamp(up{job="manager-blackbox"}) and up{job="manager-blackbox"} == 1)[900s:5s]))
+              or
+              max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed"}) unless max by (check_id, check_target_id) (max_over_time((timestamp(up{job="manager-blackbox"}) and up{job="manager-blackbox"} == 1)[900s:5s]))
             )
           )
           and
