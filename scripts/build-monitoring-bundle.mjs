@@ -5,6 +5,8 @@
 //   node scripts/build-monitoring-bundle.mjs           이미지를 빌드해 검사하고 묶음을 만든다
 //   node scripts/build-monitoring-bundle.mjs --check   이미지를 빌드해 설정 검사와 규칙 테스트만 한다(묶음을 만들지 않음)
 //
+// 두 경우 모두 먼저 감시 항목 Alert 규칙의 판정 식이 scripts/monitoring-check-rules.mjs의 결과와 같은지 본다.
+//
 // 옵션: --allow-dirty  커밋하지 않은 변경이 있어도 시험용 묶음을 만든다(버전 끝에 -dirty가 붙음)
 //
 // 저장소 최상위에서 실행하고, Docker와 인터넷이 필요하다. 결과는 dist/monitoring-system-<버전>/, dist/node-exporter-<버전>/에 생긴다.
@@ -15,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { checkRuleFile } from './monitoring-check-rules.mjs';
 
 const ROOT = process.cwd();
 const INFRA_DIR = path.join(ROOT, 'infrastructure');
@@ -884,6 +887,12 @@ async function buildNodeExporterBundle(release, secrets, exported) {
 }
 
 const CHECK_ONLY = process.argv.includes('--check');
+// 판정 식을 손으로 고치면 두 규칙이 어긋나므로, 이미지를 빌드하기 전에 생성 스크립트의 결과와 같은지 본다.
+console.log('감시 항목 Alert 규칙의 판정 식이 scripts/monitoring-check-rules.mjs의 결과와 같은지 확인합니다.');
+const ruleProblem = checkRuleFile(ROOT);
+if (ruleProblem) {
+  fail(ruleProblem);
+}
 const release = version({ allowDirty: CHECK_ONLY || process.argv.includes('--allow-dirty') });
 const tools = buildImages(release, { pull: !CHECK_ONLY });
 const specs = imageSpecs(release);
