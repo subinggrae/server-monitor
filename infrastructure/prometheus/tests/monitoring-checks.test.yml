@@ -1095,6 +1095,94 @@ tests:
           - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="827"}'
             value: 1
 
+  # 되돌린 값의 결과가 subquery에 보이지 않는 경우(주기 60초): 주소 a가 40초에 성공, 100, 160초에 실패하고 200초에 stale이 됩니다.
+  # 주소 b가 206초에 한 번 성공하고 바로 a로 되돌려 207초에 stale이 됩니다. a는 207초부터 60초마다 실패합니다.
+  # b의 성공은 다음 5초 시각(210초) 전에 stale 표시에 가려집니다. b의 성공 뒤 3번째 실패는 327초이므로 그 전에는 장애가 아니고,
+  # 늦어도 주기 한 번과 규칙 평가 한 번 뒤(402초)까지의 마지막 평가인 390초에는 장애여야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="828",instance="a"}'
+        values: '_x40 1 _x59 0 _x59 0 _x39 stale _x6 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="828",instance="a"}'
+        values: '_x40 1 _x59 0 _x59 0 _x39 stale _x6 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="828",instance="b"}'
+        values: '_x206 1 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="828",instance="b"}'
+        values: '_x206 1 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 225s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 315s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 390s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="828"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="828"}'
+            value: 1
+
+  # 장애 중 성공 결과가 subquery에 보이지 않는 경우(주기 30초): 100~190초에 실패해 165초부터 장애이고,
+  # 201초에 성공한 뒤 202초에 stale이 됩니다(성공 직후 감시를 끔). 성공은 평가 직전 5초 밖이라 subquery로만 봅니다.
+  # 성공 뒤 첫 평가인 210초에 복구돼야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="829"}'
+        values: '_x100 0 _x29 0 _x29 0 _x29 0 _x10 1 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="829"}'
+        values: '_x100 0 _x29 0 _x29 0 _x29 0 _x10 1 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 195s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="829"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="829"}'
+            value: 1
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 225s
+        exp_samples: []
+
+  # 가장 최근 series의 옛 결과가 subquery에 보이지 않는 경우: 주소 a가 41초에 한 번 실패하고 42초에 stale이 됩니다.
+  # 주소 b가 60, 70초에 성공하고 72초에 stale이 된 뒤, a로 되돌려 100초부터 60초마다 실패합니다.
+  # a의 41초 결과는 다음 5초 시각(45초) 전에 가려지지만 b의 성공보다 앞이므로, a의 결과를 b보다 모두 나중으로 보면 안 됩니다.
+  # b의 성공 뒤 3번째 실패는 220초라 그 전에는 장애가 아니고, 늦어도 주기 한 번과 규칙 평가 한 번 뒤(295초)까지의 마지막 평가인 285초에는 장애여야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="832",instance="a"}'
+        values: '_x41 0 stale _x57 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="832",instance="a"}'
+        values: '_x41 0 stale _x57 0 _x59 0 _x59 0 _x59 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="832",instance="b"}'
+        values: '_x60 1 _x9 1 _ stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="832",instance="b"}'
+        values: '_x60 1 _x9 1 _ stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 165s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 180s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 285s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="832"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="832"}'
+            value: 1
+
   # 1분 전에 끊긴 대상(주기 15초): 30, 45, 60초에 실패하고 75초에 stale이 됩니다(감시를 끔).
   # 연속 3번 실패했으므로 첫 실패(30초)의 1분 뒤인 90초에 장애가 되고, 마지막 결과(60초) 5분 뒤인 360초에 복구됩니다.
   - interval: 1s

@@ -31,10 +31,23 @@ const RULES = [
 // 아래 세 조건은 모두 기준을 채웠을 때만 참이므로, 판정이 기준보다 이르지 않다.
 // 네 번째 조건은 이미 장애로 판정한 대상을 이어 가기만 한다.
 
-// 확인 결과의 수집 시각을 보는 subquery의 범위와 간격. 간격은 가장 짧은 수집 주기(10초)보다 짧아야
-// 각 확인 결과가 다음 결과나 stale 표시로 가려지기 전에 한 번은 보인다.
+// 확인 결과의 수집 시각을 보는 subquery의 범위와 간격. 간격이 가장 짧은 수집 주기(10초)보다 짧아 다음 결과에 가려지지 않는다.
 const TIMESTAMP_RANGE = `${WINDOWS[WINDOWS.length - 1]}s`;
-const TIMESTAMP_STEP = '5s';
+const STEP_SECONDS = 5;
+const TIMESTAMP_STEP = `${STEP_SECONDS}s`;
+
+// subquery의 시각은 5초의 배수라서 둘을 보지 못한다. 결과 바로 뒤 다음 시각 전에 stale 표시가 온 결과,
+// 그리고 마지막 시각 뒤부터 규칙 평가 시각 사이(운영의 평가 시각은 5초 배수가 아니다)의 결과다.
+// 그 결과는 정확한 수집 시각 대신 그 결과를 담은 5초 구간의 끝(late)이나 시작(early)으로 갈음한다.
+// 늦은 쪽으로 갈음한 다른 series와 이른 쪽으로 갈음한 가장 최근 series를 비교하므로 판정이 이르지 않다.
+function stepTime(m, edge) {
+  const recent = `count_over_time(${m}[${TIMESTAMP_STEP}]) * 0 + time()`;
+  return edge === 'late' ? recent : `${recent} - ${STEP_SECONDS}`;
+}
+
+function successStepTime(m) {
+  return `(max_over_time(${m}[${TIMESTAMP_STEP}]) == 1) * 0 + time()`;
+}
 
 // 대상의 확인 결과를 두 id로 묶어 본다. 값을 바꿔 series가 바뀌어도 이어서 센다.
 function windowAll(m, w) {
@@ -73,8 +86,10 @@ function bandBeyond(m, w, next) {
 // 장애 시작 시각은 직전 평가까지의 ALERTS_FOR_STATE 값이고, 그 뒤에 수집한 성공이 하나라도 있으면 잇지 않는다.
 function continuing(m, alert) {
   const since = `max ${BY} (ALERTS_FOR_STATE{alertname="${alert}"})`;
-  const lastSuccess = `max ${BY} (max_over_time((timestamp(${m}) and ${m} == 1)[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}]))`;
-  return [`  ${since} > ${lastSuccess}`, '  or', `  ${since} unless ${lastSuccess}`];
+  const seen = `(timestamp(${m}) and ${m} == 1) or ${successStepTime(m)}`;
+  const lastSuccess = `max ${BY} (${successStepTime(m)} or max_over_time((${seen})[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}]))`;
+  // 성공이 한 번도 없으면 -Inf와 비교해 잇는다. 무거운 subquery를 한 번만 쓰려고 `or`로 두 식을 나누지 않는다.
+  return [`${since} > (${lastSuccess} or ${since} - Inf)`];
 }
 
 function block(lines, indent) {
@@ -89,13 +104,15 @@ export function expression(metric, alert) {
   const bands = [MIN_SECONDS, ...WINDOWS];
   const perSeries = joinOr(WINDOWS.map((w) => block(windowPerSeries(metric, w), '      ')), '      ');
   const latest = `(timestamp(${metric}) - on (check_id, check_target_id) group_left max ${BY} (timestamp(${metric}))) == 0`;
-  const first = `min_over_time(timestamp(${metric})[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}])`;
-  const othersLast = `max ${BY} (max_over_time(timestamp(${metric})[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}]) unless ${latest})`;
+  const first = `min_over_time((timestamp(${metric}) or ${stepTime(metric, 'early')})[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}])`;
+  const othersSeen = `max_over_time((timestamp(${metric}) or ${stepTime(metric, 'late')})[${TIMESTAMP_RANGE}:${TIMESTAMP_STEP}])`;
+  const othersLast = `max ${BY} ((${stepTime(metric, 'late')} or ${othersSeen}) unless ${latest})`;
+  // 다른 series가 없으면 -Inf와 비교해 통과한다. 무거운 subquery를 한 번만 쓰려고 `or`로 두 식을 나누지 않는다.
+  const othersLastOrNone = `(${othersLast} or on (check_id, check_target_id) (max ${BY} (${latest}) - Inf))`;
+  // group_left 바로 뒤의 괄호는 label 목록으로 읽히므로 빈 목록 ()을 먼저 쓴다.
   const onlyAfterOthers = [
     '    (',
-    `      (${first} and ${latest}) > on (check_id, check_target_id) group_left ${othersLast}`,
-    '      or',
-    `      ${latest} unless on (check_id, check_target_id) ${othersLast}`,
+    `      (${first} and ${latest}) > on (check_id, check_target_id) group_left () ${othersLastOrNone}`,
     '    )',
   ];
   const parts = [
