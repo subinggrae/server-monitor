@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-11-18
-- 관련: [요구사항 0024](../requirements/0024-consecutive-failure-down.md), [ADR 0002](0002-scrape-interval-via-http-sd.md)(이 ADR이 감수할 점 "Alert 규칙의 `for: 1m`은 주기와 관계없이 고정이라, 주기가 길수록 Alert가 늦게 온다"만 대신함), [ADR 0010](0010-alert-labels-by-check-id.md)(이 ADR이 결정 가운데 "지금 값으로 판단하는 식과 최근 5분의 마지막 값으로 판단하는 식을 `or`로 합친다"와 그 두 식의 설명만 대신함)
+- 관련: [요구사항 0024](../requirements/0024-consecutive-failure-down.md), 지운 계획은 [PR #69](https://github.com/subinggrae/server-monitor/pull/69)에서 볼 수 있다, [ADR 0002](0002-scrape-interval-via-http-sd.md)(이 ADR이 감수할 점 "Alert 규칙의 `for: 1m`은 주기와 관계없이 고정이라, 주기가 길수록 Alert가 늦게 온다"만 대신함), [ADR 0010](0010-alert-labels-by-check-id.md)(이 ADR이 결정 가운데 "지금 값으로 판단하는 식과 최근 5분의 마지막 값으로 판단하는 식을 `or`로 합친다"와 그 두 식의 설명만 대신함)
 
 ## 배경과 문제
 

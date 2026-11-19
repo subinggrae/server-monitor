@@ -1,6 +1,6 @@
 # 0024. 연속 3번 실패하면 장애로 판정
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-18
 - 관련: [0001](0001-per-target-scrape-interval.md), [0003](0003-alert-repeat-interval.md), [0012](0012-check-label-continuity.md), [0013](0013-core-env-settings.md), [ADR 0002](../decisions/0002-scrape-interval-via-http-sd.md), [ADR 0009](../decisions/0009-core-config-in-image.md), [ADR 0010](../decisions/0010-alert-labels-by-check-id.md), [ADR 0012](../decisions/0012-core-render-outside-image.md), [INTEGRATION.md](../INTEGRATION.md)
 
@@ -138,25 +138,25 @@
 
 규칙 테스트는 `infrastructure/prometheus/tests/monitoring-checks.test.yml`(`promtool test rules`)이고, 두 규칙을 모두 확인한다.
 
-- [ ] C1. 주기 10초와 15초인 대상은 첫 실패 시각에서 1분이 지난 뒤 첫 규칙 평가에서 firing이고, 그 전 평가에서는 firing이 아니다. (S1) — 확인: 규칙 테스트
-- [ ] C2. 주기 60초와 240초인 대상은 3번째 실패 확인 결과 뒤 첫 규칙 평가에서 firing이고, 2번째 실패 뒤에는 firing이 아니다. (S2) — 확인: 규칙 테스트
-- [ ] C3. 실패, 실패, 성공, 실패 순서면 firing이 아니고, 성공 뒤 실패가 기준을 채우면 firing이다. (S3) — 확인: 규칙 테스트
-- [ ] C4. 장애 중 성공 확인 결과가 들어오면 다음 규칙 평가에서 Alert가 없다. (S4) — 확인: 규칙 테스트
-- [ ] C5. 실패가 시작될 즈음 주기를 바꾸면(15초로 실패 2번 뒤 120초) 바꾸기 전의 실패를 이어서 세어 S5의 시각에 firing이다. (S5) — 확인: 규칙 테스트
-- [ ] C6. 기존 규칙 테스트의 값 변경 시나리오(stale 표시 있음·없음, 수집 틈, stale 표시가 늦게 쓰임)가 새 판정 시각에 맞춰 통과하고, 장애 중 값을 바꿔도 Alert가 이어진다. 실패 중 값을 바꿔 새 series가 성공하면 바로 복구된다. 옛 series가 성공하고 실패한 뒤 새 series가 실패하는 경우(8, 26, 44초 성공, 62초 실패, 새 series 91, 193초 실패)에 195초에 firing이다. (S6) — 확인: 규칙 테스트
-- [ ] C15. 성공 중에 값을 바꿔 새 series가 바로 실패하면 S1, S2의 시각에 firing이다. 옛 series의 마지막 성공(80초)과 새 series의 첫 실패(81초)가 붙은 경우(새 series 81, 141, 201초 실패)에 210초에 firing이고 195초에는 아니다. 기존 성공 중 변경 뒤 실패 시나리오 두 개도 같다. (S11) — 확인: 규칙 테스트
-- [ ] C7. 계속 성공하는 대상에 Alert가 없다. (S7) — 확인: 규칙 테스트
-- [ ] C8. 장애 중이던 대상의 확인 결과가 끊기면 마지막 결과 5분 뒤 평가부터 Alert가 없고, 그 전에는 시작 시각이 바뀌지 않는다(주기 11초 7번 실패 뒤 끊김 포함). 실패 2번 뒤 끊긴 대상은 firing이 되지 않고, 실패 3번 뒤 1분 전에 끊긴 대상은 첫 실패 1분 뒤 firing이 되어 마지막 결과 5분 뒤 복구된다. (S8) — 확인: 규칙 테스트
-- [ ] C9. 확인 결과가 2분 비었다가 실패로 다시 들어오면 앞뒤 실패를 이어서 센다. 15분보다 오래된 실패는 세지 않는다. (S9) — 확인: 규칙 테스트
-- [ ] C10. 모든 Alert의 label이 `alertname`, `severity`, `check_id`, `check_target_id`뿐이고, annotation이 `summary`, 위 `description`, `judgment_failures: "3"`, `judgment_min_seconds: "60"`이다. (S1~S9) — 확인: 규칙 테스트의 `exp_labels`, `exp_annotations`
-- [ ] C11. [INTEGRATION.md](../INTEGRATION.md)에 다음이 있다. 판정 식 `max(60초, 주기 × 2)`와 주기별 판정 시간 표(10, 15, 30, 60, 120, 240초). 첫 실패 확인부터 webhook까지 걸리는 시간의 구성(규칙 평가 15초, 처음 기다리는 30초)과 대상이 실패하기 시작한 때부터의 최대 시간. `startsAt`이 판정 시각이라는 것과 두 annotation, 첫 실패 추정 식. 배포 순서(관리자 서버의 같은 장애 판단 수정 → 새 판정 → 관리자 서버 화면 문구). webhook 예시의 annotation이 규칙과 같고, 150초 한계 문장이 새 판정에서 확인한 결과와 맞다. (목표, S10) — 확인: 문서 리뷰
-- [ ] C12. [OPERATIONS.md](../OPERATIONS.md)의 감시 흐름과 장애 기준이 새 기준을 쓰고, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 `{발생시각}`이 장애로 판정한 시각이라고 적혀 있다. (목표, S10) — 확인: 문서 리뷰
-- [ ] C13. 장애의 시작 시각(`ALERTS_FOR_STATE` 값)이 판정한 규칙 평가 시각이고, 장애가 이어지는 동안 바뀌지 않는다. (S10) — 확인: 규칙 테스트
-- [ ] C18. 값을 A에서 B로 바꿨다가 A로 되돌렸을 때, B의 성공 뒤 A의 첫 실패 한 번으로 firing이 되지 않고 첫 실패 1분 뒤에 firing이다. 되돌린 뒤 판정이 늦는 경우(주기 60초, 기준 480초)에도 기준 전에는 firing이 아니고 기준 + 주기 한 번(540초)에는 firing이다. stale 표시가 있을 때와 없을 때 모두 같다. (S6) — 확인: 규칙 테스트
-- [ ] C19. 확인 결과 바로 뒤에 stale 표시가 와도, 규칙 평가 시각이 5초의 배수가 아니어도 C18처럼 B의 성공 뒤 첫 실패로 firing이 되지 않고, 장애 중 성공 뒤 첫 평가에서 복구된다. (S4, S6) — 확인: 규칙 테스트
-- [ ] C14. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
-- [ ] C16. 규칙 파일의 판정 식이 생성 스크립트의 결과와 다르거나, 판정 기준 annotation이 생성 스크립트의 기준과 다르면 `node scripts/build-monitoring-bundle.mjs --check`가 이미지를 빌드하기 전에 실패한다(사람 확인: 2026-11-18). — 확인: 규칙 파일을 고친 사본으로 `node scripts/monitoring-check-rules.mjs --check` 실행
-- [ ] C17. 대상을 넉넉히 둔 상태에서 감시 항목 규칙 그룹의 평가 시간(`prometheus_rule_group_last_duration_seconds`)이 평가 간격 15초보다 충분히 짧다(사람 요청: 2026-11-18). 대상 500개에서 가장 길 때 7.0초라 통과로 본다(사람 확인: 2026-11-19, 결과는 ADR 0015). — 확인: 자원 한도를 건 컨테이너에서 측정
+- [x] C1. 주기 10초와 15초인 대상은 첫 실패 시각에서 1분이 지난 뒤 첫 규칙 평가에서 firing이고, 그 전 평가에서는 firing이 아니다. (S1) — 확인: 규칙 테스트
+- [x] C2. 주기 60초와 240초인 대상은 3번째 실패 확인 결과 뒤 첫 규칙 평가에서 firing이고, 2번째 실패 뒤에는 firing이 아니다. (S2) — 확인: 규칙 테스트
+- [x] C3. 실패, 실패, 성공, 실패 순서면 firing이 아니고, 성공 뒤 실패가 기준을 채우면 firing이다. (S3) — 확인: 규칙 테스트
+- [x] C4. 장애 중 성공 확인 결과가 들어오면 다음 규칙 평가에서 Alert가 없다. (S4) — 확인: 규칙 테스트
+- [x] C5. 실패가 시작될 즈음 주기를 바꾸면(15초로 실패 2번 뒤 120초) 바꾸기 전의 실패를 이어서 세어 S5의 시각에 firing이다. (S5) — 확인: 규칙 테스트
+- [x] C6. 기존 규칙 테스트의 값 변경 시나리오(stale 표시 있음·없음, 수집 틈, stale 표시가 늦게 쓰임)가 새 판정 시각에 맞춰 통과하고, 장애 중 값을 바꿔도 Alert가 이어진다. 실패 중 값을 바꿔 새 series가 성공하면 바로 복구된다. 옛 series가 성공하고 실패한 뒤 새 series가 실패하는 경우(8, 26, 44초 성공, 62초 실패, 새 series 91, 193초 실패)에 195초에 firing이다. (S6) — 확인: 규칙 테스트
+- [x] C15. 성공 중에 값을 바꿔 새 series가 바로 실패하면 S1, S2의 시각에 firing이다. 옛 series의 마지막 성공(80초)과 새 series의 첫 실패(81초)가 붙은 경우(새 series 81, 141, 201초 실패)에 210초에 firing이고 195초에는 아니다. 기존 성공 중 변경 뒤 실패 시나리오 두 개도 같다. (S11) — 확인: 규칙 테스트
+- [x] C7. 계속 성공하는 대상에 Alert가 없다. (S7) — 확인: 규칙 테스트
+- [x] C8. 장애 중이던 대상의 확인 결과가 끊기면 마지막 결과 5분 뒤 평가부터 Alert가 없고, 그 전에는 시작 시각이 바뀌지 않는다(주기 11초 7번 실패 뒤 끊김 포함). 실패 2번 뒤 끊긴 대상은 firing이 되지 않고, 실패 3번 뒤 1분 전에 끊긴 대상은 첫 실패 1분 뒤 firing이 되어 마지막 결과 5분 뒤 복구된다. (S8) — 확인: 규칙 테스트
+- [x] C9. 확인 결과가 2분 비었다가 실패로 다시 들어오면 앞뒤 실패를 이어서 센다. 15분보다 오래된 실패는 세지 않는다. (S9) — 확인: 규칙 테스트
+- [x] C10. 모든 Alert의 label이 `alertname`, `severity`, `check_id`, `check_target_id`뿐이고, annotation이 `summary`, 위 `description`, `judgment_failures: "3"`, `judgment_min_seconds: "60"`이다. (S1~S9) — 확인: 규칙 테스트의 `exp_labels`, `exp_annotations`
+- [x] C11. [INTEGRATION.md](../INTEGRATION.md)에 다음이 있다. 판정 식 `max(60초, 주기 × 2)`와 주기별 판정 시간 표(10, 15, 30, 60, 120, 240초). 첫 실패 확인부터 webhook까지 걸리는 시간의 구성(규칙 평가 15초, 처음 기다리는 30초)과 대상이 실패하기 시작한 때부터의 최대 시간. `startsAt`이 판정 시각이라는 것과 두 annotation, 첫 실패 추정 식. 배포 순서(관리자 서버의 같은 장애 판단 수정 → 새 판정 → 관리자 서버 화면 문구). webhook 예시의 annotation이 규칙과 같고, 150초 한계 문장이 새 판정에서 확인한 결과와 맞다. (목표, S10) — 확인: 문서 리뷰
+- [x] C12. [OPERATIONS.md](../OPERATIONS.md)의 감시 흐름과 장애 기준이 새 기준을 쓰고, [ADMIN-SERVER.md](../ADMIN-SERVER.md)의 `{발생시각}`이 장애로 판정한 시각이라고 적혀 있다. (목표, S10) — 확인: 문서 리뷰
+- [x] C13. 장애의 시작 시각(`ALERTS_FOR_STATE` 값)이 판정한 규칙 평가 시각이고, 장애가 이어지는 동안 바뀌지 않는다. (S10) — 확인: 규칙 테스트
+- [x] C18. 값을 A에서 B로 바꿨다가 A로 되돌렸을 때, B의 성공 뒤 A의 첫 실패 한 번으로 firing이 되지 않고 첫 실패 1분 뒤에 firing이다. 되돌린 뒤 판정이 늦는 경우(주기 60초, 기준 480초)에도 기준 전에는 firing이 아니고 기준 + 주기 한 번(540초)에는 firing이다. stale 표시가 있을 때와 없을 때 모두 같다. (S6) — 확인: 규칙 테스트
+- [x] C19. 확인 결과 바로 뒤에 stale 표시가 와도, 규칙 평가 시각이 5초의 배수가 아니어도 C18처럼 B의 성공 뒤 첫 실패로 firing이 되지 않고, 장애 중 성공 뒤 첫 평가에서 복구된다. (S4, S6) — 확인: 규칙 테스트
+- [x] C14. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
+- [x] C16. 규칙 파일의 판정 식이 생성 스크립트의 결과와 다르거나, 판정 기준 annotation이 생성 스크립트의 기준과 다르면 `node scripts/build-monitoring-bundle.mjs --check`가 이미지를 빌드하기 전에 실패한다(사람 확인: 2026-11-18). — 확인: 규칙 파일을 고친 사본으로 `node scripts/monitoring-check-rules.mjs --check` 실행
+- [x] C17. 대상을 넉넉히 둔 상태에서 감시 항목 규칙 그룹의 평가 시간(`prometheus_rule_group_last_duration_seconds`)이 평가 간격 15초보다 충분히 짧다(사람 요청: 2026-11-18). 대상 500개에서 가장 길 때 7.0초라 통과로 본다(사람 확인: 2026-11-19, 결과는 ADR 0015). — 확인: 자원 한도를 건 컨테이너에서 측정
 
 ## 확인 필요
 
