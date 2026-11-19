@@ -1,0 +1,65 @@
+# rules/monitoring-checks.yml의 promtool 테스트 가운데, 규칙 평가 시각이 5초의 배수가 아닌 경우입니다.
+# 운영 Prometheus는 규칙 평가 시각을 그룹마다 어긋나게 두므로 평가 시각이 5초의 배수가 아닐 수 있습니다.
+# 판정 식의 subquery는 5초 배수 시각에서만 확인 결과를 보므로, 마지막 5초 배수 시각과 평가 시각 사이의 결과를 따로 봐야 합니다.
+# 평가 간격은 파일마다 하나라서 monitoring-checks.test.yml과 나눴습니다. 기준과 시각의 뜻은 그 파일의 머리말과 같습니다.
+
+rule_files:
+  - ../rules/monitoring-checks.yml
+
+evaluation_interval: 13s
+
+tests:
+  # 되돌린 값의 결과가 평가 직전에 온 경우(주기 60초): 주소 a가 40초에 성공, 100, 160초에 실패하고 200초에 stale이 됩니다.
+  # 주소 b가 206초에 한 번 성공하고 바로 a로 되돌려 207초에 stale이 됩니다. a는 207초부터 60초마다 실패합니다.
+  # 208초 평가에서 b의 성공은 마지막 5초 배수 시각(205초) 뒤입니다. b의 성공 뒤 3번째 실패는 327초이므로 그 전에는 장애가 아니고,
+  # 늦어도 주기 한 번과 규칙 평가 한 번 뒤(400초)까지의 마지막 평가인 390초에는 장애여야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="830",instance="a"}'
+        values: '_x40 1 _x59 0 _x59 0 _x39 stale _x6 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="830",instance="a"}'
+        values: '_x40 1 _x59 0 _x59 0 _x39 stale _x6 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="830",instance="b"}'
+        values: '_x206 1 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="830",instance="b"}'
+        values: '_x206 1 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 208s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 221s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 325s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 390s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="830"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="830"}'
+            value: 1
+
+  # 장애 중 성공 결과가 평가 직전에 온 경우(주기 30초): 100~190초에 실패해 169초부터 장애이고, 206초부터 성공합니다.
+  # 208초 평가에서 성공은 마지막 5초 배수 시각(205초) 뒤입니다. 성공 뒤 첫 평가인 208초에 복구돼야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="831"}'
+        values: '_x100 0 _x29 0 _x29 0 _x29 0 _x15 1 _x29 1 _x29 1'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="831"}'
+        values: '_x100 0 _x29 0 _x29 0 _x29 0 _x15 1 _x29 1 _x29 1'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 195s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="831"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="831"}'
+            value: 1
+      - expr: ALERTS{check_id="8"}
+        eval_time: 208s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 221s
+        exp_samples: []

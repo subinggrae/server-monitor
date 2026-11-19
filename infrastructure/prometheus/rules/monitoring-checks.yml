@@ -13,18 +13,37 @@
 # 그래서 annotation에도 이 값들을 쓸 수 없습니다. 알림의 이름, 환경, 주소는 관리자 서버가 자기 DB에서 채웁니다.
 # (docs/decisions/0010)
 #
-# 값을 바꾸면 옛 series는 stale로 끝나고, 새 series는 새 target의 첫 수집 때 시작합니다.
-# 새 series가 늦게 시작하면 둘 사이에 틈이 생깁니다. 그 사이에도 Alert가 끊기지 않게,
-# or 뒤의 식이 stale 표시를 건너뛰는 최근 5분 안의 마지막 값으로 판단합니다.
-# 5분은 가장 긴 수집 주기(240초)보다 길게 잡은 값입니다.
-# 그래서 지우거나 끈 대상의 Alert는 마지막 실패 값이 5분 창에서 빠질 때 복구됩니다.
-# 지금 값이 있는 대상은 그 값이 두 식에 같이 들어가고, max라서 지금 값이 1이면 어느 쪽도 장애가 아닙니다.
-# 그래서 살아난 대상은 바로 복구됩니다.
+# 장애 판정 기준은 "연속 3번 실패하고 첫 실패 뒤 1분이 지남"입니다. 수집 주기(10~240초)와 관계없이 같고,
+# 첫 실패부터 판정까지 max(60초, 주기 × 2)가 걸립니다. 주기는 series label로 남지 않아 규칙이 읽을 수 없으므로,
+# for로 기다리지 않고 최근 확인 결과를 길이가 다른 창(70초~900초) 여러 개로 봅니다. (docs/decisions/0015)
+# 900초(15분)보다 오래된 확인 결과는 세지 않습니다. 식은 다음 넷을 or로 묶습니다.
 #
-# Prometheus는 SD에서 빠진 target의 stale 표시를 바로 쓰지 않고 수집 주기의 약 2.1배 뒤에 씁니다.
-# 그동안은 옛 series의 마지막 값도 지금 값으로 남습니다. 그래서 or 앞의 식은 주소마다 가장 최근에 수집한
-# series(timestamp가 가장 큰 것)만 봅니다. 성공 중에 값을 바꾼 뒤 실패하면 옛 series의 성공 값에 가려지지 않고
-# 바로 장애로 셉니다.
+#   두 id로 묶은 창: 창 안의 결과가 모두 실패이고, 3개 이상이며, 60초보다 오래된 결과가 있습니다.
+#   가장 최근 series의 창: 위와 같고, 대상마다 가장 최근에 수집한 series만 봅니다. 그 series의 최근 15분 결과가
+#     같은 대상의 다른 series보다 모두 나중일 때만 씁니다.
+#   창 바깥 띠: 창 안의 결과가 모두 실패이고 2개 이상이며, 창 바로 바깥 띠의 가장 최근 결과도 실패입니다.
+#   장애 잇기: 직전 평가까지 장애였고, 장애로 판정한 뒤 수집한 성공이 없습니다.
+#
+# 앞의 셋은 기준을 채웠을 때만 참이라 판정이 기준보다 이르지 않고, 넷째는 이미 판정한 장애만 이어 갑니다.
+# 주기나 값을 바꾼 직후에는 마지막 성공과 첫 실패가 창 간격보다 가까울 수 있어, 둘째와 셋째가 그 경우를 맡습니다.
+# 그래도 드물게 규칙 평가 몇 번 늦을 수 있습니다. 각 조건의 이유는 scripts/monitoring-check-rules.mjs에 있습니다.
+#
+# 이름, 환경, 확인 방식, 주소를 바꿔 옛 series가 끝나고 새 series가 시작해도 한 대상의 확인 결과로 이어서 셉니다.
+# range 함수는 수집한 표본만 세고 stale 표시는 세지 않으므로, 옛 series에 stale 표시가 늦게 쓰여도
+# 옛 series의 마지막 성공이 뒤의 실패를 가리지 않습니다.
+#
+# 마지막 줄은 최근 5분 안에 확인 결과가 있어야 장애로 둡니다. 5분은 가장 긴 수집 주기(240초)보다 길게 잡은 값입니다.
+# 그래서 지우거나 끈 대상의 Alert는 마지막 확인 결과가 5분 창에서 빠질 때 복구됩니다. 끊기기 전에 연속 3번
+# 실패했으면, 끊긴 뒤라도 첫 실패 뒤 1분이 지나면 장애가 됩니다.
+# 살아난 대상은 성공한 확인 결과가 가장 최근 결과라서 바로 복구됩니다.
+#
+# for를 쓰지 않으므로 Alert의 시작 시각(Alertmanager의 startsAt)은 장애로 판정한 평가 시각입니다.
+# 관리자 서버는 annotation의 판정 기준(judgment_failures, judgment_min_seconds)과 자기가 아는 수집 주기로
+# 첫 실패 시각을 추정합니다.
+#
+# 두 expr는 scripts/monitoring-check-rules.mjs가 만듭니다. 손으로 고치지 말고, 스크립트를 고친 뒤
+# node scripts/monitoring-check-rules.mjs를 실행합니다. 빌드 검사(--check)가 스크립트 결과와 같은지,
+# annotation의 판정 기준이 스크립트와 같은지 봅니다.
 #
 # 알림 받을 곳은 관리자 서버의 DB가 정합니다.
 # 알림 받을 곳(메신저 방 id, 전화번호 등) 같은 라우팅 정보를 이 파일이나 label에 넣지 않습니다.
@@ -34,37 +53,555 @@ groups:
     rules:
       - alert: MonitoringCheckDown
         expr: |
-          max by (check_id, check_target_id) (
-            probe_success{job="manager-blackbox"}
-            and
-            (timestamp(probe_success{job="manager-blackbox"})
-              - on (check_id, check_target_id) group_left
-              max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0
-          ) == 0
-          or
-          max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[5m])) == 0
-        for: 1m
+          (
+            max by (check_id, check_target_id) (
+              (
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[70s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[70s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[10s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[80s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[80s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[20s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[90s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[90s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[30s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[100s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[100s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[40s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[125s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[125s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[65s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[155s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[155s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[95s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[190s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[190s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[130s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[235s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[235s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[175s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[290s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[290s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[230s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[360s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[360s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[300s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[450s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[450s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[390s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[560s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[560s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[500s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[700s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[700s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[640s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(probe_success{job="manager-blackbox"}[900s]) == 0
+                  and count_over_time(probe_success{job="manager-blackbox"}[900s]) >= 3
+                  and count_over_time(probe_success{job="manager-blackbox"}[840s] offset 60s) > 0
+                )
+              )
+              and
+              (
+                (min_over_time((timestamp(probe_success{job="manager-blackbox"}) or count_over_time(probe_success{job="manager-blackbox"}[5s]) * 0 + time() - 5)[900s:5s]) and (timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0) > on (check_id, check_target_id) group_left () (max by (check_id, check_target_id) ((count_over_time(probe_success{job="manager-blackbox"}[5s]) * 0 + time() or max_over_time((timestamp(probe_success{job="manager-blackbox"}) or count_over_time(probe_success{job="manager-blackbox"}[5s]) * 0 + time())[900s:5s])) unless (timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0) or on (check_id, check_target_id) (max by (check_id, check_target_id) ((timestamp(probe_success{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(probe_success{job="manager-blackbox"}))) == 0) - Inf))
+              )
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[70s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[70s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[10s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[80s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[80s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[20s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[90s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[90s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[30s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[100s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[100s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[40s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[125s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[125s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[65s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[155s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[155s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[95s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[190s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[190s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[130s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[235s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[235s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[175s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[290s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[290s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[230s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[360s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[360s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[300s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[450s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[450s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[390s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[560s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[560s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[500s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[700s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[700s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[640s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[900s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[900s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[840s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[60s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[60s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[10s] offset 60s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[70s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[70s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[10s] offset 70s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[80s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[80s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[10s] offset 80s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[90s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[90s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[10s] offset 90s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[100s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[100s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[25s] offset 100s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[125s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[125s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[30s] offset 125s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[155s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[155s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[35s] offset 155s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[190s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[190s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[45s] offset 190s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[235s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[235s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[55s] offset 235s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[290s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[290s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[70s] offset 290s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[360s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[360s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[90s] offset 360s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[450s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[450s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[110s] offset 450s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[560s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[560s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[140s] offset 560s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(probe_success{job="manager-blackbox"}[700s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[700s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(probe_success{job="manager-blackbox"}[200s] offset 700s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckDown"}) > (max by (check_id, check_target_id) ((max_over_time(probe_success{job="manager-blackbox"}[5s]) == 1) * 0 + time() or max_over_time(((timestamp(probe_success{job="manager-blackbox"}) and probe_success{job="manager-blackbox"} == 1) or (max_over_time(probe_success{job="manager-blackbox"}[5s]) == 1) * 0 + time())[900s:5s])) or max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckDown"}) - Inf)
+            )
+          )
+          and
+          sum by (check_id, check_target_id) (count_over_time(probe_success{job="manager-blackbox"}[5m])) > 0
         labels:
           severity: critical
         annotations:
           summary: "주소 확인에 실패했습니다"
-          description: "주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요."
+          description: "주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요."
+          judgment_failures: "3"
+          judgment_min_seconds: "60"
 
       # Blackbox Exporter가 내려갔거나 관리자 서버 API를 조회하지 못하는 상황입니다.
       - alert: MonitoringCheckProbeFailed
         expr: |
-          max by (check_id, check_target_id) (
-            up{job="manager-blackbox"}
-            and
-            (timestamp(up{job="manager-blackbox"})
-              - on (check_id, check_target_id) group_left
-              max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0
-          ) == 0
-          or
-          max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[5m])) == 0
-        for: 1m
+          (
+            max by (check_id, check_target_id) (
+              (
+                (
+                  max_over_time(up{job="manager-blackbox"}[70s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[70s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[10s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[80s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[80s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[20s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[90s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[90s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[30s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[100s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[100s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[40s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[125s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[125s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[65s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[155s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[155s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[95s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[190s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[190s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[130s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[235s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[235s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[175s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[290s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[290s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[230s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[360s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[360s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[300s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[450s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[450s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[390s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[560s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[560s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[500s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[700s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[700s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[640s] offset 60s) > 0
+                )
+                or
+                (
+                  max_over_time(up{job="manager-blackbox"}[900s]) == 0
+                  and count_over_time(up{job="manager-blackbox"}[900s]) >= 3
+                  and count_over_time(up{job="manager-blackbox"}[840s] offset 60s) > 0
+                )
+              )
+              and
+              (
+                (min_over_time((timestamp(up{job="manager-blackbox"}) or count_over_time(up{job="manager-blackbox"}[5s]) * 0 + time() - 5)[900s:5s]) and (timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0) > on (check_id, check_target_id) group_left () (max by (check_id, check_target_id) ((count_over_time(up{job="manager-blackbox"}[5s]) * 0 + time() or max_over_time((timestamp(up{job="manager-blackbox"}) or count_over_time(up{job="manager-blackbox"}[5s]) * 0 + time())[900s:5s])) unless (timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0) or on (check_id, check_target_id) (max by (check_id, check_target_id) ((timestamp(up{job="manager-blackbox"}) - on (check_id, check_target_id) group_left max by (check_id, check_target_id) (timestamp(up{job="manager-blackbox"}))) == 0) - Inf))
+              )
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[70s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[70s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[10s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[80s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[80s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[20s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[90s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[90s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[30s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[100s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[100s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[40s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[125s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[125s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[65s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[155s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[155s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[95s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[190s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[190s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[130s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[235s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[235s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[175s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[290s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[290s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[230s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[360s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[360s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[300s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[450s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[450s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[390s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[560s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[560s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[500s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[700s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[700s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[640s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[900s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[900s])) >= 3
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[840s] offset 60s)) > 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[60s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[60s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[10s] offset 60s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[70s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[70s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[10s] offset 70s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[80s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[80s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[10s] offset 80s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[90s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[90s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[10s] offset 90s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[100s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[100s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[25s] offset 100s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[125s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[125s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[30s] offset 125s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[155s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[155s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[35s] offset 155s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[190s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[190s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[45s] offset 190s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[235s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[235s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[55s] offset 235s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[290s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[290s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[70s] offset 290s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[360s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[360s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[90s] offset 360s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[450s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[450s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[110s] offset 450s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[560s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[560s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[140s] offset 560s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (max_over_time(up{job="manager-blackbox"}[700s])) == 0
+              and sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[700s])) >= 2
+              and max by (check_id, check_target_id) (last_over_time(up{job="manager-blackbox"}[200s] offset 700s)) == 0
+            )
+            or
+            (
+              max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed"}) > (max by (check_id, check_target_id) ((max_over_time(up{job="manager-blackbox"}[5s]) == 1) * 0 + time() or max_over_time(((timestamp(up{job="manager-blackbox"}) and up{job="manager-blackbox"} == 1) or (max_over_time(up{job="manager-blackbox"}[5s]) == 1) * 0 + time())[900s:5s])) or max by (check_id, check_target_id) (ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed"}) - Inf)
+            )
+          )
+          and
+          sum by (check_id, check_target_id) (count_over_time(up{job="manager-blackbox"}[5m])) > 0
         labels:
           severity: critical
         annotations:
           summary: "모니터링 확인 자체가 동작하지 않습니다"
-          description: "확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요."
+          description: "확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요."
+          judgment_failures: "3"
+          judgment_min_seconds: "60"

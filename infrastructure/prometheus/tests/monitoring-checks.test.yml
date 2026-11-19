@@ -4,6 +4,9 @@
 #
 # Alert label은 alertname, severity, check_id, check_target_id뿐이어야 합니다.
 # 사용자가 바꾸는 이름, 환경, 확인 방식, 주소가 label에 있으면 값을 바꿀 때 Alert가 끊깁니다. (docs/decisions/0010)
+#
+# 장애는 연속 3번 실패하고 첫 실패 뒤 1분이 지난 뒤 첫 규칙 평가에서 생깁니다. 첫 실패부터 max(60초, 수집 주기 × 2)입니다.
+# 처음 장애가 된 평가 시각이 Alert의 시작 시각(ALERTS_FOR_STATE, Alertmanager의 startsAt)입니다. (docs/decisions/0015)
 
 rule_files:
   - ../rules/monitoring-checks.yml
@@ -16,7 +19,8 @@ tests:
   #   12: 이름과 환경. stale 표시 없이 옛 series와 새 series가 75초부터 함께 남아 있습니다.
   #   13: 확인 방식(TCP에서 HTTPS). module과 주소도 함께 바뀝니다.
   #   14: 주소. 주소의 id는 그대로입니다.
-  # 바꾼 30초 뒤에도 firing이어야 합니다. 새 series만 보고 판단하면 아직 pending입니다.
+  # 바꾼 30초 뒤에도 firing이어야 합니다. 새 series만 보면 첫 실패 뒤 1분이 지나지 않았습니다.
+  # 처음부터 실패하므로 60초에 장애가 되고, 시작 시각(60초)이 값을 바꾼 뒤에도 그대로여야 합니다.
   # 감시 항목 2는 계속 성공하므로 Alert가 없어야 합니다.
   - interval: 15s
     input_series:
@@ -61,28 +65,36 @@ tests:
               check_target_id: '11'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '1'
               check_target_id: '12'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '1'
               check_target_id: '13'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '1'
               check_target_id: '14'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 2m45s
         exp_alerts:
@@ -92,39 +104,43 @@ tests:
               check_target_id: '11'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '1'
               check_target_id: '14'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
     promql_expr_test:
-      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # ALERTS_FOR_STATE의 값은 장애로 판정한 평가 시각(초)입니다.
       # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
       - expr: ALERTS_FOR_STATE
         eval_time: 2m45s
         exp_samples:
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="11"}'
-            value: 0
+            value: 60
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="12"}'
-            value: 0
+            value: 60
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="13"}'
-            value: 0
+            value: 60
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="1",check_target_id="14"}'
-            value: 0
+            value: 60
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="1",check_target_id="11"}'
-            value: 0
+            value: 60
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="1",check_target_id="14"}'
-            value: 0
+            value: 60
 
   # 아래 그룹은 입력을 5초 간격으로 넣어 수집 시점과 규칙 평가 시점(15초마다)을 따로 둡니다.
   # 값 위치 n의 시각은 n×5초입니다. '0x24 stale'은 0~120초에 0을 넣고 125초에 stale 표시를 남깁니다.
 
   # 수집 틈: 값을 바꾸면 옛 series는 바로 stale로 끝나고, 새 series는 새 target의 첫 수집 때 시작합니다.
   # 주소 31은 틈이 15초(125~140초, 평가 135초가 걸림), 주소 32는 4분(125~365초)입니다.
-  # 틈 동안에도 Alert와 처음 활성화된 시각(0초)이 그대로여야 합니다.
+  # 처음부터 실패해 60초에 장애가 됩니다. 틈 동안에도 Alert와 시작 시각(60초)이 그대로여야 합니다.
   - interval: 5s
     input_series:
       - series: 'probe_success{job="manager-blackbox",check_id="3",check_target_id="31",check_type="TCP",module="tcp_connect",environment="Production",check_name="결재 TCP",instance="10.0.1.31:8080"}'
@@ -149,14 +165,18 @@ tests:
               check_target_id: '31'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '3'
               check_target_id: '32'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 2m15s
         exp_alerts:
@@ -166,7 +186,9 @@ tests:
               check_target_id: '31'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckDown
         eval_time: 6m
         exp_alerts:
@@ -176,26 +198,30 @@ tests:
               check_target_id: '31'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '3'
               check_target_id: '32'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
     promql_expr_test:
-      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # ALERTS_FOR_STATE의 값은 장애로 판정한 평가 시각(초)입니다.
       # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
       - expr: ALERTS_FOR_STATE
         eval_time: 6m
         exp_samples:
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="3",check_target_id="31"}'
-            value: 0
+            value: 60
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="3",check_target_id="32"}'
-            value: 0
+            value: 60
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="3",check_target_id="31"}'
-            value: 0
+            value: 60
 
   # 지우거나 끈 주소: series가 stale로 끝나고 새 series가 없습니다.
   # 마지막 실패 값(120초)이 5분 창 안에 있는 동안 Alert가 이어지고, 420초 평가부터 없어야 합니다.
@@ -215,7 +241,9 @@ tests:
               check_target_id: '51'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 4m
         exp_alerts:
@@ -225,7 +253,9 @@ tests:
               check_target_id: '51'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckDown
         eval_time: 6m45s
         exp_alerts:
@@ -235,7 +265,9 @@ tests:
               check_target_id: '51'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 6m45s
         exp_alerts:
@@ -245,7 +277,9 @@ tests:
               check_target_id: '51'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckDown
         eval_time: 7m
         exp_alerts: []
@@ -288,21 +322,27 @@ tests:
               check_target_id: '41'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '4'
               check_target_id: '42'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '4'
               check_target_id: '43'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckDown
         eval_time: 2m15s
         exp_alerts:
@@ -312,7 +352,9 @@ tests:
               check_target_id: '41'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckDown
         eval_time: 3m
         exp_alerts: []
@@ -325,21 +367,27 @@ tests:
               check_target_id: '41'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '4'
               check_target_id: '42'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '4'
               check_target_id: '43'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 2m15s
         exp_alerts:
@@ -349,13 +397,15 @@ tests:
               check_target_id: '41'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 3m
         exp_alerts: []
 
   # 성공 중에 값을 바꾸고 바로 실패(두 규칙): 옛 series의 마지막 성공 값(120초)이 5분 창 안에 남아 있어도
-  # 새 series가 125~140초에 성공하고 145초부터 실패하면, 첫 실패 평가(150초)의 1분 뒤(210초) firing이어야 합니다.
+  # 새 series가 125~140초에 성공하고 145초부터 실패하면, 첫 실패(145초)의 1분 뒤 첫 평가(210초)에 firing이어야 합니다.
   # 주소 61은 이름을, 주소 62는 주소를 바꿉니다.
   - interval: 5s
     input_series:
@@ -388,14 +438,18 @@ tests:
               check_target_id: '61'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '6'
               check_target_id: '62'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 3m15s
         exp_alerts: []
@@ -408,28 +462,32 @@ tests:
               check_target_id: '61'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
           - exp_labels:
               severity: critical
               check_id: '6'
               check_target_id: '62'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
     promql_expr_test:
-      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # ALERTS_FOR_STATE의 값은 장애로 판정한 평가 시각(초)입니다.
       # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
       - expr: ALERTS_FOR_STATE
         eval_time: 3m30s
         exp_samples:
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="6",check_target_id="61"}'
-            value: 150
+            value: 210
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="6",check_target_id="62"}'
-            value: 150
+            value: 210
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="6",check_target_id="61"}'
-            value: 150
+            value: 210
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="6",check_target_id="62"}'
-            value: 150
+            value: 210
 
   # 성공 중에 값을 바꾸고 바로 실패하는데, 옛 series의 stale 표시가 늦게 쓰이는 경우(두 규칙)입니다.
   # Prometheus는 SD에서 빠진 target의 stale 표시를 마지막 수집에서 수집 주기의 약 2.1배 뒤에 씁니다.
@@ -458,7 +516,9 @@ tests:
               check_target_id: '71'
             exp_annotations:
               summary: '주소 확인에 실패했습니다'
-              description: '주소 확인이 1분 넘게 실패하고 있습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              description: '주소 확인이 3번 이상 연속으로 실패했습니다. 대상 서버와 네트워크 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
       - alertname: MonitoringCheckProbeFailed
         eval_time: 3m15s
         exp_alerts: []
@@ -471,14 +531,758 @@ tests:
               check_target_id: '71'
             exp_annotations:
               summary: '모니터링 확인 자체가 동작하지 않습니다'
-              description: '확인 결과를 1분 넘게 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              description: '확인 결과를 3번 이상 연속으로 가져오지 못했습니다. Blackbox Exporter 상태를 확인해 주세요.'
+              judgment_failures: '3'
+              judgment_min_seconds: '60'
     promql_expr_test:
-      # ALERTS_FOR_STATE의 값은 Alert가 처음 활성화된 시각(초)입니다.
+      # ALERTS_FOR_STATE의 값은 장애로 판정한 평가 시각(초)입니다.
       # 이 값이 그대로여야 Alertmanager에 같은 startsAt으로 이어집니다.
       - expr: ALERTS_FOR_STATE
         eval_time: 3m30s
         exp_samples:
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="7",check_target_id="71"}'
-            value: 150
+            value: 210
           - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="7",check_target_id="71"}'
-            value: 150
+            value: 210
+
+  # 아래 그룹은 수집 주기마다 판정 시각을 봅니다. 입력은 1초 간격이고 값 위치 n의 시각은 n초입니다.
+  # '_x9'는 9초 동안 값이 없다는 뜻이라, '1 _x9 1'은 0초와 10초에 1을 넣습니다(주기 10초).
+  # 두 규칙이 같은 기준을 쓰므로 probe_success와 up에 같은 값을 넣고, ALERTS로 두 Alert를 함께 봅니다.
+  # Alert의 label과 annotation은 위 그룹에서 봅니다.
+
+  # 주기 10초, 첫 실패 100초: 판정 시각은 160초입니다. 165초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="801"}'
+        values: '1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="801"}'
+        values: '1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 165s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="801"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="801"}'
+            value: 1
+
+  # 주기 10초, 첫 실패 105초: 판정 시각은 165초입니다. 165초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="802"}'
+        values: '_x5 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="802"}'
+        values: '_x5 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 1 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0 _x9 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 165s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="802"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="802"}'
+            value: 1
+
+  # 주기 15초, 첫 실패 90초: 판정 시각은 150초입니다. 150초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="803"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="803"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 135s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="803"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="803"}'
+            value: 1
+
+  # 주기 25초, 첫 실패 100초: 3번째 실패(150초)가 1분보다 먼저라 판정 시각은 160초입니다. 165초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="820"}'
+        values: '1 _x24 1 _x24 1 _x24 1 _x24 0 _x24 0 _x24 0 _x24 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="820"}'
+        values: '1 _x24 1 _x24 1 _x24 1 _x24 0 _x24 0 _x24 0 _x24 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 165s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="820"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="820"}'
+            value: 1
+
+  # 주기 29초, 첫 실패 87초: 판정 시각은 147초입니다. 150초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="804"}'
+        values: '1 _x28 1 _x28 1 _x28 0 _x28 0 _x28 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="804"}'
+        values: '1 _x28 1 _x28 1 _x28 0 _x28 0 _x28 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 135s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="804"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="804"}'
+            value: 1
+
+  # 주기 30초, 첫 실패 90초: 판정 시각은 150초입니다. 150초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="805"}'
+        values: '1 _x29 1 _x29 1 _x29 0 _x29 0 _x29 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="805"}'
+        values: '1 _x29 1 _x29 1 _x29 0 _x29 0 _x29 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 135s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="805"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="805"}'
+            value: 1
+
+  # 주기 31초, 첫 실패 93초: 판정 시각은 155초입니다. 165초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="806"}'
+        values: '1 _x30 1 _x30 1 _x30 0 _x30 0 _x30 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="806"}'
+        values: '1 _x30 1 _x30 1 _x30 0 _x30 0 _x30 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 165s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="806"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="806"}'
+            value: 1
+
+  # 주기 60초, 첫 실패 120초: 판정 시각은 240초입니다. 240초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="807"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="807"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 225s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 240s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="807"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="807"}'
+            value: 1
+
+  # 주기 61초, 첫 실패 122초: 판정 시각은 244초입니다. 255초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="808"}'
+        values: '1 _x60 1 _x60 0 _x60 0 _x60 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="808"}'
+        values: '1 _x60 1 _x60 0 _x60 0 _x60 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 240s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 255s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="808"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="808"}'
+            value: 1
+
+  # 주기 119초, 첫 실패 119초: 판정 시각은 357초입니다. 360초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="809"}'
+        values: '1 _x118 0 _x118 0 _x118 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="809"}'
+        values: '1 _x118 0 _x118 0 _x118 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 345s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 360s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="809"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="809"}'
+            value: 1
+
+  # 주기 240초, 첫 실패 240초: 판정 시각은 720초입니다. 720초 평가에서 장애이고 그 직전 평가에서는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="810"}'
+        values: '1 _x239 0 _x239 0 _x239 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="810"}'
+        values: '1 _x239 0 _x239 0 _x239 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 705s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 720s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="810"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="810"}'
+            value: 1
+
+  # 장애의 시작 시각(ALERTS_FOR_STATE, webhook의 startsAt)은 판정한 평가 시각입니다.
+  # 주기 60초, 첫 실패 120초: 240초에 판정하고, 5분 뒤 540초에도 시작 시각이 240초입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="811"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="811"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0 _x59 0'
+    promql_expr_test:
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 240s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="811"}'
+            value: 240
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="811"}'
+            value: 240
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 540s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="811"}'
+            value: 240
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="811"}'
+            value: 240
+
+  # 중간에 성공(주기 60초): 120초와 180초에 실패하고 240초에 성공한 뒤 300초부터 다시 실패합니다.
+  # 성공 앞의 실패는 세지 않으므로, 성공 뒤 3번째 실패(420초)에서 장애입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="812"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 1 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="812"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 1 _x59 0 _x59 0 _x59 0 _x59 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 240s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 405s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 420s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="812"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="812"}'
+            value: 1
+
+  # 장애 중 성공(주기 60초): 120초부터 실패해 240초에 장애가 되고, 300초에 성공하면 그 평가에서 복구됩니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="813"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 0 _x59 1 _x59 1'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="813"}'
+        values: '1 _x59 1 _x59 0 _x59 0 _x59 0 _x59 1 _x59 1'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 240s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="813"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="813"}'
+            value: 1
+      - expr: ALERTS{check_id="8"}
+        eval_time: 285s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="813"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="813"}'
+            value: 1
+      - expr: ALERTS{check_id="8"}
+        eval_time: 300s
+        exp_samples: []
+
+  # 실패 시작 즈음 주기 변경: 주기 15초로 90초와 105초에 실패한 뒤 주기를 120초로 바꿉니다.
+  # 바꾸기 전 실패를 이어 세므로, 3번째 실패(225초)는 첫 실패 뒤 1분이 지나 바로 장애입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="814"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x119 0 _x119 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="814"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x119 0 _x119 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 225s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="814"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="814"}'
+            value: 1
+
+  # 장애 전에 끊긴 대상(주기 60초): 120초와 180초에 실패한 뒤 확인 결과가 더 오지 않습니다. 장애가 되지 않습니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="815"}'
+        values: '1 _x59 1 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="815"}'
+        values: '1 _x59 1 _x59 0 _x59 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 240s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 300s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 480s
+        exp_samples: []
+
+  # 확인 결과가 2분 빔(주기 15초): 90초와 105초에 실패하고 240초에 다시 실패합니다.
+  # 사이에 성공이 없으므로 이어 세어, 240초 평가에서 장애입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="816"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x134 0 _x14 0 _x14 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="816"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x134 0 _x14 0 _x14 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 225s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 240s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="816"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="816"}'
+            value: 1
+
+  # 확인 결과가 16분 빔(주기 15초): 60~120초에 실패해 120초에 장애가 되고, 마지막 결과 5분 뒤(420초) 복구됩니다.
+  # 1080초부터 다시 실패하면 15분보다 오래된 앞 실패는 세지 않으므로, 1분을 다시 기다려 1140초에 장애입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="817"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x959 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="817"}'
+        values: '1 _x14 1 _x14 1 _x14 1 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x959 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 120s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="817"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="817"}'
+            value: 1
+      - expr: ALERTS{check_id="8"}
+        eval_time: 405s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="817"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="817"}'
+            value: 1
+      - expr: ALERTS{check_id="8"}
+        eval_time: 420s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 1125s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 1140s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="817"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="817"}'
+            value: 1
+
+  # 아래 둘(818, 819)과 위의 814는 마지막 성공과 첫 실패가 창 길이 간격보다 가까운 경우입니다.
+  # 두 id로 묶은 창만 보면 판정이 늦어집니다. 가장 최근 series만 보는 창과 창 바깥 띠의 조건이 이 경우를 맡습니다.
+
+  # 성공 중 값 변경 직후 실패: 옛 series가 0, 40, 80초에 성공하고, 이름을 바꾼 새 series가 81, 141, 201초에 실패합니다.
+  # 옛 series의 마지막 성공(80초)과 새 series의 첫 실패(81초)가 붙어 있어도, 3번째 실패 뒤 첫 평가(210초)에서 장애입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="818",check_name="결재"}'
+        values: '1 _x39 1 _x39 1'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="818",check_name="결재 새 이름"}'
+        values: '_x81 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="818",check_name="결재"}'
+        values: '1 _x39 1 _x39 1'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="818",check_name="결재 새 이름"}'
+        values: '_x81 0 _x59 0 _x59 0 _x59 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 195s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="818"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="818"}'
+            value: 1
+
+  # 실패 중 값 변경: 옛 series가 8, 26, 44초에 성공하고 62초에 실패한 뒤, 이름을 바꾼 새 series가 91초와 193초에 실패합니다.
+  # 옛 series의 실패를 이어 세어, 3번째 실패 뒤 첫 평가(195초)에서 장애입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="819",check_name="결재"}'
+        values: '_x8 1 _x17 1 _x17 1 _x17 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="819",check_name="결재 새 이름"}'
+        values: '_x91 0 _x101 0 _x101 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="819",check_name="결재"}'
+        values: '_x8 1 _x17 1 _x17 1 _x17 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="819",check_name="결재 새 이름"}'
+        values: '_x91 0 _x101 0 _x101 0'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 180s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 195s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="819"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="819"}'
+            value: 1
+
+  # 아래는 판정이 기준보다 이르면 안 되는 경우(되돌림)와, 확인 결과가 끊긴 대상과 긴 주기에서 장애가 이어지는 경우입니다.
+
+  # 값을 바꿨다가 되돌림(stale 표시 있음): 주소 a가 0, 15, 30초에 실패하고 45초에 stale이 됩니다.
+  # 주소 b가 45, 60, 75초에 성공하고 90초에 stale이 된 뒤, 주소 a로 되돌려 90초부터 다시 실패합니다.
+  # b의 성공 뒤 실패를 처음부터 세므로, 90초(첫 실패)의 1분 뒤인 150초에 장애이고 그 전에는 아닙니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="821",instance="a"}'
+        values: '0 _x14 0 _x14 0 _x14 stale _x44 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="821",instance="a"}'
+        values: '0 _x14 0 _x14 0 _x14 stale _x44 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="821",instance="b"}'
+        values: '_x45 1 _x14 1 _x14 1 _x14 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="821",instance="b"}'
+        values: '_x45 1 _x14 1 _x14 1 _x14 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 90s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 135s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="821"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="821"}'
+            value: 1
+
+  # 값을 바꿨다가 되돌림(stale 표시 없음): 위와 같고 두 series에 stale 표시가 없습니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="822",instance="a"}'
+        values: '0 _x14 0 _x14 0 _x59 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="822",instance="a"}'
+        values: '0 _x14 0 _x14 0 _x59 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0 _x14 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="822",instance="b"}'
+        values: '_x45 1 _x14 1 _x14 1'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="822",instance="b"}'
+        values: '_x45 1 _x14 1 _x14 1'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 90s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 135s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 150s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="822"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="822"}'
+            value: 1
+
+  # 값을 바꿨다가 되돌린 뒤 늦게 판정하는 경우(주기 60초, stale 표시 있음): 주소 a가 30, 90초에 실패하고 110초에 stale이 됩니다.
+  # 주소 b가 110~350초에 성공하고 352초에 stale이 된 뒤, a로 되돌려 352초부터 60초마다 실패합니다.
+  # 기준(b의 성공 뒤 3번째 실패 472초, 첫 실패 352초의 1분 뒤)을 채운 평가는 480초입니다.
+  # 그 전에는 장애가 아니어야 하고, 늦어도 주기 한 번 뒤인 540초에는 장애여야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="826",instance="a"}'
+        values: '_x30 0 _x59 0 _x19 stale _x241 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="826",instance="a"}'
+        values: '_x30 0 _x59 0 _x19 stale _x241 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="826",instance="b"}'
+        values: '_x110 1 _x79 1 _x79 1 _x79 1 _ stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="826",instance="b"}'
+        values: '_x110 1 _x79 1 _x79 1 _x79 1 _ stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 360s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 420s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 465s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 540s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="826"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="826"}'
+            value: 1
+
+  # 위와 같고 두 series에 stale 표시가 없습니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="827",instance="a"}'
+        values: '_x30 0 _x59 0 _x261 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="827",instance="a"}'
+        values: '_x30 0 _x59 0 _x261 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="827",instance="b"}'
+        values: '_x110 1 _x79 1 _x79 1 _x79 1'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="827",instance="b"}'
+        values: '_x110 1 _x79 1 _x79 1 _x79 1'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 360s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 420s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 465s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 540s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="827"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="827"}'
+            value: 1
+
+  # 되돌린 값의 결과가 subquery에 보이지 않는 경우(주기 60초): 주소 a가 40초에 성공, 100, 160초에 실패하고 200초에 stale이 됩니다.
+  # 주소 b가 206초에 한 번 성공하고 바로 a로 되돌려 207초에 stale이 됩니다. a는 207초부터 60초마다 실패합니다.
+  # b의 성공은 다음 5초 시각(210초) 전에 stale 표시에 가려집니다. b의 성공 뒤 3번째 실패는 327초이므로 그 전에는 장애가 아니고,
+  # 늦어도 주기 한 번과 규칙 평가 한 번 뒤(402초)까지의 마지막 평가인 390초에는 장애여야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="828",instance="a"}'
+        values: '_x40 1 _x59 0 _x59 0 _x39 stale _x6 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="828",instance="a"}'
+        values: '_x40 1 _x59 0 _x59 0 _x39 stale _x6 0 _x59 0 _x59 0 _x59 0 _x59 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="828",instance="b"}'
+        values: '_x206 1 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="828",instance="b"}'
+        values: '_x206 1 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 225s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 315s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 390s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="828"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="828"}'
+            value: 1
+
+  # 장애 중 성공 결과가 subquery에 보이지 않는 경우(주기 30초): 100~190초에 실패해 165초부터 장애이고,
+  # 201초에 성공한 뒤 202초에 stale이 됩니다(성공 직후 감시를 끔). 성공은 평가 직전 5초 밖이라 subquery로만 봅니다.
+  # 성공 뒤 첫 평가인 210초에 복구돼야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="829"}'
+        values: '_x100 0 _x29 0 _x29 0 _x29 0 _x10 1 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="829"}'
+        values: '_x100 0 _x29 0 _x29 0 _x29 0 _x10 1 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 195s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="829"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="829"}'
+            value: 1
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 225s
+        exp_samples: []
+
+  # 가장 최근 series의 옛 결과가 subquery에 보이지 않는 경우: 주소 a가 41초에 한 번 실패하고 42초에 stale이 됩니다.
+  # 주소 b가 60, 70초에 성공하고 72초에 stale이 된 뒤, a로 되돌려 100초부터 60초마다 실패합니다.
+  # a의 41초 결과는 다음 5초 시각(45초) 전에 가려지지만 b의 성공보다 앞이므로, a의 결과를 b보다 모두 나중으로 보면 안 됩니다.
+  # b의 성공 뒤 3번째 실패는 220초라 그 전에는 장애가 아니고, 늦어도 주기 한 번과 규칙 평가 한 번 뒤(295초)까지의 마지막 평가인 285초에는 장애여야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="832",instance="a"}'
+        values: '_x41 0 stale _x57 0 _x59 0 _x59 0 _x59 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="832",instance="a"}'
+        values: '_x41 0 stale _x57 0 _x59 0 _x59 0 _x59 0'
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="832",instance="b"}'
+        values: '_x60 1 _x9 1 _ stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="832",instance="b"}'
+        values: '_x60 1 _x9 1 _ stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 165s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 180s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 210s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 285s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="832"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="832"}'
+            value: 1
+
+  # 1분 전에 끊긴 대상(주기 15초): 30, 45, 60초에 실패하고 75초에 stale이 됩니다(감시를 끔).
+  # 연속 3번 실패했으므로 첫 실패(30초)의 1분 뒤인 90초에 장애가 되고, 마지막 결과(60초) 5분 뒤인 360초에 복구됩니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="823",instance="a"}'
+        values: '1 _x14 1 _x14 0 _x14 0 _x14 0 _x14 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="823",instance="a"}'
+        values: '1 _x14 1 _x14 0 _x14 0 _x14 0 _x14 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 75s
+        exp_samples: []
+      - expr: ALERTS{check_id="8"}
+        eval_time: 90s
+        exp_samples:
+          - labels: 'ALERTS{alertname="MonitoringCheckDown",alertstate="firing",severity="critical",check_id="8",check_target_id="823"}'
+            value: 1
+          - labels: 'ALERTS{alertname="MonitoringCheckProbeFailed",alertstate="firing",severity="critical",check_id="8",check_target_id="823"}'
+            value: 1
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 345s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="823"}'
+            value: 90
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="823"}'
+            value: 90
+      - expr: ALERTS{check_id="8"}
+        eval_time: 360s
+        exp_samples: []
+
+  # 장애 중에 지운 대상(주기 11초): 1002~1068초에 7번 실패해 1065초에 장애가 되고 1090초에 stale이 됩니다.
+  # 마지막 결과(1068초) 5분 뒤인 1380초까지 장애가 끊기지 않고 시작 시각(1065초)이 그대로여야 합니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="824",instance="a"}'
+        values: '_x782 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 0 _x10 0 _x10 0 _x10 0 _x10 0 _x10 0 _x10 0 _x21 stale'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="824",instance="a"}'
+        values: '_x782 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 1 _x10 0 _x10 0 _x10 0 _x10 0 _x10 0 _x10 0 _x10 0 _x21 stale'
+    promql_expr_test:
+      - expr: ALERTS{check_id="8"}
+        eval_time: 1050s
+        exp_samples: []
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 1065s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 1200s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 1350s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 1365s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="824"}'
+            value: 1065
+      - expr: ALERTS{check_id="8"}
+        eval_time: 1380s
+        exp_samples: []
+
+  # 주기 240초 장애가 판정 뒤에도 이어집니다: 240초부터 실패해 720초에 장애가 되고, 1185초까지 시작 시각이 720초입니다.
+  - interval: 1s
+    input_series:
+      - series: 'probe_success{job="manager-blackbox",check_id="8",check_target_id="825",instance="a"}'
+        values: '1 _x239 0 _x239 0 _x239 0 _x239 0 _x239 0'
+      - series: 'up{job="manager-blackbox",check_id="8",check_target_id="825",instance="a"}'
+        values: '1 _x239 0 _x239 0 _x239 0 _x239 0 _x239 0'
+    promql_expr_test:
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 720s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="825"}'
+            value: 720
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="825"}'
+            value: 720
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 960s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="825"}'
+            value: 720
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="825"}'
+            value: 720
+      - expr: ALERTS_FOR_STATE{check_id="8"}
+        eval_time: 1185s
+        exp_samples:
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckDown",severity="critical",check_id="8",check_target_id="825"}'
+            value: 720
+          - labels: 'ALERTS_FOR_STATE{alertname="MonitoringCheckProbeFailed",severity="critical",check_id="8",check_target_id="825"}'
+            value: 720

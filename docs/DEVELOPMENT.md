@@ -18,6 +18,7 @@
 |---|---|---|
 | 전체 검증 | `monitoring-dev.bat check`, `node scripts/check-docs.mjs` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 규칙 테스트와 모니터링 시스템 설정 검사 | `monitoring-dev.bat check`(아래 [모니터링 시스템 검사와 묶음](#모니터링-시스템-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, Dockerfile, `compose.yml`, `monitoring-settings.sh`, `monitoring-server.sh`를 바꿨을 때 |
+| 감시 항목 Alert 규칙의 판정 식 만들기 | `node scripts/monitoring-check-rules.mjs`(확인만 하려면 `--check`) | `scripts/monitoring-check-rules.mjs`의 판정 기준이나 창 길이를 바꿨을 때(`monitoring-checks.yml`의 두 `expr`는 손으로 고치지 않음) |
 | 모니터링 시스템 실행과 멈춤 | `monitoring-dev.bat start`, `monitoring-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 CA 인증서 파일을 복사하고 `monitoring` 네트워크를 만든 뒤 `sh infrastructure/monitoring-server.sh render`와 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 모니터링 시스템 설정을 바꿔 직접 띄워 확인할 때 |
 | 모니터링 시스템 묶음 | `monitoring-dev.bat build` | 내부망 서버에 옮길 모니터링 시스템과 node_exporter를 만들 때 |
 | 문서 검사 | `node scripts/check-docs.mjs` | 문서를 바꿨을 때(그림을 바꿨다면 `--render`를 붙여서) |
@@ -26,6 +27,7 @@
 
 모니터링 시스템 이미지에는 실행 파일과 Alert 규칙만 있고, 설정은 운영 명령이 띄우기 전에 펼친다([ADR 0009](decisions/0009-core-config-in-image.md), [ADR 0012](decisions/0012-core-render-outside-image.md)). 운영 이미지에는 셸과 `promtool`, `amtool`이 없으므로, 검사는 각 Dockerfile의 첫 단계(`src`, 태그와 digest로 고정한 공식 이미지)에 든 도구와 BusyBox `sh`로 한다. `monitoring-dev.bat check`(`node scripts/build-monitoring-bundle.mjs --check`와 같다)는 모니터링 시스템 이미지와 node_exporter 이미지를 빌드한 뒤 다음을 실행하고, 하나라도 실패하면 종료 코드 1로 멈춘다.
 
+- 이미지를 빌드하기 전에, 감시 항목 Alert 규칙(`infrastructure/prometheus/rules/monitoring-checks.yml`)의 두 판정 식이 `scripts/monitoring-check-rules.mjs`의 결과와 같고 판정 기준 annotation(`judgment_failures`, `judgment_min_seconds`)이 스크립트의 기준과 같은지 확인([ADR 0015](decisions/0015-check-down-by-result-windows.md)). `monitoring-dev.bat build`도 같은 확인을 먼저 한다
 - 운영 이미지 네 개의 파일 목록 검사. `docker export`로 꺼낸 파일이 실행 파일, Alert 규칙, 빈 기록 폴더, Docker가 컨테이너마다 만드는 파일뿐인지, 기록 폴더의 소유자가 `nobody`(65534)인지 본다. 셸, BusyBox, `promtool`, `amtool`, CA 묶음, 시간대 자료가 들어가면 실패한다
 - 운영 이미지 네 개의 설정 검사. 실행 사용자, 작업 폴더, 포트, volume, 실행 인자(`Entrypoint`, `Cmd`), 버전·커밋·커밋 시각 label을 기대값과 비교한다
 - 서버에서 바꾸는 설정 값의 약속 검사. 저장소의 `infrastructure/monitoring-settings.sh`에서 허용 범위를 읽어, 확인 제한 시간의 상한이 펼친 `prometheus.yml`의 `scrape_timeout`에서 0.5초를 뺀 값 이하인지, 보관 기간의 하한이 규칙이 읽는 가장 긴 범위보다 긴지, 포트 범위가 1024~65535 안이고 기본 포트가 서로 다른지 본다. promtool과 amtool은 이 약속을 모른다
