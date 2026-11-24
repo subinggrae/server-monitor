@@ -13,7 +13,7 @@ Alertmanager는 감시 항목(`alertname`, `check_id`)마다 Alert를 묶어 관
 
 관리자 서버 쪽 사람이 묶음을 다시 살피는 간격을 1분으로 줄이기로 정했다(사람 확인: 2026-11-25, 관리자 서버 Testigo_Mng). 이어지는 Alert를 다시 보내는 간격(`repeat_interval`)은 `group_interval`보다 짧게 두어야 한다. 같게 두면 다음 시점에 경과 시간이 조금 모자라 한 번씩 건너뛴다([ADR 0001](../decisions/0001-alert-repeat-in-manager.md)). 관리자 서버의 알림 다시 보내는 간격 하한(5분)은 `group_interval`보다 짧으면 안 되는데, 1분으로 줄이면 이 관계는 그대로 지켜진다.
 
-이 변경은 다음 문서의 문장과 부딪친다. 이 요구사항과 계획 단계에서 쓰는 ADR이 아래 문장만 대신한다. 이전 문서는 고치지 않는다.
+1분 간격은 아래 문서의 문장과 부딪친다. 이 요구사항과 그 ADR은 아래 문장만 대신하고, 이전 문서는 고치지 않는다.
 
 - [ADR 0001](../decisions/0001-alert-repeat-in-manager.md)의 결정: "`repeat_interval`을 ... `group_interval`(5분)보다 짧은 4분으로 고정해, Alertmanager가 이어지는 Alert를 5분마다 webhook으로 보내게 한다", 감수할 점의 "이어지는 Alert마다 5분에 한 번 webhook과 DB 쓰기가 생긴다", "실제 재발송은 주기보다 최대 5분 늦거나 1분 이르다", "webhook마다(5분) 다시 시도". Alertmanager는 짧은 간격으로 계속 보내고 관리자 서버가 감시 항목별 간격으로 판단한다는 결정과 `repeat_interval` < `group_interval` ≤ 재알림 하한이라는 관계는 그대로다.
 - [0003](0003-alert-repeat-interval.md)의 사용자 경험: "하한 5분은 Alertmanager가 같은 묶음을 다시 보내는 간격(`group_interval: 5m`)이다", "정한 주기보다 최대 5분 늦을 수 있다", S3의 "5분마다 쌓여". 하한 5분과 1분 허용 오차는 그대로다.
