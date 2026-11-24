@@ -1,6 +1,6 @@
 # 0027. OS의 CA 인증서 파일을 경로로 붙이기
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-11-25
 - 관련: [0013](0013-core-env-settings.md), [0015](0015-core-minimal-image.md), [0017](0017-core-shared-env.md), [0023](0023-version-cleanup-rollback.md), [ADR 0012](../decisions/0012-core-render-outside-image.md), [OPERATIONS.md](../OPERATIONS.md)
 
