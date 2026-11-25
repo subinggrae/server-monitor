@@ -84,6 +84,8 @@ case "$1" in
         touch "$FAKE/running"; printf '%s\n' "$PWD" > "$FAKE/running_workdir"
         # Compose가 볼륨 원본으로 쓸 CA 인증서 파일 경로 값. 없으면 unset이다.
         printf '%s\n' "${MONITORING_CA_FILE-unset}" > "$FAKE/compose_ca_file"
+        # Compose가 token 파일 경로로 쓸 token 폴더 값. 없으면 unset이다.
+        printf '%s\n' "${MONITORING_SECRETS_DIR-unset}" > "$FAKE/compose_secrets_dir"
         sed -n 's/^ *image: monitoring-system-prometheus://p' "$PWD/compose.yml" > "$FAKE/running_version"
         # 다른 프로그램이 쓰는 포트: Docker처럼 그 컨테이너만 만들어 두고 띄우지 못한다.
         if [ -f "$FAKE/port_taken" ]; then
@@ -976,12 +978,22 @@ run_with_env "MONITORING_CA_FILE=$OS/ca-bundle.crt" render
 check '셸 환경 변수의 CA 인증서 파일 경로를 쓸 수 없으면 셸의 값을 지우거나 고치라고 알리고 펼치지 않는다' \
   '[ $RC -ne 0 ] && contains "쓸 수 없습니다" && contains "unset MONITORING_CA_FILE" && '"$NO_OS_CHANGE"' && [ ! -e "$RENDERED" ]'
 
-# Compose의 .env 읽기는 운영 명령이 읽지 않는 형식(KEY: 값)도 받는다. 운영 명령이 값이 없다고 본 경우에도
-# 빈 값을 넘겨, Compose가 검사하지 않은 경로 대신 검사한 복사본(기본값)을 붙이게 한다.
+# Compose의 .env 읽기는 운영 명령이 읽지 않는 형식도 받는다. 0027에서는 복사본을 붙이고 띄웠지만,
+# 운영자가 적은 파일 대신 복사본을 쓰는 줄 모르므로 멈춘다(요구사항 0028의 S9).
 setup; prepared; os_ca; printf 'MONITORING_CA_FILE: %s\n' "$OS/ca-bundle.crt" >> "$ENV"
 run start
-check 'CA 인증서 파일 경로가 없다고 본 경우에도 Compose에 빈 값을 넘겨 검사한 복사본을 붙이게 한다' \
+check 'CA 인증서 파일 경로를 운영 명령이 읽지 않는 표기로 적으면 복사본이 있어도 띄우지 않는다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE=경로" && ! called "^compose" && [ ! -e "$RENDERED" ]'
+
+setup; prepared
+run start
+check 'CA 인증서 파일 경로가 없으면 Compose에 빈 값을 넘겨 검사한 복사본을 붙이게 한다' \
   '[ $RC -eq 0 ] && [ -z "$(cat "$FAKE/compose_ca_file")" ] && [ "$(ca_hash)" = "$(file_hash "$CA")" ]'
+
+setup; prepared; os_ca; with_settings "MONITORING_CA_FILE=$OS/ca-bundle.crt"
+run start
+check 'CA 인증서 파일 경로를 적으면 Compose에 검사한 경로를 넘긴다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_ca_file")" = "$OS/ca-bundle.crt" ]'
 
 setup; prepared; with_settings 'MONITORING_CA_FILE='
 run render
@@ -1035,6 +1047,126 @@ printf 'MONITORING_APP_ADDRESS=other-api:9000\n' > "$ENV"
 run render
 check '관리자 서버 주소를 바꿔 다시 펼치면 Compose가 컨테이너를 다시 만들도록 monitoring.env의 설정 값이 바뀐다' \
   '[ $RC -eq 0 ] && [ "$(rendered_address)" = "other-api:9000" ] && [ "$(config_hash)" != "$first" ]'
+
+# --- 경로 설정 값의 .env 표기(요구사항 0028) ---
+# 운영 명령이 읽지 않는 표기로 token 폴더나 CA 인증서 파일 경로를 적은 줄이 있으면, Compose가 그 줄을 다르게 읽을 수 있어
+# 그 값을 다루는 명령이 아무것도 바꾸지 않고 멈춘다. 표기는 2026-11-25에 Compose와 운영 명령에 같은 .env를 주어 찾은 것이다.
+
+BOM=$(printf '\357\273\277')
+UNREAD_FORMS='1 2 3'
+# 운영 명령이 읽지 않는 표기(세 번째 인자의 번호)로 변수(첫 번째 인자)에 값(두 번째 인자)을 적는다. 3번은 파일의 첫 줄에 둔다.
+write_unread() {
+  case "$3" in
+    1) printf '%s: %s\n' "$1" "$2" >> "$ENV" ;;
+    2) printf '%s:%s\n' "$1" "$2" >> "$ENV" ;;
+    3) { printf '%s%s=%s\n' "$BOM" "$1" "$2"; cat "$ENV"; } > "$ENV.new" && mv "$ENV.new" "$ENV" ;;
+  esac
+}
+# token 파일 두 곳과 설정 파일의 지금 상태. 내용은 출력하지 않고 체크섬만 비교한다.
+token_state() {
+  for f in "$TOKEN" "$OTHER_TOKEN" "$ENV"; do
+    if [ -e "$f" ]; then cksum < "$f"; else echo none; fi
+  done
+}
+# 기본 위치(첫 번째 인자)와 적은 폴더(두 번째 인자)에 token을 둘지(yes, no) 정한다. 적은 폴더는 $T/other다.
+place_tokens() {
+  OTHER_TOKEN="$T/other/alertmanager_webhook_token"
+  [ "$1" = yes ] || rm -f "$TOKEN"
+  if [ "$2" = yes ]; then
+    mkdir -p "$T/other"
+    printf 'other-token-for-test\n' > "$OTHER_TOKEN"
+    chmod 0644 "$OTHER_TOKEN"
+  fi
+}
+UNREAD_STOPPED='[ $RC -ne 0 ] && contains "번째 줄" && contains "$unread_fix" && ! called "^compose" && ! called load && [ ! -e "$RENDERED" ] && ! contains "secret-value-for-test" && ! contains "other-token-for-test"'
+
+for form in $UNREAD_FORMS; do
+  for tokens in 'yes yes' 'yes no' 'no yes' 'no no'; do
+    for command in start render install; do
+      set -- $tokens
+      setup; prepared; place_tokens "$1" "$2"; write_unread MONITORING_SECRETS_DIR "$T/other" "$form"
+      before=$(token_state)
+      unread_fix='MONITORING_SECRETS_DIR=폴더'
+      run "$command"
+      check "token 폴더를 운영 명령이 읽지 않는 표기($form)로 적으면 기본 위치($1)와 적은 폴더($2)의 token과 관계없이 $command가 아무것도 바꾸지 않고 멈춘다" \
+        "$UNREAD_STOPPED"' && [ "$(token_state)" = "$before" ]'
+    done
+  done
+done
+
+setup; prepared; place_tokens yes yes; write_unread MONITORING_SECRETS_DIR "$T/other" 1; unread_fix='MONITORING_SECRETS_DIR=폴더'
+run_with_env "MONITORING_SECRETS_DIR=$INSTALL/secrets" start
+check '셸 환경 변수로 token 폴더를 줘도 설정 파일에 운영 명령이 읽지 않는 표기의 줄이 있으면 멈춘다' "$UNREAD_STOPPED"
+
+setup; prepared; place_tokens yes yes; with_settings "MONITORING_SECRETS_DIR=$INSTALL/secrets"
+write_unread MONITORING_SECRETS_DIR "$T/other" 1; unread_fix='MONITORING_SECRETS_DIR=폴더'
+run start
+check '읽는 형식의 줄과 읽지 않는 표기의 줄이 함께 있어도 멈춘다' "$UNREAD_STOPPED"
+
+for form in $UNREAD_FORMS; do
+  for files in 'yes yes' 'yes no' 'no yes' 'no no'; do
+    for command in start render; do
+      set -- $files
+      setup; prepared; [ "$1" = yes ] && os_ca; [ "$2" = yes ] || rm "$CA"
+      write_unread MONITORING_CA_FILE "$T/os/ca-bundle.crt" "$form"
+      unread_fix='MONITORING_CA_FILE=경로'
+      run "$command"
+      check "CA 인증서 파일 경로를 운영 명령이 읽지 않는 표기($form)로 적으면 적은 파일($1)과 복사본($2)과 관계없이 $command가 멈춘다" \
+        "$UNREAD_STOPPED"
+    done
+  done
+done
+
+setup; prepared; os_ca; write_unread MONITORING_CA_FILE "$OS/ca-bundle.crt" 1; unread_fix='MONITORING_CA_FILE=경로'
+run_with_env "MONITORING_CA_FILE=$OS/ca-bundle.crt" start
+check '셸 환경 변수로 CA 인증서 파일 경로를 줘도 설정 파일에 운영 명령이 읽지 않는 표기의 줄이 있으면 멈춘다' "$UNREAD_STOPPED"
+
+# 주석, 이름이 더 긴 다른 변수, 다른 변수의 값에 이름이 든 줄은 읽지 않는 줄로 보지 않는다.
+setup; prepared
+printf '# MONITORING_SECRETS_DIR: %s\n#MONITORING_CA_FILE: /x\nMONITORING_SECRETS_DIR_OLD: /x\nMONITORING_CA_FILE2: /x\nNOTE=MONITORING_SECRETS_DIR: /x\n' "$T/other" >> "$ENV"
+run start
+check '주석, 이름이 더 긴 변수, 다른 변수의 값에 든 이름은 읽지 않는 줄로 보지 않고 띄운다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && [ -z "$(cat "$FAKE/compose_secrets_dir")" ]'
+
+# start는 운영 명령이 검사한 token 폴더 값을 Compose에 넘긴다. Compose가 .env를 다시 읽어 다른 폴더를 쓰지 않게 하기 위해서다.
+setup; prepared; place_tokens no yes; with_settings "MONITORING_SECRETS_DIR=$T/other"
+run start
+check '설정 파일에 token 폴더를 적으면 Compose에 그 폴더를 넘긴다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_secrets_dir")" = "$T/other" ]'
+
+setup; prepared; place_tokens no yes
+run_with_env "MONITORING_SECRETS_DIR=$T/other" start
+check '셸 환경 변수로 token 폴더를 주면 Compose에 그 폴더를 넘긴다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_secrets_dir")" = "$T/other" ]'
+
+setup; prepared
+run start
+check 'token 폴더를 적지 않으면 Compose에 빈 값을 넘겨 기본 위치를 쓰게 한다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_secrets_dir")" = "" ]'
+
+# 운영 명령은 글자 그대로 읽고 Compose는 다른 값으로 푸는 표기다. 운영 명령이 읽은 폴더를 Compose에 넘긴다.
+setup; prepared; rm "$TOKEN"; LITERAL_DIR="$T/a\${UNSET_FOR_TEST:-b}"
+mkdir -p "$LITERAL_DIR"
+printf 'literal-token-for-test\n' > "$LITERAL_DIR/alertmanager_webhook_token"; chmod 0644 "$LITERAL_DIR/alertmanager_webhook_token"
+with_settings "MONITORING_SECRETS_DIR=$LITERAL_DIR"
+run start
+check '운영 명령과 Compose가 다르게 읽는 표기의 token 폴더면 운영 명령이 검사한 폴더를 Compose에 넘긴다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_secrets_dir")" = "$LITERAL_DIR" ]'
+
+setup; prepared; rm "$TOKEN"; LITERAL_DIR="$T/a\${UNSET_FOR_TEST:-b}"
+mkdir -p "$T/ab"; printf 'compose-token-for-test\n' > "$T/ab/alertmanager_webhook_token"; chmod 0644 "$T/ab/alertmanager_webhook_token"
+with_settings "MONITORING_SECRETS_DIR=$LITERAL_DIR"
+for command in start render; do
+  rm -f "$FAKE/calls"
+  run "$command"
+  check "운영 명령과 Compose가 다르게 읽는 표기의 token 폴더에서 Compose가 읽는 위치에만 token이 있으면 $command가 멈춘다" \
+    '[ $RC -ne 0 ] && contains "token 파일이 없습니다" && ! called "^compose" && [ ! -e "$RENDERED" ]'
+done
+
+setup; prepared; os_ca; with_settings "MONITORING_CA_FILE=$OS/\${UNSET_FOR_TEST:-ca-bundle.crt}"
+run start
+check '운영 명령과 Compose가 다르게 읽는 표기의 CA 인증서 파일 경로면 형식 검사에서 멈추고 Compose를 부르지 않는다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE" && contains "절대 경로" && ! called "^compose" && [ ! -e "$RENDERED" ]'
 
 # --- 펼친 설정 폴더(요구사항 0015의 S16, S17) ---
 

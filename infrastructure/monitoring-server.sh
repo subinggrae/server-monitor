@@ -16,6 +16,8 @@
 # rendered/로 펼치고, compose 파일이 펼친 설정을 읽기 전용으로 붙인다. 정상 확인도 모니터링 서버에서 한다(요구사항 0015, ADR 0012).
 # Blackbox Exporter가 쓸 CA 인증서 파일은 운영자가 .env의 MONITORING_CA_FILE에 OS의 파일 경로를 적거나, 비워 두고 설치 폴더의
 # certs/에 복사해 둔다(요구사항 0027). 이 명령은 OS의 파일을 찾거나 옮기지 않고 확인만 한다.
+# 두 경로 값(token 폴더, CA 인증서 파일)은 검사한 값을 Compose에 넘기고, .env에 이 명령이 읽지 않는 형식으로 적은 줄이 있으면
+# Compose가 다른 파일을 붙일 수 있어 멈춘다(요구사항 0028).
 # 저장소의 infrastructure/에서도 render를 실행할 수 있다. 그때는 저장소의 템플릿, ./secrets, ./certs를 쓴다(monitoring-dev.bat start).
 # 모니터링 서버에는 Node와 bash가 없을 수 있어 POSIX sh로 쓰고, GNU coreutils와 BusyBox가 함께 지원하는 옵션만 쓴다.
 # 설치 방법은 docs/OPERATIONS.md에 있다.
@@ -96,6 +98,27 @@ env_value() {
     \'*) printf '%s' "$raw" | sed "s/^'\([^']*\)'.*\$/\1/" ;;
     *) printf '%s' "$raw" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//' ;;
   esac
+}
+
+# .env에서 변수(첫 번째 인자)를 env_value가 읽지 않는 형식으로 적은 첫 줄의 번호. 없으면 빈 값이다.
+# 줄 앞의 공백, export, 파일 첫머리의 BOM을 건너뛰면 변수 이름으로 시작하고 이름 뒤가 이름에 쓰는 글자가 아닌 줄 가운데,
+# env_value가 읽는 형식(이름 뒤에 공백과 =)이 아닌 줄이다. Compose는 이런 줄을 다른 값으로 읽을 수 있다(요구사항 0028).
+# .env를 셸로 실행하지 않고, 줄 내용은 내보내지 않는다.
+env_unread_line() {
+  if [ ! -f "$ENV_FILE" ]; then
+    return 0
+  fi
+  bom=$(printf '\357\273\277')
+  tr -d '\r' < "$ENV_FILE" \
+    | grep -n -E "^($bom)?[[:space:]]*(export[[:space:]]+)?$1([^A-Za-z0-9_]|\$)" \
+    | grep -v -E "^[0-9]+:[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=" \
+    | head -n 1 | cut -d: -f1
+}
+
+# env_unread_line이 찾은 줄의 안내. 변수 이름, 줄 번호, 고칠 형식에 넣을 값의 이름(폴더, 경로)을 받는다.
+env_unread_message() {
+  printf '설정 값을 읽지 못했습니다: %s의 %s번째 줄(%s)\n' "$ENV_FILE" "$2" "$1" >&2
+  printf '  고치는 방법: 그 줄을 %s=%s 형식으로 고친 뒤 다시 실행해 주세요.\n' "$1" "$3" >&2
 }
 
 # Compose와 같이 상대 경로는 이 묶음 폴더 기준으로 푼다.
@@ -253,15 +276,35 @@ check_settings() {
     fi
   done
   check_ca_setting
+  check_secrets_setting || settings_ok=no
   [ "$settings_ok" = yes ] || fail "설정 값이 틀려 아무것도 바꾸지 않았습니다. 떠 있던 모니터링 시스템은 그대로 돕니다."
+}
+
+# token 폴더(MONITORING_SECRETS_DIR)를 읽어 export해, Compose가 .env를 다시 읽지 않고 token_file이 검사한 폴더를 쓰게 한다.
+# 값이 없다고 본 경우에도 빈 값을 export한다. env_value가 읽지 않는 형식의 줄이 있으면 Compose가 다른 폴더를 쓸 수 있으므로
+# 안내를 보이고 1을 돌려준다. 띄우기 밖의 docker compose 명령도 그 줄을 읽으므로 셸 환경 변수가 있어도 멈춘다(요구사항 0028).
+check_secrets_setting() {
+  unread_line=$(env_unread_line MONITORING_SECRETS_DIR)
+  if [ -n "$unread_line" ]; then
+    env_unread_message MONITORING_SECRETS_DIR "$unread_line" 폴더
+    return 1
+  fi
+  secrets_value=$(env_value MONITORING_SECRETS_DIR)
+  export MONITORING_SECRETS_DIR="$secrets_value"
 }
 
 # CA 인증서 파일 경로(MONITORING_CA_FILE)를 검사한다. 값이 있으면 CA_FILE을 그 경로로 바꾸고, 비어 있으면 복사본 자리를 그대로 쓴다.
 # 검사한 값은 export해 Compose가 볼륨 원본으로 같은 값을 쓰게 한다. 값이 없다고 본 경우에도 빈 값을 export한다.
-# Compose는 이 명령이 읽지 않는 .env 형식(KEY: 값)도 읽으므로, 그대로 두면 검사하지 않은 경로를 붙일 수 있다.
+# env_value가 읽지 않는 형식의 줄이 있으면 운영자가 적은 파일 대신 복사본을 조용히 쓰게 되므로 멈춘다(요구사항 0028).
 # 틀리면 settings_ok를 no로 둔다.
 check_ca_setting() {
   CA_FROM_SETTING=no
+  unread_line=$(env_unread_line MONITORING_CA_FILE)
+  if [ -n "$unread_line" ]; then
+    env_unread_message MONITORING_CA_FILE "$unread_line" 경로
+    settings_ok=no
+    return 0
+  fi
   if printenv MONITORING_CA_FILE > /dev/null; then
     ca_fix="이 값은 셸 환경 변수 MONITORING_CA_FILE에서 왔고, 셸 환경 변수는 .env의 값보다 먼저 쓰입니다. 셸에서 unset MONITORING_CA_FILE 명령으로 지우거나 값을 고친 뒤 다시 실행해 주세요."
   else
@@ -874,6 +917,7 @@ cmd_install() {
   check_docker
   load_settings
   check_env_location
+  check_secrets_setting || fail "설정 값을 읽지 못해 아무것도 만들지 않았습니다."
   file=$(token_file)
 
   address=""
