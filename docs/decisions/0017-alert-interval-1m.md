@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-11-25
-- 관련: [요구사항 0026](../requirements/0026-alert-interval-1m.md), [ADR 0001](0001-alert-repeat-in-manager.md)(이 ADR이 그 결정의 5분·4분 값과 그에 따른 감수할 점만 대신함), [ADR 0010](0010-alert-labels-by-check-id.md)(이 ADR이 감수할 점의 복구 webhook 시간만 대신함)
+- 관련: [요구사항 0026](../requirements/0026-alert-interval-1m.md), 지운 계획은 [PR #71](https://github.com/subinggrae/server-monitor/pull/71)에서 볼 수 있다, [ADR 0001](0001-alert-repeat-in-manager.md)(이 ADR이 그 결정의 5분·4분 값과 그에 따른 감수할 점만 대신함), [ADR 0010](0010-alert-labels-by-check-id.md)(이 ADR이 감수할 점의 복구 webhook 시간만 대신함)
 
 ## 배경과 문제
 
@@ -37,3 +37,4 @@ ADR 0001의 결정에서 "`group_interval`(5분)보다 짧은 4분으로 고정�
 
 - 리뷰에서 확인: `alertmanager.yml`의 `repeat_interval`이 `group_interval`보다 짧고 `group_interval`의 절반보다 길며, `group_interval`이 관리자 서버의 재알림 하한(5분)보다 길지 않은지
 - `node scripts/build-monitoring-bundle.mjs --check`의 Alertmanager 설정 검사
+- 개발 환경 확인(2026-11-25, 바로 응답하는 가짜 관리자 서버): 첫 webhook은 장애 판정 30초 뒤에 왔고, 그 뒤 1분 간격으로 빠짐없이 왔다. 같은 감시 항목에 새로 생긴 장애와 복구는 판정 뒤 1분 안에 왔다. `repeat_interval` 50초로 확인했고, 40초로 바꾼 뒤에는 다시 확인하지 않았다. 가짜 서버가 바로 응답하면 간격이 같기 때문이다

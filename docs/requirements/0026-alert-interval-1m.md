@@ -1,6 +1,6 @@
 # 0026. 장애와 복구를 1분 안에 전하는 알림 전송 간격
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-25
 - 관련: [0003](0003-alert-repeat-interval.md), [0013](0013-core-env-settings.md), [0024](0024-consecutive-failure-down.md), [ADR 0001](../decisions/0001-alert-repeat-in-manager.md), [ADR 0010](../decisions/0010-alert-labels-by-check-id.md), [INTEGRATION.md](../INTEGRATION.md)
 
