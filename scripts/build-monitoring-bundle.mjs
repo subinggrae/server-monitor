@@ -353,14 +353,17 @@ const BLACKBOX_TIMEOUT_OFFSET_SECONDS = 0.5;
 const PORT_RANGE = { min: 1024, max: 65535 };
 // compose 파일이 붙이는 파일이다. CA 인증서 파일은 HTTPS 확인을 하는 Blackbox Exporter에만 붙인다(요구사항 0015).
 // CA 인증서 파일은 운영자가 복사해 두는 곳(caDir: 저장소는 certs, 묶음은 설치 폴더의 ../certs)에서 붙인다.
-function renderedMounts(caDir) {
+function renderedMounts(caSource) {
   return {
     prometheus: { 'rendered/prometheus.yml': '/etc/monitoring/prometheus.yml' },
     alertmanager: { 'rendered/alertmanager.yml': '/etc/monitoring/alertmanager.yml' },
     'blackbox-exporter': { 'rendered/blackbox.yml': '/etc/monitoring/blackbox.yml',
-      [`${caDir}/ca-certificates.crt`]: '/etc/ssl/certs/ca-certificates.crt' },
+      [caSource]: '/etc/ssl/certs/ca-certificates.crt' },
   };
 }
+
+// 운영자가 .env의 MONITORING_CA_FILE에 적는 OS의 CA 인증서 파일 경로의 예다(요구사항 0027).
+const CHECK_CA_FILE = '/etc/pki/tls/certs/ca-bundle.crt';
 
 function readSettingRanges(tools) {
   const out = run('docker', ['run', '--rm', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
@@ -551,23 +554,31 @@ function checkPortBindings(composeFile, ranges) {
 
 // 서비스마다 붙이는 파일이 운영 명령이 펼친 설정뿐이고 읽기 전용인지, 세 서비스가 펼친 monitoring.env를 읽는지 본다.
 // CA 인증서 파일은 Blackbox Exporter에만 붙어야 한다(요구사항 0015의 C5). monitoring.env가 없으면 Compose가 멈춰야 한다(S16).
+// CA 인증서 파일 경로(MONITORING_CA_FILE)를 비우면 caDir의 복사본을, 적으면 그 경로를 붙여야 한다(요구사항 0027).
+// 상대 경로는 project 기준으로 비교하고, 운영자가 적는 절대 경로는 Compose가 그대로 두므로 글자 그대로 비교한다.
 function checkRenderedMounts(composeFile, caDir) {
-  const { config, project } = composeConfig(composeFile, {});
-  for (const [name, expected] of Object.entries(renderedMounts(caDir))) {
-    const service = config.services[name];
-    const binds = (service.volumes ?? []).filter((volume) => volume.type === 'bind');
-    const found = Object.fromEntries(binds.map((volume) =>
-      [path.relative(project, volume.source).split(path.sep).join('/'), volume.target]));
-    if (JSON.stringify(found, Object.keys(found).sort()) !== JSON.stringify(expected, Object.keys(expected).sort())
-      || binds.some((volume) => volume.read_only !== true)) {
-      fail(`${composeFile}의 ${name}가 붙이는 파일이 기대와 다릅니다. 받은 값: ${JSON.stringify(binds)}, 기대(읽기 전용): ${JSON.stringify(expected)}`);
-    }
-    const [key, value] = COMPOSE_CHECK_MARK.split('=');
-    if ((service.environment ?? {})[key] !== value) {
-      fail(`${composeFile}의 ${name}가 펼친 rendered/monitoring.env를 env_file로 읽지 않습니다.`);
-    }
-    if (service.healthcheck && service.healthcheck.disable !== true) {
-      fail(`${composeFile}의 ${name}에 healthcheck가 있습니다. 모니터링 시스템 이미지에는 healthcheck를 실행할 명령이 없습니다.`);
+  for (const [label, env, caSource] of [
+    ['CA 인증서 파일 경로를 비움', { MONITORING_CA_FILE: '' }, `${caDir}/ca-certificates.crt`],
+    ['CA 인증서 파일 경로를 적음', { MONITORING_CA_FILE: CHECK_CA_FILE }, CHECK_CA_FILE],
+  ]) {
+    const { config, project } = composeConfig(composeFile, env);
+    const sameSource = (volume, source) => (source.startsWith('/') ? volume.source === source
+      : path.relative(project, volume.source).split(path.sep).join('/') === source);
+    for (const [name, expected] of Object.entries(renderedMounts(caSource))) {
+      const service = config.services[name];
+      const binds = (service.volumes ?? []).filter((volume) => volume.type === 'bind');
+      const matches = Object.entries(expected).every(([source, target]) =>
+        binds.some((volume) => sameSource(volume, source) && volume.target === target));
+      if (binds.length !== Object.keys(expected).length || !matches || binds.some((volume) => volume.read_only !== true)) {
+        fail(`${label}: ${composeFile}의 ${name}가 붙이는 파일이 기대와 다릅니다. 받은 값: ${JSON.stringify(binds)}, 기대(읽기 전용): ${JSON.stringify(expected)}`);
+      }
+      const [key, value] = COMPOSE_CHECK_MARK.split('=');
+      if ((service.environment ?? {})[key] !== value) {
+        fail(`${composeFile}의 ${name}가 펼친 rendered/monitoring.env를 env_file로 읽지 않습니다.`);
+      }
+      if (service.healthcheck && service.healthcheck.disable !== true) {
+        fail(`${composeFile}의 ${name}에 healthcheck가 있습니다. 모니터링 시스템 이미지에는 healthcheck를 실행할 명령이 없습니다.`);
+      }
     }
   }
   const { result } = composeConfig(composeFile, {}, { withEnvFile: false });
@@ -717,8 +728,9 @@ function runtimeCompose(release) {
   if (!text.includes(BUNDLE_SECRETS_DEFAULT)) {
     fail(`실행용 compose 파일에 token 폴더 기본값 ${SECRETS_DEFAULT}가 없습니다. infrastructure/compose.yml의 secrets 항목을 확인해 주세요.`);
   }
-  if (!text.includes(`${BUNDLE_CERTS_DIR}/ca-certificates.crt`)) {
-    fail(`실행용 compose 파일에 CA 인증서 파일 위치 ${BUNDLE_CERTS_DIR}/ca-certificates.crt가 없습니다. infrastructure/compose.yml의 blackbox-exporter 항목을 확인해 주세요.`);
+  const caDefault = `\${MONITORING_CA_FILE:-${BUNDLE_CERTS_DIR}/ca-certificates.crt}`;
+  if (!text.includes(caDefault)) {
+    fail(`실행용 compose 파일에 CA 인증서 파일 위치 ${caDefault}가 없습니다. infrastructure/compose.yml의 blackbox-exporter 항목을 확인해 주세요.`);
   }
   return text;
 }

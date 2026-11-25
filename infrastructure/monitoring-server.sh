@@ -14,7 +14,8 @@
 # .env에서 바꾸는 설정 값(보관 기간·용량, 확인 제한 시간, 호스트 포트)의 규칙은 같은 폴더의 monitoring-settings.sh에 있다(요구사항 0013).
 # 모니터링 시스템 이미지에는 셸이 없어 컨테이너 안에서 설정을 펼칠 수 없다. 그래서 이 명령이 값을 검사해 묶음의 templates/에서
 # rendered/로 펼치고, compose 파일이 펼친 설정을 읽기 전용으로 붙인다. 정상 확인도 모니터링 서버에서 한다(요구사항 0015, ADR 0012).
-# Blackbox Exporter가 쓸 CA 인증서 파일은 운영자가 운영 가이드대로 설치 폴더의 certs/에 복사하고, 이 명령은 확인만 한다.
+# Blackbox Exporter가 쓸 CA 인증서 파일은 운영자가 .env의 MONITORING_CA_FILE에 OS의 파일 경로를 적거나, 비워 두고 설치 폴더의
+# certs/에 복사해 둔다(요구사항 0027). 이 명령은 OS의 파일을 찾거나 옮기지 않고 확인만 한다.
 # 저장소의 infrastructure/에서도 render를 실행할 수 있다. 그때는 저장소의 템플릿, ./secrets, ./certs를 쓴다(monitoring-dev.bat start).
 # 모니터링 서버에는 Node와 bash가 없을 수 있어 POSIX sh로 쓰고, GNU coreutils와 BusyBox가 함께 지원하는 옵션만 쓴다.
 # 설치 방법은 docs/OPERATIONS.md에 있다.
@@ -251,7 +252,33 @@ check_settings() {
       settings_ok=no
     fi
   done
+  check_ca_setting
   [ "$settings_ok" = yes ] || fail "설정 값이 틀려 아무것도 바꾸지 않았습니다. 떠 있던 모니터링 시스템은 그대로 돕니다."
+}
+
+# CA 인증서 파일 경로(MONITORING_CA_FILE)를 검사한다. 값이 있으면 CA_FILE을 그 경로로 바꾸고, 비어 있으면 복사본 자리를 그대로 쓴다.
+# 검사한 값은 export해 Compose가 볼륨 원본으로 같은 값을 쓰게 한다. 틀리면 settings_ok를 no로 둔다.
+check_ca_setting() {
+  CA_FROM_SETTING=no
+  if printenv MONITORING_CA_FILE > /dev/null; then
+    ca_fix="이 값은 셸 환경 변수 MONITORING_CA_FILE에서 왔고, 셸 환경 변수는 .env의 값보다 먼저 쓰입니다. 셸에서 unset MONITORING_CA_FILE 명령으로 지우거나 값을 고친 뒤 다시 실행해 주세요."
+  else
+    ca_fix=".env의 MONITORING_CA_FILE 값을 고친 뒤 다시 실행해 주세요."
+  fi
+  ca_value=$(env_value MONITORING_CA_FILE)
+  if [ -z "$ca_value" ]; then
+    return 0
+  fi
+  if ! monitoring_valid_ca_file "$ca_value"; then
+    printf "설정 값이 올바르지 않습니다: MONITORING_CA_FILE='%s' (CA 인증서 파일 경로)\n" "$ca_value" >&2
+    printf '  문제: /로 시작하는 절대 경로에 영문자, 숫자, ., _, /, -만 쓸 수 있습니다(예: /etc/ssl/certs/ca-certificates.crt).\n' >&2
+    printf '  고치는 방법: %s 값을 지우거나 비워 두면 설치 폴더의 certs/ca-certificates.crt를 씁니다.\n' "$ca_fix" >&2
+    settings_ok=no
+    return 0
+  fi
+  export MONITORING_CA_FILE="$ca_value"
+  CA_FILE=$ca_value
+  CA_FROM_SETTING=yes
 }
 
 # 컨테이너(첫 번째 인자)가 받은 환경 변수(두 번째 인자)의 값. 없으면 빈 값이다.
@@ -407,11 +434,30 @@ check_templates() {
   fi
 }
 
-# Blackbox Exporter의 HTTPS 확인이 쓸 CA 인증서 파일을 확인한다. 운영자가 운영 가이드대로 모니터링 서버 OS의 파일을 복사해 둔다.
-# 이 명령은 OS의 파일을 읽거나 옮기지 않는다. 내용은 OS와 운영자가 관리하므로 검사하지 않는다.
+# Blackbox Exporter의 HTTPS 확인이 쓸 CA 인증서 파일을 확인한다. check_ca_setting 다음에 부른다.
+# 이 명령은 OS의 파일을 옮기거나 고치지 않는다. 내용은 OS와 운영자가 관리하므로 검사하지 않는다.
+# 아래 검사와 others_can_read는 링크를 따라가므로, OS의 파일이 링크여도 Docker가 붙일 실제 파일을 본다.
 # 파일이 없는데 Compose로 띄우면 Docker가 그 자리에 빈 폴더를 만들고, HTTPS 주소 확인이 모두 실패해 장애 알림이 한꺼번에 갈 수 있다.
 check_ca() {
-  ca_hint="모니터링 서버 OS의 CA 인증서 파일을 복사해 주세요(Ubuntu, Debian, Amazon Linux 예: sudo mkdir -p $(dirname "$CA_FILE") && sudo cp -L /etc/ssl/certs/ca-certificates.crt $CA_FILE && sudo chmod 0644 $CA_FILE). RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt를 복사합니다. 자세한 방법은 docs/OPERATIONS.md에 있습니다."
+  os_paths="Ubuntu, Debian, Amazon Linux는 /etc/ssl/certs/ca-certificates.crt, RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt"
+  # 운영자가 적은 경로는 OS의 파일이므로, 그 파일이나 폴더를 지우거나 권한을 바꾸라고 하지 않고 .env의 값을 고치게 한다.
+  if [ "$CA_FROM_SETTING" = yes ]; then
+    ca_problem=""
+    if [ -d "$CA_FILE" ]; then
+      ca_problem="파일이 아니라 폴더입니다"
+    elif [ ! -e "$CA_FILE" ]; then
+      ca_problem="파일이 없습니다"
+    elif [ ! -s "$CA_FILE" ]; then
+      ca_problem="파일이 비어 있습니다"
+    elif ! others_can_read "$CA_FILE"; then
+      ca_problem="컨테이너가 읽을 수 없습니다(다른 사용자의 읽기 권한이 없음)"
+    fi
+    if [ -n "$ca_problem" ]; then
+      fail "MONITORING_CA_FILE의 CA 인증서 파일을 쓸 수 없습니다: $CA_FILE ($ca_problem). 아무것도 바꾸지 않았습니다. 모니터링 서버 OS의 CA 인증서 파일 경로를 적어 주세요($os_paths). $ca_fix"
+    fi
+    return 0
+  fi
+  ca_hint=".env의 MONITORING_CA_FILE에 모니터링 서버 OS의 CA 인증서 파일 경로를 적어 주세요($os_paths). 자세한 방법은 docs/OPERATIONS.md에 있습니다."
   if [ -d "$CA_FILE" ]; then
     fail "CA 인증서 파일 자리에 폴더가 있습니다: $CA_FILE. 그 폴더를 지운 뒤 $ca_hint"
   fi

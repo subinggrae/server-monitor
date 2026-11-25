@@ -3,8 +3,7 @@
 #   cp infrastructure/.env.example infrastructure/.env
 #   monitoring-dev.bat start      (Windows. 설정을 펼친 뒤 다시 빌드해 띄웁니다)
 #
-# Windows가 아니면 OS의 CA 인증서 파일을 certs/에 복사하고 설정을 펼친 뒤 띄웁니다.
-#   mkdir -p infrastructure/certs && cp -L /etc/ssl/certs/ca-certificates.crt infrastructure/certs/
+# Windows가 아니면 .env의 MONITORING_CA_FILE에 OS의 CA 인증서 파일 경로를 적고(예: /etc/ssl/certs/ca-certificates.crt) 설정을 펼친 뒤 띄웁니다.
 #   docker network create monitoring      (처음 한 번)
 #   sh infrastructure/monitoring-server.sh render && docker compose -f infrastructure/compose.yml up -d --build
 #
@@ -47,11 +46,12 @@ services:
     ports:
       - "127.0.0.1:${MONITORING_BLACKBOX_PORT:-9115}:9115"
 
-    # CA 인증서 파일은 HTTPS 확인을 하는 이 컨테이너에만 붙입니다. 운영자가 모니터링 서버 OS의 파일을 복사해 둔 것입니다.
-    # 내부망 서버용 묶음은 설치 폴더의 certs/(../certs)를 씁니다.
+    # CA 인증서 파일은 HTTPS 확인을 하는 이 컨테이너에만 붙입니다. .env의 MONITORING_CA_FILE에 적은 모니터링 서버 OS의 파일이고,
+    # 비워 두면 운영자가 복사해 둔 certs/ca-certificates.crt입니다. 내부망 서버용 묶음은 설치 폴더의 certs/(../certs)를 씁니다.
+    # 운영 명령이 값의 형식(절대 경로, 영문자, 숫자, . _ / -)과 파일을 검사한 뒤 띄웁니다(요구사항 0027).
     volumes:
       - ./rendered/blackbox.yml:/etc/monitoring/blackbox.yml:ro
-      - ./certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
+      - ${MONITORING_CA_FILE:-./certs/ca-certificates.crt}:/etc/ssl/certs/ca-certificates.crt:ro
 
     networks:
       - monitoring
