@@ -82,6 +82,8 @@ case "$1" in
           exit 1
         fi
         touch "$FAKE/running"; printf '%s\n' "$PWD" > "$FAKE/running_workdir"
+        # Compose가 볼륨 원본으로 쓸 CA 인증서 파일 경로 값. 없으면 unset이다.
+        printf '%s\n' "${MONITORING_CA_FILE-unset}" > "$FAKE/compose_ca_file"
         sed -n 's/^ *image: monitoring-system-prometheus://p' "$PWD/compose.yml" > "$FAKE/running_version"
         # 다른 프로그램이 쓰는 포트: Docker처럼 그 컨테이너만 만들어 두고 띄우지 못한다.
         if [ -f "$FAKE/port_taken" ]; then
@@ -915,6 +917,103 @@ check '컨테이너가 CA 인증서 파일을 읽을 수 없으면 권한을 바
 setup; prepared; no_find
 run render
 check 'find가 없는 서버에서도 CA 인증서 파일의 읽기 권한을 확인한다' '[ $RC -eq 0 ]'
+
+# --- CA 인증서 파일 경로(요구사항 0027) ---
+# 운영자가 .env의 MONITORING_CA_FILE에 OS의 CA 인증서 파일 경로를 적으면 복사본 대신 그 파일을 쓴다. 링크는 따라간다.
+
+ca_hash() { sed -n 's/^MONITORING_CA_SHA256=//p' "$RENDERED/monitoring.env"; }
+file_hash() { sha256sum < "$1" | cut -d ' ' -f 1; }
+# OS의 CA 인증서 파일을 흉내 낸다. ca-bundle.crt는 실제 파일(real/bundle.crt)을 가리키는 링크다.
+os_ca() {
+  OS="$T/os"
+  mkdir -p "$OS/real"
+  printf 'OS CA 1\n' > "$OS/real/bundle.crt"
+  chmod 0644 "$OS/real/bundle.crt"
+  ln -s "$OS/real/bundle.crt" "$OS/ca-bundle.crt"
+}
+# 경로를 적은 경우의 안내는 OS의 파일을 지우거나 권한을 바꾸라고 하지 않는다.
+NO_OS_CHANGE='! contains "rmdir" && ! contains "rm " && ! contains "chmod" && ! contains "지운 뒤"'
+
+setup; prepared; rm "$CA"; os_ca; with_settings "MONITORING_CA_FILE=$OS/real/bundle.crt"
+run render
+check 'CA 인증서 파일 경로를 적으면 설치 폴더의 복사본 없이 그 파일로 펼치고 CA 해시를 그 파일로 계산한다' \
+  '[ $RC -eq 0 ] && [ "$(ca_hash)" = "$(file_hash "$OS/real/bundle.crt")" ]'
+
+setup; prepared; os_ca
+run_with_env "MONITORING_CA_FILE=$OS/real/bundle.crt" render
+check '셸 환경 변수로 CA 인증서 파일 경로를 줘도 그 파일로 펼친다' \
+  '[ $RC -eq 0 ] && [ "$(ca_hash)" = "$(file_hash "$OS/real/bundle.crt")" ]'
+
+setup; prepared; os_ca; with_settings "MONITORING_CA_FILE=$OS/ca-bundle.crt"
+run start
+check '띄우면 검사한 CA 인증서 파일 경로를 Compose에 넘긴다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_ca_file")" = "$OS/ca-bundle.crt" ]'
+
+setup; prepared; os_ca; with_settings "MONITORING_CA_FILE=$OS/ca-bundle.crt"
+run render
+check 'CA 인증서 파일 경로가 링크면 링크가 가리키는 파일로 펼친다' \
+  '[ $RC -eq 0 ] && [ "$(ca_hash)" = "$(file_hash "$OS/real/bundle.crt")" ]'
+
+for broken in directory missing empty unreadable; do
+  setup; prepared; os_ca
+  case "$broken" in
+    directory) rm "$OS/real/bundle.crt"; mkdir "$OS/real/bundle.crt" ;;
+    missing) rm "$OS/real/bundle.crt" ;;
+    empty) : > "$OS/real/bundle.crt" ;;
+    unreadable) chmod 0600 "$OS/real/bundle.crt" ;;
+  esac
+  with_settings "MONITORING_CA_FILE=$OS/ca-bundle.crt"
+  run render
+  # 없는 파일을 가리키는 링크는 실제 경로를 풀 수 없는 셸도 있어, 실제 경로는 파일이 있는 경우만 본다.
+  real_shown='contains "$OS/real/bundle.crt"'
+  [ "$broken" != missing ] || real_shown=true
+  check "CA 인증서 파일 경로의 링크가 쓸 수 없는 파일($broken)을 가리키면 .env의 값을 고치라고 알리고 펼치지 않는다" \
+    '[ $RC -ne 0 ] && contains "쓸 수 없습니다: $OS/ca-bundle.crt" && contains ".env의 MONITORING_CA_FILE 값을 고친 뒤" && '"$real_shown"' && '"$NO_OS_CHANGE"' && [ ! -e "$RENDERED" ]'
+done
+
+setup; prepared; os_ca; rm "$OS/real/bundle.crt"
+run_with_env "MONITORING_CA_FILE=$OS/ca-bundle.crt" render
+check '셸 환경 변수의 CA 인증서 파일 경로를 쓸 수 없으면 셸의 값을 지우거나 고치라고 알리고 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "쓸 수 없습니다" && contains "unset MONITORING_CA_FILE" && '"$NO_OS_CHANGE"' && [ ! -e "$RENDERED" ]'
+
+# Compose의 .env 읽기는 운영 명령이 읽지 않는 형식(KEY: 값)도 받는다. 운영 명령이 값이 없다고 본 경우에도
+# 빈 값을 넘겨, Compose가 검사하지 않은 경로 대신 검사한 복사본(기본값)을 붙이게 한다.
+setup; prepared; os_ca; printf 'MONITORING_CA_FILE: %s\n' "$OS/ca-bundle.crt" >> "$ENV"
+run start
+check 'CA 인증서 파일 경로가 없다고 본 경우에도 Compose에 빈 값을 넘겨 검사한 복사본을 붙이게 한다' \
+  '[ $RC -eq 0 ] && [ -z "$(cat "$FAKE/compose_ca_file")" ] && [ "$(ca_hash)" = "$(file_hash "$CA")" ]'
+
+setup; prepared; with_settings 'MONITORING_CA_FILE='
+run render
+check 'CA 인증서 파일 경로를 비우면 설치 폴더의 복사본으로 펼친다' \
+  '[ $RC -eq 0 ] && [ "$(ca_hash)" = "$(file_hash "$CA")" ]'
+
+setup; prepared; rm "$CA"
+run render
+check 'CA 인증서 파일 경로를 적지 않았고 복사본도 없으면 .env에 적을 OS의 파일 경로를 안내한다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE" && '"$COPY_HINT"' && [ ! -e "$RENDERED" ]'
+
+setup; prepared; os_ca; with_settings "MONITORING_CA_FILE=$OS/ca-bundle.crt"; started
+run start
+check 'CA 인증서 파일 경로의 내용이 그대로면 띄울 때 컨테이너를 다시 만들지 않는다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && ! called "force-recreate"'
+rm -f "$FAKE/calls"; printf 'OS CA 2\n' > "$OS/real/bundle.crt"
+run start
+check 'OS의 CA 인증서 파일이 바뀐 뒤 띄우면 컨테이너를 다시 만든다' \
+  '[ $RC -eq 0 ] && called "^compose.* up -d --force-recreate"'
+
+for value in 'certs/ca-certificates.crt' '/tmp/a b.crt' '/a:/b' '/tmp/인증서.crt' '/tmp/$HOME.crt' '/etc/ssl/certs/ca.crt:rw'; do
+  setup; prepared; with_settings "MONITORING_CA_FILE=$value"
+  run render
+  check "CA 인증서 파일 경로가 허용 형식이 아니면($value) 값 이름과 형식을 알리고 펼치지 않는다" \
+    '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE" && contains "절대 경로" && [ ! -e "$RENDERED" ]'
+done
+
+setup; prepared; os_ca
+run_with_env "MONITORING_CA_FILE=$OS/real/bundle.crt
+/etc/passwd" render
+check 'CA 인증서 파일 경로가 여러 줄이면 거부하고 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE" && [ ! -e "$RENDERED" ]'
 
 setup; prepared
 run render

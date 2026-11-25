@@ -109,6 +109,19 @@ monitoring_setting_check() {
   return 1
 }
 
+# CA 인증서 파일 경로(MONITORING_CA_FILE)의 형식이 맞으면 0을 돌려준다(요구사항 0027).
+# compose 파일의 볼륨 표기(원본:대상:ro)가 깨지지 않게 /로 시작하고 영문자, 숫자, ., _, /, -만 쓴 값만 받는다.
+# locale에 따라 범위가 달라지지 않게 글자를 나열하고, 줄바꿈도 허용 글자가 아니라 거부된다.
+monitoring_valid_ca_file() {
+  case "$1" in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) return 1 ;;
+  esac
+}
+
 # 관리자 서버 주소(컨테이너 이름:포트)의 형식이 맞으면 0을 돌려준다. 운영 명령이 펼치기 전에 쓴다(요구사항 0013의 S16).
 # 이름은 영문자나 숫자로 시작하고 영문자, 숫자, _, ., -만 쓰며, 포트는 1~65535다.
 # 줄마다 맞춰 보는 grep 대신 case로 값 전체를 보고, locale에 따라 범위가 달라지지 않게 글자를 나열한다.
