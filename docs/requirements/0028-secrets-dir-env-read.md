@@ -1,6 +1,6 @@
 # 0028. 경로 설정 값을 운영 명령과 Compose가 같게 읽기
 
-- 상태: 초안
+- 상태: 승인
 - 작성일: 2026-11-25
 - 관련: [0011](0011-core-ops-script.md), [0013](0013-core-env-settings.md), [0017](0017-core-shared-env.md), [0027](0027-ca-file-path.md), [ADR 0018](../decisions/0018-ca-file-path.md), [OPERATIONS.md](../OPERATIONS.md)
 
