@@ -1,7 +1,7 @@
 # 0028. 경로 설정 값을 운영 명령과 Compose가 같게 읽기 구현 계획
 
 - 요구사항: [0028. 경로 설정 값을 운영 명령과 Compose가 같게 읽기](0028-secrets-dir-env-read.md)
-- 상태: 진행 중(사람 승인: 2026-11-25)
+- 상태: 진행 중(사람 승인: 2026-11-25, 넓힌 범위의 재승인: 2026-11-26)
 
 <!-- 상태 값: 검토 중 → 승인 → 진행 중. 작업 순서를 모두 끝내고 검증과 리뷰를 마치면, 남길 결정은 ADR로, 바뀐 동작은 요구사항이나 ARCHITECTURE.md로, 진행 중 발견 가운데 다음 작업에도 맞는 사실은 그 사실을 맡는 문서로 옮긴 뒤 이 파일을 지운다. 끝난 계획을 남기면 지금 동작으로 잘못 읽힌다. 지운 계획은 PR에서 다시 볼 수 있으므로 ADR의 관련 줄에 그 링크를 쓴다. 리뷰어가 이 계획을 기준으로 diff를 보므로 리뷰가 끝나기 전에는 지우지 않는다. 토픽 브랜치에만 두고 병합 전 마지막 커밋에서 지운다. -->
 
@@ -60,10 +60,11 @@
 
 그래서 다음과 같이 한다.
 
-1. 저장소 배치(`LAYOUT=repository`)에서 `write_rendered`가 `rendered/compose.env`를 함께 쓴다. 다른 펼친 파일처럼 임시 폴더(stage)에 쓴 뒤 이름을 바꿔 옮기고 권한은 0644다. 검사를 통과해 export한 값을 Compose의 `.env` 형식으로 적는다. 두 경로 값(`MONITORING_SECRETS_DIR`, `MONITORING_CA_FILE`)과, 요구사항의 확인 필요에서 넣기로 하면 호스트 포트 세 개를 적는다. 값은 작은따옴표로 감싼다. Compose는 작은따옴표 값을 다시 풀지 않는다(`${…}`, `$$`, `#`, 공백, 큰따옴표를 글자 그대로 읽음, 2026-11-26 확인). 값이 비었으면 `''`로 적고, Compose는 compose 파일의 `:-` 기본값을 쓴다.
+1. 저장소 배치(`LAYOUT=repository`)에서 `write_rendered`가 `rendered/compose.env`를 함께 쓴다. 다른 펼친 파일처럼 임시 폴더(stage)에 쓴 뒤 이름을 바꿔 옮기고 권한은 0644다. 검사를 통과해 export한 값을 Compose의 `.env` 형식으로 적는다. 두 경로 값(`MONITORING_SECRETS_DIR`, `MONITORING_CA_FILE`)과 호스트 포트 세 개를 적는다(사람 확인: 2026-11-26). 값은 작은따옴표로 감싼다. Compose는 작은따옴표 값을 다시 풀지 않는다(`${…}`, `$$`, `#`, 공백, 큰따옴표를 글자 그대로 읽음, 2026-11-26 확인). 값이 비었으면 `''`로 적고, Compose는 compose 파일의 `:-` 기본값을 쓴다.
 2. 작은따옴표 안에서도 Compose는 `\\`와 `\'`를 푼다(2026-11-26 확인). 그래서 export한 token 폴더 값에 작은따옴표, 백슬래시, 줄바꿈이 있으면 저장소 배치의 `check_settings`가 멈추게 한다(S14). 안내에는 변수 이름과 `infrastructure/` 기준 상대 경로로 적으라는 방법만 쓰고 값은 쓰지 않는다. CA 경로 값은 형식 검사가 이 글자를 이미 막고, 포트는 정수만 통과한다. 묶음 배치에서는 이 파일을 쓰지 않고 이 검사도 하지 않는다.
-3. `monitoring-dev.bat start`는 Compose를 `docker compose --env-file infrastructure\rendered\compose.env -f infrastructure\compose.yml up -d --build`로 부른다. `--env-file`을 주면 Compose는 `infrastructure/.env`를 읽지 않는다. 셸 환경 변수는 지금처럼 `--env-file`보다 먼저 쓰이고, 같은 셸 환경 변수를 render 컨테이너에도 넘기므로 두 쪽이 같다. 포트를 넣지 않기로 하면 `--env-file infrastructure\.env`를 앞에 함께 주어 포트만 `.env`에서 읽게 한다(뒤에 준 파일이 이긴다).
+3. `monitoring-dev.bat start`는 Compose를 `docker compose --env-file infrastructure\rendered\compose.env -f infrastructure\compose.yml up -d --build`로 부른다. `--env-file`을 주면 Compose는 `infrastructure/.env`를 읽지 않는다. 셸 환경 변수는 지금처럼 `--env-file`보다 먼저 쓰이고, 같은 셸 환경 변수를 render 컨테이너에도 넘기므로 두 쪽이 같다.
 4. `monitoring-dev.bat stop`은 바꾸지 않는다. `down`은 붙일 파일을 고르지 않는다.
+5. 다른 OS에서 저장소로 띄우는 명령도 같은 값 파일을 쓴다(요구사항 S15, 사람 확인: 2026-11-26). 운영 가이드의 저장소에서 실행, DEVELOPMENT.md의 명령 표, `infrastructure/compose.yml`의 머리 주석에 있는 `docker compose -f infrastructure/compose.yml up -d --build`에 `--env-file infrastructure/rendered/compose.env`를 더한다. 저장소 배치의 `render`가 끝날 때 보이는 안내도 이 명령을 보인다. `ps`, `down`은 붙일 파일과 포트를 고르지 않으므로 그대로 둔다.
 
 `render`는 묶음 검사(`build-monitoring-bundle.mjs`의 `renderConfigs`)에서도 저장소 배치로 돈다. 그 검사가 만든 `compose.env`로 실제 Compose(`docker compose --env-file … config`)가 운영 명령이 검사한 token 파일 경로와 CA 원본을 푸는지 보는 검사를 더한다(C13). Compose가 작은따옴표 값을 읽는 방식이 바뀌면 이 검사가 알린다.
 
@@ -108,11 +109,13 @@
   - `write_rendered`: token 파일의 실제 경로 해시를 `config_hash`와 `previous_hash`의 입력에 더하고 `monitoring.env`에 `MONITORING_TOKEN_PATH_SHA256`으로 남긴다. 저장소 배치에서는 `rendered/compose.env`를 함께 쓴다. 머리 주석의 `MONITORING_CONFIG_SHA256` 설명과 함수 주석을 고친다.
   - `check_settings`(또는 `check_secrets_setting`): 저장소 배치에서 export할 token 폴더 값에 작은따옴표, 백슬래시, 줄바꿈이 있으면 안내를 보이고 `settings_ok=no`로 둔다.
   - `env_unread_message`: 다른 값이나 줄 끝 주석에 이름이 든 줄일 때 이름을 빼라는 안내 줄을 더한다.
-  - `cmd_render`: 저장소 배치의 안내에 Compose를 직접 부를 때 쓸 값 파일을 밝힐지는 요구사항의 확인 필요(다른 OS의 저장소 실행) 답에 따른다.
+  - `cmd_render`: 저장소 배치의 안내에 `--env-file rendered/compose.env`를 준 `docker compose` 명령을 보인다(S15).
 - **`infrastructure/tests/monitoring-server.test.sh`**: 테스트 계획의 C1~C3 보강 시험, C10, C12, C13, C15 시험을 더한다. 떠 있는 상태는 지금처럼 가짜 `docker`의 `running` 파일로 만든다.
 - **`monitoring-dev.bat`**: `start`의 Compose 호출에 `--env-file infrastructure\rendered\compose.env`를 더하고, 이 파일을 쓰는 이유를 주석으로 적는다.
 - **`scripts/build-monitoring-bundle.mjs`**: `renderConfigs`가 만든 `compose.env`를 실제 Compose(`composeConfig`와 같은 방식)로 읽어 token 파일 경로와 CA 원본이 운영 명령이 검사한 값인지 보는 검사를 더한다. 시험 값에는 Compose가 따옴표 없이 읽으면 다른 값이 되는 글자를 넣는다.
-- **`docs/OPERATIONS.md`**: token 폴더 값을 설명하는 곳에, 떠 있는 채로 바꾸고 `start`하면 세 컨테이너를 다시 만들어 잠깐 감시가 멈춘다는 것을 더한다. 저장소에서 실행 절에 `monitoring-dev.bat`가 `.env` 대신 검사한 값으로 Compose를 부른다는 것과 S14의 제한을 더한다.
+- **`docs/OPERATIONS.md`**: token 폴더 값을 설명하는 곳에, 떠 있는 채로 바꾸고 `start`하면 세 컨테이너를 다시 만들어 잠깐 감시가 멈춘다는 것을 더한다. 저장소에서 실행 절에 `monitoring-dev.bat`가 `.env` 대신 검사한 값으로 Compose를 부른다는 것과 S14의 제한을 더하고, 다른 OS의 `docker compose ... up` 명령에 `--env-file infrastructure/rendered/compose.env`를 더한다.
+- **`docs/DEVELOPMENT.md`**: 명령 표의 모니터링 시스템 실행 행에 있는 다른 OS 명령에 같은 `--env-file`을 더한다.
+- **`infrastructure/compose.yml`**: 머리 주석의 다른 OS 명령에 같은 `--env-file`을 더한다. 주석만 바꾸고 서비스 정의는 바꾸지 않는다.
 - **`docs/ARCHITECTURE.md`**: 설정 값 항목의 0028 문장 뒤에 받아들인 한계를 일반적으로 적는다(아래 "ARCHITECTURE.md에 적을 한계"). 개발용 띄우기도 검사한 값을 Compose에 넘긴다는 것을 같은 문장에 더한다.
 
 ### ARCHITECTURE.md에 적을 한계
@@ -199,10 +202,11 @@ docker run --rm --user 0 -v "$PWD/infrastructure:/src:ro" --entrypoint /bin/sh "
 - **C11**: C6과 같은 방법(`docker:dind`, `--privileged --memory 1536m --cpus 2`)으로 묶음을 설치해 수동으로 확인한다. 고치기 전 묶음(`ef5b185`)으로 띄운 뒤 token 폴더 값만 바꾸고 `start`해, Alertmanager `Mounts`의 token 원본이 예전 파일로 남는 것을 먼저 본다. 고친 묶음에서는 같은 순서로 원본이 새 폴더의 파일로 바뀌어야 하고, 이어서 `start`하면 컨테이너 ID가 그대로여야 한다. token 파일 내용은 열지 않고, 확인 뒤 dind 컨테이너와 볼륨, 받은 이미지, 만든 묶음을 지운다.
 - **C12**: 운영 명령 시험이다. `start`로 펼친 뒤 `monitoring.env`에서 `MONITORING_TOKEN_PATH_SHA256` 줄을 지워 이 변경 전 운영 명령이 펼친 상태를 만든다. 이 변경 전 운영 명령의 펼친 결과와 다른 점은 이 줄과 `MONITORING_CONFIG_SHA256` 값뿐이다. 다음 `start`에는 `force-recreate`가 있고, 그다음 `start`에는 없어야 한다.
 - **C13**: 운영 명령 시험과 빌드 검사다.
-  - 운영 명령 시험: 저장소 배치(시험의 `REPO`)에서 `render`한 뒤 `rendered/compose.env`를 본다. 운영 명령과 Compose가 다르게 읽는 표기, 다른 변수의 여러 줄 따옴표 값 안의 줄, 셸 환경 변수, 적지 않은 경우마다 `MONITORING_SECRETS_DIR`와 `MONITORING_CA_FILE` 줄이 운영 명령이 검사한 값을 작은따옴표로 감싼 것이어야 한다(적지 않으면 `''`). 포트를 넣기로 하면 포트 세 줄도 본다. 파일의 줄 수는 넣기로 한 값의 수와 같아야 한다. 묶음 배치의 `render` 뒤에는 이 파일이 없어야 한다. `.env`의 줄을 그대로 옮기는 사본에서 실패해야 한다.
+  - 운영 명령 시험: 저장소 배치(시험의 `REPO`)에서 `render`한 뒤 `rendered/compose.env`를 본다. 운영 명령과 Compose가 다르게 읽는 표기, 다른 변수의 여러 줄 따옴표 값 안의 줄, 셸 환경 변수, 적지 않은 경우마다 `MONITORING_SECRETS_DIR`와 `MONITORING_CA_FILE` 줄이 운영 명령이 검사한 값을 작은따옴표로 감싼 것이어야 한다(적지 않으면 `''`). 포트 세 줄도 검사한 값(적지 않으면 기본값)이어야 하고, 파일의 줄 수는 다섯이어야 한다. 묶음 배치의 `render` 뒤에는 이 파일이 없어야 한다. `.env`의 줄을 그대로 옮기는 사본에서 실패해야 한다.
   - 빌드 검사: `renderConfigs`의 `.env`에 Compose가 따옴표 없이 읽으면 다른 값이 되는 글자(변수 치환과 주석에 쓰는 글자, 큰따옴표)가 든 token 폴더를 적고 그 폴더에 검사용 token을 둔다. 만든 `compose.env`를 `docker compose --env-file … config --format json`으로 읽어 `secrets.alertmanager_webhook_token.file`이 그 폴더의 token 파일이고, Blackbox Exporter의 CA 원본이 `certs/ca-certificates.crt`인지 본다. 값을 작은따옴표 없이 쓰는 사본에서 실패해야 한다.
 - **C14**: Windows에서 수동으로 확인한다. 저장소의 `infrastructure/` 아래에 시험용 폴더 두 개를 만든다. 하나는 운영 명령이 글자 그대로 읽는 이름이고, 다른 하나는 같은 값을 Compose가 풀어 읽는 이름이다. `.env`의 token 폴더를 그 표기로 적는다. Windows 폴더 이름에 쓸 수 없는 글자(`:` 등)가 들지 않는 표기를 고른다. 고치기 전 `monitoring-dev.bat`(`ef5b185`)로 Compose가 붙이는 폴더가 운영 명령이 검사한 폴더와 다른 것을 먼저 본다. 고친 뒤에는 Alertmanager `Mounts`의 원본이 운영 명령이 읽은 폴더의 파일이고, 그 폴더에서 token을 치우면 `render`가 멈추고 Compose를 부르지 않아야 한다. CA 경로 값을 비우면 Blackbox Exporter의 원본이 `infrastructure/certs/ca-certificates.crt`여야 한다. 확인 뒤 `monitoring-dev.bat stop`을 실행하고 시험용 폴더와 `.env`의 시험 줄을 지운다.
 - **C15**: 운영 명령 시험이다. 저장소 배치에서 token 폴더 값에 작은따옴표, 백슬래시가 든 `.env`와, 줄바꿈이 든 셸 환경 변수로 각각 `render`한다. 종료 코드가 0이 아니고, 펼친 설정과 `compose.env`가 그대로이며, 출력에 변수 이름과 고칠 방법이 있고 값은 없어야 한다. 같은 이름의 폴더에 token을 둔 묶음 배치에서는 멈추지 않아야 한다. 이 멈춤을 지운 사본에서 실패해야 한다.
+- **C16**: 문서 리뷰로 운영 가이드, DEVELOPMENT.md, compose 파일 머리 주석, `render`의 저장소 안내가 같은 명령인지 본다. 수동 확인은 C11과 같은 `docker:dind`에 저장소의 `infrastructure/`를 복사해 운영 가이드의 다른 OS 명령을 그대로 실행한다(이미지는 `--build` 대신 같은 커밋으로 만든 묶음의 이미지를 불러와 쓴다). `.env`의 token 폴더를 운영 명령과 Compose가 다르게 읽는 표기로 적고 호스트 포트 하나를 바꾼다. 고치기 전 명령(`--env-file` 없음)으로는 Compose가 다른 폴더를 붙이는 것을 먼저 본다. 고친 명령으로는 Alertmanager `Mounts`의 원본이 `render`가 검사한 폴더의 파일이고 `PortBindings`가 바꾼 포트여야 한다.
 
 ## 작업 순서
 
@@ -226,7 +230,7 @@ docker run --rm --user 0 -v "$PWD/infrastructure:/src:ro" --entrypoint /bin/sh "
     2. 두 번째 리뷰의 고치면 좋음을 반영한다: 다른 값이나 줄 끝 주석에 변수 이름이 있어 멈출 때의 안내 문구(꼭 고침), 여러 줄 따옴표 값 안의 `이름=값` 줄, `grep -a`를 지키는 시험(GNU에서 돌리지 않으면 이유를 적음), NUL이 든 줄의 BusyBox 줄 번호, 시험의 줄 번호 확인과 정상 형식(따옴표 값, 줄 끝 주석, 빈 값) 시험.
     3. 구현 뒤 전체 검증, 새 독립 리뷰, PR 생성 여부를 사람에게 묻는다.
   - 진행(2026-11-26): 1번의 문서 작업을 했다. 두 문제의 원인을 코드와 `docker compose config`로 확인해 진행 중 발견에 적었다. 요구사항에 배경(범위를 넓힌 날짜와 이유), 목표 두 개, 하지 않는 것(받아들인 한계 등), S10~S14, C10~C15를 더하고 S8, S9, C1~C3, C8을 고쳤다. 정하지 못한 두 가지(개발용 값 파일에 포트를 넣을지, 다른 OS의 저장소 실행 안내를 고칠지)는 요구사항의 확인 필요에 적었다. 이 계획에는 두 문제의 접근 방법과 고르지 않은 방법, 바뀌는 부분, ARCHITECTURE.md에 적을 한계, 위험, 보안 위협, 테스트 계획, 아래 작업을 더했다. 2번은 테스트 계획(C1~C3)과 아래 작업에 넣었다. 남은 일은 사람의 재승인이다.
-- [ ] 사람에게 고친 요구사항(확인 필요 두 가지의 답 포함)과 이 계획을 다시 승인받는다. 답은 요구사항 본문에 반영하고 확인 필요에서 지운다. 포트를 넣지 않기로 하면 접근 방법 3번의 두 `--env-file` 방식을 쓴다.
+- [x] 사람에게 고친 요구사항(확인 필요 두 가지의 답 포함)과 이 계획을 다시 승인받는다. 2026-11-26에 승인받았다. 포트는 값 파일에 넣고, 다른 OS의 저장소 실행 안내도 이번에 고친다(요구사항 S13, S15, C16). 답은 요구사항 본문에 반영하고 확인 필요에서 지웠다.
 - [ ] 시험 먼저(C10, C12): 떠 있는 채로 token 폴더를 바꾼 `start`와 `render`, 같은 폴더의 다른 형태, 링크, `monitoring.env` 내용, 이 변경 전 펼친 설정 시험을 쓴다. 지금 코드에서 해당 시험이 실패하는 것을 본다.
 - [ ] `write_rendered`에 token 파일 실제 경로의 해시를 더한다. C10, C12와 기존 시험이 통과하는지 본다(커밋: `fix:`).
 - [ ] 시험 먼저(C13, C15): 저장소 배치의 `compose.env` 내용과 묶음 배치에서 없음, 넘길 수 없는 글자의 멈춤 시험을 쓰고 실패를 본다.
@@ -234,8 +238,8 @@ docker run --rm --user 0 -v "$PWD/infrastructure:/src:ro" --entrypoint /bin/sh "
 - [ ] 빌드 검사에 `compose.env`를 실제 Compose로 읽는 검사를 더하고(C13), `node scripts/build-monitoring-bundle.mjs --check`로 통과와, 작은따옴표 없이 쓰는 사본에서의 실패를 본다.
 - [ ] 두 번째 리뷰의 고치면 좋음: `env_unread_message`에 이름을 빼라는 안내를 더하고, C1~C3의 보강 시험(정확한 줄 번호, NUL 뒤 줄 번호, 안내 문구, 여러 줄 따옴표 값 안의 줄, 정상 형식)을 쓴다. 시험이 먼저 실패하는 것(안내 문구)을 본다.
 - [ ] 고친 사본으로 결함을 잡는지 본다: 경로 해시를 뺀 사본, `.env` 값 글자로 해시하는 사본, `compose.env`에 `.env` 줄을 옮기는 사본, S14 멈춤을 지운 사본, 안내 줄을 지운 사본, `grep -a`를 지운 사본(실패하지 않을 것으로 봄, 이유 기록). GNU `grep`에서 `-a`의 차이를 수동으로 확인해 적는다.
-- [ ] 코드 주석, OPERATIONS.md(token 폴더를 바꾼 `start`, 저장소에서 실행의 값 파일과 S14), ARCHITECTURE.md(받아들인 한계, 개발용 띄우기의 값 넘기기)를 고치고 `node scripts/check-docs.mjs`를 돌린다.
-- [ ] C11(dind)과 C14(Windows) 수동 확인을 하고 결과를 진행 중 발견에 적는다. 띄운 컨테이너, 받은 이미지, 시험용 폴더는 확인 뒤 지운다.
+- [ ] 코드 주석, OPERATIONS.md(token 폴더를 바꾼 `start`, 저장소에서 실행의 값 파일과 S14, 다른 OS 명령), DEVELOPMENT.md와 compose 파일 머리 주석의 다른 OS 명령, ARCHITECTURE.md(받아들인 한계, 개발용 띄우기의 값 넘기기)를 고치고 `node scripts/check-docs.mjs`를 돌린다.
+- [ ] C11, C16(dind)과 C14(Windows) 수동 확인을 하고 결과를 진행 중 발견에 적는다. 띄운 컨테이너, 받은 이미지, 시험용 폴더는 확인 뒤 지운다.
 - [ ] 전체 검증(C9)을 돌리고 커밋 SHA와 결과를 적는다.
 - [ ] 구현하지 않은 세션이나 하위 에이전트에 리뷰를 맡긴다. 요구사항의 완료 기준, 이 계획, diff, 검증한 커밋 SHA와 명령·결과, 위 보안 위협의 CWE를 준다.
 - [ ] 리뷰를 반영한 뒤 계획 템플릿의 상태 값 설명대로 남길 것을 옮기고, 요구사항을 구현됨으로 바꾸고, 이 계획을 지운다(병합 전 마지막 커밋).

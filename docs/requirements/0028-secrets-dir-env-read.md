@@ -39,7 +39,8 @@ Windows 개발 환경의 `monitoring-dev.bat start`에도 같은 종류의 어�
 - 운영 명령과 Compose가 다른 값으로 읽는 표기로 두 값을 적었으면, `start`로 띄운 컨테이너에 운영 명령이 검사한 값의 파일이 붙거나 운영 명령이 검사에서 멈춘다.
 - `monitoring-dev.bat start`에서 셸 환경 변수로 token 폴더를 주면 `render`가 그 폴더를 검사하고 Compose도 그 폴더의 token 파일을 붙인다.
 - 모니터링 시스템이 떠 있는 채로 token 폴더 값을 다른 폴더로 바꾸고 `start`하면, 뜬 Alertmanager가 새로 검사한 token 파일을 붙인다. token 폴더가 그대로면 지금처럼 컨테이너를 다시 만들지 않는다.
-- `monitoring-dev.bat start`로 띄운 Alertmanager와 Blackbox Exporter가 `render`가 검사한 token 파일과 CA 인증서 파일을 붙인다. `.env`에 두 값을 어떤 표기로 적었든 같다.
+- `monitoring-dev.bat start`로 띄운 Alertmanager와 Blackbox Exporter가 `render`가 검사한 token 파일과 CA 인증서 파일을 붙이고, 호스트 포트도 `render`가 검사한 값으로 연다. `.env`에 이 값들을 어떤 표기로 적었든 같다(사람 확인: 2026-11-26).
+- 다른 OS에서 저장소로 띄우는 운영 가이드의 명령(저장소에서 실행)도 `render`가 검사한 값으로 Compose를 부른다(사람 확인: 2026-11-26).
 
 ## 하지 않는 것
 
@@ -53,7 +54,6 @@ Windows 개발 환경의 `monitoring-dev.bat start`에도 같은 종류의 어�
 - 상태 명령(`status`)에 token 폴더나 CA 인증서 파일 경로를 보이는 것
 - token 값을 새로 만들거나 옮기는 것
 - `monitoring-dev.bat start`에서 Windows 경로나 절대 경로를 두 경로 값으로 쓰게 하는 것. `render`는 Linux 컨테이너 안에서 돌아 Windows 경로를 볼 수 없고, 절대 경로는 컨테이너 안과 Windows에서 서로 다른 곳을 가리킨다. 그래서 개발용 띄우기에서는 지금처럼 token 폴더에 `infrastructure/` 기준 상대 경로를 쓰고 CA 경로 값은 비워 둔다(운영 가이드의 저장소에서 실행).
-- 다른 OS에서 저장소로 띄우는 명령(운영 가이드의 저장소에서 실행)이 Compose에 검사한 값을 넘기게 하는 것. 이 명령은 운영 명령 없이 Compose를 직접 실행하는 경우로 본다. [확인 필요]
 
 ## 사용자 경험
 
@@ -69,7 +69,7 @@ Windows 개발 환경의 `monitoring-dev.bat start`에도 같은 종류의 어�
 2. 운영 명령이 새 폴더의 token을 검사하고, 세 컨테이너를 다시 만들어 띄운다. 다시 만드는 동안 잠깐 감시가 멈춘다. OS의 CA 인증서를 갱신했을 때와 같다.
 3. Alertmanager가 새 폴더의 token으로 관리자 서버를 부른다.
 
-개발자는 Windows에서 `monitoring-dev.bat start`를 쓴다. 셸 환경 변수로 token 폴더를 주면 `render`와 Compose가 모두 그 폴더를 쓴다. `.env`의 표기는 운영자와 같은 규칙을 따르고, Compose는 두 경로 값을 `.env`에서 스스로 읽지 않고 `render`가 검사한 값을 쓴다. token 폴더 값에 Compose에 그대로 넘길 수 없는 글자가 있으면 `render`가 멈추고 고칠 방법을 보인다.
+개발자는 Windows에서 `monitoring-dev.bat start`를 쓴다. 셸 환경 변수로 token 폴더를 주면 `render`와 Compose가 모두 그 폴더를 쓴다. `.env`의 표기는 운영자와 같은 규칙을 따르고, Compose는 두 경로 값과 호스트 포트를 `.env`에서 스스로 읽지 않고 `render`가 검사한 값을 쓴다. token 폴더 값에 Compose에 그대로 넘길 수 없는 글자가 있으면 `render`가 멈추고 고칠 방법을 보인다. 다른 OS에서 저장소로 띄우는 개발자도 운영 가이드의 명령을 따르면 같다.
 
 ## 동작
 
@@ -116,7 +116,11 @@ Windows 개발 환경의 `monitoring-dev.bat start`에도 같은 종류의 어�
 - **S13. 개발용 띄우기에서 운영 명령과 Compose가 다르게 읽는 표기**
   - 상황: Windows의 저장소 폴더에 있는 `.env`에, 운영 명령은 읽지만 Compose가 다른 값으로 읽는 표기로 token 폴더 값이나 CA 경로 값을 적었다.
   - 행동: 개발자가 `monitoring-dev.bat start`를 실행한다.
-  - 결과: `render`가 운영 명령이 읽은 값을 검사하고, Compose가 띄운 컨테이너에 그 값의 파일이 붙는다. Compose가 `.env`에서 스스로 읽은 두 경로 값은 쓰지 않는다. 호스트 포트 세 개도 `render`가 검사한 값으로 연다. [확인 필요] 검사한 파일을 쓸 수 없으면 `render`가 멈추고 Compose를 부르지 않는다.
+  - 결과: `render`가 운영 명령이 읽은 값을 검사하고, Compose가 띄운 컨테이너에 그 값의 파일이 붙는다. Compose가 `.env`에서 스스로 읽은 두 경로 값은 쓰지 않는다. 호스트 포트 세 개도 `render`가 검사한 값으로 연다(사람 확인: 2026-11-26). 검사한 파일을 쓸 수 없으면 `render`가 멈추고 Compose를 부르지 않는다.
+- **S15. 다른 OS에서 저장소로 띄움**
+  - 상황: Linux 같은 다른 OS의 저장소 폴더에서 `infrastructure/.env`에 두 경로 값과 호스트 포트를 적었다. 운영 명령과 Compose가 다르게 읽는 표기로 적은 경우도 포함한다.
+  - 행동: 개발자가 운영 가이드의 저장소에서 실행대로 `render`를 실행한 뒤 안내된 `docker compose` 명령으로 띄운다.
+  - 결과: S13과 같이 `render`가 검사한 값의 파일이 붙고, 검사한 호스트 포트로 연다. `render`의 안내에도 그 명령이 있다.
 
 ### 예외 동작
 
@@ -171,11 +175,12 @@ Windows 개발 환경의 `monitoring-dev.bat start`에도 같은 종류의 어�
 - [ ] C10. 모니터링 시스템이 떠 있는 채로 token 폴더 값만 다른 폴더로 바꾸고 `start`하면 Compose에 컨테이너를 강제로 다시 만들라고 부르고, `render`만 실행해도 Compose가 다시 만들기를 판단하는 펼친 설정 값이 바뀐다. 셸 환경 변수로 바꾼 경우도 같다. token 폴더가 그대로이거나 같은 폴더를 다른 형태로만 적으면 강제로 다시 만들지 않는다. 컨테이너에 환경 변수로 넘기는 펼친 설정 값에는 token 값과 token 폴더의 경로 글자가 들어가지 않는다. (S10, S11) — 확인: 운영 명령 시험. 고치기 전 코드에서 첫 시험이 실패하는 것을 먼저 보고, 구현 뒤에는 token 경로를 다시 만들기 판단에서 뺀 사본에서 실패하는지 본다.
 - [ ] C11. Linux Docker 호스트에서 실제 Compose로 띄운 뒤 token 폴더 값만 바꾸고 `start`하면, Alertmanager의 `Mounts`에서 token 파일의 원본이 새 폴더의 파일로 바뀐다. 다시 `start`하면 컨테이너를 다시 만들지 않는다(컨테이너 ID가 그대로다). (S10, S11) — 확인: 수동 확인. 고치기 전 묶음에서는 원본이 예전 파일로 남는 것을 먼저 본다.
 - [ ] C12. 이 변경 전 운영 명령이 펼친 설정(새로 남기는 정보가 없는 펼친 설정)이 있는 폴더에서 `start`하면 한 번 강제로 다시 만들고, 이어서 다시 `start`하면 강제로 다시 만들지 않는다. (S12) — 확인: 운영 명령 시험. 이 변경 전 운영 명령이 펼친 것과 같은 펼친 설정(이 변경이 더하는 정보가 없는 것)을 시험의 출발점으로 쓴다.
-- [ ] C13. 저장소에서 `render`하면 개발용 띄우기가 Compose에 넘길 값으로 운영 명령이 검사한 token 폴더 값과 CA 경로 값(과 호스트 포트 [확인 필요])을 남긴다. 운영 명령과 Compose가 다르게 읽는 표기로 적은 경우, 다른 변수의 여러 줄 따옴표 값 안에 그 변수의 줄이 있는 경우, 셸 환경 변수로 준 경우, 적지 않은 경우를 확인한다. 실제 Compose가 그 값을 읽으면 운영 명령이 검사한 값과 같은 token 파일 경로와 CA 원본이 나온다. 묶음에서 `render`하면 이 값을 남기지 않는다. (S13) — 확인: 운영 명령 시험과 빌드 검사(`node scripts/build-monitoring-bundle.mjs --check`). `.env`의 줄을 그대로 옮기는 사본에서 운영 명령 시험이 실패하는지 본다.
+- [ ] C13. 저장소에서 `render`하면 개발용 띄우기가 Compose에 넘길 값으로 운영 명령이 검사한 token 폴더 값, CA 경로 값, 호스트 포트 세 개를 남긴다. 운영 명령과 Compose가 다르게 읽는 표기로 적은 경우, 다른 변수의 여러 줄 따옴표 값 안에 그 변수의 줄이 있는 경우, 셸 환경 변수로 준 경우, 적지 않은 경우를 확인한다. 실제 Compose가 그 값을 읽으면 운영 명령이 검사한 값과 같은 token 파일 경로와 CA 원본이 나온다. 묶음에서 `render`하면 이 값을 남기지 않는다. (S13) — 확인: 운영 명령 시험과 빌드 검사(`node scripts/build-monitoring-bundle.mjs --check`). `.env`의 줄을 그대로 옮기는 사본에서 운영 명령 시험이 실패하는지 본다.
 - [ ] C14. Windows에서 `.env`에 운영 명령과 Compose가 다르게 읽는 표기로 token 폴더를 적고 `monitoring-dev.bat start`를 실행하면, Alertmanager의 `Mounts`에서 token 원본이 `render`가 검사한 폴더의 파일이다. Compose가 `.env`에서 읽는 폴더에만 token이 있으면 `render`가 멈추고 Compose를 부르지 않는다. CA 경로 값을 비우고 같은 확인을 하면 Blackbox Exporter의 CA 원본이 `infrastructure/certs/`의 파일이다. (S13) — 확인: 수동 확인. 고치기 전 `monitoring-dev.bat`에서는 첫 경우에 Compose가 다른 폴더를 붙이는 것을 먼저 본다.
 - [ ] C15. 저장소에서 token 폴더 값에 작은따옴표, 백슬래시, 줄바꿈 가운데 하나가 있으면 `render`가 실패 종료 코드로 끝나고, 펼친 설정과 Compose에 넘길 값을 바꾸지 않으며 안내에 변수 이름과 고칠 방법이 있다. 셸 환경 변수로 준 경우도 같다. 묶음에서는 같은 값으로 멈추지 않는다. (S14) — 확인: 운영 명령 시험. 이 멈춤을 지운 사본에서 시험이 실패하는지 본다.
 
+- [ ] C16. 운영 가이드의 저장소에서 실행, [DEVELOPMENT.md](../DEVELOPMENT.md)의 명령 표, compose 파일 머리 주석, `render`의 저장소 안내가 다른 OS에서 띄우는 `docker compose` 명령에 `render`가 남긴 값을 주게 고쳐졌다. Linux Docker 호스트에서 그 명령을 그대로 실행하면, 운영 명령과 Compose가 다르게 읽는 표기로 token 폴더를 적은 `.env`에서도 Alertmanager의 token 원본이 `render`가 검사한 폴더의 파일이고, `.env`에 적은 호스트 포트로 열린다. (S15) — 확인: 문서 리뷰와 수동 확인. 고치기 전 명령으로는 Compose가 다른 폴더를 붙이는 것을 먼저 본다.
+
 ## 확인 필요
 
-- 개발용 띄우기가 Compose에 넘기는 검사한 값에 호스트 포트 세 개(`MONITORING_PROMETHEUS_PORT`, `MONITORING_ALERTMANAGER_PORT`, `MONITORING_BLACKBOX_PORT`)도 넣는가. 넣으면 개발용 Compose가 `.env`를 읽지 않고, 운영 서버의 `start`처럼 검사한 값만 쓴다. 넣지 않으면 Compose가 포트는 `.env`에서 스스로 읽는다. (가정: 넣는다. S13, C13)
-- 다른 OS에서 저장소로 띄우는 명령(운영 가이드의 저장소에서 실행)도 개발용 띄우기와 같이 검사한 값을 Compose에 넘기도록 안내를 고치는가. (가정: 고치지 않고 하지 않는 것에 둔다)
+없음. 개발용 띄우기의 호스트 포트(S13)와 다른 OS의 저장소 실행(S15)은 사람이 2026-11-26에 정했다.
