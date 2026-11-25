@@ -143,6 +143,9 @@ function scratchDir(name) {
   return dir;
 }
 
+// 검사가 띄우거나 만드는 컨테이너에 붙이는 label이다. 검사를 도중에 멈춰 컨테이너가 남으면 이 label로 찾아 지운다.
+const CHECK_LABEL = 'monitoring-build-check';
+
 // 컨테이너가 붙인 폴더에 쓴 파일을 빌드 PC의 사용자가 지울 수 있게, Linux와 macOS에서는 같은 사용자로 실행한다.
 function hostUser() {
   return process.getuid ? `${process.getuid()}:${process.getgid()}` : '0:0';
@@ -220,7 +223,7 @@ function tarEntries(buffer) {
 
 // 이미지로 컨테이너를 만들어(실행하지 않음) 파일 시스템을 압축 없는 tar로 내보낸다.
 function exportImage(image) {
-  const container = run('docker', ['create', image], { capture: true });
+  const container = run('docker', ['create', '--label', CHECK_LABEL, image], { capture: true });
   const exported = path.join(DIST, `.export-${process.pid}.tar`);
   fs.mkdirSync(DIST, { recursive: true });
   // fail()은 프로세스를 바로 끝내므로, 결과만 받아 두고 컨테이너와 임시 파일을 지운 뒤에 멈춘다.
@@ -363,7 +366,7 @@ function renderedMounts(caDir) {
 }
 
 function readSettingRanges(tools) {
-  const out = run('docker', ['run', '--rm', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
+  const out = run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
     '. /src/monitoring-settings.sh && monitoring_settings_ranges'], { capture: true });
   const ranges = out.split(/\r?\n/).map((line) => {
     const [name, defaultValue, min, max] = line.split('|');
@@ -421,7 +424,7 @@ function renderConfigs(tools, values) {
   fs.chmodSync(path.join(work, 'secrets', 'alertmanager_webhook_token'), 0o644);
   writeText(path.join(work, 'certs', 'ca-certificates.crt'), 'build-check-ca\n');
   fs.chmodSync(path.join(work, 'certs', 'ca-certificates.crt'), 0o644);
-  run('docker', ['run', '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work',
+  run('docker', ['run', '--label', CHECK_LABEL, '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work',
     '--entrypoint', '/bin/sh', tools.prometheus, 'monitoring-server.sh', 'render'], { capture: true });
   const rendered = path.join(work, 'rendered');
   return { dir: rendered, work, read: (name) => fs.readFileSync(path.join(rendered, name), 'utf8') };
@@ -438,17 +441,161 @@ function checkPrometheusRetention(rendered, ranges, set) {
   }
 }
 
-// 펼친 Blackbox 설정의 module마다 timeout이 확인 제한 시간인지 본다. 인증서 확인을 끄는 항목도 없어야 한다.
-function checkBlackboxConfig(rendered, ranges, set) {
-  const text = rendered.read('blackbox.yml');
-  const modules = (text.match(/^\s+prober:/gm) ?? []).length;
-  const timeouts = [...text.matchAll(/^\s+timeout:\s*(\S+)\s*$/gm)].map((match) => match[1]);
-  const expected = `${effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS')}s`;
-  if (modules === 0 || timeouts.length !== modules || timeouts.some((timeout) => timeout !== expected)) {
-    fail(`${set.label}: 펼친 Blackbox 설정의 timeout이 module마다 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ')}`);
+// 인증서 검증을 끄는 설정을 둘 수 있는 유일한 module이다. 다른 module은 서버 인증서를 검증해야 한다(ADR 0016).
+const INSECURE_MODULE = 'http_2xx_insecure';
+
+// Blackbox Exporter가 /config를 돌려줄 때까지 1초 간격으로 다시 묻는 횟수다.
+const BLACKBOX_CONFIG_ATTEMPTS = 20;
+
+// 펼친 설정을 붙여 운영 이미지를 띄우고, Blackbox Exporter가 실제로 읽어 들인 설정(/config)을 받는다.
+// 운영 이미지에는 셸과 wget이 없으므로 도구 이미지의 BusyBox wget을 그 컨테이너의 네트워크에 붙여 묻는다. 호스트 포트는 열지 않는다.
+// 응답을 다 받은 뒤에만 내보내, 중간에 끊긴 응답이 섞이지 않게 한다.
+function loadedBlackboxConfig(image, tools, dir) {
+  const container = run('docker', ['run', '--label', CHECK_LABEL, '-d', '--rm', '-v', `${dir}:/etc/monitoring:ro`, image], { capture: true });
+  const fetched = runResult('docker', ['run', '--label', CHECK_LABEL, '--rm', '--network', `container:${container}`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
+    `attempt=0; while [ "$attempt" -lt ${BLACKBOX_CONFIG_ATTEMPTS} ]; do
+       if config=$(wget -q -T 5 -O - http://127.0.0.1:9115/config 2>/dev/null); then printf '%s\\n' "$config"; exit 0; fi
+       attempt=$((attempt + 1)); sleep 1
+     done; exit 1`]);
+  spawnSync('docker', ['rm', '-f', container], { stdio: 'ignore' });
+  if (fetched.status !== 0) {
+    fail(`Blackbox Exporter가 읽어 들인 설정(/config)을 받지 못했습니다(종료 코드 ${fetched.status}). ${fetched.stderr.trim()}`);
   }
-  if (/insecure_skip_verify/.test(text)) {
-    fail(`${set.label}: 펼친 Blackbox 설정에 인증서 확인을 끄는 insecure_skip_verify가 있습니다.`);
+  return fetched.stdout;
+}
+
+// Blackbox Exporter가 읽어 들인 설정을 module마다 나눠, timeout이 확인 제한 시간인지와 인증서 검증을 끄는 설정이 INSECURE_MODULE에만 있는지 본다.
+// 펼친 파일의 글자를 읽지 않고 Blackbox Exporter가 YAML을 읽은 결과를 보므로, 템플릿에 어떤 YAML 표기를 써도 결과가 같다.
+// /config는 Go YAML이 다시 쓴 블록 형식이다(v0.28.0에서 확인). 들여쓰기는 4칸이고, false와 빈 값은 빠지며, 여러 줄 문자열은 키보다 깊게 들여 쓴다.
+// 그래서 들여쓰기 4칸인 줄은 module 이름 줄뿐이고, 8칸의 timeout·http, 12칸의 tls_config, 16칸의 insecure_skip_verify는 문자열 안에서 생기지 않는다.
+// 이 모양과 다른 줄(단순하지 않은 module 이름 등)이 있으면 module을 나눌 수 없으므로 받지 않는다.
+// 문제가 있으면 그 설명을, 없으면 null을 돌려준다. expected는 확인 제한 시간(예: 5s)이다.
+function checkBlackboxConfig(loaded, expected) {
+  const lines = loaded.split('\n').filter((line) => line !== '');
+  if (lines[0] !== 'modules:') {
+    return `Blackbox Exporter가 읽은 설정이 modules:로 시작하지 않습니다.`;
+  }
+  const indentOf = (line) => /^ */.exec(line)[0].length;
+  const modules = new Map();
+  let current = null;
+  for (const line of lines.slice(1)) {
+    const indent = indentOf(line);
+    if (indent === 4) {
+      const name = line.slice(4, -1);
+      if (!line.endsWith(':') || name === '' || /^[?:]/.test(name)) {
+        return `Blackbox Exporter가 읽은 설정에서 module 이름을 읽지 못했습니다: ${JSON.stringify(line)}. module 이름은 영문자, 숫자, _로 적어 주세요.`;
+      }
+      if (modules.has(name)) {
+        return `Blackbox Exporter가 읽은 설정에 ${JSON.stringify(name)} module이 두 번 있습니다.`;
+      }
+      current = [];
+      modules.set(name, current);
+    } else if (indent > 4 && current) {
+      current.push(line);
+    } else {
+      return `Blackbox Exporter가 읽은 설정에 module에 속하지 않는 줄이 있습니다: ${JSON.stringify(line)}`;
+    }
+  }
+  if (!modules.has(INSECURE_MODULE)) {
+    return `Blackbox Exporter가 읽은 설정에 ${INSECURE_MODULE} module이 없습니다.`;
+  }
+  for (const [name, body] of modules) {
+    // 보이지 않는 글자가 든 이름도 알아볼 수 있게 escape해 보인다.
+    const shown = JSON.stringify(name).replace(/[^\x20-\x7e]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`);
+    const timeouts = body.map((line) => /^ {8}timeout: (.*)$/.exec(line)?.[1]).filter((value) => value !== undefined);
+    if (timeouts.length !== 1 || timeouts[0] !== expected) {
+      return `Blackbox Exporter가 읽은 설정의 ${shown} module의 timeout이 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ') || '없음'}`;
+    }
+    if (name === INSECURE_MODULE) {
+      // http 아래 tls_config 아래의 insecure_skip_verify: true만 인정한다. 들여쓰기가 같거나 얕은 줄을 만나면 그 블록이 끝난다.
+      let inHttp = false;
+      let inTls = false;
+      const skipsVerify = body.some((line) => {
+        const indent = indentOf(line);
+        if (indent <= 8) {
+          inHttp = line === '        http:';
+        }
+        if (indent <= 12) {
+          inTls = inHttp && line === '            tls_config:';
+        }
+        return inTls && line === '                insecure_skip_verify: true';
+      });
+      if (!skipsVerify) {
+        return `Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다.`;
+      }
+    } else if (body.some((line) => line.includes('insecure_skip_verify'))) {
+      return `Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다. 이 설정은 ${INSECURE_MODULE}에만 둡니다.`;
+    }
+  }
+  return null;
+}
+
+// 펼친 blackbox.yml에서 module 하나의 본문(이름 줄 다음부터 다음 module이나 주석 앞까지)만 고친다. 고칠 곳이 없으면 null을 돌려준다.
+function editBlackboxModule(text, name, edit) {
+  const header = `\n  ${name}:\n`;
+  const start = text.indexOf(header);
+  if (start < 0) {
+    return null;
+  }
+  const bodyStart = start + header.length;
+  const rest = text.slice(bodyStart);
+  const end = rest.search(/^ {0,2}\S/m);
+  const body = end < 0 ? rest : rest.slice(0, end);
+  const edited = edit(body);
+  return edited === body ? null : text.slice(0, bodyStart) + edited + rest.slice(body.length);
+}
+
+// Blackbox 설정 검사가 거부해야 하는 경우다. 펼친 설정의 module 하나를 고친 사본이 기대한 설명으로 거부돼야 한다.
+function blackboxRejectCases(seconds) {
+  const otherTimeout = `${seconds === 1 ? 2 : seconds - 1}s`;
+  return [
+    {
+      name: 'http_2xx에 인증서 검증을 끄는 설정을 넣으면 거부한다',
+      module: 'http_2xx',
+      edit: (body) => body.replace(/^( +)follow_redirects: true$/m, '$&\n$1tls_config:\n$1  insecure_skip_verify: true'),
+      expect: '"http_2xx" module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다',
+    },
+    {
+      name: `${INSECURE_MODULE}에서 인증서 검증을 끄는 설정을 빼면 거부한다`,
+      module: INSECURE_MODULE,
+      edit: (body) => body.replace(/^ +tls_config:\n +insecure_skip_verify: true\n?/m, ''),
+      expect: `"${INSECURE_MODULE}" module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다`,
+    },
+    {
+      name: `${INSECURE_MODULE}의 인증서 검증을 끄는 설정을 false로 바꾸면 거부한다`,
+      module: INSECURE_MODULE,
+      edit: (body) => body.replace('insecure_skip_verify: true', 'insecure_skip_verify: false'),
+      expect: `"${INSECURE_MODULE}" module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다`,
+    },
+    {
+      name: `${INSECURE_MODULE}의 timeout이 확인 제한 시간과 다르면 거부한다`,
+      module: INSECURE_MODULE,
+      edit: (body) => body.replace(/^( +)timeout: .*$/m, `$1timeout: ${otherTimeout}`),
+      expect: `"${INSECURE_MODULE}" module의 timeout이 ${seconds}s가 아닙니다`,
+    },
+  ];
+}
+
+// 통과하는 원본만 검사하면 거부 조건이 망가져도 알 수 없으므로, 거부해야 하는 사본으로 검사를 시험한다.
+// 사본마다 Blackbox Exporter를 띄워야 해서 값 한 벌에서만 돌린다. 실패한 경우를 모두 모아 알린다.
+function checkBlackboxRejects(image, tools, rendered, seconds) {
+  const original = rendered.read('blackbox.yml').replace(/\r\n/g, '\n');
+  const dir = scratchDir('blackbox-reject');
+  const failures = [];
+  for (const testCase of blackboxRejectCases(seconds)) {
+    const copy = editBlackboxModule(original, testCase.module, testCase.edit);
+    if (copy === null) {
+      failures.push(`${testCase.name}: 펼친 설정에서 고칠 곳을 찾지 못했습니다.`);
+      continue;
+    }
+    fs.writeFileSync(path.join(dir, 'blackbox.yml'), copy);
+    const problem = checkBlackboxConfig(loadedBlackboxConfig(image, tools, dir), `${seconds}s`);
+    if (!problem?.includes(testCase.expect)) {
+      failures.push(`${testCase.name}: 받은 결과: ${problem ?? '통과'}`);
+    }
+  }
+  if (failures.length > 0) {
+    fail(`Blackbox 설정 검사가 거부해야 하는 사본을 거부하지 않았습니다.\n  ${failures.join('\n  ')}`);
   }
 }
 
@@ -579,7 +726,7 @@ function checkRenderedMounts(composeFile, caDir) {
 // 운영 이미지에 든 규칙을 꺼낸다. 셸 없이 컨테이너를 만들고(실행하지 않음) docker cp로 꺼내, 이미지에 든 규칙을 그대로 검사한다.
 function extractRules(prometheus) {
   const dir = scratchDir('rules-check');
-  const container = run('docker', ['create', prometheus], { capture: true });
+  const container = run('docker', ['create', '--label', CHECK_LABEL, prometheus], { capture: true });
   const result = spawnSync('docker', ['cp', `${container}:/etc/prometheus/rules`, dir], { stdio: 'inherit' });
   spawnSync('docker', ['rm', container], { stdio: 'ignore' });
   if (result.status !== 0) {
@@ -599,16 +746,24 @@ function checkSystemImages(release, tools) {
       console.log('설정 값의 허용 범위가 모니터링 시스템의 약속(주소 확인 제한 시간, 규칙의 범위, 포트)을 지키는지 확인합니다.');
       checkSettingContracts(rendered, extracted.rules, ranges);
     }
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
       '--entrypoint', 'promtool', tools.prometheus, 'check', 'config', '/etc/monitoring/prometheus.yml']);
     checkPrometheusRetention(rendered, ranges, set);
     checkOsExporterJob(rendered, set);
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '--entrypoint', 'amtool', tools.alertmanager,
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '--entrypoint', 'amtool', tools.alertmanager,
       'check-config', '/etc/monitoring/alertmanager.yml']);
     // Blackbox Exporter는 셸 없이 실행 파일만 부르므로 운영 이미지로 검사한다.
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, images['blackbox-exporter'],
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, images['blackbox-exporter'],
       '--config.file=/etc/monitoring/blackbox.yml', '--config.check']);
-    checkBlackboxConfig(rendered, ranges, set);
+    const probeTimeout = Number(effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS'));
+    const blackboxProblem = checkBlackboxConfig(loadedBlackboxConfig(images['blackbox-exporter'], tools, rendered.dir), `${probeTimeout}s`);
+    if (blackboxProblem) {
+      fail(`${set.label}: ${blackboxProblem}`);
+    }
+    if (index === 0) {
+      console.log('Blackbox 설정 검사가 인증서 검증 끄기와 timeout을 잘못 둔 사본을 거부하는지 확인합니다.');
+      checkBlackboxRejects(images['blackbox-exporter'], tools, rendered, probeTimeout);
+    }
     checkRenderedEnv(rendered, ranges, set);
     fs.rmSync(rendered.work, { recursive: true, force: true });
   }
@@ -619,14 +774,14 @@ function checkSystemImages(release, tools) {
   console.log('운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 실행합니다.');
   const tests = path.join(INFRA_DIR, 'prometheus', 'tests');
   for (const testFile of fs.readdirSync(tests).filter((name) => name.endsWith('.test.yml'))) {
-    run('docker', ['run', '--rm', '-v', `${extracted.rules}:/etc/prometheus/rules:ro`, '-v', `${tests}:/etc/prometheus/tests:ro`,
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${extracted.rules}:/etc/prometheus/rules:ro`, '-v', `${tests}:/etc/prometheus/tests:ro`,
       '-w', '/etc/prometheus/tests', '--entrypoint', 'promtool', tools.prometheus, 'test', 'rules', testFile]);
   }
   fs.rmSync(extracted.root, { recursive: true, force: true });
   // 모니터링 서버의 sh가 BusyBox일 수도 있어, 공식 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
   // 확인 질문 시험이 가상 터미널을 여는데, 이미지의 기본 사용자(nobody)는 열 수 없어 root로 실행한다.
   console.log('모니터링 서버 운영 명령(monitoring-server.sh)의 자동 시험을 실행합니다.');
-  run('docker', ['run', '--rm', '--user', '0', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus,
+  run('docker', ['run', '--label', CHECK_LABEL, '--rm', '--user', '0', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus,
     '/src/tests/monitoring-server.test.sh', '/src/monitoring-server.sh']);
   return ranges;
 }
