@@ -438,17 +438,63 @@ function checkPrometheusRetention(rendered, ranges, set) {
   }
 }
 
-// 펼친 Blackbox 설정의 module마다 timeout이 확인 제한 시간인지 본다. 인증서 확인을 끄는 항목도 없어야 한다.
+// 인증서 검증을 끄는 설정을 둘 수 있는 유일한 module이다. 다른 module은 서버 인증서를 검증해야 한다(ADR 0016).
+const INSECURE_MODULE = 'http_2xx_insecure';
+
+// 펼친 Blackbox 설정을 module마다 나눠, timeout이 확인 제한 시간인지와 인증서 검증을 끄는 설정이 INSECURE_MODULE에만 있는지 본다.
+// 빈 줄과 주석 줄은 설정이 아니므로 빼고 본다. 펼친 파일은 저장소 템플릿에서 나오므로 들여쓰기(module 이름은 공백 두 칸)로 나눈다.
+// 템플릿은 블록 형식의 간단한 키와 값만 쓴다. 다른 YAML 표기(앵커, 별칭, 병합 키, 따옴표와 escape, flow 형식, 명시적 키, tag,
+// 줄 끝 주석)나 module에 속하지 않는 줄은 설정 이름을 글자 그대로 쓰지 않고도 같은 설정을 만들거나 검사를 비켜 갈 수 있어 받지 않는다.
 function checkBlackboxConfig(rendered, ranges, set) {
   const text = rendered.read('blackbox.yml');
-  const modules = (text.match(/^\s+prober:/gm) ?? []).length;
-  const timeouts = [...text.matchAll(/^\s+timeout:\s*(\S+)\s*$/gm)].map((match) => match[1]);
-  const expected = `${effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS')}s`;
-  if (modules === 0 || timeouts.length !== modules || timeouts.some((timeout) => timeout !== expected)) {
-    fail(`${set.label}: 펼친 Blackbox 설정의 timeout이 module마다 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ')}`);
+  // YAML은 CRLF와 LF 밖의 문자도 줄바꿈으로 읽는다. 이 검사는 CRLF와 LF로만 줄을 나누므로, 다른 줄바꿈 문자가 있으면 받지 않는다.
+  if (/\r(?!\n)|[\u0085\u2028\u2029]/.test(text)) {
+    fail(`${set.label}: 펼친 Blackbox 설정에 CRLF와 LF 밖의 줄바꿈 문자가 있습니다.`);
   }
-  if (/insecure_skip_verify/.test(text)) {
-    fail(`${set.label}: 펼친 Blackbox 설정에 인증서 확인을 끄는 insecure_skip_verify가 있습니다.`);
+  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '' && !/^\s*#/.test(line));
+  const unsupported = lines.find((line) => /[^\x20-\x7e]|[&*{}"'\\?!#|>]|<</.test(line));
+  if (unsupported) {
+    fail(`${set.label}: 펼친 Blackbox 설정에 이 검사가 읽지 않는 YAML 표기가 있습니다: ${unsupported.trim()}. 블록 형식의 키와 값으로 적어 주세요.`);
+  }
+  if (lines[0]?.trimEnd() !== 'modules:') {
+    fail(`${set.label}: 펼친 Blackbox 설정이 modules:로 시작하지 않습니다.`);
+  }
+  const modules = new Map();
+  let current = null;
+  for (const line of lines.slice(1)) {
+    const name = /^ {2}([A-Za-z0-9_]+):$/.exec(line.trimEnd());
+    if (name) {
+      if (modules.has(name[1])) {
+        fail(`${set.label}: 펼친 Blackbox 설정에 ${name[1]} module이 두 번 있습니다.`);
+      }
+      current = [];
+      modules.set(name[1], current);
+    } else if (current && /^ {4,}\S/.test(line)) {
+      current.push(line);
+    } else {
+      fail(`${set.label}: 펼친 Blackbox 설정에 module에 속하지 않는 줄이 있습니다: ${line.trim()}`);
+    }
+  }
+  const expected = `${effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS')}s`;
+  if (modules.size === 0) {
+    fail(`${set.label}: 펼친 Blackbox 설정에서 module을 찾지 못했습니다.`);
+  }
+  for (const [name, body] of modules) {
+    const timeouts = body.map((line) => /^ {4}timeout:\s*(\S+)\s*$/.exec(line)?.[1]).filter(Boolean);
+    if (timeouts.length !== 1 || timeouts[0] !== expected) {
+      fail(`${set.label}: 펼친 Blackbox 설정의 ${name} module의 timeout이 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ') || '없음'}`);
+    }
+    const skips = body.filter((line) => /insecure_skip_verify/.test(line));
+    if (name === INSECURE_MODULE) {
+      if (skips.length !== 1 || !/^\s+insecure_skip_verify:\s*true\s*$/.test(skips[0])) {
+        fail(`${set.label}: 펼친 Blackbox 설정의 ${name} module에 인증서 검증을 끄는 insecure_skip_verify: true가 하나 있어야 합니다. 받은 값: ${skips.map((line) => line.trim()).join(', ') || '없음'}`);
+      }
+    } else if (skips.length > 0) {
+      fail(`${set.label}: 펼친 Blackbox 설정의 ${name} module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다. 이 설정은 ${INSECURE_MODULE}에만 둡니다.`);
+    }
+  }
+  if (!modules.has(INSECURE_MODULE)) {
+    fail(`${set.label}: 펼친 Blackbox 설정에 ${INSECURE_MODULE} module이 없습니다.`);
   }
 }
 
