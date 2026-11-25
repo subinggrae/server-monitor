@@ -480,9 +480,9 @@ sudo docker compose up -d --force-recreate alertmanager
 
 ### OS의 CA 인증서를 갱신했을 때
 
-OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 묶음 폴더에서 `sudo sh monitoring-server.sh start`를 실행한다. `.env`에 `MONITORING_CA_FILE`을 적었으면 다시 복사할 것이 없다. `start`가 바뀐 내용을 알아채고 컨테이너를 다시 만들어, 잠깐 감시가 멈춘다. `MONITORING_CA_FILE`을 비워 두고 `certs/`의 복사본을 쓰는 서버는 먼저 `MONITORING_CA_FILE`을 적는다.
+OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 묶음 폴더에서 `sudo sh monitoring-server.sh start`를 실행한다. `.env`에 `MONITORING_CA_FILE`을 적었으면 다시 복사할 것이 없다. `start`가 바뀐 내용을 알아채고 세 컨테이너를 다시 만들어, 잠깐 감시가 멈춘다. `MONITORING_CA_FILE`을 비워 두고 `certs/`의 복사본을 쓰는 서버는 먼저 `MONITORING_CA_FILE`을 적는다.
 
-`certs/`의 복사본은 `MONITORING_CA_FILE`이 없던 예전 버전으로 되돌릴 때 쓴다. 그래서 `MONITORING_CA_FILE`을 아는 버전으로 한 번 더 갱신해, 설치 폴더의 `monitoring-versions`에 적힌 직전 버전(`previous`)도 이 값을 아는 버전이 된 뒤에 지운다. 그 전에 지우면 되돌릴 때 `CA 인증서 파일이 없습니다`로 멈추고, 떠 있는 모니터링 시스템은 그대로 둔다.
+`certs/`의 복사본은 `MONITORING_CA_FILE`이 없던 예전 버전으로 되돌릴 때 쓴다. 그래서 `MONITORING_CA_FILE`을 아는 버전으로 한 번 더 갱신해, 설치 폴더의 `monitoring-versions`에 적힌 직전 버전(`previous`)도 이 값을 아는 버전이 된 뒤에 지운다. 그 전에 지우면 되돌릴 때 `CA 인증서 파일이 없습니다`로 멈추고, 떠 있는 모니터링 시스템은 그대로 둔다. 경로를 적은 뒤에는 `certs/`의 복사본이 OS와 함께 갱신되지 않으므로, OS의 CA 인증서를 갱신한 뒤 예전 버전으로 되돌릴 때는 복사본도 다시 복사한다.
 
 ### node_exporter 갱신과 멈추기
 
@@ -533,7 +533,7 @@ chmod 0644 infrastructure/secrets/alertmanager_webhook_token
 
 Windows에서는 `monitoring-dev.bat start`로 띄우고 `monitoring-dev.bat stop`으로 멈춘다. `start`가 설정 펼치기, CA 인증서 파일 준비(`infrastructure/certs/`), `monitoring` 네트워크 만들기(없을 때)까지 한다. Windows에서는 `.env`의 `MONITORING_CA_FILE`을 비워 둔다. 운영 명령이 Linux 컨테이너 안에서 돌아 Windows의 경로를 볼 수 없다.
 
-다른 OS에서는 `infrastructure/.env`의 `MONITORING_CA_FILE`에 그 PC의 CA 인증서 파일 경로(RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`, macOS는 `/etc/ssl/cert.pem`)를 적고, 같은 일을 하는 다음 명령을 쓴다. 첫 줄은 처음 한 번만 실행한다.
+다른 OS에서는 `infrastructure/.env`의 `MONITORING_CA_FILE`에 그 PC의 CA 인증서 파일 경로(Ubuntu는 `/etc/ssl/certs/ca-certificates.crt`, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`)를 적고, 같은 일을 하는 다음 명령을 쓴다. 첫 줄은 처음 한 번만 실행한다.
 
 ```sh
 docker network create monitoring

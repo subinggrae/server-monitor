@@ -55,7 +55,7 @@ token 폴더 값(`MONITORING_SECRETS_DIR`)과 같은 방식으로 compose 파일
 ## 위험과 되돌리기
 
 - 운영자가 경로를 적은 뒤 `certs/` 복사본을 지우고 예전 버전으로 되돌린다: 예전 버전의 운영 명령이 CA 인증서 파일이 없다고 멈추고 아무것도 바꾸지 않는다. 운영 가이드에 복사본을 지울 수 있는 때를 적는다.
-- Windows 개발 환경의 `.env`에 Linux 경로를 적는다: `render`가 그 파일이 없다고 멈춘다. `.env.example`에 비워 두라고 적는다.
+- Windows 개발 환경의 `.env`에 Linux 경로를 적는다: `render`는 Prometheus 공식 이미지 안의 같은 경로 파일로 검사해 통과할 수 있지만, Compose는 Docker Desktop VM의 파일을 붙여 CA 해시가 실제 파일과 어긋난다. 그래서 `.env.example`과 운영 가이드에 Windows에서는 비워 두라고 적는다.
 - Docker가 볼륨 원본의 링크를 따라가지 않는 환경: 수동 확인(C7)에서 본다. 따라가지 않으면 계획을 고친다.
 - 되돌리기: 이전 버전으로 되돌리면 `.env`의 새 값은 무시되고 `certs/` 복사본을 쓴다.
 
@@ -97,6 +97,8 @@ token 폴더 값(`MONITORING_SECRETS_DIR`)과 같은 방식으로 compose 파일
 - 가짜 `docker compose up`이 받은 `MONITORING_CA_FILE` 값을 남기게 해, 운영 명령이 검사한 값을 Compose에 넘기는지 본다.
 - Windows의 `docker compose config`는 `MONITORING_CA_FILE`의 절대 경로(`/etc/pki/tls/certs/ca-bundle.crt`)를 바꾸지 않고, 상대 경로만 project 기준 Windows 경로로 푼다. 그래서 빌드 검사의 compose 확인은 기대한 원본이 `/`로 시작하면 글자 그대로, 아니면 project 기준 상대 경로로 비교한다.
 - C7은 계획의 WSL Ubuntu로 하지 못했다. 그 배포판은 Docker Desktop 연동이 꺼져 있고, 연동을 켜면 사람의 Docker Desktop 설정이 바뀌어서 켜지 않았다. 대신 2026-11-25에 Docker Desktop의 Linux VM 안에 실제 CA 파일과 그 파일을 가리키는 링크를 만들고, 링크 경로를 볼륨 원본으로 Blackbox Exporter(운영 이미지)를 띄웠다. `https://prometheus.io`의 `http_2xx` 확인이 `probe_success 1`이었고, 링크가 CA가 아닌 파일을 가리키게 바꾸자 `x509: certificate signed by unknown authority`로 실패했다. Docker가 링크를 따라 실제 파일을 붙인다는 것을 본 것이고, 운영 명령 전체 흐름은 실제 Linux 서버에서 돌리지 않았다.
+- 독립 리뷰(2026-11-25)에서 다음을 고쳤다. Compose는 운영 명령이 읽지 않는 `.env` 형식도 읽어, 값이 없다고 본 경우에도 빈 값을 넘기게 했다. 경로 실패 안내에 링크가 가리키는 파일을 보이고, 시험이 새 안내에만 있는 글과 셸 환경 변수에서 온 값의 안내를 보게 했다. `monitoring-dev.bat`도 이 값을 셸 환경 변수로 넘긴다. OS의 CA가 바뀌면 다시 만드는 컨테이너는 Blackbox Exporter만이 아니라 세 개라서 문서를 고쳤다.
+- 확인하지 못한 것: SELinux를 켠 RHEL 서버에서 `/etc/pki/...` 파일을 `:z` 없이 붙였을 때 컨테이너가 읽는지, macOS Docker Desktop에서 OS의 CA 파일을 붙일 수 있는지.
 - `install`은 `.env.example`로 `.env`를 만들므로, 새로 설치한 서버의 `.env`에는 주석 처리한 `MONITORING_CA_FILE` 줄과 설명이 들어간다.
 
 ## 남길 결정

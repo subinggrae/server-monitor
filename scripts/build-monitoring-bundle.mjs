@@ -352,7 +352,7 @@ const BLACKBOX_TIMEOUT_OFFSET_SECONDS = 0.5;
 // 포트 번호의 범위다. 1024 아래는 시스템이 쓰는 포트다.
 const PORT_RANGE = { min: 1024, max: 65535 };
 // compose 파일이 붙이는 파일이다. CA 인증서 파일은 HTTPS 확인을 하는 Blackbox Exporter에만 붙인다(요구사항 0015).
-// CA 인증서 파일은 운영자가 복사해 두는 곳(caDir: 저장소는 certs, 묶음은 설치 폴더의 ../certs)에서 붙인다.
+// CA 인증서 파일(caSource)은 MONITORING_CA_FILE에 적은 OS의 파일이고, 비우면 복사본(저장소는 certs, 묶음은 설치 폴더의 ../certs)이다.
 function renderedMounts(caSource) {
   return {
     prometheus: { 'rendered/prometheus.yml': '/etc/monitoring/prometheus.yml' },

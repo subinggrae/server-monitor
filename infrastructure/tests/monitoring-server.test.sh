@@ -964,9 +964,24 @@ for broken in directory missing empty unreadable; do
   esac
   with_settings "MONITORING_CA_FILE=$OS/ca-bundle.crt"
   run render
+  # 없는 파일을 가리키는 링크는 실제 경로를 풀 수 없는 셸도 있어, 실제 경로는 파일이 있는 경우만 본다.
+  real_shown='contains "$OS/real/bundle.crt"'
+  [ "$broken" != missing ] || real_shown=true
   check "CA 인증서 파일 경로의 링크가 쓸 수 없는 파일($broken)을 가리키면 .env의 값을 고치라고 알리고 펼치지 않는다" \
-    '[ $RC -ne 0 ] && contains "$OS/ca-bundle.crt" && contains "MONITORING_CA_FILE" && '"$NO_OS_CHANGE"' && [ ! -e "$RENDERED" ]'
+    '[ $RC -ne 0 ] && contains "쓸 수 없습니다: $OS/ca-bundle.crt" && contains ".env의 MONITORING_CA_FILE 값을 고친 뒤" && '"$real_shown"' && '"$NO_OS_CHANGE"' && [ ! -e "$RENDERED" ]'
 done
+
+setup; prepared; os_ca; rm "$OS/real/bundle.crt"
+run_with_env "MONITORING_CA_FILE=$OS/ca-bundle.crt" render
+check '셸 환경 변수의 CA 인증서 파일 경로를 쓸 수 없으면 셸의 값을 지우거나 고치라고 알리고 펼치지 않는다' \
+  '[ $RC -ne 0 ] && contains "쓸 수 없습니다" && contains "unset MONITORING_CA_FILE" && '"$NO_OS_CHANGE"' && [ ! -e "$RENDERED" ]'
+
+# Compose의 .env 읽기는 운영 명령이 읽지 않는 형식(KEY: 값)도 받는다. 운영 명령이 값이 없다고 본 경우에도
+# 빈 값을 넘겨, Compose가 검사하지 않은 경로 대신 검사한 복사본(기본값)을 붙이게 한다.
+setup; prepared; os_ca; printf 'MONITORING_CA_FILE: %s\n' "$OS/ca-bundle.crt" >> "$ENV"
+run start
+check 'CA 인증서 파일 경로가 없다고 본 경우에도 Compose에 빈 값을 넘겨 검사한 복사본을 붙이게 한다' \
+  '[ $RC -eq 0 ] && [ -z "$(cat "$FAKE/compose_ca_file")" ] && [ "$(ca_hash)" = "$(file_hash "$CA")" ]'
 
 setup; prepared; with_settings 'MONITORING_CA_FILE='
 run render

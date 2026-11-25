@@ -257,7 +257,9 @@ check_settings() {
 }
 
 # CA 인증서 파일 경로(MONITORING_CA_FILE)를 검사한다. 값이 있으면 CA_FILE을 그 경로로 바꾸고, 비어 있으면 복사본 자리를 그대로 쓴다.
-# 검사한 값은 export해 Compose가 볼륨 원본으로 같은 값을 쓰게 한다. 틀리면 settings_ok를 no로 둔다.
+# 검사한 값은 export해 Compose가 볼륨 원본으로 같은 값을 쓰게 한다. 값이 없다고 본 경우에도 빈 값을 export한다.
+# Compose는 이 명령이 읽지 않는 .env 형식(KEY: 값)도 읽으므로, 그대로 두면 검사하지 않은 경로를 붙일 수 있다.
+# 틀리면 settings_ok를 no로 둔다.
 check_ca_setting() {
   CA_FROM_SETTING=no
   if printenv MONITORING_CA_FILE > /dev/null; then
@@ -267,6 +269,7 @@ check_ca_setting() {
   fi
   ca_value=$(env_value MONITORING_CA_FILE)
   if [ -z "$ca_value" ]; then
+    export MONITORING_CA_FILE=
     return 0
   fi
   if ! monitoring_valid_ca_file "$ca_value"; then
@@ -453,6 +456,10 @@ check_ca() {
       ca_problem="컨테이너가 읽을 수 없습니다(다른 사용자의 읽기 권한이 없음)"
     fi
     if [ -n "$ca_problem" ]; then
+      # 링크면 운영자가 ls로 링크만 보고 헷갈리지 않게 가리키는 파일도 보인다. 풀지 못하면 보이지 않는다.
+      if [ -L "$CA_FILE" ] && ca_real=$(readlink -f "$CA_FILE" 2> /dev/null) && [ -n "$ca_real" ]; then
+        ca_problem="$ca_problem, 링크가 가리키는 파일: $ca_real"
+      fi
       fail "MONITORING_CA_FILE의 CA 인증서 파일을 쓸 수 없습니다: $CA_FILE ($ca_problem). 아무것도 바꾸지 않았습니다. 모니터링 서버 OS의 CA 인증서 파일 경로를 적어 주세요($os_paths). $ca_fix"
     fi
     return 0
