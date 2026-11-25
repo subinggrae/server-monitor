@@ -20,12 +20,14 @@ route:
     - check_id
 
   group_wait: 30s
-  group_interval: 5m
-  # 이어지는 Alert를 group_interval(5분)마다 관리자 서버로 다시 보냅니다. 실제로 알림을 다시
+  # 묶음을 1분마다 다시 살펴, 복구와 같은 Check에 새로 생긴 Alert를 1분 안에 보냅니다. (docs/decisions/0017)
+  # 관리자 서버의 알림 다시 보내는 간격 하한(5분)보다 길게 두지 않습니다.
+  group_interval: 1m
+  # 이어지는 Alert를 group_interval(1분)마다 관리자 서버로 다시 보냅니다. 실제로 알림을 다시
   # 보낼지는 관리자 서버가 Check별 알림 다시 보내는 간격(5~1440분)으로 정합니다.
   # group_interval보다 짧게 둡니다. 같게 두면 다음 시점에 경과 시간이 조금 모자라
-  # 한 번씩 건너뛰어 10분마다 보냅니다.
-  repeat_interval: 4m
+  # 한 번씩 건너뛰어 2분마다 보냅니다.
+  repeat_interval: 50s
 
 receivers:
   - name: manager-webhook
