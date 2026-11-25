@@ -95,7 +95,7 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 | `check_id` | 감시 항목의 id(webhook에서 Alert의 감시 항목을 찾는 열쇠) | 숫자 문자열 |
 | `check_target_id` | 감시 항목 안의 주소 하나의 id | 숫자 문자열 |
 | `check_type` | 확인 방식 | `ICMP`, `TCP`, `HTTP`, `HTTPS` |
-| `module` | Blackbox module | `icmp`, `tcp_connect`, `http_2xx`(`infrastructure/blackbox/blackbox.yml`에 있는 이름) |
+| `module` | Blackbox module | `icmp`, `tcp_connect`, `http_2xx`, `http_2xx_insecure`(`infrastructure/blackbox/blackbox.yml`에 있는 이름) |
 | `environment` | 환경 이름(Grafana에서 환경으로 거를 때 씀) | 자유 문자열 |
 | `check_name` | 감시 항목 이름(Grafana에서 이름으로 볼 때 씀) | 자유 문자열 |
 | `__scrape_interval__` | 수집 주기(time series label로 남지 않음) | `10s`~`240s` |
@@ -108,9 +108,19 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 |---|---|---|---|
 | `ICMP` | host 또는 IP | `icmp` | ping 응답 |
 | `TCP` | `host:port` | `tcp_connect` | TCP 연결 성공 |
-| `HTTP`, `HTTPS` | 전체 URL | `http_2xx` | `GET` 응답이 2xx(리다이렉트는 따라감) |
+| `HTTP`, `HTTPS` | 전체 URL | `http_2xx` | `GET` 응답이 2xx(리다이렉트는 따라감), HTTPS는 서버 인증서가 유효해야 함 |
+| `HTTP`, `HTTPS` | 전체 URL | `http_2xx_insecure` | `http_2xx`와 같고 서버 인증서를 검증하지 않음 |
 
 세 방식 모두 IPv4로만 확인한다. IPv6 주소만 있는 대상은 실패한다.
+
+`http_2xx_insecure`는 유효한 인증서를 둘 수 없는 주소에만 앱이 주소마다 고른다([ADR 0016](decisions/0016-http-insecure-module.md)). `check_type`은 그대로 `HTTP`나 `HTTPS`로 보낸다. `HTTP` 주소가 HTTPS로 리다이렉트하면 리다이렉트한 곳의 인증서도 검증하지 않는다. 이 module로 확인하는 주소는 인증서 만료, 위조한 인증서, 엉뚱한 서버로의 연결을 잡지 못하고, 응답이 2xx면 성공이다. 앱 화면에서 이 선택을 고르는 사람에게 이 위험을 알린다.
+
+`http_2xx_insecure`는 이 module이 들어간 모니터링 시스템에만 보낸다. 모르는 module을 받으면 Blackbox Exporter가 거부해 그 주소에 `MonitoringCheckProbeFailed`가 생긴다. 그래서 다음 순서로 배포한다.
+
+1. 모든 모니터링 서버를 이 module이 있는 버전으로 갱신한다.
+2. 앱이 고른 주소의 `module`을 `http_2xx_insecure`로 보낸다. Prometheus는 15초 안에 바뀐 목록을 받는다. 새 module의 첫 확인은 그 뒤 수집 주기 한 번 안에 하고, 성공하면 인증서 검증에 실패하던 주소는 첫 규칙 평가에서 복구된다. 1을 마친 뒤 빨리 바꿀수록 좋다. 반영되기 전에 실패가 장애 기준(연속 3번, 첫 실패 뒤 1분)을 채우면 장애가 한 번 생겼다가 복구된다.
+
+모니터링 시스템을 이 module이 없는 버전으로 되돌릴 때는 앱이 먼저 `http_2xx_insecure`를 보내지 않게 한다. `module`을 바꾸면 그 주소의 기록(series)은 새로 시작하지만, 장애는 확인 방식을 바꿀 때처럼 감시 항목과 주소의 id로 이어진다.
 
 ### 서버 감시 대상: `GET /api/prometheus/sd/os-exporter`
 
@@ -275,6 +285,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 | 알고 싶은 것 | `query` 값 | 결과를 나누는 label |
 |---|---|---|
 | 주소마다 마지막 확인 결과 | `probe_success{job="manager-blackbox"}` | `check_target_id` |
+| 주소마다 마지막 HTTP 응답 코드 | `probe_http_status_code{job="manager-blackbox"}` | `check_target_id` |
 | 서버마다 수집 상태 | `max by (server_id) (up{job="manager-os"})` | `server_id` |
 | 한 서버의 리소스 사용률 | `manager:resource_usage_percent{server_id="7"}` | `resource_type`, `resource_key` |
 
@@ -283,6 +294,8 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 | series | 뜻 |
 |---|---|
 | `probe_success{job="manager-blackbox"}` | 주소 확인 결과(1 성공, 0 실패), label은 SD label과 `instance` |
+| `probe_http_status_code{job="manager-blackbox"}` | HTTP·HTTPS 주소의 마지막 응답 코드(리다이렉트를 따라간 뒤의 코드, 응답을 받지 못하면 0), label은 `probe_success`와 같음 |
+| `probe_duration_seconds{job="manager-blackbox"}` | 주소 확인에 걸린 시간(초), label은 `probe_success`와 같음 |
 | `up{job="manager-os"}` | OS exporter 수집 상태(1 수집 중, 0 실패), label은 SD label과 `instance` |
 | `manager:resource_usage_percent` | 사용률(0~100) |
 | `manager:resource_used_bytes` | 사용량(byte), CPU는 없음 |

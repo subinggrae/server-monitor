@@ -331,6 +331,28 @@ curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 | `network monitoring declared as external, but could not be found` | 네트워크를 만들지 않고 Compose로 띄움(모니터링 시스템이나 관리자 서버) | `sudo docker network create monitoring` 뒤 다시 띄운다 |
 | 장애 수신 API가 모두 `401` | 모니터링 시스템과 관리자 서버가 서로 다른 token 파일을 읽음 | 두 쪽이 같은 파일을 읽게 하고 둘 다 다시 띄운다 |
 
+### 주소 확인이 실패한 원인 보기
+
+장애 알림에는 실패 원인이 없다. 원인은 Blackbox Exporter가 남긴 기록에서 다음 방법으로 본다. 명령은 모니터링 서버의 묶음 폴더에서 실행하고, 포트를 바꿨으면 9115를 `.env`의 `MONITORING_BLACKBOX_PORT` 값으로 바꿔 쓴다.
+
+1. 로그에서 실패한 확인을 찾는다. 실패한 확인마다 원인 줄과 `msg="Probe failed"` 줄이 남는다.
+
+   ```sh
+   docker compose logs blackbox-exporter | grep 'level=ERROR'
+   ```
+
+   HTTP·HTTPS 주소의 연결과 인증서 문제는 `msg="Error for HTTP request"` 줄의 `err`에 있다. 예를 들어 `x509: certificate has expired or is not yet valid`는 인증서 기간이 지났거나 시작되지 않은 것이고, `x509: certificate signed by unknown authority`는 믿을 수 있는 기관이 발급하지 않은 인증서다. 2xx가 아닌 응답은 `Invalid HTTP response status code`, 주소 이름을 찾지 못한 것은 `Error resolving address`로 남는다.
+
+2. 주소 하나를 직접 확인해 과정을 본다. `target`에는 감시 주소를, `module`에는 그 주소의 확인 방식(`http_2xx`, `http_2xx_insecure`, `tcp_connect`, `icmp`)을 넣는다. 확인 과정의 로그와 결과 값(`probe_success`, `probe_http_status_code` 등)이 함께 나온다.
+
+   ```sh
+   curl -sG http://127.0.0.1:9115/probe --data-urlencode 'target=https://example.com/health' --data-urlencode 'module=http_2xx' --data-urlencode 'debug=true'
+   ```
+
+3. 브라우저로 Blackbox Exporter 첫 화면 `http://127.0.0.1:9115/`를 연다. 다른 PC에서는 [SSH 터널](#포트)을 쓴다. Recent Probes 표에 최근 확인의 주소와 결과가 있고, Logs를 누르면 그 확인의 로그가 보인다.
+
+로그의 `level=WARN` `msg="Received redirect"` 줄은 주소가 다른 주소로 안내해 따라갔다는 뜻이고, 실패가 아니다. 따라간 곳의 응답이 2xx면 성공이다.
+
 ## 보안 설정
 
 전체 구성의 통신은 대부분 인증이 없어서, 포트를 어디에 여는지가 보안의 중심이다. 원칙은 두 가지다. 모니터링 서버의 포트는 밖에 열지 않고, 감시 대상 서버의 exporter 포트는 모니터링 서버에만 연다.
@@ -386,7 +408,7 @@ ssh -L 9090:127.0.0.1:9090 <계정>@<모니터링 서버 주소>
 
 - **장애 기준**: 주소 확인이 연속 3번 실패하고 첫 실패 뒤 1분이 지나면 장애로 본다. 첫 실패부터 `max(1분, 수집 주기 × 2)`가 걸린다([통합 계약의 Alert](INTEGRATION.md#alert-post-apiintegrationsalertmanagerwebhook)). 장애가 이어지면 관리자 서버에 5분마다 다시 보낸다. 그래서 관리자 서버의 알림 다시 보내는 간격은 5분보다 짧게 둘 수 없다. 이 기준은 관리자 서버 화면에서 바꾸지 않는다([ARCHITECTURE.md의 지켜야 할 경계](ARCHITECTURE.md#지켜야-할-경계)).
 - **복구 시점**: 대상이 다시 정상으로 동작하면 5분 안에 관리자 서버에 복구를 보낸다. 장애 중인 감시 항목이나 주소를 지우거나 끄면 10분 안에 복구를 보내고, 그 사이에 장애를 한 번 더 보낼 수 있다.
-- **주소 확인 방식**: IPv4로만 확인하고, HTTP는 2xx 응답만 성공으로 본다.
+- **주소 확인 방식**: IPv4로만 확인하고, HTTP는 2xx 응답만 성공으로 본다. HTTPS는 서버 인증서가 유효해야 성공이다. 다만 관리자 서버가 인증서를 검증하지 않는 확인(`http_2xx_insecure`)을 고른 주소는 검증하지 않는다. 그 주소는 인증서 만료, 위조한 인증서, 엉뚱한 서버로의 연결을 잡지 못한다([ADR 0016](decisions/0016-http-insecure-module.md)).
 
 ### 바꾸지 않는 값
 
