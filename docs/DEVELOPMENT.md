@@ -45,6 +45,8 @@
 
 Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝났는데 실행 중으로 남아 검사가 멈추는 일이 있었다(2026-11-10, 원인은 확인하지 못함). `docker ps`에 몇 분째 남은 검사 컨테이너가 있으면 `docker kill <이름>`으로 끝내고, 되풀이되면 Docker Desktop을 다시 시작한다.
 
+검사가 띄우거나 만드는 컨테이너에는 `monitoring-build-check` label이 붙는다. 검사를 Ctrl+C로 멈췄거나 검사 컨테이너가 남았으면 `docker ps -a --filter label=monitoring-build-check`로 찾아 `docker rm -f <이름>`으로 지운다.
+
 감시 대상 서버용 node_exporter 배포 묶음(`infrastructure/node-exporter/compose.yml`)은 Docker Desktop에서 그대로 뜨지 않는다. Docker Desktop의 VM은 `/`가 shared mount가 아니라서 `/:/host:ro,rslave`를 붙일 수 없고, host 네트워크 기능이 꺼져 있으면 다른 컨테이너가 9100에 닿지 않는다. 개발 환경에서 OS exporter 수집을 확인하려면 node_exporter를 띄운 Linux 장비나 VM을 쓴다.
 
 ### 명령 이름

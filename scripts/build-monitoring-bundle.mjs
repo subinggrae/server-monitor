@@ -143,6 +143,9 @@ function scratchDir(name) {
   return dir;
 }
 
+// 검사가 띄우거나 만드는 컨테이너에 붙이는 label이다. 검사를 도중에 멈춰 컨테이너가 남으면 이 label로 찾아 지운다.
+const CHECK_LABEL = 'monitoring-build-check';
+
 // 컨테이너가 붙인 폴더에 쓴 파일을 빌드 PC의 사용자가 지울 수 있게, Linux와 macOS에서는 같은 사용자로 실행한다.
 function hostUser() {
   return process.getuid ? `${process.getuid()}:${process.getgid()}` : '0:0';
@@ -220,7 +223,7 @@ function tarEntries(buffer) {
 
 // 이미지로 컨테이너를 만들어(실행하지 않음) 파일 시스템을 압축 없는 tar로 내보낸다.
 function exportImage(image) {
-  const container = run('docker', ['create', image], { capture: true });
+  const container = run('docker', ['create', '--label', CHECK_LABEL, image], { capture: true });
   const exported = path.join(DIST, `.export-${process.pid}.tar`);
   fs.mkdirSync(DIST, { recursive: true });
   // fail()은 프로세스를 바로 끝내므로, 결과만 받아 두고 컨테이너와 임시 파일을 지운 뒤에 멈춘다.
@@ -363,7 +366,7 @@ function renderedMounts(caDir) {
 }
 
 function readSettingRanges(tools) {
-  const out = run('docker', ['run', '--rm', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
+  const out = run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
     '. /src/monitoring-settings.sh && monitoring_settings_ranges'], { capture: true });
   const ranges = out.split(/\r?\n/).map((line) => {
     const [name, defaultValue, min, max] = line.split('|');
@@ -421,7 +424,7 @@ function renderConfigs(tools, values) {
   fs.chmodSync(path.join(work, 'secrets', 'alertmanager_webhook_token'), 0o644);
   writeText(path.join(work, 'certs', 'ca-certificates.crt'), 'build-check-ca\n');
   fs.chmodSync(path.join(work, 'certs', 'ca-certificates.crt'), 0o644);
-  run('docker', ['run', '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work',
+  run('docker', ['run', '--label', CHECK_LABEL, '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work',
     '--entrypoint', '/bin/sh', tools.prometheus, 'monitoring-server.sh', 'render'], { capture: true });
   const rendered = path.join(work, 'rendered');
   return { dir: rendered, work, read: (name) => fs.readFileSync(path.join(rendered, name), 'utf8') };
@@ -448,8 +451,8 @@ const BLACKBOX_CONFIG_ATTEMPTS = 20;
 // 운영 이미지에는 셸과 wget이 없으므로 도구 이미지의 BusyBox wget을 그 컨테이너의 네트워크에 붙여 묻는다. 호스트 포트는 열지 않는다.
 // 응답을 다 받은 뒤에만 내보내, 중간에 끊긴 응답이 섞이지 않게 한다.
 function loadedBlackboxConfig(image, tools, dir) {
-  const container = run('docker', ['run', '-d', '--rm', '-v', `${dir}:/etc/monitoring:ro`, image], { capture: true });
-  const fetched = runResult('docker', ['run', '--rm', '--network', `container:${container}`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
+  const container = run('docker', ['run', '--label', CHECK_LABEL, '-d', '--rm', '-v', `${dir}:/etc/monitoring:ro`, image], { capture: true });
+  const fetched = runResult('docker', ['run', '--label', CHECK_LABEL, '--rm', '--network', `container:${container}`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
     `attempt=0; while [ "$attempt" -lt ${BLACKBOX_CONFIG_ATTEMPTS} ]; do
        if config=$(wget -q -T 5 -O - http://127.0.0.1:9115/config 2>/dev/null); then printf '%s\\n' "$config"; exit 0; fi
        attempt=$((attempt + 1)); sleep 1
@@ -723,7 +726,7 @@ function checkRenderedMounts(composeFile, caDir) {
 // 운영 이미지에 든 규칙을 꺼낸다. 셸 없이 컨테이너를 만들고(실행하지 않음) docker cp로 꺼내, 이미지에 든 규칙을 그대로 검사한다.
 function extractRules(prometheus) {
   const dir = scratchDir('rules-check');
-  const container = run('docker', ['create', prometheus], { capture: true });
+  const container = run('docker', ['create', '--label', CHECK_LABEL, prometheus], { capture: true });
   const result = spawnSync('docker', ['cp', `${container}:/etc/prometheus/rules`, dir], { stdio: 'inherit' });
   spawnSync('docker', ['rm', container], { stdio: 'ignore' });
   if (result.status !== 0) {
@@ -743,14 +746,14 @@ function checkSystemImages(release, tools) {
       console.log('설정 값의 허용 범위가 모니터링 시스템의 약속(주소 확인 제한 시간, 규칙의 범위, 포트)을 지키는지 확인합니다.');
       checkSettingContracts(rendered, extracted.rules, ranges);
     }
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '-v', `${extracted.rules}:/etc/prometheus/rules:ro`,
       '--entrypoint', 'promtool', tools.prometheus, 'check', 'config', '/etc/monitoring/prometheus.yml']);
     checkPrometheusRetention(rendered, ranges, set);
     checkOsExporterJob(rendered, set);
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '--entrypoint', 'amtool', tools.alertmanager,
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, '--entrypoint', 'amtool', tools.alertmanager,
       'check-config', '/etc/monitoring/alertmanager.yml']);
     // Blackbox Exporter는 셸 없이 실행 파일만 부르므로 운영 이미지로 검사한다.
-    run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, images['blackbox-exporter'],
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, images['blackbox-exporter'],
       '--config.file=/etc/monitoring/blackbox.yml', '--config.check']);
     const probeTimeout = Number(effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS'));
     const blackboxProblem = checkBlackboxConfig(loadedBlackboxConfig(images['blackbox-exporter'], tools, rendered.dir), `${probeTimeout}s`);
@@ -771,14 +774,14 @@ function checkSystemImages(release, tools) {
   console.log('운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 실행합니다.');
   const tests = path.join(INFRA_DIR, 'prometheus', 'tests');
   for (const testFile of fs.readdirSync(tests).filter((name) => name.endsWith('.test.yml'))) {
-    run('docker', ['run', '--rm', '-v', `${extracted.rules}:/etc/prometheus/rules:ro`, '-v', `${tests}:/etc/prometheus/tests:ro`,
+    run('docker', ['run', '--label', CHECK_LABEL, '--rm', '-v', `${extracted.rules}:/etc/prometheus/rules:ro`, '-v', `${tests}:/etc/prometheus/tests:ro`,
       '-w', '/etc/prometheus/tests', '--entrypoint', 'promtool', tools.prometheus, 'test', 'rules', testFile]);
   }
   fs.rmSync(extracted.root, { recursive: true, force: true });
   // 모니터링 서버의 sh가 BusyBox일 수도 있어, 공식 이미지에 든 BusyBox sh로 운영 명령을 시험한다.
   // 확인 질문 시험이 가상 터미널을 여는데, 이미지의 기본 사용자(nobody)는 열 수 없어 root로 실행한다.
   console.log('모니터링 서버 운영 명령(monitoring-server.sh)의 자동 시험을 실행합니다.');
-  run('docker', ['run', '--rm', '--user', '0', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus,
+  run('docker', ['run', '--label', CHECK_LABEL, '--rm', '--user', '0', '-v', `${INFRA_DIR}:/src:ro`, '--entrypoint', '/bin/sh', tools.prometheus,
     '/src/tests/monitoring-server.test.sh', '/src/monitoring-server.sh']);
   return ranges;
 }
