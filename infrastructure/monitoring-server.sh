@@ -29,7 +29,7 @@ RENDER_DIR="$BUNDLE_DIR/rendered"
 TOKEN_NAME=alertmanager_webhook_token
 CONTAINERS="prometheus alertmanager blackbox-exporter"
 TEMPLATES="prometheus.yml alertmanager.yml blackbox.yml"
-# monitoring.env의 MONITORING_CONFIG_SHA256이 이 파일들과 CA 인증서 파일의 내용을 나타낸다.
+# monitoring.env의 MONITORING_CONFIG_SHA256이 이 파일들과 CA 인증서 파일의 내용, token 파일의 실제 경로를 나타낸다.
 CONFIG_FILES="$TEMPLATES"
 # prometheus.yml 템플릿에서 서버 사용량 수집(manager-os) 부분의 앞뒤 줄이다. MONITORING_OS_EXPORTER가 off면 이 사이를 빼고 펼친다.
 OS_EXPORTER_BEGIN='  # BEGIN manager-os'
@@ -558,8 +558,11 @@ check_render() {
 
 # check_render를 통과한 값으로 템플릿을 펼쳐 rendered/에 쓴다. 같은 폴더 안의 임시 폴더(stage)에 모두 쓴 뒤 이름만 바꿔 옮긴다.
 # 펼치는 글자는 검사를 통과한 주소와 monitoring_setting_text의 결과뿐이라 sed와 YAML이 특별하게 읽는 글자가 없다. 값은 eval하지 않는다.
-# config_hash는 새로 펼친 설정과 CA 인증서 파일, previous_hash는 지금 rendered/에 있는 설정과 지난번에 펼칠 때의 CA 인증서 파일의 해시다.
-# CA 인증서 파일은 옮기지 않으므로, 지난번 내용은 monitoring.env의 MONITORING_CA_SHA256으로 안다.
+# config_hash는 새로 펼친 설정, CA 인증서 파일, token 파일의 실제 경로의 해시이고, previous_hash는 지금 rendered/에 있는 설정과
+# 지난번에 펼칠 때의 CA 인증서 파일과 token 파일 경로의 해시다. 두 파일은 옮기지 않으므로 지난번 값은 monitoring.env의
+# MONITORING_CA_SHA256, MONITORING_TOKEN_PATH_SHA256으로 안다. Compose는 token 파일의 경로만 바뀌면 Alertmanager를 다시 만들지
+# 않으므로 경로도 넣는다. Docker는 링크를 따라간 파일을 붙이므로 실제 경로를 쓴다(요구사항 0028의 S10, S11).
+# 경로 글자는 monitoring.env에 쓰지 않는다. Compose가 env_file의 값을 다시 풀어 쓰고, token 폴더 값은 글자를 제한하지 않기 때문이다.
 write_rendered() {
   # 확인을 기다리는 동안 링크로 바뀌었을 수 있어 쓰기 직전에 다시 본다.
   check_render_dir
@@ -587,9 +590,14 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
     fi
   done
   ca_hash=$(sha256sum < "$CA_FILE" | cut -d ' ' -f 1)
-  config_hash=$( { cd "$stage" && cat $CONFIG_FILES; printf '%s\n' "$ca_hash"; } | sha256sum | cut -d ' ' -f 1)
+  token_path=$(token_file)
+  token_real=$(readlink -f "$token_path" 2> /dev/null) && [ -n "$token_real" ] || token_real=$token_path
+  token_path_hash=$(printf '%s' "$token_real" | sha256sum | cut -d ' ' -f 1)
+  config_hash=$( { cd "$stage" && cat $CONFIG_FILES; printf '%s\n%s\n' "$ca_hash" "$token_path_hash"; } | sha256sum | cut -d ' ' -f 1)
   previous_ca_hash=$(sed -n 's/^MONITORING_CA_SHA256=//p' "$RENDER_DIR/monitoring.env" 2>/dev/null || true)
-  previous_hash=$( { cd "$RENDER_DIR" && cat $CONFIG_FILES 2>/dev/null; printf '%s\n' "$previous_ca_hash"; } | sha256sum | cut -d ' ' -f 1)
+  previous_token_path_hash=$(sed -n 's/^MONITORING_TOKEN_PATH_SHA256=//p' "$RENDER_DIR/monitoring.env" 2>/dev/null || true)
+  previous_hash=$( { cd "$RENDER_DIR" && cat $CONFIG_FILES 2>/dev/null; printf '%s\n%s\n' "$previous_ca_hash" "$previous_token_path_hash"; } \
+    | sha256sum | cut -d ' ' -f 1)
   # compose 파일이 env_file로 세 컨테이너에 넘긴다. 프로그램은 읽지 않고, status와 보관 값 줄임 확인이 떠 있는 값을 여기서 읽는다.
   # MONITORING_CONFIG_SHA256이 바뀌면 운영 명령 없이 docker compose up -d로 띄워도 Compose가 컨테이너를 다시 만든다.
   {
@@ -598,6 +606,7 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
       printf '%s=%s\n' "$setting" "$(printenv "$setting")"
     done
     printf 'MONITORING_CA_SHA256=%s\n' "$ca_hash"
+    printf 'MONITORING_TOKEN_PATH_SHA256=%s\n' "$token_path_hash"
     printf 'MONITORING_CONFIG_SHA256=%s\n' "$config_hash"
   } > "$stage/monitoring.env"
   for name in $CONFIG_FILES monitoring.env; do

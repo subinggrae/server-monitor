@@ -1204,6 +1204,65 @@ run start
 check '운영 명령과 Compose가 다르게 읽는 표기의 CA 인증서 파일 경로면 형식 검사에서 멈추고 Compose를 부르지 않는다' \
   '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE" && contains "절대 경로" && ! called "^compose" && [ ! -e "$RENDERED" ]'
 
+# --- token 폴더를 바꾼 뒤 띄우기(요구사항 0028의 S10~S12) ---
+# Compose는 token 파일의 경로만 바뀌면 Alertmanager를 다시 만들지 않는다. 그래서 운영 명령이 token 파일의 실제 경로로 다시 만들지 정한다.
+
+token_path_hash() { sed -n 's/^MONITORING_TOKEN_PATH_SHA256=//p' "$RENDERED/monitoring.env"; }
+# 다른 폴더($T/other)에 시험용 token을 둔다.
+other_token() {
+  mkdir -p "$T/other"
+  printf 'other-token-for-test\n' > "$T/other/alertmanager_webhook_token"
+  chmod 0644 "$T/other/alertmanager_webhook_token"
+}
+
+setup; prepared; other_token; started
+with_settings "MONITORING_SECRETS_DIR=$T/other"
+run start
+check '떠 있는 채로 설정 파일의 token 폴더를 바꾸고 띄우면 컨테이너를 다시 만든다' \
+  '[ $RC -eq 0 ] && called "^compose.* up -d --force-recreate" && [ "$(cat "$FAKE/compose_secrets_dir")" = "$T/other" ]'
+
+setup; prepared; other_token; started
+run_with_env "MONITORING_SECRETS_DIR=$T/other" start
+check '떠 있는 채로 셸 환경 변수로 token 폴더를 바꾸고 띄우면 컨테이너를 다시 만든다' \
+  '[ $RC -eq 0 ] && called "^compose.* up -d --force-recreate"'
+
+setup; prepared; other_token
+run render
+first=$(config_hash)
+with_settings "MONITORING_SECRETS_DIR=$T/other"
+run render
+check 'token 폴더를 바꿔 다시 펼치면 Compose가 컨테이너를 다시 만들도록 monitoring.env의 설정 값이 바뀐다' \
+  '[ $RC -eq 0 ] && [ "$(config_hash)" != "$first" ]'
+
+setup; prepared; started
+with_settings "MONITORING_SECRETS_DIR=$INSTALL/secrets"
+run start
+check 'token 폴더를 같은 폴더의 절대 경로로만 바꾸면 컨테이너를 강제로 다시 만들지 않는다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && ! called "force-recreate"'
+
+setup; prepared; other_token; mkdir -p "$T/links"; ln -s "$INSTALL/secrets" "$T/links/secrets"
+with_settings "MONITORING_SECRETS_DIR=$T/links/secrets"; started
+rm "$T/links/secrets"; ln -s "$T/other" "$T/links/secrets"
+run start
+check 'token 폴더가 링크이고 가리키는 폴더만 바뀌면 컨테이너를 다시 만든다' \
+  '[ $RC -eq 0 ] && called "^compose.* up -d --force-recreate"'
+
+setup; prepared; other_token; with_settings "MONITORING_SECRETS_DIR=$T/other"
+run render
+check 'monitoring.env에는 token 파일 경로의 해시만 남기고 token 값과 경로 글자는 남기지 않는다' \
+  '[ $RC -eq 0 ] && printf "%s\n" "$(token_path_hash)" | grep -Eqx "[0-9a-f]{64}" && ! grep -qF "$T/other" "$RENDERED/monitoring.env" && ! grep -rq "other-token-for-test" "$RENDERED" && ! contains "other-token-for-test"'
+
+# 이 변경 전 운영 명령이 펼친 monitoring.env에는 token 파일 경로의 해시가 없다. 나머지 펼친 파일은 같다.
+setup; prepared; started
+sed -i '/^MONITORING_TOKEN_PATH_SHA256=/d' "$RENDERED/monitoring.env"
+run start
+check '이 변경 전 운영 명령이 펼친 설정이 있으면 첫 띄우기에서 컨테이너를 한 번 다시 만든다' \
+  '[ $RC -eq 0 ] && called "^compose.* up -d --force-recreate"'
+rm -f "$FAKE/calls"
+run start
+check '이 변경 전 운영 명령이 펼친 설정을 한 번 다시 펼친 뒤에는 컨테이너를 강제로 다시 만들지 않는다' \
+  '[ $RC -eq 0 ] && called "^compose.* up" && ! called "force-recreate"'
+
 # --- 펼친 설정 폴더(요구사항 0015의 S16, S17) ---
 
 setup; prepared; mkdir "$T/elsewhere-dir"; ln -s "$T/elsewhere-dir" "$RENDERED"
