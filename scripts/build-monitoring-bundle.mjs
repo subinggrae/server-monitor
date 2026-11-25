@@ -441,60 +441,88 @@ function checkPrometheusRetention(rendered, ranges, set) {
 // 인증서 검증을 끄는 설정을 둘 수 있는 유일한 module이다. 다른 module은 서버 인증서를 검증해야 한다(ADR 0016).
 const INSECURE_MODULE = 'http_2xx_insecure';
 
-// 펼친 Blackbox 설정을 module마다 나눠, timeout이 확인 제한 시간인지와 인증서 검증을 끄는 설정이 INSECURE_MODULE에만 있는지 본다.
-// 빈 줄과 주석 줄은 설정이 아니므로 빼고 본다. 펼친 파일은 저장소 템플릿에서 나오므로 들여쓰기(module 이름은 공백 두 칸)로 나눈다.
-// 템플릿은 블록 형식의 간단한 키와 값만 쓴다. 다른 YAML 표기(앵커, 별칭, 병합 키, 따옴표와 escape, flow 형식, 명시적 키, tag,
-// 줄 끝 주석)나 module에 속하지 않는 줄은 설정 이름을 글자 그대로 쓰지 않고도 같은 설정을 만들거나 검사를 비켜 갈 수 있어 받지 않는다.
-function checkBlackboxConfig(rendered, ranges, set) {
-  const text = rendered.read('blackbox.yml');
-  // YAML은 CRLF와 LF 밖의 문자도 줄바꿈으로 읽는다. 이 검사는 CRLF와 LF로만 줄을 나누므로, 다른 줄바꿈 문자가 있으면 받지 않는다.
-  if (/\r(?!\n)|[\u0085\u2028\u2029]/.test(text)) {
-    fail(`${set.label}: 펼친 Blackbox 설정에 CRLF와 LF 밖의 줄바꿈 문자가 있습니다.`);
+// Blackbox Exporter가 /config를 돌려줄 때까지 1초 간격으로 다시 묻는 횟수다.
+const BLACKBOX_CONFIG_ATTEMPTS = 20;
+
+// 펼친 설정을 붙여 운영 이미지를 띄우고, Blackbox Exporter가 실제로 읽어 들인 설정(/config)을 받는다.
+// 운영 이미지에는 셸과 wget이 없으므로 도구 이미지의 BusyBox wget을 그 컨테이너의 네트워크에 붙여 묻는다. 호스트 포트는 열지 않는다.
+// 응답을 다 받은 뒤에만 내보내, 중간에 끊긴 응답이 섞이지 않게 한다.
+function loadedBlackboxConfig(image, tools, rendered) {
+  const container = run('docker', ['run', '-d', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, image], { capture: true });
+  const fetched = runResult('docker', ['run', '--rm', '--network', `container:${container}`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
+    `attempt=0; while [ "$attempt" -lt ${BLACKBOX_CONFIG_ATTEMPTS} ]; do
+       if config=$(wget -q -T 5 -O - http://127.0.0.1:9115/config 2>/dev/null); then printf '%s\\n' "$config"; exit 0; fi
+       attempt=$((attempt + 1)); sleep 1
+     done; exit 1`]);
+  spawnSync('docker', ['rm', '-f', container], { stdio: 'ignore' });
+  if (fetched.status !== 0) {
+    fail(`Blackbox Exporter가 읽어 들인 설정(/config)을 받지 못했습니다(종료 코드 ${fetched.status}). ${fetched.stderr.trim()}`);
   }
-  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '' && !/^\s*#/.test(line));
-  const unsupported = lines.find((line) => /[^\x20-\x7e]|[&*{}"'\\?!#|>]|<</.test(line));
-  if (unsupported) {
-    fail(`${set.label}: 펼친 Blackbox 설정에 이 검사가 읽지 않는 YAML 표기가 있습니다: ${unsupported.trim()}. 블록 형식의 키와 값으로 적어 주세요.`);
+  return fetched.stdout;
+}
+
+// Blackbox Exporter가 읽어 들인 설정을 module마다 나눠, timeout이 확인 제한 시간인지와 인증서 검증을 끄는 설정이 INSECURE_MODULE에만 있는지 본다.
+// 펼친 파일의 글자를 읽지 않고 Blackbox Exporter가 YAML을 읽은 결과를 보므로, 템플릿에 어떤 YAML 표기를 써도 결과가 같다.
+// /config는 Go YAML이 다시 쓴 블록 형식이다(v0.28.0에서 확인). 들여쓰기는 4칸이고, false와 빈 값은 빠지며, 여러 줄 문자열은 키보다 깊게 들여 쓴다.
+// 그래서 들여쓰기 4칸인 줄은 module 이름 줄뿐이고, 8칸의 timeout·http, 12칸의 tls_config, 16칸의 insecure_skip_verify는 문자열 안에서 생기지 않는다.
+// 이 모양과 다른 줄(단순하지 않은 module 이름 등)이 있으면 module을 나눌 수 없으므로 받지 않는다.
+function checkBlackboxConfig(loaded, ranges, set) {
+  const lines = loaded.split('\n').filter((line) => line !== '');
+  if (lines[0] !== 'modules:') {
+    fail(`${set.label}: Blackbox Exporter가 읽은 설정이 modules:로 시작하지 않습니다.`);
   }
-  if (lines[0]?.trimEnd() !== 'modules:') {
-    fail(`${set.label}: 펼친 Blackbox 설정이 modules:로 시작하지 않습니다.`);
-  }
+  const indentOf = (line) => /^ */.exec(line)[0].length;
   const modules = new Map();
   let current = null;
   for (const line of lines.slice(1)) {
-    const name = /^ {2}([A-Za-z0-9_]+):$/.exec(line.trimEnd());
-    if (name) {
-      if (modules.has(name[1])) {
-        fail(`${set.label}: 펼친 Blackbox 설정에 ${name[1]} module이 두 번 있습니다.`);
+    const indent = indentOf(line);
+    if (indent === 4) {
+      const name = line.slice(4, -1);
+      if (!line.endsWith(':') || name === '' || /^[?:]/.test(name)) {
+        fail(`${set.label}: Blackbox Exporter가 읽은 설정에서 module 이름을 읽지 못했습니다: ${JSON.stringify(line)}. module 이름은 영문자, 숫자, _로 적어 주세요.`);
+      }
+      if (modules.has(name)) {
+        fail(`${set.label}: Blackbox Exporter가 읽은 설정에 ${JSON.stringify(name)} module이 두 번 있습니다.`);
       }
       current = [];
-      modules.set(name[1], current);
-    } else if (current && /^ {4,}\S/.test(line)) {
+      modules.set(name, current);
+    } else if (indent > 4 && current) {
       current.push(line);
     } else {
-      fail(`${set.label}: 펼친 Blackbox 설정에 module에 속하지 않는 줄이 있습니다: ${line.trim()}`);
-    }
-  }
-  const expected = `${effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS')}s`;
-  if (modules.size === 0) {
-    fail(`${set.label}: 펼친 Blackbox 설정에서 module을 찾지 못했습니다.`);
-  }
-  for (const [name, body] of modules) {
-    const timeouts = body.map((line) => /^ {4}timeout:\s*(\S+)\s*$/.exec(line)?.[1]).filter(Boolean);
-    if (timeouts.length !== 1 || timeouts[0] !== expected) {
-      fail(`${set.label}: 펼친 Blackbox 설정의 ${name} module의 timeout이 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ') || '없음'}`);
-    }
-    const skips = body.filter((line) => /insecure_skip_verify/.test(line));
-    if (name === INSECURE_MODULE) {
-      if (skips.length !== 1 || !/^\s+insecure_skip_verify:\s*true\s*$/.test(skips[0])) {
-        fail(`${set.label}: 펼친 Blackbox 설정의 ${name} module에 인증서 검증을 끄는 insecure_skip_verify: true가 하나 있어야 합니다. 받은 값: ${skips.map((line) => line.trim()).join(', ') || '없음'}`);
-      }
-    } else if (skips.length > 0) {
-      fail(`${set.label}: 펼친 Blackbox 설정의 ${name} module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다. 이 설정은 ${INSECURE_MODULE}에만 둡니다.`);
+      fail(`${set.label}: Blackbox Exporter가 읽은 설정에 module에 속하지 않는 줄이 있습니다: ${JSON.stringify(line)}`);
     }
   }
   if (!modules.has(INSECURE_MODULE)) {
-    fail(`${set.label}: 펼친 Blackbox 설정에 ${INSECURE_MODULE} module이 없습니다.`);
+    fail(`${set.label}: Blackbox Exporter가 읽은 설정에 ${INSECURE_MODULE} module이 없습니다.`);
+  }
+  const expected = `${effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS')}s`;
+  for (const [name, body] of modules) {
+    // 보이지 않는 글자가 든 이름도 알아볼 수 있게 escape해 보인다.
+    const shown = JSON.stringify(name).replace(/[^\x20-\x7e]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`);
+    const timeouts = body.map((line) => /^ {8}timeout: (.*)$/.exec(line)?.[1]).filter((value) => value !== undefined);
+    if (timeouts.length !== 1 || timeouts[0] !== expected) {
+      fail(`${set.label}: Blackbox Exporter가 읽은 설정의 ${shown} module의 timeout이 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ') || '없음'}`);
+    }
+    if (name === INSECURE_MODULE) {
+      // http 아래 tls_config 아래의 insecure_skip_verify: true만 인정한다. 들여쓰기가 같거나 얕은 줄을 만나면 그 블록이 끝난다.
+      let inHttp = false;
+      let inTls = false;
+      const skipsVerify = body.some((line) => {
+        const indent = indentOf(line);
+        if (indent <= 8) {
+          inHttp = line === '        http:';
+        }
+        if (indent <= 12) {
+          inTls = inHttp && line === '            tls_config:';
+        }
+        return inTls && line === '                insecure_skip_verify: true';
+      });
+      if (!skipsVerify) {
+        fail(`${set.label}: Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다.`);
+      }
+    } else if (body.some((line) => line.includes('insecure_skip_verify'))) {
+      fail(`${set.label}: Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다. 이 설정은 ${INSECURE_MODULE}에만 둡니다.`);
+    }
   }
 }
 
@@ -654,7 +682,7 @@ function checkSystemImages(release, tools) {
     // Blackbox Exporter는 셸 없이 실행 파일만 부르므로 운영 이미지로 검사한다.
     run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, images['blackbox-exporter'],
       '--config.file=/etc/monitoring/blackbox.yml', '--config.check']);
-    checkBlackboxConfig(rendered, ranges, set);
+    checkBlackboxConfig(loadedBlackboxConfig(images['blackbox-exporter'], tools, rendered), ranges, set);
     checkRenderedEnv(rendered, ranges, set);
     fs.rmSync(rendered.work, { recursive: true, force: true });
   }

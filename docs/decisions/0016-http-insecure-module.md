@@ -32,5 +32,5 @@
 
 ## 확인 방법
 
-- `node scripts/build-monitoring-bundle.mjs --check`의 Blackbox 설정 검사(`checkBlackboxConfig`)
+- `node scripts/build-monitoring-bundle.mjs --check`의 Blackbox 설정 검사(`checkBlackboxConfig`). 펼친 파일의 글자가 아니라 Blackbox Exporter가 읽어 들인 설정(`/config`)을 검사한다
 - 리뷰에서 확인: `http_2xx_insecure`와 `http_2xx`가 인증서 설정 밖에서 같은지

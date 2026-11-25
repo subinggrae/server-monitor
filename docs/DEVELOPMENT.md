@@ -35,7 +35,7 @@
   - Prometheus 설정 검사(`promtool check config`, 규칙은 운영 이미지에서 꺼냄)와, 펼친 `prometheus.yml`의 보관 항목이 보관 기간·용량인지 확인
   - 서버 사용량 수집(`MONITORING_OS_EXPORTER`)은 세 벌에 비움, `off`, `on`을 넣어, `off`일 때만 펼친 `prometheus.yml`에 `manager-os` 수집과 서버 감시 대상 목록 주소가 없는지 확인
   - Alertmanager 설정 검사(`amtool check-config`)
-  - 운영 이미지로 Blackbox 설정 검사(`blackbox_exporter --config.check`)와, module마다 `timeout`이 확인 제한 시간인지, 인증서 검증을 끄는 `insecure_skip_verify`가 `http_2xx_insecure`에만 `true`로 있고 다른 module에는 없는지, 템플릿이 쓰는 블록 형식의 키와 값 밖의 YAML 표기, CRLF와 LF 밖의 줄바꿈 문자, module에 속하지 않는 줄이 없는지 확인([ADR 0016](decisions/0016-http-insecure-module.md))
+  - 운영 이미지로 Blackbox 설정 검사(`blackbox_exporter --config.check`). 이어서 펼친 설정을 붙여 운영 이미지를 띄우고, Blackbox Exporter가 읽어 들인 설정(`/config`)에서 module마다 `timeout`이 확인 제한 시간인지, 인증서 검증을 끄는 `insecure_skip_verify: true`가 `http_2xx_insecure`의 `http.tls_config`에 있고 다른 module에는 없는지 확인([ADR 0016](decisions/0016-http-insecure-module.md)). 펼친 파일의 글자가 아니라 Blackbox Exporter가 YAML을 읽은 결과를 보므로, 템플릿에 어떤 YAML 표기를 써도 결과가 같다. `/config`는 공식 Prometheus 이미지의 BusyBox `wget`을 그 컨테이너의 네트워크에 붙여 받고, 호스트 포트는 열지 않는다. `/config`에서 module 이름 줄을 읽지 못하면(여러 줄이거나 아주 긴 이름) 실패한다
   - 펼친 `monitoring.env`에 검사를 통과한 값이 들어 있는지 확인
 - `infrastructure/compose.yml`의 모든 포트가 값 세 벌에서 `127.0.0.1`에만 열리는지, 서비스마다 펼친 설정만 읽기 전용으로 붙고 CA 인증서 파일은 Blackbox Exporter에만 붙는지, healthcheck가 없고 `rendered/monitoring.env`가 없으면 Compose가 멈추는지 확인. 묶음을 만들 때는 실행용 `compose.yml`도 같은 확인을 한다
 - 운영 이미지에서 꺼낸 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
