@@ -3,14 +3,14 @@
 # module은 배포용 설정입니다.
 # 사용자가 UI에서 Check를 추가해도 이 파일은 수정하지 않습니다.
 #
-# 이름은 CheckType이 고르는 값과 같아야 합니다. 없는 이름을 넘기면 Blackbox가 400으로 거부합니다.
+# 관리자 서버가 주소 감시 대상 목록의 module label로 이름을 고릅니다. 없는 이름을 넘기면 Blackbox가 400으로 거부합니다.
 #
-#   ICMP → icmp,  TCP → tcp_connect,  HTTP / HTTPS → http_2xx
+#   ICMP → icmp,  TCP → tcp_connect,  HTTP / HTTPS → http_2xx 또는 http_2xx_insecure
 #
 # timeout은 module 단위 설정입니다. Check마다 다르게 줄 수 없습니다.
 # Blackbox는 probe 요청의 query parameter로 timeout이나 status 조건을 받지 않습니다.
 # @MONITORING_PROBE_TIMEOUT_SECONDS@는 운영 명령이 띄우기 전에 모니터링 시스템 설정 파일(.env)의 확인 제한 시간
-# (기본 5초, 1~9초)으로 바꿉니다. 세 module이 같은 값을 씁니다. 펼치는 방법은 infrastructure/monitoring-server.sh의 render에 있습니다.
+# (기본 5초, 1~9초)으로 바꿉니다. 모든 module이 같은 값을 씁니다. 펼치는 방법은 infrastructure/monitoring-server.sh의 render에 있습니다.
 
 modules:
 
@@ -43,3 +43,19 @@ modules:
       preferred_ip_protocol: ip4
       ip_protocol_fallback: false
       follow_redirects: true
+
+  # http_2xx와 같고 서버 인증서를 검증하지 않는 것만 다릅니다. 관리자 서버가 유효한 인증서를 둘 수 없는 주소에만 고릅니다.
+  # 인증서 만료, 위조한 인증서, 엉뚱한 서버로의 연결을 잡지 못합니다. (docs/decisions/0016)
+  # 빌드 검사는 인증서 검증을 끄는 설정이 이 module에만 있는지 확인합니다.
+  http_2xx_insecure:
+    prober: http
+    timeout: @MONITORING_PROBE_TIMEOUT_SECONDS@
+
+    http:
+      method: GET
+      valid_status_codes: []
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      follow_redirects: true
+      tls_config:
+        insecure_skip_verify: true

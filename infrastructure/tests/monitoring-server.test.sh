@@ -790,7 +790,7 @@ config_hash() { sed -n 's/^MONITORING_CONFIG_SHA256=//p' "$RENDERED/monitoring.e
 setup; prepared
 run render
 check '설정을 펼치면 검사한 주소와 기본값으로 세 설정을 rendered/에 쓰고 이미지와 컨테이너는 바꾸지 않는다' \
-  '[ $RC -eq 0 ] && [ "$(rendered_address)" = "manager-api:8080" ] && grep -q "^      time: 15d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 0B$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 5s$" "$RENDERED/blackbox.yml")" -eq 3 ] && grep -q "http://manager-api:8080/api/integrations/alertmanager/webhook" "$RENDERED/alertmanager.yml" && ! called "^compose" && ! called load'
+  '[ $RC -eq 0 ] && [ "$(rendered_address)" = "manager-api:8080" ] && grep -q "^      time: 15d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 0B$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 5s$" "$RENDERED/blackbox.yml")" -eq 4 ] && grep -q "http://manager-api:8080/api/integrations/alertmanager/webhook" "$RENDERED/alertmanager.yml" && ! called "^compose" && ! called load'
 check '설정을 펼치면 Compose로 띄우는 방법과 .env를 바꾸면 다시 펼쳐야 한다는 것을 보인다' \
   'contains "docker compose up -d" && contains "다시 실행"'
 check '펼친 설정에 자리표시와 token 값이 남지 않는다' \
@@ -830,7 +830,7 @@ check 'Docker에 연결하지 못하면 설정 펼치기가 보관 값을 줄였
 setup; prepared; with_settings MONITORING_RETENTION_DAYS=30 MONITORING_RETENTION_SIZE_GB=50 MONITORING_PROBE_TIMEOUT_SECONDS=9
 run render
 check '바꾼 설정 값으로 보관 항목과 확인 제한 시간을 펼치고 monitoring.env에도 쓴다' \
-  '[ $RC -eq 0 ] && grep -q "^      time: 30d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 50GB$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 9s$" "$RENDERED/blackbox.yml")" -eq 3 ] && grep -q "^MONITORING_RETENTION_SIZE_GB=50$" "$RENDERED/monitoring.env"'
+  '[ $RC -eq 0 ] && grep -q "^      time: 30d$" "$RENDERED/prometheus.yml" && grep -q "^      size: 50GB$" "$RENDERED/prometheus.yml" && [ "$(grep -c "^    timeout: 9s$" "$RENDERED/blackbox.yml")" -eq 4 ] && grep -q "^MONITORING_RETENTION_SIZE_GB=50$" "$RENDERED/monitoring.env"'
 
 setup; prepared; rm "$ENV"
 run render

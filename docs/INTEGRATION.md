@@ -65,7 +65,7 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 |---|---|---|---|---|
 | `GET /api/prometheus/sd/blackbox` | Prometheus | 15초마다(목록 갱신) | 없음 | 확인할 주소 목록 |
 | `GET /api/prometheus/sd/os-exporter` | Prometheus | 30초마다(목록 갱신), 서버 사용량 수집을 켰을 때만 | 없음 | 수집할 서버 목록 |
-| `POST /api/integrations/alertmanager/webhook` | Alertmanager | Alert가 생기거나 바뀔 때, 이어지면 5분마다 | `Authorization: Bearer <token>` | `2xx` |
+| `POST /api/integrations/alertmanager/webhook` | Alertmanager | Alert가 생기거나 바뀔 때, 이어지면 1분마다 | `Authorization: Bearer <token>` | `2xx` |
 
 목록 갱신 주기는 Prometheus가 목록을 다시 받아 가는 간격이다. 실제로 확인하고 수집하는 주기는 대상마다 `__scrape_interval__` label로 따로 정한다. 목록 API 두 개는 인증 없이 불린다. 그래서 앱 포트를 `monitoring` 네트워크와 `127.0.0.1`에만 열어 밖에서 부르지 못하게 한다. 목록 응답에는 감시 대상 주소와 이름이 들어가므로 비밀값을 넣지 않는다.
 
@@ -95,7 +95,7 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 | `check_id` | 감시 항목의 id(webhook에서 Alert의 감시 항목을 찾는 열쇠) | 숫자 문자열 |
 | `check_target_id` | 감시 항목 안의 주소 하나의 id | 숫자 문자열 |
 | `check_type` | 확인 방식 | `ICMP`, `TCP`, `HTTP`, `HTTPS` |
-| `module` | Blackbox module | `icmp`, `tcp_connect`, `http_2xx`(`infrastructure/blackbox/blackbox.yml`에 있는 이름) |
+| `module` | Blackbox module | `icmp`, `tcp_connect`, `http_2xx`, `http_2xx_insecure`(`infrastructure/blackbox/blackbox.yml`에 있는 이름) |
 | `environment` | 환경 이름(Grafana에서 환경으로 거를 때 씀) | 자유 문자열 |
 | `check_name` | 감시 항목 이름(Grafana에서 이름으로 볼 때 씀) | 자유 문자열 |
 | `__scrape_interval__` | 수집 주기(time series label로 남지 않음) | `10s`~`240s` |
@@ -108,9 +108,19 @@ API 경로를 꼭 바꿔야 하면 `infrastructure/prometheus/prometheus.yml`의
 |---|---|---|---|
 | `ICMP` | host 또는 IP | `icmp` | ping 응답 |
 | `TCP` | `host:port` | `tcp_connect` | TCP 연결 성공 |
-| `HTTP`, `HTTPS` | 전체 URL | `http_2xx` | `GET` 응답이 2xx(리다이렉트는 따라감) |
+| `HTTP`, `HTTPS` | 전체 URL | `http_2xx` | `GET` 응답이 2xx(리다이렉트는 따라감), HTTPS는 서버 인증서가 유효해야 함 |
+| `HTTP`, `HTTPS` | 전체 URL | `http_2xx_insecure` | `http_2xx`와 같고 서버 인증서를 검증하지 않음 |
 
 세 방식 모두 IPv4로만 확인한다. IPv6 주소만 있는 대상은 실패한다.
+
+`http_2xx_insecure`는 유효한 인증서를 둘 수 없는 주소에만 앱이 주소마다 고른다([ADR 0016](decisions/0016-http-insecure-module.md)). `check_type`은 그대로 `HTTP`나 `HTTPS`로 보낸다. `HTTP` 주소가 HTTPS로 리다이렉트하면 리다이렉트한 곳의 인증서도 검증하지 않는다. 이 module로 확인하는 주소는 인증서 만료, 위조한 인증서, 엉뚱한 서버로의 연결을 잡지 못하고, 응답이 2xx면 성공이다. 앱 화면에서 이 선택을 고르는 사람에게 이 위험을 알린다.
+
+`http_2xx_insecure`는 이 module이 들어간 모니터링 시스템에만 보낸다. 모르는 module을 받으면 Blackbox Exporter가 거부해 그 주소에 `MonitoringCheckProbeFailed`가 생긴다. 그래서 다음 순서로 배포한다.
+
+1. 모든 모니터링 서버를 이 module이 있는 버전으로 갱신한다.
+2. 앱이 고른 주소의 `module`을 `http_2xx_insecure`로 보낸다. Prometheus는 15초 안에 바뀐 목록을 받는다. 새 module의 첫 확인은 그 뒤 수집 주기 한 번 안에 하고, 성공하면 인증서 검증에 실패하던 주소는 첫 규칙 평가에서 복구된다. 1을 마친 뒤 빨리 바꿀수록 좋다. 반영되기 전에 실패가 장애 기준(연속 3번, 첫 실패 뒤 1분)을 채우면 장애가 한 번 생겼다가 복구된다.
+
+모니터링 시스템을 이 module이 없는 버전으로 되돌릴 때는 앱이 먼저 `http_2xx_insecure`를 보내지 않게 한다. `module`을 바꾸면 그 주소의 기록(series)은 새로 시작하지만, 장애는 확인 방식을 바꿀 때처럼 감시 항목과 주소의 id로 이어진다.
 
 ### 서버 감시 대상: `GET /api/prometheus/sd/os-exporter`
 
@@ -172,13 +182,14 @@ Alertmanager가 [webhook payload](https://prometheus.io/docs/alerting/latest/con
 1. `labels.check_id`로 앱의 감시 항목을, `labels.check_target_id`로 그 주소를 찾는다. 지운 감시 항목이면 기록만 남기고 알리지 않는다. 알림과 화면에 보일 감시 항목 이름, 환경, 주소는 Alert에 없으므로 찾은 감시 항목과 주소의 DB 값으로 채운다. 그래서 사용자가 이 값들을 바꾸면 다음 알림부터 바뀐 값이 보인다. 장애 기록에 남길 주소는 장애를 처음 받을 때 채운다. 지운 주소의 복구 Alert가 오면 DB에서 주소를 찾을 수 없다.
 2. `fingerprint`로 그 장애의 열려 있는(아직 복구되지 않은) 기록을 찾는다. 열린 기록이 있으면 `startsAt`이 달라도 같은 장애가 이어지는 것으로 보고, 시작 시각은 처음 받은 값을 그대로 둔다. 모니터링 시스템을 새 버전으로 갱신하거나 Alertmanager를 다시 만들면 이어지던 장애도 `startsAt`이 새 시각으로 오기 때문이다. 열린 기록이 없으면 새 장애로 기록한다. 복구된 뒤 다시 실패하면 이렇게 새 장애가 된다.
 3. `status`가 `firing`이면 장애, `resolved`면 복구다. 복구는 `fingerprint`로 찾은 열린 기록을 닫는다. 복구 시각은 `endsAt`이다. 장애 중에는 `endsAt`이 `0001-01-01`이라 복구 시각으로 쓰지 않는다.
-4. 같은 장애가 다시 오면, 마지막으로 알림을 보낸 뒤 그 감시 항목의 알림 다시 보내는 간격이 지났을 때만 다시 보낸다. 이 간격은 5~1440분으로 받고, 정하지 않은 감시 항목은 60분으로 보기를 권한다. Alertmanager는 이어지는 Alert를 5분마다 보내므로, 간격을 5분보다 짧게 두지 않는다([ADR 0001](decisions/0001-alert-repeat-in-manager.md)).
+4. 같은 장애가 다시 오면, 마지막으로 알림을 보낸 뒤 그 감시 항목의 알림 다시 보내는 간격이 지났을 때만 다시 보낸다. 이 간격은 5~1440분으로 받고, 정하지 않은 감시 항목은 60분으로 보기를 권한다. Alertmanager는 이어지는 Alert를 1분마다 보내므로, 간격이 지났는지 1분마다 판단한다. 간격의 하한 5분은 Alertmanager가 묶음을 다시 살피는 간격(1분)보다 짧지 않아야 한다([ADR 0001](decisions/0001-alert-repeat-in-manager.md), [ADR 0017](decisions/0017-alert-interval-1m.md)). 전송 시각을 기록하는 지연으로 한 번 건너뛰지 않게 1분의 허용 오차를 두면, 알림은 정한 간격보다 최대 1분 이르게 간다.
 
 `alertname`이 `MonitoringCheckProbeFailed`인 Alert는 대상이 아니라 모니터링 시스템 쪽 문제다. Blackbox Exporter가 멈췄거나 응답하지 않아 확인 결과를 받지 못한 상태다. label은 `MonitoringCheckDown`과 같아서 어느 감시 항목의 확인이 멈췄는지 알 수 있고, annotation 문구는 다르다. 앱은 두 Alert를 같은 방식으로 기록하고 알려도 된다.
 
 앱은 다음도 지킨다.
 
 - `Authorization: Bearer <token>`이 모니터링 시스템 설정의 token과 다르면 `401`을 돌려주고 Alert를 기록하지 않는다. 비교는 고정 시간 비교로 한다.
+- webhook에는 20초 안에 응답한다. 알림 전송처럼 오래 걸릴 수 있는 일은 응답한 뒤에 한다. Alertmanager는 지난 전송이 끝난 시각부터 다시 보낼 때까지의 시간을 세므로, 응답이 20초보다 늦으면 이어지는 장애를 한 번씩 건너뛰어 2분마다 보낸다([ADR 0017](decisions/0017-alert-interval-1m.md)).
 - 처리하면 `2xx`를 돌려준다. 알림 전송에 실패해도 `2xx`를 돌려준다. 실패를 돌려주면 Alertmanager가 같은 payload를 계속 다시 보낸다.
 - 모르는 필드가 있어도 실패하지 않는다. Alertmanager 버전이 올라가면 필드가 늘어난다.
 - 앱이 멈춘 동안의 Alert는 Alertmanager가 다시 보낸다. 앱이 뜬 뒤 다음 전송에서 받는다.
@@ -196,7 +207,7 @@ Alert마다 들어오는 label과 annotation은 다음과 같다. 규칙은 `inf
 
 이 밖의 label은 Alert에 들어가지 않는다. Prometheus와 Alertmanager는 label 집합으로 Alert를 구분하므로, 사용자가 바꾸는 값(이름, 환경, 확인 방식, 주소)이 label에 있으면 장애 중에 값을 바꿀 때 장애가 복구로 끝나고 새 장애로 다시 생긴다([ADR 0010](decisions/0010-alert-labels-by-check-id.md)).
 
-Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 5분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`은 4분이지만, 묶음을 다시 살피는 간격(`group_interval`)이 5분이라서 실제로는 5분마다 보낸다. 복구 Alert(`status: resolved`)도 보낸다.
+Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 1분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`은 40초지만, 묶음을 다시 살피는 간격(`group_interval`)이 1분이라서 실제로는 1분마다 보낸다. 복구 Alert(`status: resolved`)도 보낸다.
 
 감시 주소는 연속 3번 실패하고 첫 실패 뒤 1분이 지나면 장애다. 그래서 첫 실패 확인 결과부터 장애로 판정하기까지 기다리는 시간(대기 시간)은 `max(60초, 수집 주기 × 2)`다. 판정은 규칙 평가(15초마다) 때 하므로 대기 시간이 지난 뒤 첫 규칙 평가에서 장애가 되고, 처음 생긴 장애는 30초 기다렸다 보낸다. 첫 실패 확인 결과부터 webhook까지는 `대기 시간 + 0~15초 + 30초`다. 대상이 실패하기 시작한 때부터 세면, 그 뒤 첫 확인까지 최대 수집 주기 한 번과 확인에 걸리는 시간(최대 확인 제한 시간)이 더 걸린다.
 
@@ -209,7 +220,7 @@ Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보�
 | 120초 | 240초 | 270~285초 | 405초 |
 | 240초 | 480초 | 510~525초 | 765초 |
 
-표는 그 감시 항목에 진행 중인 장애가 없을 때다. 같은 감시 항목의 다른 주소가 이미 장애면, 새 주소의 장애는 처음 기다리는 30초 대신 묶음을 다시 보내는 때(최대 5분 뒤)에 함께 온다.
+표는 그 감시 항목에 진행 중인 장애가 없을 때다. 같은 감시 항목의 다른 주소가 이미 장애면, 새 주소의 장애는 처음 기다리는 30초 대신 묶음을 다시 보내는 때(최대 1분 뒤)에 함께 온다.
 
 판정은 기준보다 이르지 않다. 다만 실패가 시작될 즈음 수집 주기를 바꾸거나 실패 중에 이름, 환경, 확인 방식, 주소를 바꾸면, 드물게 판정이 규칙 평가 몇 번(최대 45초 안팎) 늦을 수 있다. 값을 바꿨다가 15분 안에 원래 값으로 되돌리고 바로 실패가 이어지면, 늦어도 수집 주기 한 번과 규칙 평가 한 번 안에 판정한다. 성공 중에 값을 바꾼 직후 실패할 때도, 옛 값의 마지막 확인 뒤 5초 안에 값을 바꾸고 새 값의 첫 확인도 그 5초 안에 오면 같은 만큼 늦을 수 있다.
 
@@ -228,7 +239,7 @@ Alert의 `startsAt`은 장애로 판정한 규칙 평가 시각이다. 장애가
 2. 모든 모니터링 서버를 새 버전으로 갱신한다.
 3. 앱 화면의 판정 기준 설명과 판정까지 걸리는 시간 표시를 바꾼다.
 
-대상이 다시 정상으로 동작하면 그 성공한 확인 결과를 받은 다음 규칙 평가(15초 안)에서 복구된다. 복구 Alert는 다음 묶음 전송 때 오므로, webhook은 5분 안에 온다. 확인 결과가 더 오지 않는 장애는 마지막 실패 결과가 5분 지날 때까지 이어지다 복구되므로, 복구 webhook은 10분 안에 오고 그 사이에 같은 장애가 한 번 더 올 수 있다. 다음 두 경우다.
+대상이 다시 정상으로 동작하면 그 성공한 확인 결과를 받은 다음 규칙 평가(15초 안)에서 복구된다. 복구 Alert는 다음 묶음 전송 때 오므로, webhook은 1분 안에 온다. 확인 결과가 더 오지 않는 장애는 마지막 실패 결과가 5분 지날 때까지 이어지다 복구되므로, 복구 webhook은 마지막 확인 결과 뒤 6분 15초 안에 오고 그 사이에 같은 장애가 1분마다 다시 온다. 다음 두 경우다.
 
 - 장애 중인 감시 항목이나 주소를 지우거나 끈다. 5분 안에 다시 켠 감시 항목이 여전히 실패하면 같은 장애로 이어진다.
 - Blackbox Exporter가 멈춰 확인 결과가 오지 않는다.
@@ -275,6 +286,7 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 | 알고 싶은 것 | `query` 값 | 결과를 나누는 label |
 |---|---|---|
 | 주소마다 마지막 확인 결과 | `probe_success{job="manager-blackbox"}` | `check_target_id` |
+| 주소마다 마지막 HTTP 응답 코드 | `probe_http_status_code{job="manager-blackbox"}` | `check_target_id` |
 | 서버마다 수집 상태 | `max by (server_id) (up{job="manager-os"})` | `server_id` |
 | 한 서버의 리소스 사용률 | `manager:resource_usage_percent{server_id="7"}` | `resource_type`, `resource_key` |
 
@@ -283,6 +295,8 @@ URL 인코딩 전의 `query` 값은 `manager:resource_usage_percent{server_id="7
 | series | 뜻 |
 |---|---|
 | `probe_success{job="manager-blackbox"}` | 주소 확인 결과(1 성공, 0 실패), label은 SD label과 `instance` |
+| `probe_http_status_code{job="manager-blackbox"}` | HTTP·HTTPS 주소의 마지막 응답 코드(리다이렉트를 따라간 뒤의 코드, 응답을 받지 못하면 0), label은 `probe_success`와 같음 |
+| `probe_duration_seconds{job="manager-blackbox"}` | 주소 확인에 걸린 시간(초), label은 `probe_success`와 같음 |
 | `up{job="manager-os"}` | OS exporter 수집 상태(1 수집 중, 0 실패), label은 SD label과 `instance` |
 | `manager:resource_usage_percent` | 사용률(0~100) |
 | `manager:resource_used_bytes` | 사용량(byte), CPU는 없음 |

@@ -35,15 +35,17 @@
   - Prometheus 설정 검사(`promtool check config`, 규칙은 운영 이미지에서 꺼냄)와, 펼친 `prometheus.yml`의 보관 항목이 보관 기간·용량인지 확인
   - 서버 사용량 수집(`MONITORING_OS_EXPORTER`)은 세 벌에 비움, `off`, `on`을 넣어, `off`일 때만 펼친 `prometheus.yml`에 `manager-os` 수집과 서버 감시 대상 목록 주소가 없는지 확인
   - Alertmanager 설정 검사(`amtool check-config`)
-  - 운영 이미지로 Blackbox 설정 검사(`blackbox_exporter --config.check`)와, module마다 `timeout`이 확인 제한 시간이고 `insecure_skip_verify`가 없는지 확인
+  - 운영 이미지로 Blackbox 설정 검사(`blackbox_exporter --config.check`). 이어서 펼친 설정을 붙여 운영 이미지를 띄우고, Blackbox Exporter가 읽어 들인 설정(`/config`)에서 module마다 `timeout`이 확인 제한 시간인지, 인증서 검증을 끄는 `insecure_skip_verify: true`가 `http_2xx_insecure`의 `http.tls_config`에 있고 다른 module에는 없는지 확인([ADR 0016](decisions/0016-http-insecure-module.md)). 펼친 파일의 글자가 아니라 Blackbox Exporter가 YAML을 읽은 결과를 보므로, 템플릿에 어떤 YAML 표기를 써도 결과가 같다. `/config`는 공식 Prometheus 이미지의 BusyBox `wget`을 그 컨테이너의 네트워크에 붙여 받고, 호스트 포트는 열지 않는다. `/config`에서 module 이름 줄을 읽지 못하면(여러 줄이거나 아주 긴 이름) 실패한다. 첫 벌에서는 펼친 설정을 고친 사본 네 개(`http_2xx`에 인증서 검증 끄기를 넣음, `http_2xx_insecure`에서 빼거나 `false`로 바꿈, `http_2xx_insecure`의 `timeout`을 바꿈)로 운영 이미지를 하나씩 띄워, 이 검사가 사본을 모두 거부하는지도 확인한다
   - 펼친 `monitoring.env`에 검사를 통과한 값이 들어 있는지 확인
 - `infrastructure/compose.yml`의 모든 포트가 값 세 벌에서 `127.0.0.1`에만 열리는지, 서비스마다 펼친 설정만 읽기 전용으로 붙고 CA 인증서 파일은 Blackbox Exporter에만 붙는지(`MONITORING_CA_FILE`을 비우면 `certs/`의 복사본, 적으면 그 경로), healthcheck가 없고 `rendered/monitoring.env`가 없으면 Compose가 멈추는지 확인. 묶음을 만들 때는 실행용 `compose.yml`도 같은 확인을 한다
 - 운영 이미지에서 꺼낸 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
 - 모니터링 서버 운영 명령(`infrastructure/monitoring-server.sh`)의 자동 시험(`infrastructure/tests/monitoring-server.test.sh`). 공식 Prometheus 이미지의 BusyBox `sh`에서 가짜 `docker`, `systemctl`, `curl`, `wget`으로 실행한다. 범위 밖이거나 형식이 틀린 값과 관리자 서버 주소를 `render`와 `start`가 거부하는지도 여기서 본다
 
-`monitoring-dev.bat build`(`node scripts/build-monitoring-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `monitoring-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 모니터링 시스템 설치](OPERATIONS.md#모니터링-시스템-설치)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-monitoring-bundle.mjs`의 버전·체크섬을 함께 바꾼다.
+`monitoring-dev.bat build`(`node scripts/build-monitoring-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `monitoring-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 모니터링 시스템 설치](OPERATIONS.md#모니터링-시스템-설치)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-monitoring-bundle.mjs`의 버전·체크섬을 함께 바꾼다. Blackbox 설정 검사는 Blackbox Exporter v0.28.0의 `/config` 출력 모양(들여쓰기 4칸, `false`와 빈 값은 빠짐, 한 줄 문자열은 접지 않음, 여러 줄 문자열은 키보다 깊게 들여 씀)에 기대므로, Blackbox Exporter 버전을 올리면 `/config` 출력이 이 모양인지 다시 확인한다.
 
 Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝났는데 실행 중으로 남아 검사가 멈추는 일이 있었다(2026-11-10, 원인은 확인하지 못함). `docker ps`에 몇 분째 남은 검사 컨테이너가 있으면 `docker kill <이름>`으로 끝내고, 되풀이되면 Docker Desktop을 다시 시작한다.
+
+검사가 띄우거나 만드는 컨테이너에는 `monitoring-build-check` label이 붙는다. 검사를 Ctrl+C로 멈췄거나 검사 컨테이너가 남았으면 `docker ps -a --filter label=monitoring-build-check`로 찾아 `docker rm -f <이름>`으로 지운다.
 
 감시 대상 서버용 node_exporter 배포 묶음(`infrastructure/node-exporter/compose.yml`)은 Docker Desktop에서 그대로 뜨지 않는다. Docker Desktop의 VM은 `/`가 shared mount가 아니라서 `/:/host:ro,rslave`를 붙일 수 없고, host 네트워크 기능이 꺼져 있으면 다른 컨테이너가 9100에 닿지 않는다. 개발 환경에서 OS exporter 수집을 확인하려면 node_exporter를 띄운 Linux 장비나 VM을 쓴다.
 

@@ -46,7 +46,7 @@
 
 | 종류 | 책임 | 쓰는 경우 | 쓰지 않는 경우 | 명령 |
 |---|---|---|---|---|
-| 이미지·설정 검사 | 운영 이미지의 파일 목록과 설정, Prometheus·Alertmanager·Blackbox 설정 문법, 서버에서 바꾸는 값의 약속, compose 파일의 포트와 붙이는 파일 | 항상, 별도 테스트 없이 | 해당 없음 | `monitoring-dev.bat check` |
+| 이미지·설정 검사 | 운영 이미지의 파일 목록과 설정, Prometheus·Alertmanager·Blackbox 설정 문법, 서버에서 바꾸는 값의 약속, compose 파일의 포트와 붙이는 파일, Blackbox 설정 검사가 인증서 검증 끄기와 `timeout`을 잘못 둔 사본을 거부하는지 | 항상, 별도 테스트 없이 | 해당 없음 | `monitoring-dev.bat check` |
 | 규칙 테스트 | recording rule이 OS exporter의 입력 series로 정한 이름, label, 값을 만드는지, Alert 규칙이 정한 label과 annotation으로 Alert를 만들고 이어 가는지 | `infrastructure/prometheus/rules/`의 규칙을 바꿨을 때 | Alert 전달 경로, 실제 exporter 연동 | `monitoring-dev.bat check` |
 | 운영 명령 시험 | 모니터링 서버 운영 명령이 띄우기 전에 잘못된 설정, token, 묶음을 막고 안내하는지 | `infrastructure/monitoring-server.sh`, `monitoring-settings.sh`를 바꿨을 때 | 실제 컨테이너를 띄우는 흐름(요구사항의 수동 확인) | `monitoring-dev.bat check` |
 | 문서 검사 | 문서 구조, 링크, 표, 그림 | 문서를 바꿨을 때 | 문서 내용이 맞는지(리뷰) | `node scripts/check-docs.mjs` |
