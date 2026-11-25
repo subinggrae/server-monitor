@@ -1,6 +1,6 @@
 # 0027. OS의 CA 인증서 파일을 경로로 붙이기
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-25
 - 관련: [0013](0013-core-env-settings.md), [0015](0015-core-minimal-image.md), [0017](0017-core-shared-env.md), [0023](0023-version-cleanup-rollback.md), [ADR 0012](../decisions/0012-core-render-outside-image.md), [OPERATIONS.md](../OPERATIONS.md)
 
@@ -35,6 +35,7 @@ CA 경로 값은 아래 문서의 문장과 부딪친다. 이 요구사항과 �
 - 설치 폴더의 `certs/` 복사본을 운영 명령이 지우는 것
 - 주소마다 다른 CA 인증서 파일을 쓰는 것
 - 숫자 설정 값의 종류, 허용 범위, 검사 규칙을 바꾸는 것
+- SELinux를 켠 RHEL 서버와 macOS Docker Desktop에서 OS의 CA 인증서 파일을 붙일 수 있는지 확인하는 것([#73](https://github.com/subinggrae/server-monitor/issues/73))
 
 ## 사용자 경험
 
@@ -119,7 +120,7 @@ OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으
 - [x] C4. CA 경로 값의 파일 내용을 바꾸고 `start`하면 Blackbox Exporter 컨테이너를 다시 만들고, 바꾸지 않았으면 다시 만들지 않는다. (S4) — 확인: 운영 명령 시험
 - [x] C5. 상대 경로, 공백·`:`·한글·`$` 등을 담은 경로를 적으면 펼친 설정을 바꾸지 않고 실패하고, 안내에 값 이름과 허용 형식이 있다. (S6) — 확인: 운영 명령 시험
 - [x] C6. 묶음의 실행용 compose 파일에서 값을 비웠을 때의 기본값이 설치 폴더의 `certs/ca-certificates.crt`(`../certs/ca-certificates.crt`)다. (S3, S5) — 확인: 빌드 검사
-- [ ] C7. Linux 모니터링 서버(또는 Linux VM)에서 링크인 OS의 CA 인증서 파일 경로를 적고 띄우면, 공인 인증서를 쓰는 HTTPS 주소의 확인이 성공한다. (S1, S2) — 확인: 수동 확인
+- [x] C7. Linux 모니터링 서버(또는 Linux VM)에서 링크인 OS의 CA 인증서 파일 경로를 적고 띄우면, 공인 인증서를 쓰는 HTTPS 주소의 확인이 성공한다. (S1, S2) — 확인: 수동 확인
 - [x] C8. [OPERATIONS.md](../OPERATIONS.md)의 설치 절차가 CA 인증서 파일 복사 대신 `.env`에 경로를 적게 하고 OS별 경로를 보이며, OS의 CA를 갱신하면 `start`를 실행한다는 것, 되돌릴 수 있는 예전 버전이 남은 동안 `certs/` 복사본을 지우지 않는다는 것과 지울 수 있는 때가 있다. `.env.example`에 값의 뜻과 예가 있다. [ARCHITECTURE.md](../ARCHITECTURE.md)의 설정 값 목록에 이 값이 있다. 이 결정을 남긴 ADR이 있다. (목표) — 확인: 문서 리뷰
 - [x] C9. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
 

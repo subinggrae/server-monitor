@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-11-25
-- 관련: [요구사항 0027](../requirements/0027-ca-file-path.md), [요구사항 0015](../requirements/0015-core-minimal-image.md), [ADR 0012](0012-core-render-outside-image.md)(이 ADR이 그 결정 가운데 CA 인증서 파일을 설치 폴더의 `certs/`에 복사해 붙인다는 문장만 대신함)
+- 관련: [요구사항 0027](../requirements/0027-ca-file-path.md), 지운 계획은 [PR #72](https://github.com/subinggrae/server-monitor/pull/72)에서 볼 수 있다, [요구사항 0015](../requirements/0015-core-minimal-image.md), [ADR 0012](0012-core-render-outside-image.md)(이 ADR이 그 결정 가운데 CA 인증서 파일을 설치 폴더의 `certs/`에 복사해 붙인다는 문장만 대신함)
 
 ## 배경과 문제
 
@@ -36,3 +36,4 @@ ADR 0012의 결정에서 "운영자가 운영 가이드대로 설치 폴더의 `
 
 - `infrastructure/tests/monitoring-server.test.sh`의 CA 인증서 파일 시험
 - `node scripts/build-monitoring-bundle.mjs --check`의 compose 확인(Blackbox Exporter에만 붙고, 값이 없으면 `certs/`를 씀)
+- Linux 확인(2026-11-25): Docker 안에 띄운 Linux Docker 호스트(Alpine, Docker 29)에 RHEL처럼 `/etc/pki/tls/certs/ca-bundle.crt`를 OS의 CA 인증서 파일로 가는 링크로 두었다. 묶음을 운영 가이드의 설치 절차대로 설치하고 이 경로를 적어 `start`하자, Blackbox Exporter에 그 경로가 붙고 공인 인증서를 쓰는 HTTPS 주소 두 곳의 `http_2xx` 확인이 성공했다(`probe_success 1`). 링크가 CA가 아닌 파일을 가리키면 인증서 오류로 실패하는 것은 Docker Desktop의 Linux VM에서 확인했다. SELinux를 켠 RHEL과 macOS는 확인하지 않았다([#73](https://github.com/subinggrae/server-monitor/issues/73))
