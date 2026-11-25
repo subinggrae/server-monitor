@@ -49,7 +49,7 @@
 
 ## 설치 전에 정할 값
 
-모니터링 시스템을 설치할 때 꼭 정해야 하는 값은 관리자 서버 주소 하나다. 나머지는 기본값으로 시작해도 되지만, 다음에 해당하면 설치할 때 함께 바꾼다.
+모니터링 시스템을 설치할 때 꼭 정해야 하는 값은 관리자 서버 주소와 CA 인증서 파일 경로 둘이다. 나머지는 기본값으로 시작해도 되지만, 다음에 해당하면 설치할 때 함께 바꾼다.
 
 - **모니터링 서버에서 9090, 9093, 9115 포트를 이미 쓰고 있다**: 모니터링 시스템 포트를 비어 있는 포트로 바꾼다. 쓰고 있는 포트는 `ss -ltn`으로 볼 수 있다. 겹치면 `port is already allocated` 오류가 나고 모니터링 시스템이 뜨지 않는다.
 - **기록을 둘 디스크가 넉넉하지 않다**: 기록 보관 기간을 줄이거나 보관 용량을 정한다. 나중에 줄이면 오래된 기록이 지워지므로 설치할 때 정해 두는 편이 낫다.
@@ -67,6 +67,7 @@
 | Alertmanager 포트 | `MONITORING_ALERTMANAGER_PORT` | 9093 | 1024~65535 |
 | Blackbox Exporter 포트 | `MONITORING_BLACKBOX_PORT` | 9115 | 1024~65535 |
 | token 폴더 | `MONITORING_SECRETS_DIR` | 설치 폴더의 `secrets/` | 폴더 경로 |
+| CA 인증서 파일 | `MONITORING_CA_FILE` | 설치 폴더의 `certs/ca-certificates.crt` | `/`로 시작하는 경로(영문자, 숫자, `.`, `_`, `/`, `-`) |
 | 서버 사용량 수집 | `MONITORING_OS_EXPORTER` | `on` | `on`, `off` |
 
 값마다 다음을 알아 둔다.
@@ -76,6 +77,7 @@
 - **주소 확인 제한 시간**: 이 시간 안에 응답이 없으면 확인 실패로 본다. ping, TCP, 웹 주소 확인에 모두 쓰고, 감시 항목마다 다르게 둘 수 없다. 최대 9초다.
 - **포트**: 모니터링 서버에서 브라우저나 `curl`로 모니터링 시스템을 열 때 쓰는 포트다. 세 값은 서로 달라야 한다. 바꿔도 모니터링 서버 안에서만 열리고, 관리자 서버 설정은 그대로 둔다([바꾸지 않는 값](#바꾸지-않는-값)). 바꿨으면 이 문서의 9090 같은 포트를 바꾼 값으로 읽는다.
 - **token 폴더**: 모니터링 시스템과 관리자 서버가 함께 읽는 token 파일의 폴더다. 보통은 바꾸지 않는다. 상대 경로를 적으면 묶음 폴더가 기준이다.
+- **CA 인증서 파일**: 모니터링 시스템이 HTTPS 주소의 인증서를 확인할 때 쓰는 모니터링 서버 OS의 파일이다. Ubuntu, Debian, Amazon Linux는 `/etc/ssl/certs/ca-certificates.crt`, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`를 적는다. 링크인 파일도 된다. 복사하지 않고 그 파일을 바로 쓰므로, OS의 CA 인증서를 갱신하면 [OS의 CA 인증서를 갱신했을 때](#os의-ca-인증서를-갱신했을-때)대로 `start`만 실행한다. 비워 두면 예전 방식대로 설치 폴더의 `certs/ca-certificates.crt`에 복사해 둔 파일을 쓴다.
 - **서버 사용량 수집**: `off`면 서버의 CPU, Memory, 디스크 사용량을 모으지 않고, 관리자 서버의 서버 감시 대상 목록 API도 부르지 않는다. 주소 감시와 장애 알림은 그대로다. 소문자 `on`, `off`만 받는다. 끄기 전에 모은 기록은 보관 기간까지 남는다.
 
 감시할 주소, 확인 주기, 알림 받을 곳, 임계값은 관리자 서버 화면에서 정한다. 바꿔도 모니터링 시스템을 다시 띄울 필요가 없고, 주소, 주기, exporter 포트는 30초 안에 모니터링 시스템에 반영된다.
@@ -122,19 +124,17 @@ scp -r dist\monitoring-system-<버전> <계정>@<서버 주소>:/tmp/
 ssh <계정>@<서버 주소>
 ```
 
-모니터링 서버에서 설치 폴더를 만들고, 묶음 폴더와 OS의 CA 인증서 파일을 그 안에 둔다. 모니터링 시스템과 관리자 서버가 함께 붙는 Docker 네트워크 `monitoring`도 만든다. 다음 명령은 설치 폴더를 `/opt/monitoring`으로 둔 예다. 설치 폴더는 어디든 되고, 다른 폴더를 쓰면 명령의 `/opt/monitoring`만 바꾼다.
+모니터링 서버에서 설치 폴더를 만들고, 묶음 폴더를 그 안에 둔다. 모니터링 시스템과 관리자 서버가 함께 붙는 Docker 네트워크 `monitoring`도 만든다. 다음 명령은 설치 폴더를 `/opt/monitoring`으로 둔 예다. 설치 폴더는 어디든 되고, 다른 폴더를 쓰면 명령의 `/opt/monitoring`만 바꾼다.
 
 ```sh
-sudo mkdir -p /opt/monitoring/certs
+sudo mkdir -p /opt/monitoring
 sudo mv /tmp/monitoring-system-<버전> /opt/monitoring/
-sudo cp -L /etc/ssl/certs/ca-certificates.crt /opt/monitoring/certs/ca-certificates.crt
-sudo chmod 0644 /opt/monitoring/certs/ca-certificates.crt
 sudo docker network create monitoring
 ```
 
-CA 인증서 파일은 모니터링 시스템이 HTTPS 주소를 확인할 때 쓴다. 위 경로는 Ubuntu, Debian, Amazon Linux용이고, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`를 복사한다. CA 인증서 복사와 네트워크 만들기는 처음 설치할 때 한 번만 한다. 네트워크가 이미 있으면 `already exists`가 나오고, 그 네트워크를 그대로 쓴다. 네트워크는 모니터링 시스템을 내리거나 갱신해도 남는다.
+네트워크 만들기는 처음 설치할 때 한 번만 한다. 네트워크가 이미 있으면 `already exists`가 나오고, 그 네트워크를 그대로 쓴다. 네트워크는 모니터링 시스템을 내리거나 갱신해도 남는다.
 
-묶음 폴더는 설치 폴더 바로 아래에 둔다. 그래야 운영 명령(`monitoring-server.sh`)이 설치 폴더의 `secrets/`와 `certs/`를 찾고, 새 버전도 같은 token과 CA 인증서 파일을 쓴다.
+묶음 폴더는 설치 폴더 바로 아래에 둔다. 그래야 운영 명령(`monitoring-server.sh`)이 설치 폴더의 `.env`와 `secrets/`를 찾고, 새 버전도 같은 설정과 token을 쓴다.
 
 ### 4. token과 설정 파일 만들기
 
@@ -147,11 +147,12 @@ sudo sh monitoring-server.sh install
 
 `관리자 서버 주소(컨테이너 이름:포트, 예: manager-api:8080):`가 나오면 [관리자 서버 주소](#설치-전에-정할-값)를 넣는다. `install`은 설치 폴더에 token 파일(`secrets/`)과 설정 파일(`.env`)을 만든다. token 값은 화면에 나오지 않는다. 이미 있는 파일은 그대로 두고, `.env`가 이미 있으면 주소를 묻지 않는다.
 
-### 5. 설정 값 바꾸기
+### 5. 설정 값 적기
 
-[설치 전에 정할 값](#설치-전에-정할-값)에서 기본값과 다르게 정한 값이 있으면 설치 폴더의 `.env`를 편집기로 연다(예: `sudo vi ../.env`). 바꿀 줄 앞의 `#`을 지우고 값을 적는다. 다음은 기록을 30일 보관하고 Prometheus 포트를 19090으로 바꾸는 예다.
+설치 폴더의 `.env`를 편집기로 열어(예: `sudo vi ../.env`) CA 인증서 파일 경로를 적는다. [설치 전에 정할 값](#설치-전에-정할-값)에서 기본값과 다르게 정한 값이 있으면 그 줄 앞의 `#`을 지우고 함께 적는다. 다음은 Ubuntu 서버에서 CA 인증서 파일 경로를 적고, 기록을 30일 보관하고, Prometheus 포트를 19090으로 바꾸는 예다. RHEL 계열은 CA 인증서 파일 경로에 `/etc/pki/tls/certs/ca-bundle.crt`를 적는다.
 
 ```text
+MONITORING_CA_FILE=/etc/ssl/certs/ca-certificates.crt
 MONITORING_RETENTION_DAYS=30
 MONITORING_PROMETHEUS_PORT=19090
 ```
@@ -162,8 +163,6 @@ MONITORING_PROMETHEUS_PORT=19090
 - 적지 않거나 비워 두면 기본값을 쓴다.
 - 셸에 같은 이름의 환경 변수가 있으면 `.env`보다 그 값을 먼저 쓴다.
 
-바꿀 값이 없으면 이 단계를 건너뛴다.
-
 ### 6. 모니터링 시스템 띄우기
 
 묶음 폴더에서 `start`를 실행한다.
@@ -172,7 +171,7 @@ MONITORING_PROMETHEUS_PORT=19090
 sudo sh monitoring-server.sh start
 ```
 
-`start`는 파일과 설정 값을 검사한 뒤 모니터링 시스템을 띄우고, 준비될 때까지 최대 3분 기다린다. 마지막 줄에 `모니터링 시스템이 떠 있습니다: 버전 …`이 보이면 성공이다. 5단계에서 바꾼 값은 `기본값과 다른 설정 값: …` 줄에서 확인한다.
+`start`는 파일과 설정 값을 검사한 뒤 모니터링 시스템을 띄우고, 준비될 때까지 최대 3분 기다린다. 마지막 줄에 `모니터링 시스템이 떠 있습니다: 버전 …`이 보이면 성공이다. 5단계에서 바꾼 숫자 값과 켜고 끄는 값은 `기본값과 다른 설정 값: …` 줄에서 확인한다.
 
 실패하면 고칠 방법이 함께 나온다. 고친 뒤 `start`를 다시 실행하고, 그래도 안 되면 [문제 해결](#문제-해결)을 본다. 설정 값이 틀렸을 때는 떠 있던 모니터링 시스템을 건드리지 않는다.
 
@@ -184,7 +183,7 @@ sudo sh monitoring-server.sh start
 /opt/monitoring/                         설치 폴더(예)
 ├── .env                                 설정 값(모든 버전이 함께 읽는다)
 ├── secrets/alertmanager_webhook_token   모니터링 시스템과 관리자 서버가 함께 읽는 token
-├── certs/ca-certificates.crt            OS에서 복사한 CA 인증서 파일
+├── certs/ca-certificates.crt            예전 방식으로 OS에서 복사한 CA 인증서 파일(MONITORING_CA_FILE을 비웠을 때만 쓴다)
 ├── monitoring-versions                  지금 버전과 직전 버전의 기록(start가 쓴다)
 ├── monitoring-system-<직전 버전>/          되돌릴 때 쓴다(더 오래된 버전은 start가 지운다)
 └── monitoring-system-<새 버전>/
@@ -312,9 +311,11 @@ curl -s -m 5 http://<대상 서버 주소>:<exporter 포트>/metrics | head -n 1
 | `설정 값이 올바르지 않습니다: MONITORING_…` | 값이 숫자가 아니거나, 단위나 앞의 0이 붙었거나, 허용 범위 밖이거나, 서버 사용량 수집이 소문자 `on`, `off`가 아님 | 안내대로 값을 고치거나 지운다(셸 환경 변수면 `unset <변수 이름>`) |
 | `기록 보관 값을 줄이려면 터미널에서 직접 실행해 y를 입력해 주세요` | 보관 값을 줄였는데 스크립트 등에서 실행함 | 줄이려는 것이 맞으면 터미널에서 실행해 `y`를 넣고, 아니면 `.env`를 되돌린다 |
 | `port is already allocated`, `address already in use` | 다른 프로그램이 그 포트를 쓰거나, `.env`의 세 포트 가운데 둘이 같음 | `.env`의 그 포트를 비어 있는 포트로 바꾸고 `start`를 다시 실행한다 |
-| `CA 인증서 파일이 없습니다`, `CA 인증서 파일이 비어 있습니다` | 설치 폴더의 `certs/`에 파일을 복사하지 않음 | [3. 설치 폴더와 네트워크 만들기](#3-설치-폴더와-네트워크-만들기)대로 복사한다 |
-| `CA 인증서 파일 자리에 폴더가 있습니다` | 파일을 복사하기 전에 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 파일을 복사한다 |
-| `컨테이너가 CA 인증서 파일을 읽을 수 없습니다` | 복사한 파일의 권한이 0600 등임 | 파일 권한을 0644로 바꾼다 |
+| `CA 인증서 파일이 없습니다`, `CA 인증서 파일이 비어 있습니다` | `.env`에 CA 인증서 파일 경로를 적지 않았고 설치 폴더의 `certs/`에도 파일이 없음 | [5. 설정 값 적기](#5-설정-값-적기)대로 `MONITORING_CA_FILE`을 적는다 |
+| `CA 인증서 파일 자리에 폴더가 있습니다` | 경로를 적지 않고 Compose로 띄워 Docker가 `certs/`에 빈 폴더를 만듦 | `docker compose down` 뒤 그 폴더를 지우고 `MONITORING_CA_FILE`을 적는다 |
+| `컨테이너가 CA 인증서 파일을 읽을 수 없습니다` | 복사해 둔 `certs/` 파일의 권한이 0600 등임 | 파일 권한을 0644로 바꾸거나 `MONITORING_CA_FILE`을 적는다 |
+| `MONITORING_CA_FILE의 CA 인증서 파일을 쓸 수 없습니다` | `.env`에 적은 경로에 파일이 없거나, 폴더거나, 비어 있거나, 다른 사용자가 읽을 수 없음 | OS의 파일은 고치지 말고, 안내의 OS별 경로를 보고 `.env`의 값을 고친다 |
+| `설정 값이 올바르지 않습니다: MONITORING_CA_FILE=…` | 경로가 `/`로 시작하지 않거나 공백, `:`, 한글 같은 글자가 있음 | 영문자, 숫자, `.`, `_`, `/`, `-`만 쓴 절대 경로로 고친다(그런 경로가 없으면 그 파일을 가리키는 링크를 만들어 적음) |
 | `펼친 설정 파일 자리에 폴더가 있습니다` | 펼친 설정 없이 Compose로 띄워 Docker가 빈 폴더를 만듦 | `docker compose down` 뒤 안내의 `sudo rmdir` 명령으로 폴더를 지우고 다시 실행한다 |
 | `펼친 설정 폴더가 심볼릭 링크입니다`, `펼친 설정 파일이 심볼릭 링크입니다` | `rendered/`나 그 안의 파일이 다른 곳을 가리킴 | 링크를 지우고 다시 실행한다 |
 | `env file …/rendered/monitoring.env not found` | `render` 없이 `docker compose up -d`를 실행함 | `sh monitoring-server.sh render` 뒤 다시 띄우거나, `sh monitoring-server.sh start`로 띄운다 |
@@ -427,7 +428,7 @@ Docker 자동 시작이 켜져 있으면 서버를 재시작해도 모니터링 
 
 ### 새 버전으로 갱신
 
-새 묶음 폴더를 이전 묶음 폴더 옆에 옮긴 뒤, 새 폴더에서 다음을 실행한다. 설정 파일, token, CA 인증서 파일은 설치 폴더에 있으므로 옮기지 않는다. 쌓은 기록과 장애 상태는 이어진다. `.env`에 적지 않은 새 값은 기본값을 쓴다.
+새 묶음 폴더를 이전 묶음 폴더 옆에 옮긴 뒤, 새 폴더에서 다음을 실행한다. 설정 파일, token, CA 인증서 파일은 설치 폴더나 OS에 있으므로 옮기지 않는다. CA 인증서 파일을 `certs/`에 복사해 쓰던 서버는 이때 `.env`에 `MONITORING_CA_FILE`을 적어 OS의 파일을 바로 쓰게 바꿀 수 있다. 쌓은 기록과 장애 상태는 이어진다. `.env`에 적지 않은 새 값은 기본값을 쓴다.
 
 ```sh
 sudo sh monitoring-server.sh start
@@ -457,7 +458,7 @@ sudo docker image rm monitoring-system-prometheus:<오래된 버전> monitoring-
 sudo sh monitoring-server.sh rollback
 ```
 
-마지막 줄에 `되돌렸습니다: <되돌리기 전 버전> → <직전 버전>`이 보이면 성공이다. 쌓은 기록, 장애 상태, token, CA 인증서 파일이 이어진다. 설정은 설치 폴더의 `.env`를 함께 쓰므로 되돌아가지 않는다. 되돌린 뒤에는 되돌리기 전 버전이 직전 버전이 되므로, 다시 `rollback`하면 원래 버전으로 돌아간다.
+마지막 줄에 `되돌렸습니다: <되돌리기 전 버전> → <직전 버전>`이 보이면 성공이다. 쌓은 기록, 장애 상태, token이 이어진다. `MONITORING_CA_FILE`이 없던 예전 버전은 이 값을 모르고 설치 폴더의 `certs/ca-certificates.crt`를 쓴다. 그래서 그런 버전으로 되돌릴 수 있는 동안은 `certs/`의 복사본을 지우지 않는다([OS의 CA 인증서를 갱신했을 때](#os의-ca-인증서를-갱신했을-때)). 설정은 설치 폴더의 `.env`를 함께 쓰므로 되돌아가지 않는다. 되돌린 뒤에는 되돌리기 전 버전이 직전 버전이 되므로, 다시 `rollback`하면 원래 버전으로 돌아간다.
 
 되돌릴지는 묻지 않는다. 다만 되돌리면 기록 보관 값이 줄어드는 경우에는 `start`처럼 확인을 묻고([기록 보관 값 줄이기](#기록-보관-값-줄이기)), `y`를 넣지 않으면 `되돌리지 않았습니다`를 보이고 그대로 둔다.
 
@@ -477,9 +478,11 @@ sudo docker compose up -d --force-recreate alertmanager
 
 관리자 서버는 시작할 때 token을 읽으므로, 다시 띄울 때까지 모니터링 시스템이 보낸 장애를 거부한다.
 
-### CA 인증서 다시 복사
+### OS의 CA 인증서를 갱신했을 때
 
-OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면, [3. 설치 폴더와 네트워크 만들기](#3-설치-폴더와-네트워크-만들기)대로 설치 폴더의 `certs/`에 다시 복사하고 `sh monitoring-server.sh start`를 실행한다. 이때 세 컨테이너를 다시 만들어 잠깐 감시가 멈춘다.
+OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으면 묶음 폴더에서 `sudo sh monitoring-server.sh start`를 실행한다. `.env`에 `MONITORING_CA_FILE`을 적었으면 다시 복사할 것이 없다. `start`가 바뀐 내용을 알아채고 컨테이너를 다시 만들어, 잠깐 감시가 멈춘다. `MONITORING_CA_FILE`을 비워 두고 `certs/`의 복사본을 쓰는 서버는 먼저 `MONITORING_CA_FILE`을 적는다.
+
+`certs/`의 복사본은 `MONITORING_CA_FILE`이 없던 예전 버전으로 되돌릴 때 쓴다. 그래서 `MONITORING_CA_FILE`을 아는 버전으로 한 번 더 갱신해, 설치 폴더의 `monitoring-versions`에 적힌 직전 버전(`previous`)도 이 값을 아는 버전이 된 뒤에 지운다. 그 전에 지우면 되돌릴 때 `CA 인증서 파일이 없습니다`로 멈추고, 떠 있는 모니터링 시스템은 그대로 둔다.
 
 ### node_exporter 갱신과 멈추기
 
@@ -496,16 +499,13 @@ OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으
 
 ### 운영 명령 없이 실행
 
-[모니터링 시스템 설치](#모니터링-시스템-설치)의 4~6단계 대신 묶음 폴더에서 다음을 실행한다. Compose로 띄우기 전에 반드시 `render`로 설정을 펼친다. 3단계에서 CA 인증서 파일을 복사했으면 `../certs`를 다루는 세 줄은 건너뛴다.
+[모니터링 시스템 설치](#모니터링-시스템-설치)의 4~6단계 대신 묶음 폴더에서 다음을 실행한다. Compose로 띄우기 전에 반드시 `render`로 설정을 펼친다.
 
 ```sh
 install -d -m 0700 ../secrets
 openssl rand -hex 32 > ../secrets/alertmanager_webhook_token
 chmod 0644 ../secrets/alertmanager_webhook_token
-install -d -m 0755 ../certs
-cp -L /etc/ssl/certs/ca-certificates.crt ../certs/ca-certificates.crt   # RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt
-chmod 0644 ../certs/ca-certificates.crt
-cp -n .env.example ../.env        # 설치 폴더에 .env가 없을 때만 만든다. MONITORING_APP_ADDRESS를 관리자 서버의 컨테이너 이름:포트로 고친다
+cp -n .env.example ../.env        # 설치 폴더에 .env가 없을 때만 만든다. MONITORING_APP_ADDRESS와 MONITORING_CA_FILE을 고친다
 ln -s ../.env .env                # 묶음 폴더의 docker compose가 설치 폴더의 값을 읽게 한다
 docker load -i monitoring-system-images.tar
 sh monitoring-server.sh render          # 파일이 온전한지 보고, 값과 token, CA 인증서 파일을 검사해 rendered/에 펼친다
@@ -517,7 +517,7 @@ curl -fsS http://127.0.0.1:9090/-/ready   # Alertmanager는 9093/-/ready, Blackb
 
 이 방식에서 주의할 점은 다음과 같다.
 
-- `.env`를 바꾸거나 CA 인증서 파일을 다시 복사했으면 `render`와 `docker compose up -d`를 다시 실행한다.
+- `.env`를 바꾸거나 OS의 CA 인증서를 갱신했으면 `render`와 `docker compose up -d`를 다시 실행한다.
 - `render` 없이 `docker compose up -d`를 실행하면 Compose가 `env file …/rendered/monitoring.env not found`로 멈추고 아무것도 만들지 않는다.
 - `render`와 `docker compose up -d` 사이에 token 파일을 지우지 않는다. 지우면 Alertmanager가 token 없이 떠서 관리자 서버가 장애를 거부한다.
 
@@ -531,13 +531,11 @@ openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
 chmod 0644 infrastructure/secrets/alertmanager_webhook_token
 ```
 
-Windows에서는 `monitoring-dev.bat start`로 띄우고 `monitoring-dev.bat stop`으로 멈춘다. `start`가 설정 펼치기, CA 인증서 파일 준비, `monitoring` 네트워크 만들기(없을 때)까지 한다.
+Windows에서는 `monitoring-dev.bat start`로 띄우고 `monitoring-dev.bat stop`으로 멈춘다. `start`가 설정 펼치기, CA 인증서 파일 준비(`infrastructure/certs/`), `monitoring` 네트워크 만들기(없을 때)까지 한다. Windows에서는 `.env`의 `MONITORING_CA_FILE`을 비워 둔다. 운영 명령이 Linux 컨테이너 안에서 돌아 Windows의 경로를 볼 수 없다.
 
-다른 OS에서는 같은 일을 하는 다음 명령을 쓴다. 앞의 세 줄은 그 PC의 CA 인증서 파일을 복사하고 네트워크를 만드는 명령이라 처음 한 번만 실행한다.
+다른 OS에서는 `infrastructure/.env`의 `MONITORING_CA_FILE`에 그 PC의 CA 인증서 파일 경로(RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`, macOS는 `/etc/ssl/cert.pem`)를 적고, 같은 일을 하는 다음 명령을 쓴다. 첫 줄은 처음 한 번만 실행한다.
 
 ```sh
-mkdir -p infrastructure/certs
-cp -L /etc/ssl/certs/ca-certificates.crt infrastructure/certs/   # RHEL 계열은 /etc/pki/tls/certs/ca-bundle.crt, macOS는 /etc/ssl/cert.pem
 docker network create monitoring
 sh infrastructure/monitoring-server.sh render
 docker compose -f infrastructure/compose.yml up -d --build
