@@ -106,7 +106,7 @@ docker run --rm --user 0 -v "$PWD/infrastructure:/src:ro" --entrypoint /bin/sh "
 - [x] `monitoring-dev.bat`에 `-e MONITORING_SECRETS_DIR`를 더하고 C7의 고친 뒤 확인을 한다.
 - [x] 코드 주석, `.env.example`, OPERATIONS.md, ARCHITECTURE.md를 고치고 `node scripts/check-docs.mjs`를 돌린다(커밋: `docs:` 또는 구현 커밋에 함께).
 - [x] C6 수동 확인을 하고 결과를 진행 중 발견에 적는다.
-- [ ] 전체 검증(C9)을 돌린다.
+- [x] 전체 검증(C9)을 돌린다. `2dbed71`에서 `node scripts/build-monitoring-bundle.mjs --check`(운영 명령 시험 통과 328, 실패 0)와 `node scripts/check-docs.mjs`가 통과했다.
 - [ ] 구현하지 않은 세션이나 하위 에이전트에 리뷰를 맡긴다. 요구사항의 완료 기준, 이 계획, diff, 검증한 커밋 SHA와 명령·결과, 위 보안 위협의 CWE를 준다.
 - [ ] 리뷰를 반영한 뒤 계획 템플릿의 상태 값 설명대로 남길 것을 옮기고, 요구사항을 구현됨으로 바꾸고, 이 계획을 지운다(병합 전 마지막 커밋).
 
