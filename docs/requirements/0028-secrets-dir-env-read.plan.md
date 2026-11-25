@@ -98,21 +98,25 @@ docker run --rm --user 0 -v "$PWD/infrastructure:/src:ro" --entrypoint /bin/sh "
 
 ## 작업 순서
 
-- [ ] C7의 고치기 전 확인: 고치기 전의 `monitoring-dev.bat start`로 결함을 재현하고 결과를 진행 중 발견에 적는다. 띄운 컨테이너는 멈추고 시험용 폴더는 지운다.
-- [ ] 시험 먼저: 가짜 `docker`에 `MONITORING_SECRETS_DIR` 기록을 더하고 C1~C5의 시험을 쓴다. 0027 시험의 기대를 바꾼다. 위 명령으로 돌려 새 시험과 바꾼 시험이 실패하는지 본다(커밋: `test:`).
-- [ ] 읽지 않는 줄을 찾는 함수와 안내를 더하고, `check_ca_setting`과 token 폴더 검사, `cmd_install`에서 부른다. C1, C2 시험이 통과하는지 본다.
-- [ ] token 폴더 값을 export한다. C3, C5 시험이 통과하고 C4가 그대로 통과하는지 본다.
-- [ ] 고친 사본으로 결함을 잡는지 본다(멈춤을 지운 사본, export를 지운 사본, CA 값 넘기기를 지운 사본).
-- [ ] `monitoring-dev.bat`에 `-e MONITORING_SECRETS_DIR`를 더하고 C7의 고친 뒤 확인을 한다.
-- [ ] 코드 주석, `.env.example`, OPERATIONS.md, ARCHITECTURE.md를 고치고 `node scripts/check-docs.mjs`를 돌린다(커밋: `docs:` 또는 구현 커밋에 함께).
-- [ ] C6 수동 확인을 하고 결과를 진행 중 발견에 적는다.
+- [x] C7의 고치기 전 확인: 고치기 전의 `monitoring-dev.bat start`로 결함을 재현하고 결과를 진행 중 발견에 적는다. 띄운 컨테이너는 멈추고 시험용 폴더는 지운다.
+- [x] 시험 먼저: 가짜 `docker`에 `MONITORING_SECRETS_DIR` 기록을 더하고 C1~C5의 시험을 쓴다. 0027 시험의 기대를 바꾼다. 위 명령으로 돌려 새 시험과 바꾼 시험이 실패하는지 본다(커밋: `test:`).
+- [x] 읽지 않는 줄을 찾는 함수와 안내를 더하고, `check_ca_setting`과 token 폴더 검사, `cmd_install`에서 부른다. C1, C2 시험이 통과하는지 본다.
+- [x] token 폴더 값을 export한다. C3, C5 시험이 통과하고 C4가 그대로 통과하는지 본다.
+- [x] 고친 사본으로 결함을 잡는지 본다(멈춤을 지운 사본, export를 지운 사본, CA 값 넘기기를 지운 사본).
+- [x] `monitoring-dev.bat`에 `-e MONITORING_SECRETS_DIR`를 더하고 C7의 고친 뒤 확인을 한다.
+- [x] 코드 주석, `.env.example`, OPERATIONS.md, ARCHITECTURE.md를 고치고 `node scripts/check-docs.mjs`를 돌린다(커밋: `docs:` 또는 구현 커밋에 함께).
+- [x] C6 수동 확인을 하고 결과를 진행 중 발견에 적는다.
 - [ ] 전체 검증(C9)을 돌린다.
 - [ ] 구현하지 않은 세션이나 하위 에이전트에 리뷰를 맡긴다. 요구사항의 완료 기준, 이 계획, diff, 검증한 커밋 SHA와 명령·결과, 위 보안 위협의 CWE를 준다.
 - [ ] 리뷰를 반영한 뒤 계획 템플릿의 상태 값 설명대로 남길 것을 옮기고, 요구사항을 구현됨으로 바꾸고, 이 계획을 지운다(병합 전 마지막 커밋).
 
 ## 진행 중 발견
 
-없음
+- **시험과 구현을 한 커밋에 담음**: 작업 순서에는 시험을 `test:` 커밋으로 먼저 남긴다고 적었지만, [DEVELOPMENT.md의 커밋](../DEVELOPMENT.md#커밋)은 커밋 전에 바꾼 부분의 시험이 통과해야 한다고 정한다. 그래서 시험을 먼저 쓰고 실패를 본 뒤(통과 260, 실패 68) 구현과 함께 `edd924c`에 커밋했다. 구현 뒤에는 통과 328, 실패 0이다.
+- **결함을 잡는지 본 사본**: `infrastructure/`에서 시험에 필요한 파일만 OS 임시 폴더에 복사하고, 사본의 `monitoring-server.sh`를 한 곳씩 고쳐 시험을 돌렸다. token 폴더의 멈춤을 지운 사본은 38개, token 폴더의 export를 지운 사본은 4개, CA 경로의 멈춤을 지운 사본은 26개, CA 경로의 export를 지운 사본은 2개, 이름 경계 검사를 지운 사본은 1개, 파일 첫머리의 보이지 않는 글자 처리를 지운 사본은 20개, `install`의 멈춤을 지운 사본은 12개 시험이 실패했다. 모두 고친 부분을 맡는 시험이다.
+- **C7(2026-11-25, Windows, Docker Desktop 29.9.3)**: 고치기 전의 `monitoring-dev.bat start`에 셸 환경 변수로 token이 없는 폴더를 주자 render가 통과했다. 이어서 Compose가 `secret file ... does not exist` 경고만 내고 그 폴더의 token 경로를 Alertmanager에 붙여 띄웠고, Docker가 그 자리에 빈 폴더를 만들었다. 고친 뒤에는 그 폴더를 render가 검사해 멈췄고(`token 자리에 폴더가 있습니다`, 폴더를 지운 뒤에는 `token 파일이 없습니다`) Compose를 부르지 않았다. 그 폴더에 시험용 token을 두면 Alertmanager의 token 원본이 그 폴더의 파일이었다. 개발용 시스템은 확인 뒤 내렸고 시험용 폴더는 지웠다.
+- **C6(2026-11-25, `docker:29-dind`, `--privileged --memory 1536m --cpus 2`, 안쪽 Docker 29.10.1)**: `ddae432`로 만든 묶음을 운영 가이드대로 설치했다. 컨테이너를 지운 뒤 `start`하면 Alertmanager의 token 원본이 경우마다 운영 명령이 검사한 파일이었다. `.env`에 적지 않으면 설치 폴더의 `secrets/`, `.env`에 `이름=폴더`로 적으면 그 폴더, 셸 환경 변수로 주면 그 폴더였다. 운영 명령과 Compose가 다르게 읽는 표기로 적은 경우에는 운영 명령이 읽은 글자 그대로의 폴더였고, 같은 `.env`로 `docker compose config`를 실행하면 Compose는 다른 폴더로 풀었다. Blackbox Exporter의 CA 원본은 `.env`에 적은 OS의 파일이었다. CA 경로를 다르게 읽는 표기와, 두 값을 읽지 않는 표기로 적은 경우에는 `start`가 멈추고 컨테이너가 바뀌지 않았다. 확인 뒤 dind 컨테이너와 볼륨, 받은 이미지, 만든 묶음을 지웠다.
+- **C6에서 찾은 범위 밖 문제**: 모니터링 시스템이 떠 있는 채로 token 폴더 값만 바꾸고 `start`하면, 운영 명령은 새 폴더의 token을 검사하고 성공으로 끝나지만 Alertmanager를 다시 만들지 않아 예전 token 파일을 계속 붙인다. Compose가 서비스를 다시 만들지 판단할 때 token 파일 경로를 보지 않고, 운영 명령도 펼친 설정과 CA 인증서 파일이 바뀔 때만 다시 만들게 하기 때문이다(`write_rendered`의 `render_changed`). 이 변경 전부터 있던 동작이고, 이번 변경은 이 동작을 바꾸지 않았다. 처리 방법은 사람에게 묻는다.
 
 ## 남길 결정
 
