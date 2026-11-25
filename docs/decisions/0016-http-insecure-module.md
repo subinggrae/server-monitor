@@ -2,7 +2,7 @@
 
 - 상태: 승인
 - 날짜: 2026-11-25
-- 관련: [요구사항 0025](../requirements/0025-http-insecure-module.md), [INTEGRATION.md](../INTEGRATION.md)
+- 관련: [요구사항 0025](../requirements/0025-http-insecure-module.md), 지운 계획은 [PR #70](https://github.com/subinggrae/server-monitor/pull/70)에서 볼 수 있다, [INTEGRATION.md](../INTEGRATION.md)
 
 ## 배경과 문제
 

@@ -41,7 +41,7 @@
 - 운영 이미지에서 꺼낸 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
 - 모니터링 서버 운영 명령(`infrastructure/monitoring-server.sh`)의 자동 시험(`infrastructure/tests/monitoring-server.test.sh`). 공식 Prometheus 이미지의 BusyBox `sh`에서 가짜 `docker`, `systemctl`, `curl`, `wget`으로 실행한다. 범위 밖이거나 형식이 틀린 값과 관리자 서버 주소를 `render`와 `start`가 거부하는지도 여기서 본다
 
-`monitoring-dev.bat build`(`node scripts/build-monitoring-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `monitoring-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 모니터링 시스템 설치](OPERATIONS.md#모니터링-시스템-설치)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-monitoring-bundle.mjs`의 버전·체크섬을 함께 바꾼다.
+`monitoring-dev.bat build`(`node scripts/build-monitoring-bundle.mjs`와 같다)는 같은 검사 뒤에 내부망 서버로 옮길 묶음을 `dist/`에 만든다. 추가 옵션은 빌드 스크립트로 넘긴다(예: `monitoring-dev.bat build --allow-dirty`). 옮기고 설치하는 방법은 [운영 가이드의 모니터링 시스템 설치](OPERATIONS.md#모니터링-시스템-설치)에 있다. 공식 이미지의 버전을 올릴 때는 각 `Dockerfile`의 태그와 digest를 함께 바꾸고, node_exporter는 `infrastructure/node-exporter/Dockerfile`의 태그·digest와 `scripts/build-monitoring-bundle.mjs`의 버전·체크섬을 함께 바꾼다. Blackbox 설정 검사는 Blackbox Exporter v0.28.0의 `/config` 출력 모양(들여쓰기 4칸, `false`와 빈 값은 빠짐, 한 줄 문자열은 접지 않음, 여러 줄 문자열은 키보다 깊게 들여 씀)에 기대므로, Blackbox Exporter 버전을 올리면 `/config` 출력이 이 모양인지 다시 확인한다.
 
 Docker Desktop(29.2.1)에서 검사 컨테이너가 안의 프로세스는 끝났는데 실행 중으로 남아 검사가 멈추는 일이 있었다(2026-11-10, 원인은 확인하지 못함). `docker ps`에 몇 분째 남은 검사 컨테이너가 있으면 `docker kill <이름>`으로 끝내고, 되풀이되면 Docker Desktop을 다시 시작한다.
 

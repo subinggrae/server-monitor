@@ -1,6 +1,6 @@
 # 0025. 인증서를 검증하지 않는 HTTP 확인 module
 
-- 상태: 승인
+- 상태: 구현됨
 - 작성일: 2026-11-25
 - 관련: [0012](0012-check-label-continuity.md), [0013](0013-core-env-settings.md), [0024](0024-consecutive-failure-down.md), [INTEGRATION.md](../INTEGRATION.md)
 
@@ -107,14 +107,14 @@
 
 ## 완료 기준
 
-- [ ] C1. `infrastructure/blackbox/blackbox.yml`에 `http_2xx_insecure`가 있고, `http_2xx`와 다른 점은 인증서 검증을 끄는 설정뿐이다. 값 세 벌로 펼친 설정이 Blackbox 설정 검사를 통과하고, 네 module의 `timeout`이 모두 확인 제한 시간이다. (S1, S3) — 확인: `node scripts/build-monitoring-bundle.mjs --check`, diff 리뷰
-- [ ] C2. 빌드 검사는 인증서 검증을 끄는 설정이 `http_2xx_insecure` 밖의 module에 있거나, `http_2xx_insecure`에 없으면 실패한다. module 하나라도 `timeout`이 확인 제한 시간이 아니면 실패한다. (S7, S8) — 확인: 펼친 설정을 고친 사본 세 개(`http_2xx`에 설정 넣기, `http_2xx_insecure`에서 설정 빼기, `http_2xx_insecure`의 `timeout` 바꾸기)로 Blackbox 설정 검사 함수를 실행해 실패를 본다
-- [ ] C3. 개발 환경에서 자체 서명 인증서를 쓰는 HTTPS 주소를 확인하면 `http_2xx`는 `probe_success` 0, `http_2xx_insecure`는 1이다. 유효하지 않은 module 이름은 지금처럼 거부된다. (S1, S2, S6) — 확인: 개발 환경 수동 확인(Blackbox Exporter의 `/probe`)
-- [ ] C4. [INTEGRATION.md](../INTEGRATION.md)의 `module` 값 목록과 확인 방식 표에 `http_2xx_insecure`가 있고, `HTTP`와 `HTTPS` 주소에 쓸 수 있다는 것, 이 module이 잡지 못하는 것, 배포 순서(모니터링 시스템 갱신 → 관리자 서버가 새 값을 보냄), 갱신하지 않은 서버에 보내면 `MonitoringCheckProbeFailed`가 생긴다는 것이 적혀 있다. (목표, S6) — 확인: 문서 리뷰
-- [ ] C5. [INTEGRATION.md](../INTEGRATION.md)의 읽을 수 있는 series에 `probe_http_status_code`와 `probe_duration_seconds`(job `manager-blackbox`)가 있다. (목표) — 확인: 문서 리뷰
-- [ ] C6. [OPERATIONS.md](../OPERATIONS.md)에 `http_2xx_insecure`로 확인하는 주소는 인증서 만료, 위조, 엉뚱한 서버로의 연결을 잡지 못한다는 것이 있다. 문제 해결 절에 로그의 오류 줄을 찾는 명령, 확인 결과를 자세히 보는 요청, 첫 화면의 최근 확인 목록, 리다이렉트 경고가 실패가 아니라는 것이 있다. 적은 명령은 v0.28.0에서 실행해 결과를 확인했다. (S5) — 확인: 문서 리뷰, 개발 환경에서 명령 실행
-- [ ] C7. [DEVELOPMENT.md](../DEVELOPMENT.md)의 Blackbox 설정 검사 설명이 C2의 검사와 같다. 인증서를 검증하지 않는 module을 두는 결정과 이유가 ADR에 있다. (목표) — 확인: 문서 리뷰
-- [ ] C8. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
+- [x] C1. `infrastructure/blackbox/blackbox.yml`에 `http_2xx_insecure`가 있고, `http_2xx`와 다른 점은 인증서 검증을 끄는 설정뿐이다. 값 세 벌로 펼친 설정이 Blackbox 설정 검사를 통과하고, 네 module의 `timeout`이 모두 확인 제한 시간이다. (S1, S3) — 확인: `node scripts/build-monitoring-bundle.mjs --check`, diff 리뷰
+- [x] C2. 빌드 검사는 인증서 검증을 끄는 설정이 `http_2xx_insecure` 밖의 module에 있거나, `http_2xx_insecure`에 없으면 실패한다. module 하나라도 `timeout`이 확인 제한 시간이 아니면 실패한다. (S7, S8) — 확인: 펼친 설정을 고친 사본 세 개(`http_2xx`에 설정 넣기, `http_2xx_insecure`에서 설정 빼기, `http_2xx_insecure`의 `timeout` 바꾸기)로 Blackbox 설정 검사 함수를 실행해 실패를 본다
+- [x] C3. 개발 환경에서 자체 서명 인증서를 쓰는 HTTPS 주소를 확인하면 `http_2xx`는 `probe_success` 0, `http_2xx_insecure`는 1이다. 유효하지 않은 module 이름은 지금처럼 거부된다. (S1, S2, S6) — 확인: 개발 환경 수동 확인(Blackbox Exporter의 `/probe`)
+- [x] C4. [INTEGRATION.md](../INTEGRATION.md)의 `module` 값 목록과 확인 방식 표에 `http_2xx_insecure`가 있고, `HTTP`와 `HTTPS` 주소에 쓸 수 있다는 것, 이 module이 잡지 못하는 것, 배포 순서(모니터링 시스템 갱신 → 관리자 서버가 새 값을 보냄), 갱신하지 않은 서버에 보내면 `MonitoringCheckProbeFailed`가 생긴다는 것이 적혀 있다. (목표, S6) — 확인: 문서 리뷰
+- [x] C5. [INTEGRATION.md](../INTEGRATION.md)의 읽을 수 있는 series에 `probe_http_status_code`와 `probe_duration_seconds`(job `manager-blackbox`)가 있다. (목표) — 확인: 문서 리뷰
+- [x] C6. [OPERATIONS.md](../OPERATIONS.md)에 `http_2xx_insecure`로 확인하는 주소는 인증서 만료, 위조, 엉뚱한 서버로의 연결을 잡지 못한다는 것이 있다. 문제 해결 절에 로그의 오류 줄을 찾는 명령, 확인 결과를 자세히 보는 요청, 첫 화면의 최근 확인 목록, 리다이렉트 경고가 실패가 아니라는 것이 있다. 적은 명령은 v0.28.0에서 실행해 결과를 확인했다. (S5) — 확인: 문서 리뷰, 개발 환경에서 명령 실행
+- [x] C7. [DEVELOPMENT.md](../DEVELOPMENT.md)의 Blackbox 설정 검사 설명이 C2의 검사와 같다. 인증서를 검증하지 않는 module을 두는 결정과 이유가 ADR에 있다. (목표) — 확인: 문서 리뷰
+- [x] C8. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
 
 ## 확인 필요
 
