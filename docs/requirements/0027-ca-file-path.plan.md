@@ -83,17 +83,21 @@ token 폴더 값(`MONITORING_SECRETS_DIR`)과 같은 방식으로 compose 파일
 
 ## 작업 순서
 
-- [ ] C1~C5의 운영 명령 시험을 먼저 쓰고 지금 코드에서 실패하는 것을 본다
-- [ ] `monitoring-settings.sh`, `monitoring-server.sh`를 고쳐 시험을 통과시킨다
-- [ ] `compose.yml`과 빌드 스크립트의 compose 확인을 고친다(C1, C6)
-- [ ] WSL에서 C7을 확인한다
-- [ ] `.env.example`, OPERATIONS.md, ARCHITECTURE.md, DEVELOPMENT.md를 고친다
+- [x] C1~C5의 운영 명령 시험을 먼저 쓰고 지금 코드에서 실패하는 것을 본다
+- [x] `monitoring-settings.sh`, `monitoring-server.sh`를 고쳐 시험을 통과시킨다
+- [x] `compose.yml`과 빌드 스크립트의 compose 확인을 고친다(C1, C6)
+- [x] C7을 확인한다(WSL 대신 Docker Desktop의 Linux VM에서, 아래 진행 중 발견)
+- [x] `.env.example`, OPERATIONS.md, ARCHITECTURE.md, DEVELOPMENT.md를 고친다
 - [ ] 구현에서 바뀐 점이 있으면 ADR 0018(계획과 함께 씀)에 반영하고 상태를 승인으로 바꾼다
 - [ ] 전체 검증, 자체 리뷰, 새 세션 리뷰
 
 ## 진행 중 발견
 
-없음
+- 새 운영 명령 시험 19개 가운데 17개가 구현 전 코드에서 실패했다. 나머지 둘(경로를 비우면 복사본을 씀, 내용이 그대로면 컨테이너를 다시 만들지 않음)은 지금 동작을 지키는 시험이라 처음부터 통과한다. 구현 뒤 운영 명령 시험 253개가 모두 통과했다.
+- 가짜 `docker compose up`이 받은 `MONITORING_CA_FILE` 값을 남기게 해, 운영 명령이 검사한 값을 Compose에 넘기는지 본다.
+- Windows의 `docker compose config`는 `MONITORING_CA_FILE`의 절대 경로(`/etc/pki/tls/certs/ca-bundle.crt`)를 바꾸지 않고, 상대 경로만 project 기준 Windows 경로로 푼다. 그래서 빌드 검사의 compose 확인은 기대한 원본이 `/`로 시작하면 글자 그대로, 아니면 project 기준 상대 경로로 비교한다.
+- C7은 계획의 WSL Ubuntu로 하지 못했다. 그 배포판은 Docker Desktop 연동이 꺼져 있고, 연동을 켜면 사람의 Docker Desktop 설정이 바뀌어서 켜지 않았다. 대신 2026-11-25에 Docker Desktop의 Linux VM 안에 실제 CA 파일과 그 파일을 가리키는 링크를 만들고, 링크 경로를 볼륨 원본으로 Blackbox Exporter(운영 이미지)를 띄웠다. `https://prometheus.io`의 `http_2xx` 확인이 `probe_success 1`이었고, 링크가 CA가 아닌 파일을 가리키게 바꾸자 `x509: certificate signed by unknown authority`로 실패했다. Docker가 링크를 따라 실제 파일을 붙인다는 것을 본 것이고, 운영 명령 전체 흐름은 실제 Linux 서버에서 돌리지 않았다.
+- `install`은 `.env.example`로 `.env`를 만들므로, 새로 설치한 서버의 `.env`에는 주석 처리한 `MONITORING_CA_FILE` 줄과 설명이 들어간다.
 
 ## 남길 결정
 

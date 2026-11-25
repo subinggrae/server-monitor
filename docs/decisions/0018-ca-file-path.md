@@ -1,6 +1,6 @@
 # 0018. CA 인증서 파일은 `.env`에 적은 OS의 경로를 바로 붙인다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-11-25
 - 관련: [요구사항 0027](../requirements/0027-ca-file-path.md), [요구사항 0015](../requirements/0015-core-minimal-image.md), [ADR 0012](0012-core-render-outside-image.md)(이 ADR이 그 결정 가운데 CA 인증서 파일을 설치 폴더의 `certs/`에 복사해 붙인다는 문장만 대신함)
 
