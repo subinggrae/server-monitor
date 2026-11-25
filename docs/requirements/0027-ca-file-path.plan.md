@@ -88,8 +88,8 @@ token 폴더 값(`MONITORING_SECRETS_DIR`)과 같은 방식으로 compose 파일
 - [x] `compose.yml`과 빌드 스크립트의 compose 확인을 고친다(C1, C6)
 - [x] C7을 확인한다(WSL 대신 Docker Desktop의 Linux VM에서, 아래 진행 중 발견)
 - [x] `.env.example`, OPERATIONS.md, ARCHITECTURE.md, DEVELOPMENT.md를 고친다
-- [ ] 구현에서 바뀐 점이 있으면 ADR 0018(계획과 함께 씀)에 반영하고 상태를 승인으로 바꾼다
-- [ ] 전체 검증, 자체 리뷰, 새 세션 리뷰
+- [x] 구현에서 바뀐 점이 있으면 ADR 0018(계획과 함께 씀)에 반영하고 상태를 승인으로 바꾼다
+- [x] 전체 검증, 자체 리뷰, 새 세션 리뷰(`87676fe`에서 전체 검증 통과. C7의 실제 Linux 서버 확인은 사람에게 맡김)
 
 ## 진행 중 발견
 

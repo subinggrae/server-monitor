@@ -113,15 +113,15 @@ OS의 CA 인증서를 갱신하거나 사내 인증 기관을 OS에 등록했으
 
 ## 완료 기준
 
-- [ ] C1. CA 경로 값에 절대 경로를 적고 `render`하면 성공하고, 펼친 `monitoring.env`의 CA 해시가 그 파일 내용의 해시다. Compose가 Blackbox Exporter에만 그 파일을 `/etc/ssl/certs/ca-certificates.crt:ro`로 붙인다. (S1) — 확인: 운영 명령 시험(`infrastructure/tests/monitoring-server.test.sh`), 빌드 검사의 compose 확인
-- [ ] C2. CA 경로 값이 실제 파일을 가리키는 링크면 성공하고, 링크가 폴더, 없는 파일, 빈 파일, 다른 사용자가 읽을 수 없는 파일을 가리키면 실패한다. 실패 안내에 그 파일을 지우거나 권한을 바꾸라는 말이 없고 `.env`의 값을 고치라는 말이 있다. (S2, S7) — 확인: 운영 명령 시험
-- [ ] C3. 값이 없거나 비어 있으면 지금과 같은 `certs/ca-certificates.crt`를 검사하고 붙인다. 기존 운영 명령 시험과 빌드 검사가 그대로 통과한다. (S3, S8) — 확인: 운영 명령 시험, `node scripts/build-monitoring-bundle.mjs --check`
-- [ ] C4. CA 경로 값의 파일 내용을 바꾸고 `start`하면 Blackbox Exporter 컨테이너를 다시 만들고, 바꾸지 않았으면 다시 만들지 않는다. (S4) — 확인: 운영 명령 시험
-- [ ] C5. 상대 경로, 공백·`:`·한글·`$` 등을 담은 경로를 적으면 펼친 설정을 바꾸지 않고 실패하고, 안내에 값 이름과 허용 형식이 있다. (S6) — 확인: 운영 명령 시험
-- [ ] C6. 묶음의 실행용 compose 파일에서 값을 비웠을 때의 기본값이 설치 폴더의 `certs/ca-certificates.crt`(`../certs/ca-certificates.crt`)다. (S3, S5) — 확인: 빌드 검사
+- [x] C1. CA 경로 값에 절대 경로를 적고 `render`하면 성공하고, 펼친 `monitoring.env`의 CA 해시가 그 파일 내용의 해시다. Compose가 Blackbox Exporter에만 그 파일을 `/etc/ssl/certs/ca-certificates.crt:ro`로 붙인다. (S1) — 확인: 운영 명령 시험(`infrastructure/tests/monitoring-server.test.sh`), 빌드 검사의 compose 확인
+- [x] C2. CA 경로 값이 실제 파일을 가리키는 링크면 성공하고, 링크가 폴더, 없는 파일, 빈 파일, 다른 사용자가 읽을 수 없는 파일을 가리키면 실패한다. 실패 안내에 그 파일을 지우거나 권한을 바꾸라는 말이 없고 `.env`의 값을 고치라는 말이 있다. (S2, S7) — 확인: 운영 명령 시험
+- [x] C3. 값이 없거나 비어 있으면 지금과 같은 `certs/ca-certificates.crt`를 검사하고 붙인다. 기존 운영 명령 시험과 빌드 검사가 그대로 통과한다. (S3, S8) — 확인: 운영 명령 시험, `node scripts/build-monitoring-bundle.mjs --check`
+- [x] C4. CA 경로 값의 파일 내용을 바꾸고 `start`하면 Blackbox Exporter 컨테이너를 다시 만들고, 바꾸지 않았으면 다시 만들지 않는다. (S4) — 확인: 운영 명령 시험
+- [x] C5. 상대 경로, 공백·`:`·한글·`$` 등을 담은 경로를 적으면 펼친 설정을 바꾸지 않고 실패하고, 안내에 값 이름과 허용 형식이 있다. (S6) — 확인: 운영 명령 시험
+- [x] C6. 묶음의 실행용 compose 파일에서 값을 비웠을 때의 기본값이 설치 폴더의 `certs/ca-certificates.crt`(`../certs/ca-certificates.crt`)다. (S3, S5) — 확인: 빌드 검사
 - [ ] C7. Linux 모니터링 서버(또는 Linux VM)에서 링크인 OS의 CA 인증서 파일 경로를 적고 띄우면, 공인 인증서를 쓰는 HTTPS 주소의 확인이 성공한다. (S1, S2) — 확인: 수동 확인
-- [ ] C8. [OPERATIONS.md](../OPERATIONS.md)의 설치 절차가 CA 인증서 파일 복사 대신 `.env`에 경로를 적게 하고 OS별 경로를 보이며, OS의 CA를 갱신하면 `start`를 실행한다는 것, 되돌릴 수 있는 예전 버전이 남은 동안 `certs/` 복사본을 지우지 않는다는 것과 지울 수 있는 때가 있다. `.env.example`에 값의 뜻과 예가 있다. [ARCHITECTURE.md](../ARCHITECTURE.md)의 설정 값 목록에 이 값이 있다. 이 결정을 남긴 ADR이 있다. (목표) — 확인: 문서 리뷰
-- [ ] C9. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
+- [x] C8. [OPERATIONS.md](../OPERATIONS.md)의 설치 절차가 CA 인증서 파일 복사 대신 `.env`에 경로를 적게 하고 OS별 경로를 보이며, OS의 CA를 갱신하면 `start`를 실행한다는 것, 되돌릴 수 있는 예전 버전이 남은 동안 `certs/` 복사본을 지우지 않는다는 것과 지울 수 있는 때가 있다. `.env.example`에 값의 뜻과 예가 있다. [ARCHITECTURE.md](../ARCHITECTURE.md)의 설정 값 목록에 이 값이 있다. 이 결정을 남긴 ADR이 있다. (목표) — 확인: 문서 리뷰
+- [x] C9. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
 
 ## 확인 필요
 
