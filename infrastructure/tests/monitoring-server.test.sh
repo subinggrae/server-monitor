@@ -1053,13 +1053,21 @@ check '관리자 서버 주소를 바꿔 다시 펼치면 Compose가 컨테이�
 # 그 값을 다루는 명령이 아무것도 바꾸지 않고 멈춘다. 표기는 2026-11-25에 Compose와 운영 명령에 같은 .env를 주어 찾은 것이다.
 
 BOM=$(printf '\357\273\277')
-UNREAD_FORMS='1 2 3'
-# 운영 명령이 읽지 않는 표기(세 번째 인자의 번호)로 변수(첫 번째 인자)에 값(두 번째 인자)을 적는다. 3번은 파일의 첫 줄에 둔다.
+UNREAD_FORMS='1 2 3 4 5 6 7 8 9 10'
+# 운영 명령이 읽지 않거나 Compose와 다른 값으로 읽는 표기(세 번째 인자의 번호)로 변수(첫 번째 인자)에 값(두 번째 인자)을 적는다.
+# 3번은 파일의 첫 줄에 둔다. 10번은 운영 명령이 읽는 값(first_value)을 앞에 두고 같은 줄에 Compose가 읽는 값을 이어 쓴다.
 write_unread() {
   case "$3" in
     1) printf '%s: %s\n' "$1" "$2" >> "$ENV" ;;
     2) printf '%s:%s\n' "$1" "$2" >> "$ENV" ;;
     3) { printf '%s%s=%s\n' "$BOM" "$1" "$2"; cat "$ENV"; } > "$ENV.new" && mv "$ENV.new" "$ENV" ;;
+    4) printf '\302\240%s=%s\n' "$1" "$2" >> "$ENV" ;;
+    5) printf '\302\205%s=%s\n' "$1" "$2" >> "$ENV" ;;
+    6) printf 'OTHER="a" %s=%s\n' "$1" "$2" >> "$ENV" ;;
+    7) printf "OTHER='a' %s=%s\n" "$1" "$2" >> "$ENV" ;;
+    8) printf '\343\200\200%s=%s\n' "$1" "$2" >> "$ENV" ;;
+    9) printf '\342\200\203%s=%s\n' "$1" "$2" >> "$ENV" ;;
+    10) printf '%s="%s" %s=%s\n' "$1" "$first_value" "$1" "$2" >> "$ENV" ;;
   esac
 }
 # token 파일 두 곳과 설정 파일의 지금 상태. 내용은 출력하지 않고 체크섬만 비교한다.
@@ -1078,13 +1086,13 @@ place_tokens() {
     chmod 0644 "$OTHER_TOKEN"
   fi
 }
-UNREAD_STOPPED='[ $RC -ne 0 ] && contains "번째 줄" && contains "$unread_fix" && ! called "^compose" && ! called load && [ ! -e "$RENDERED" ] && ! contains "secret-value-for-test" && ! contains "other-token-for-test"'
+UNREAD_STOPPED='[ $RC -ne 0 ] && contains "번째 줄" && contains "$unread_fix" && contains "다시 입력" && ! called "^compose" && ! called load && [ ! -e "$RENDERED" ] && ! contains "secret-value-for-test" && ! contains "other-token-for-test"'
 
 for form in $UNREAD_FORMS; do
   for tokens in 'yes yes' 'yes no' 'no yes' 'no no'; do
     for command in start render install; do
       set -- $tokens
-      setup; prepared; place_tokens "$1" "$2"; write_unread MONITORING_SECRETS_DIR "$T/other" "$form"
+      setup; prepared; place_tokens "$1" "$2"; first_value="$INSTALL/secrets"; write_unread MONITORING_SECRETS_DIR "$T/other" "$form"
       before=$(token_state)
       unread_fix='MONITORING_SECRETS_DIR=폴더'
       run "$command"
@@ -1108,7 +1116,7 @@ for form in $UNREAD_FORMS; do
     for command in start render; do
       set -- $files
       setup; prepared; [ "$1" = yes ] && os_ca; [ "$2" = yes ] || rm "$CA"
-      write_unread MONITORING_CA_FILE "$T/os/ca-bundle.crt" "$form"
+      first_value="$CA"; write_unread MONITORING_CA_FILE "$T/os/ca-bundle.crt" "$form"
       unread_fix='MONITORING_CA_FILE=경로'
       run "$command"
       check "CA 인증서 파일 경로를 운영 명령이 읽지 않는 표기($form)로 적으면 적은 파일($1)과 복사본($2)과 관계없이 $command가 멈춘다" \
@@ -1121,12 +1129,40 @@ setup; prepared; os_ca; write_unread MONITORING_CA_FILE "$OS/ca-bundle.crt" 1; u
 run_with_env "MONITORING_CA_FILE=$OS/ca-bundle.crt" start
 check '셸 환경 변수로 CA 인증서 파일 경로를 줘도 설정 파일에 운영 명령이 읽지 않는 표기의 줄이 있으면 멈춘다' "$UNREAD_STOPPED"
 
-# 주석, 이름이 더 긴 다른 변수, 다른 변수의 값에 이름이 든 줄은 읽지 않는 줄로 보지 않는다.
+# 줄 앞 공백 뒤가 #인 주석 줄과 이름이 더 긴 다른 변수의 줄은 Compose도 그 변수로 읽지 않으므로 멈추지 않는다.
 setup; prepared
-printf '# MONITORING_SECRETS_DIR: %s\n#MONITORING_CA_FILE: /x\nMONITORING_SECRETS_DIR_OLD: /x\nMONITORING_CA_FILE2: /x\nNOTE=MONITORING_SECRETS_DIR: /x\n' "$T/other" >> "$ENV"
+printf '# MONITORING_SECRETS_DIR: %s\n  # MONITORING_SECRETS_DIR=%s\n\t#MONITORING_CA_FILE: /x\n\013# MONITORING_CA_FILE=/x\n\014#MONITORING_SECRETS_DIR=/x\nMONITORING_SECRETS_DIR_OLD: /x\nMONITORING_CA_FILE2: /x\nXMONITORING_CA_FILE=/x\n' "$T/other" "$T/other" >> "$ENV"
 run start
-check '주석, 이름이 더 긴 변수, 다른 변수의 값에 든 이름은 읽지 않는 줄로 보지 않고 띄운다' \
+check '주석 줄과 이름이 더 긴 변수의 줄은 읽지 않는 줄로 보지 않고 띄운다' \
   '[ $RC -eq 0 ] && called "^compose.* up" && [ -z "$(cat "$FAKE/compose_secrets_dir")" ]'
+
+# 다른 변수의 값에 이름이 들어 있으면 Compose가 그 변수로 읽는지 가리지 않고 멈춘다. 드물고, 멈추는 쪽이 안전하다.
+for name in MONITORING_SECRETS_DIR MONITORING_CA_FILE; do
+  setup; prepared; printf 'NOTE=see %s for details\n' "$name" >> "$ENV"
+  case "$name" in MONITORING_SECRETS_DIR) unread_fix="$name=폴더" ;; *) unread_fix="$name=경로" ;; esac
+  run start
+  check "다른 변수의 값에 $name 이름이 들어 있으면 멈춘다" "$UNREAD_STOPPED"
+done
+
+# 운영 명령이 읽는 형식(export, 줄 앞 공백, = 앞뒤 공백, CRLF 줄 끝)은 멈추지 않고 그 값을 Compose에 넘긴다.
+for form in export indent spaces crlf; do
+  for name in MONITORING_SECRETS_DIR MONITORING_CA_FILE; do
+    setup; prepared; place_tokens yes yes; os_ca
+    case "$name" in
+      MONITORING_SECRETS_DIR) value="$T/other" seen="$FAKE/compose_secrets_dir" ;;
+      *) value="$OS/ca-bundle.crt" seen="$FAKE/compose_ca_file" ;;
+    esac
+    case "$form" in
+      export) printf 'export %s=%s\n' "$name" "$value" >> "$ENV" ;;
+      indent) printf '  \t%s=%s\n' "$name" "$value" >> "$ENV" ;;
+      spaces) printf '%s = %s\n' "$name" "$value" >> "$ENV" ;;
+      crlf) printf '%s=%s\r\n' "$name" "$value" >> "$ENV" ;;
+    esac
+    run start
+    check "운영 명령이 읽는 형식($form)으로 $name을 적으면 띄우고 그 값을 Compose에 넘긴다" \
+      '[ $RC -eq 0 ] && [ "$(cat "$seen")" = "$value" ]'
+  done
+done
 
 # start는 운영 명령이 검사한 token 폴더 값을 Compose에 넘긴다. Compose가 .env를 다시 읽어 다른 폴더를 쓰지 않게 하기 위해서다.
 setup; prepared; place_tokens no yes; with_settings "MONITORING_SECRETS_DIR=$T/other"

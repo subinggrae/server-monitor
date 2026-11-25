@@ -83,7 +83,7 @@ EOF
 
 # Compose와 같은 값을 보도록, 셸 환경 변수가 있으면 그 값을 쓰고 없으면 .env의 값을 쓴다.
 # .env를 셸로 실행하면 값에 든 명령이 실행되므로 실행하지 않고 읽는다. export, 따옴표, 줄 끝 주석은 Compose처럼 다루고,
-# 같은 키가 여럿이면 마지막 값을 쓴다.
+# 같은 키가 여럿이면 마지막 값을 쓴다. BusyBox, GNU, 로캘과 관계없이 같게 읽도록 바이트로 비교한다(LC_ALL=C).
 env_value() {
   if value=$(printenv "$1"); then
     printf '%s' "$value"
@@ -92,26 +92,29 @@ env_value() {
   if [ ! -f "$ENV_FILE" ]; then
     return 0
   fi
-  raw=$(sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=[[:space:]]*//p" "$ENV_FILE" | tail -n 1 | tr -d '\r')
+  raw=$(LC_ALL=C sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=[[:space:]]*//p" "$ENV_FILE" | LC_ALL=C tail -n 1 | LC_ALL=C tr -d '\r')
   case "$raw" in
-    \"*) printf '%s' "$raw" | sed 's/^"\([^"]*\)".*$/\1/' ;;
-    \'*) printf '%s' "$raw" | sed "s/^'\([^']*\)'.*\$/\1/" ;;
-    *) printf '%s' "$raw" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//' ;;
+    \"*) printf '%s' "$raw" | LC_ALL=C sed 's/^"\([^"]*\)".*$/\1/' ;;
+    \'*) printf '%s' "$raw" | LC_ALL=C sed "s/^'\([^']*\)'.*\$/\1/" ;;
+    *) printf '%s' "$raw" | LC_ALL=C sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//' ;;
   esac
 }
 
-# .env에서 변수(첫 번째 인자)를 env_value가 읽지 않는 형식으로 적은 첫 줄의 번호. 없으면 빈 값이다.
-# 줄 앞의 공백, export, 파일 첫머리의 BOM을 건너뛰면 변수 이름으로 시작하고 이름 뒤가 이름에 쓰는 글자가 아닌 줄 가운데,
-# env_value가 읽는 형식(이름 뒤에 공백과 =)이 아닌 줄이다. Compose는 이런 줄을 다른 값으로 읽을 수 있다(요구사항 0028).
+# .env에서 변수(첫 번째 인자)를 Compose가 운영 명령과 다르게 읽을 수 있는 첫 줄의 번호. 없으면 빈 값이다.
+# 줄 앞 공백 뒤가 #인 주석 줄을 빼고, 변수 이름이 낱말로(앞뒤가 이름에 쓰는 글자가 아니게) 들어 있는 줄 가운데
+# env_value가 읽는 형식(줄 앞 공백, export, 이름, 공백, =)이 아니거나, 그 형식이어도 값에 이름이 다시 나오는 줄이다.
+# Compose가 받는 표기를 하나씩 따라가지 않고 넓게 고른다. 그래서 다른 변수의 값에 이름이 들어 있어도 멈추지만,
+# 드물고 멈추는 쪽이 안전하다(요구사항 0028). 주석으로 건너뛰는 줄은 Compose도 주석으로 읽는다.
+# 바이트로 비교하도록 LC_ALL=C로 실행하고, NUL이나 잘못된 UTF-8이 있어도 GNU grep이 줄을 숨기지 않게 -a를 준다.
 # .env를 셸로 실행하지 않고, 줄 내용은 내보내지 않는다.
 env_unread_line() {
   if [ ! -f "$ENV_FILE" ]; then
     return 0
   fi
-  bom=$(printf '\357\273\277')
-  tr -d '\r' < "$ENV_FILE" \
-    | grep -n -E "^($bom)?[[:space:]]*(export[[:space:]]+)?$1([^A-Za-z0-9_]|\$)" \
-    | grep -v -E "^[0-9]+:[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=" \
+  LC_ALL=C tr -d '\r' < "$ENV_FILE" \
+    | LC_ALL=C sed -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=/=/" \
+    | LC_ALL=C grep -a -n -E "(^|[^A-Za-z0-9_])$1([^A-Za-z0-9_]|\$)" \
+    | LC_ALL=C grep -a -v -E '^[0-9]+:[[:space:]]*#' \
     | head -n 1 | cut -d: -f1
 }
 
@@ -119,6 +122,7 @@ env_unread_line() {
 env_unread_message() {
   printf '설정 값을 읽지 못했습니다: %s의 %s번째 줄(%s)\n' "$ENV_FILE" "$2" "$1" >&2
   printf '  고치는 방법: 그 줄을 %s=%s 형식으로 고친 뒤 다시 실행해 주세요.\n' "$1" "$3" >&2
+  printf '  형식이 맞아 보이면 줄에 보이지 않는 글자가 들어 있을 수 있습니다. 그 줄을 지우고 다시 입력해 주세요.\n' >&2
 }
 
 # Compose와 같이 상대 경로는 이 묶음 폴더 기준으로 푼다.
