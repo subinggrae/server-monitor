@@ -13,6 +13,8 @@ Alertmanager는 감시 항목(`alertname`, `check_id`)마다 Alert를 묶어 관
 
 관리자 서버 쪽 사람이 묶음을 다시 살피는 간격을 1분으로 줄이기로 정했다(사람 확인: 2026-11-25, 관리자 서버 Testigo_Mng). 이어지는 Alert를 다시 보내는 간격(`repeat_interval`)은 `group_interval`보다 짧게 두어야 한다. 같게 두면 다음 시점에 경과 시간이 조금 모자라 한 번씩 건너뛴다([ADR 0001](../decisions/0001-alert-repeat-in-manager.md)). 관리자 서버의 알림 다시 보내는 간격 하한(5분)은 `group_interval`보다 짧으면 안 되는데, 1분으로 줄이면 이 관계는 그대로 지켜진다.
 
+요청서는 `repeat_interval`을 50초로 정했다. 구현 리뷰에서, Alertmanager가 지난 전송이 끝난 시각(관리자 서버의 응답 뒤)부터 경과 시간을 세므로 응답이 10초를 넘으면 한 번씩 건너뛴다는 것을 찾았다. 그래서 40초로 줄이고, 관리자 서버가 webhook에 20초 안에 응답한다는 조건을 통합 계약에 적기로 했다(사람 확인: 2026-11-25, 이 저장소). 30초 이하는 전송 기록이 `group_interval`보다 먼저 만료돼 복구를 보내지 못할 수 있어 쓰지 않는다.
+
 1분 간격은 아래 문서의 문장과 부딪친다. 이 요구사항과 그 ADR은 아래 문장만 대신하고, 이전 문서는 고치지 않는다.
 
 - [ADR 0001](../decisions/0001-alert-repeat-in-manager.md)의 결정: "`repeat_interval`을 ... `group_interval`(5분)보다 짧은 4분으로 고정해, Alertmanager가 이어지는 Alert를 5분마다 webhook으로 보내게 한다", 감수할 점의 "이어지는 Alert마다 5분에 한 번 webhook과 DB 쓰기가 생긴다", "실제 재발송은 주기보다 최대 5분 늦거나 1분 이르다", "webhook마다(5분) 다시 시도". Alertmanager는 짧은 간격으로 계속 보내고 관리자 서버가 감시 항목별 간격으로 판단한다는 결정과 `repeat_interval` < `group_interval` ≤ 재알림 하한이라는 관계는 그대로다.
@@ -75,6 +77,10 @@ Alertmanager는 감시 항목(`alertname`, `check_id`)마다 Alert를 묶어 관
 
 ### 예외 동작
 
+- **S7. 관리자 서버의 응답이 늦음**
+  - 상황: 관리자 서버가 webhook에 20초보다 늦게 응답한다(알림 전송을 마친 뒤 응답하는 등).
+  - 행동: 장애가 이어진다.
+  - 결과: Alertmanager가 다음 판단에서 경과 시간이 모자란다고 보고 한 번 건너뛰어, 이어지는 장애가 2분마다 간다. 복구와 새 장애는 영향을 받지 않는다. 통합 계약에 20초 안에 응답하라고 적어 막는다.
 - **S6. 관리자 서버가 webhook에 실패를 돌려줌**
   - 상황: 관리자 서버가 멈췄거나 webhook에 `2xx`가 아닌 응답을 돌려준다.
   - 행동: Alertmanager가 묶음을 보낸다.
@@ -97,9 +103,9 @@ Alertmanager는 감시 항목(`alertname`, `check_id`)마다 Alert를 묶어 관
 
 ## 완료 기준
 
-- [x] C1. `infrastructure/alertmanager/alertmanager.yml`의 `group_wait`가 `30s`, `group_interval`이 `1m`, `repeat_interval`이 `50s`이고, 주석이 새 값과 관계를 설명한다. 펼친 설정이 Alertmanager 설정 검사를 통과한다. (S1, S4) — 확인: `node scripts/build-monitoring-bundle.mjs --check`, diff 리뷰
+- [x] C1. `infrastructure/alertmanager/alertmanager.yml`의 `group_wait`가 `30s`, `group_interval`이 `1m`, `repeat_interval`이 `40s`이고, 주석이 새 값과 관계를 설명한다. 펼친 설정이 Alertmanager 설정 검사를 통과한다. (S1, S4) — 확인: `node scripts/build-monitoring-bundle.mjs --check`, diff 리뷰
 - [x] C2. 개발 환경에서 webhook을 기록하는 가짜 앱을 붙이고 장애를 이어 두면 webhook이 1분 간격으로 오고 건너뛰지 않는다. 장애 중인 감시 항목에 두 번째 주소의 장애를 넣으면 1분 안에, 복구하면 1분 안에 webhook이 온다. 처음 장애는 30초 뒤에 온다. (S1~S4) — 확인: 개발 환경 수동 확인
-- [x] C3. [INTEGRATION.md](../INTEGRATION.md), [OPERATIONS.md](../OPERATIONS.md), [ARCHITECTURE.md](../ARCHITECTURE.md)의 전송 간격과 그에 따른 시간(이어지는 장애는 1분마다, 복구 webhook은 1분 안, 확인 결과가 끊긴 장애의 복구는 6분 15초 안, 같은 감시 항목의 새 장애는 1분 안, 재알림은 정한 간격보다 최대 1분 이름)이 새 값과 맞고, 알림 다시 보내는 간격 하한 5분이 `group_interval`보다 짧지 않다는 관계가 남아 있다. (목표, S5) — 확인: 문서 리뷰
+- [x] C3. [INTEGRATION.md](../INTEGRATION.md)에 webhook은 20초 안에 응답한다는 조건이 있고(S7), [INTEGRATION.md](../INTEGRATION.md), [OPERATIONS.md](../OPERATIONS.md), [ARCHITECTURE.md](../ARCHITECTURE.md)의 전송 간격과 그에 따른 시간(이어지는 장애는 1분마다, 복구 webhook은 1분 안, 확인 결과가 끊긴 장애의 복구는 6분 15초 안, 같은 감시 항목의 새 장애는 1분 안, 재알림은 정한 간격보다 최대 1분 이름)이 새 값과 맞고, 알림 다시 보내는 간격 하한 5분이 `group_interval`보다 짧지 않다는 관계가 남아 있다. (목표, S5) — 확인: 문서 리뷰
 - [x] C4. 새 ADR에 바꾼 값, 지킬 관계, 이 ADR이 대신하는 ADR 0001·0010의 문장이 있다. (목표) — 확인: 문서 리뷰
 - [x] C5. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
 

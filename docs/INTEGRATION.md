@@ -179,6 +179,7 @@ Alertmanager가 [webhook payload](https://prometheus.io/docs/alerting/latest/con
 앱은 다음도 지킨다.
 
 - `Authorization: Bearer <token>`이 모니터링 시스템 설정의 token과 다르면 `401`을 돌려주고 Alert를 기록하지 않는다. 비교는 고정 시간 비교로 한다.
+- webhook에는 20초 안에 응답한다. 알림 전송처럼 오래 걸릴 수 있는 일은 응답한 뒤에 한다. Alertmanager는 지난 전송이 끝난 시각부터 다시 보낼 때까지의 시간을 세므로, 응답이 20초보다 늦으면 이어지는 장애를 한 번씩 건너뛰어 2분마다 보낸다([ADR 0017](decisions/0017-alert-interval-1m.md)).
 - 처리하면 `2xx`를 돌려준다. 알림 전송에 실패해도 `2xx`를 돌려준다. 실패를 돌려주면 Alertmanager가 같은 payload를 계속 다시 보낸다.
 - 모르는 필드가 있어도 실패하지 않는다. Alertmanager 버전이 올라가면 필드가 늘어난다.
 - 앱이 멈춘 동안의 Alert는 Alertmanager가 다시 보낸다. 앱이 뜬 뒤 다음 전송에서 받는다.
@@ -196,7 +197,7 @@ Alert마다 들어오는 label과 annotation은 다음과 같다. 규칙은 `inf
 
 이 밖의 label은 Alert에 들어가지 않는다. Prometheus와 Alertmanager는 label 집합으로 Alert를 구분하므로, 사용자가 바꾸는 값(이름, 환경, 확인 방식, 주소)이 label에 있으면 장애 중에 값을 바꿀 때 장애가 복구로 끝나고 새 장애로 다시 생긴다([ADR 0010](decisions/0010-alert-labels-by-check-id.md)).
 
-Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 1분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`은 50초지만, 묶음을 다시 살피는 간격(`group_interval`)이 1분이라서 실제로는 1분마다 보낸다. 복구 Alert(`status: resolved`)도 보낸다.
+Alertmanager는 `alertname`, `check_id`로 Alert를 묶어 한 요청으로 보낸다. 처음 생긴 Alert는 30초 기다렸다 보내고, 이어지는 Alert는 1분마다 다시 보낸다. `alertmanager.yml`의 `repeat_interval`은 40초지만, 묶음을 다시 살피는 간격(`group_interval`)이 1분이라서 실제로는 1분마다 보낸다. 복구 Alert(`status: resolved`)도 보낸다.
 
 감시 주소는 연속 3번 실패하고 첫 실패 뒤 1분이 지나면 장애다. 그래서 첫 실패 확인 결과부터 장애로 판정하기까지 기다리는 시간(대기 시간)은 `max(60초, 수집 주기 × 2)`다. 판정은 규칙 평가(15초마다) 때 하므로 대기 시간이 지난 뒤 첫 규칙 평가에서 장애가 되고, 처음 생긴 장애는 30초 기다렸다 보낸다. 첫 실패 확인 결과부터 webhook까지는 `대기 시간 + 0~15초 + 30초`다. 대상이 실패하기 시작한 때부터 세면, 그 뒤 첫 확인까지 최대 수집 주기 한 번과 확인에 걸리는 시간(최대 확인 제한 시간)이 더 걸린다.
 
