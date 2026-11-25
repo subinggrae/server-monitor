@@ -54,15 +54,20 @@
 
 ## 작업 순서
 
-- [ ] `alertmanager.yml`의 두 값과 주석을 바꾸고 C1을 확인한다
-- [ ] 개발 환경에서 C2를 확인하고, 본 시각을 진행 중 발견에 적는다
-- [ ] INTEGRATION.md, OPERATIONS.md, ARCHITECTURE.md를 고친다
-- [ ] 구현에서 바뀐 점이 있으면 ADR 0017(계획과 함께 씀)에 반영하고 상태를 승인으로 바꾼다
+- [x] `alertmanager.yml`의 두 값과 주석을 바꾸고 C1을 확인한다
+- [x] 개발 환경에서 C2를 확인하고, 본 시각을 진행 중 발견에 적는다
+- [x] INTEGRATION.md, OPERATIONS.md, ARCHITECTURE.md를 고친다
+- [x] 구현에서 바뀐 점이 있으면 ADR 0017(계획과 함께 씀)에 반영하고 상태를 승인으로 바꾼다
 - [ ] 전체 검증, 자체 리뷰, 새 세션 리뷰
 
 ## 진행 중 발견
 
-없음
+- 2026-11-25 개발 환경 확인(C2). 가짜 관리자 서버를 빌드 PC의 `127.0.0.1:18080`에 띄우고 `MONITORING_APP_ADDRESS=host.docker.internal:18080`으로 붙였다. 가짜 서버의 token 파일은 worktree에 새로 만든 시험용 값이고 기록하지 않았다. 시각은 UTC다.
+  - Alertmanager API(`/api/v2/status`)의 설정이 `group_wait: 30s`, `group_interval: 1m`, `repeat_interval: 50s`였다.
+  - 주소 11의 장애 판정(`ALERTS_FOR_STATE`) 00:31:01, 첫 webhook 00:31:31(30초 뒤), 그 뒤 00:32:31부터 00:37:31까지 1분 간격으로 빠짐없이 왔다.
+  - 같은 감시 항목에 주소 12를 더하자 판정 00:38:16, webhook 00:38:31에 주소 11과 함께 왔다(1분 안).
+  - 주소 11을 닿는 주소로 바꾸자 복구 판정 00:39:16, 복구 webhook 00:39:31에 왔다(1분 안). 같은 요청에 주소 12의 장애가 함께 왔다.
+- 다른 문서에서 5분 전송 간격을 전제로 쓴 곳은 `grep`으로 찾았고, ADMIN-SERVER.md, PRODUCT.md, TERMS.md, README.md에는 없었다.
 
 ## 남길 결정
 

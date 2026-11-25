@@ -1,6 +1,6 @@
 # 0017. Alertmanager는 묶음을 1분마다 다시 살핀다
 
-- 상태: 제안
+- 상태: 승인
 - 날짜: 2026-11-25
 - 관련: [요구사항 0026](../requirements/0026-alert-interval-1m.md), [ADR 0001](0001-alert-repeat-in-manager.md)(이 ADR이 그 결정의 5분·4분 값과 그에 따른 감수할 점만 대신함), [ADR 0010](0010-alert-labels-by-check-id.md)(이 ADR이 감수할 점의 복구 webhook 시간만 대신함)
 

@@ -97,10 +97,10 @@ Alertmanager는 감시 항목(`alertname`, `check_id`)마다 Alert를 묶어 관
 
 ## 완료 기준
 
-- [ ] C1. `infrastructure/alertmanager/alertmanager.yml`의 `group_wait`가 `30s`, `group_interval`이 `1m`, `repeat_interval`이 `50s`이고, 주석이 새 값과 관계를 설명한다. 펼친 설정이 Alertmanager 설정 검사를 통과한다. (S1, S4) — 확인: `node scripts/build-monitoring-bundle.mjs --check`, diff 리뷰
-- [ ] C2. 개발 환경에서 webhook을 기록하는 가짜 앱을 붙이고 장애를 이어 두면 webhook이 1분 간격으로 오고 건너뛰지 않는다. 장애 중인 감시 항목에 두 번째 주소의 장애를 넣으면 1분 안에, 복구하면 1분 안에 webhook이 온다. 처음 장애는 30초 뒤에 온다. (S1~S4) — 확인: 개발 환경 수동 확인
-- [ ] C3. [INTEGRATION.md](../INTEGRATION.md), [OPERATIONS.md](../OPERATIONS.md), [ARCHITECTURE.md](../ARCHITECTURE.md)의 전송 간격과 그에 따른 시간(이어지는 장애는 1분마다, 복구 webhook은 1분 안, 확인 결과가 끊긴 장애의 복구는 6분 안, 같은 감시 항목의 새 장애는 1분 안, 재알림은 정한 간격보다 최대 1분 이름)이 새 값과 맞고, 알림 다시 보내는 간격 하한 5분이 `group_interval`보다 짧지 않다는 관계가 남아 있다. (목표, S5) — 확인: 문서 리뷰
-- [ ] C4. 새 ADR에 바꾼 값, 지킬 관계, 이 ADR이 대신하는 ADR 0001·0010의 문장이 있다. (목표) — 확인: 문서 리뷰
+- [x] C1. `infrastructure/alertmanager/alertmanager.yml`의 `group_wait`가 `30s`, `group_interval`이 `1m`, `repeat_interval`이 `50s`이고, 주석이 새 값과 관계를 설명한다. 펼친 설정이 Alertmanager 설정 검사를 통과한다. (S1, S4) — 확인: `node scripts/build-monitoring-bundle.mjs --check`, diff 리뷰
+- [x] C2. 개발 환경에서 webhook을 기록하는 가짜 앱을 붙이고 장애를 이어 두면 webhook이 1분 간격으로 오고 건너뛰지 않는다. 장애 중인 감시 항목에 두 번째 주소의 장애를 넣으면 1분 안에, 복구하면 1분 안에 webhook이 온다. 처음 장애는 30초 뒤에 온다. (S1~S4) — 확인: 개발 환경 수동 확인
+- [x] C3. [INTEGRATION.md](../INTEGRATION.md), [OPERATIONS.md](../OPERATIONS.md), [ARCHITECTURE.md](../ARCHITECTURE.md)의 전송 간격과 그에 따른 시간(이어지는 장애는 1분마다, 복구 webhook은 1분 안, 확인 결과가 끊긴 장애의 복구는 6분 안, 같은 감시 항목의 새 장애는 1분 안, 재알림은 정한 간격보다 최대 1분 이름)이 새 값과 맞고, 알림 다시 보내는 간격 하한 5분이 `group_interval`보다 짧지 않다는 관계가 남아 있다. (목표, S5) — 확인: 문서 리뷰
+- [x] C4. 새 ADR에 바꾼 값, 지킬 관계, 이 ADR이 대신하는 ADR 0001·0010의 문장이 있다. (목표) — 확인: 문서 리뷰
 - [ ] C5. `node scripts/build-monitoring-bundle.mjs --check`와 `node scripts/check-docs.mjs`가 통과한다. — 확인: 명령 실행
 
 ## 확인 필요
