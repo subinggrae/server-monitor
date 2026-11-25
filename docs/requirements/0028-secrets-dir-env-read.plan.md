@@ -7,7 +7,7 @@
 
 ## 접근 방법
 
-운영 명령(`infrastructure/monitoring-server.sh`)에 두 가지를 더한다. 하나는 운영 명령이 읽지 않는 `.env` 줄을 알아보고 멈추는 검사이고, 다른 하나는 검사한 token 폴더 값을 Compose에 넘기는 것이다. CA 인증서 파일 경로 값은 0027부터 검사한 값을 넘기므로 멈추는 검사만 더한다. `monitoring-dev.bat`는 render 컨테이너에 넘기는 셸 환경 변수에 token 폴더를 더한다.
+운영 명령(`infrastructure/monitoring-server.sh`)에 두 가지를 더한다. 운영 명령이 읽지 않는 `.env` 줄을 알아보고 멈추는 검사를 더하고, 검사한 token 폴더 값을 Compose에 넘긴다. CA 인증서 파일 경로 값은 0027부터 검사한 값을 넘기므로 멈추는 검사만 더한다. `monitoring-dev.bat`는 render 컨테이너에 넘기는 셸 환경 변수에 token 폴더를 더한다.
 
 ### 읽지 않는 줄을 알아보는 규칙
 
@@ -38,14 +38,12 @@
 
 바뀌는 파일은 다음과 같다.
 
-| 위치 | 변경 |
-|---|---|
-| `infrastructure/monitoring-server.sh` | 읽지 않는 줄을 찾는 함수와 안내를 더한다. `check_ca_setting`이 값을 읽기 전에 이 검사를 한다. token 폴더 값을 검사하고 export하는 함수를 더해 `check_settings`와 `cmd_install`에서 부른다. 머리 주석과 `check_ca_setting` 주석을 고친다 |
-| `infrastructure/tests/monitoring-server.test.sh` | 가짜 `docker`가 `compose up` 때 받은 `MONITORING_SECRETS_DIR` 값을 남긴다(`compose_ca_file`과 같은 방식). 테스트 계획의 시험을 더하고, 0027에서 읽지 않는 표기로 복사본을 붙이던 시험의 기대를 멈춤으로 바꾼다 |
-| `monitoring-dev.bat` | `start`의 render `docker run`에 `-e MONITORING_SECRETS_DIR`를 더한다. 주석의 셸 환경 변수 설명은 그대로 맞는다 |
-| `infrastructure/.env.example` | 머리 주석에 값은 `이름=값` 형식으로 한 줄에 적는다는 문장을 더한다 |
-| `docs/OPERATIONS.md` | 설치의 설정 값 적기에서 값 적는 법에 `변수=값` 형식과, 두 경로 값을 다른 형식으로 적으면 운영 명령이 멈춘다는 것을 더한다 |
-| `docs/ARCHITECTURE.md` | 지켜야 할 경계의 설정 값 항목과 신뢰 경계에, 운영 명령이 두 경로 값도 검사한 값을 Compose에 넘기고 읽지 않는 형식의 줄이 있으면 멈춘다는 것을 더한다. Compose가 `.env`에서 직접 읽는 값을 새로 더하면 같은 방식을 따른다는 규칙도 적는다 |
+- **`infrastructure/monitoring-server.sh`**: 읽지 않는 줄을 찾는 함수와 안내를 더한다. `check_ca_setting`이 값을 읽기 전에 이 검사를 한다. token 폴더 값을 검사하고 export하는 함수를 더해 `check_settings`와 `cmd_install`에서 부른다. 머리 주석과 `check_ca_setting` 주석을 고친다.
+- **`infrastructure/tests/monitoring-server.test.sh`**: 가짜 `docker`가 `compose up` 때 받은 `MONITORING_SECRETS_DIR` 값을 남긴다(`compose_ca_file`과 같은 방식). 테스트 계획의 시험을 더하고, 0027에서 읽지 않는 표기로 복사본을 붙이던 시험의 기대를 멈춤으로 바꾼다.
+- **`monitoring-dev.bat`**: `start`의 render `docker run`에 `-e MONITORING_SECRETS_DIR`를 더한다. 셸 환경 변수를 넘긴다는 주석은 그대로 맞는다.
+- **`infrastructure/.env.example`**: 머리 주석에 값은 `이름=값` 형식으로 한 줄에 적는다는 문장을 더한다.
+- **`docs/OPERATIONS.md`**: 설치의 설정 값 적기에서 값 적는 법에 `변수=값` 형식과, 두 경로 값을 다른 형식으로 적으면 운영 명령이 멈춘다는 것을 더한다.
+- **`docs/ARCHITECTURE.md`**: 지켜야 할 경계의 설정 값 항목과 신뢰 경계에, 운영 명령이 두 경로 값도 검사한 값을 Compose에 넘기고 읽지 않는 형식의 줄이 있으면 멈춘다는 것을 더한다. Compose가 `.env`에서 직접 읽는 값을 새로 더하면 같은 방식을 따른다는 규칙도 적는다.
 
 ### 데이터 모델 변경
 
@@ -86,19 +84,17 @@ docker run --rm --user 0 -v "$PWD/infrastructure:/src:ro" --entrypoint /bin/sh "
 
 결함을 잡는지는 고친 사본으로 본다. `infrastructure/`를 OS 임시 폴더에 복사하고, 사본의 `monitoring-server.sh`에서 해당 부분을 지운 뒤 위 명령의 `/src`를 그 사본으로 바꿔 돌린다. 지운 부분을 맡는 시험이 실패해야 한다. 사본은 확인 뒤 지운다.
 
-완료 기준마다 확인하는 방법은 다음과 같다.
+완료 기준마다 확인하는 방법은 다음과 같다. C1~C5는 위 명령으로 돌리는 운영 명령 시험이다.
 
-| 완료 기준 | 테스트 | 실행 명령과 기대 결과 |
-|---|---|---|
-| C1 | 운영 명령 시험: 읽지 않는 표기의 token 폴더 줄(조사에서 찾은 표기마다)로 `start`, `render`, `install`. 기본 위치와 적은 폴더의 token 유무 네 조합. 셸 환경 변수가 있는 경우. 주석 줄과 이름이 더 긴 변수의 줄은 멈추지 않음 | 위 명령에서 멈추는 시험은 종료 코드가 0이 아니고 `compose` 호출이 없으며, 펼친 설정·token 파일·`.env`가 그대로이고 출력에 변수 이름, 줄 번호, 고칠 형식이 있고 시험용 token 값이 없음. 멈추지 않는 시험은 통과. 멈춤을 지운 사본에서는 멈추는 시험이 실패 |
-| C2 | 운영 명령 시험: 읽지 않는 표기의 CA 경로 줄로 `start`, `render`. 적은 경로의 파일과 복사본의 유무 조합. 0027의 기존 시험은 기대를 멈춤으로 바꿈 | 종료 코드가 0이 아니고 `compose` 호출이 없으며 펼친 설정이 그대로이고 출력에 변수 이름과 고칠 형식이 있음. 멈춤을 지운 사본에서 실패 |
-| C3 | 운영 명령 시험: 가짜 `docker`가 받은 `MONITORING_SECRETS_DIR`를 `.env`에 `이름=폴더`로 적음, 셸 환경 변수, 적지 않음, 운영 명령과 Compose가 다르게 읽는 표기(운영 명령이 읽은 글자 그대로의 폴더에 token을 둠) 네 경우에서 봄 | 받은 값이 운영 명령이 검사한 값과 같고, 적지 않으면 빈 값(unset이 아님). export를 지운 사본에서 실패 |
-| C4 | 운영 명령 시험: 운영 명령과 Compose가 다르게 읽는 표기로 CA 경로를 적고 `start` | 0027의 형식 검사에서 멈추고 `compose` 호출이 없음. 형식에 맞는 값이면 가짜 `docker`가 받은 `MONITORING_CA_FILE`이 검사한 값. 값 넘기기를 지운 사본에서 실패 |
-| C5 | 운영 명령 시험: 운영 명령과 Compose가 다르게 읽는 표기로 token 폴더를 적고, Compose가 읽는 위치에만 token을 둠. 기존 token 검사 시험(없음, 폴더, 빈 파일, 읽을 수 없음) | `start`와 `render`가 종료 코드 0이 아니고 `compose` 호출이 없음. 기존 시험 통과 |
-| C6 | 수동 확인: docker:dind로 띄운 Linux Docker 호스트에 묶음을 운영 가이드대로 설치하고, C3·C4의 경우마다 `start`한 뒤 `docker inspect`의 `Mounts`에서 Alertmanager의 token 파일과 Blackbox Exporter의 CA 인증서 파일의 원본 경로를 봄. C1·C2의 표기로 `start`가 멈추는 것도 봄. token 파일 내용은 열지 않음 | 원본 경로가 운영 명령이 검사한 파일. 멈추는 경우 컨테이너가 바뀌지 않음. dind 컨테이너는 확인 뒤 지움 |
-| C7 | 수동 확인(Windows): 저장소의 `infrastructure/` 아래에 시험용 폴더와 시험용 token을 만들고, 셸 환경 변수 `MONITORING_SECRETS_DIR`에 그 상대 경로를 준 뒤 `monitoring-dev.bat start`. 고치기 전의 `monitoring-dev.bat`에서 먼저 봄 | 고치기 전: 시험용 폴더에 token이 없고 `.env`의 폴더에만 있어도 render가 통과함(결함 재현). 고친 뒤: Alertmanager `Mounts`의 원본이 시험용 폴더의 token 파일이고, 시험용 폴더에 token이 없으면 render가 멈추고 Compose를 부르지 않음. 확인 뒤 `monitoring-dev.bat stop`, 시험용 폴더 삭제 |
-| C8 | 문서 리뷰 | OPERATIONS.md, ARCHITECTURE.md, `.env.example`이 바뀐 동작과 맞음 |
-| C9 | 전체 검증 | `node scripts/build-monitoring-bundle.mjs --check`(Windows는 `monitoring-dev.bat check`)와 `node scripts/check-docs.mjs` 통과 |
+- **C1**: 읽지 않는 표기의 token 폴더 줄로 `start`, `render`, `install`을 실행한다. 표기는 2026-11-25 조사에서 찾은 것마다 하나씩 쓰고, 기본 위치와 적은 폴더의 token 유무 네 조합과 셸 환경 변수가 있는 경우를 넣는다. 종료 코드가 0이 아니고 `compose` 호출이 없으며, 펼친 설정과 token 파일과 `.env`가 그대로여야 한다. 출력에는 변수 이름, 줄 번호, 고칠 형식이 있고 시험용 token 값이 없어야 한다. 주석 줄과 이름이 더 긴 변수의 줄로는 멈추지 않아야 한다. 멈춤을 지운 사본에서는 멈추는 시험이 실패해야 한다.
+- **C2**: 읽지 않는 표기의 CA 경로 줄로 `start`와 `render`를 실행한다. 적은 경로의 파일과 복사본의 유무를 조합한다. 0027의 기존 시험은 기대를 멈춤으로 바꾼다. 종료 코드가 0이 아니고 `compose` 호출이 없으며, 펼친 설정이 그대로이고 출력에 변수 이름과 고칠 형식이 있어야 한다. 멈춤을 지운 사본에서는 실패해야 한다.
+- **C3**: 가짜 `docker`가 받은 `MONITORING_SECRETS_DIR`를 네 경우에서 본다. `.env`에 `이름=폴더`로 적은 경우, 셸 환경 변수, 적지 않은 경우, 운영 명령과 Compose가 다르게 읽는 표기다. 마지막 경우에는 운영 명령이 읽은 글자 그대로의 폴더에 token을 둔다. 받은 값은 운영 명령이 검사한 값과 같아야 하고, 적지 않으면 unset이 아니라 빈 값이어야 한다. export를 지운 사본에서는 실패해야 한다.
+- **C4**: 운영 명령과 Compose가 다르게 읽는 표기로 CA 경로를 적고 `start`한다. 0027의 형식 검사에서 멈추고 `compose` 호출이 없어야 한다. 형식에 맞는 값이면 가짜 `docker`가 받은 `MONITORING_CA_FILE`이 검사한 값이어야 한다. 값 넘기기를 지운 사본에서는 실패해야 한다.
+- **C5**: 운영 명령과 Compose가 다르게 읽는 표기로 token 폴더를 적고, Compose가 읽는 위치에만 token을 둔다. `start`와 `render`가 종료 코드 0이 아니고 `compose` 호출이 없어야 한다. 기존 token 검사 시험(없음, 폴더, 빈 파일, 읽을 수 없음)도 그대로 통과해야 한다.
+- **C6**: docker:dind로 띄운 Linux Docker 호스트에 묶음을 운영 가이드대로 설치하고 수동으로 확인한다. C3, C4의 경우마다 `start`한 뒤 `docker inspect`의 `Mounts`에서 Alertmanager의 token 파일과 Blackbox Exporter의 CA 인증서 파일의 원본 경로를 본다. 원본 경로가 운영 명령이 검사한 파일이어야 한다. C1, C2의 표기로는 `start`가 멈추고 컨테이너가 바뀌지 않아야 한다. token 파일 내용은 열지 않고, dind 컨테이너는 확인 뒤 지운다.
+- **C7**: Windows에서 수동으로 확인한다. 저장소의 `infrastructure/` 아래에 시험용 폴더와 시험용 token을 만들고, 셸 환경 변수 `MONITORING_SECRETS_DIR`에 그 상대 경로를 준 뒤 `monitoring-dev.bat start`를 실행한다. 고치기 전에는 시험용 폴더에 token이 없고 `.env`의 폴더에만 있어도 render가 통과하는 것을 본다(결함 재현). 고친 뒤에는 Alertmanager `Mounts`의 원본이 시험용 폴더의 token 파일이어야 하고, 시험용 폴더에 token이 없으면 render가 멈추고 Compose를 부르지 않아야 한다. 확인 뒤 `monitoring-dev.bat stop`을 실행하고 시험용 폴더를 지운다.
+- **C8**: OPERATIONS.md, ARCHITECTURE.md, `.env.example`이 바뀐 동작과 맞는지 문서 리뷰로 본다.
+- **C9**: `node scripts/build-monitoring-bundle.mjs --check`(Windows는 `monitoring-dev.bat check`)와 `node scripts/check-docs.mjs`가 통과해야 한다.
 
 ## 작업 순서
 
