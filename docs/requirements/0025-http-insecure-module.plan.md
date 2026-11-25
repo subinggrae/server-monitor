@@ -33,8 +33,9 @@ Blackbox Exporter v0.28.0의 `/config`는 들여쓰기 4칸의 블록 형식이�
 | 위치 | 변경 |
 |---|---|
 | `infrastructure/blackbox/blackbox.yml` | `http_2xx_insecure` module을 더하고, 머리 주석의 CheckType과 module 짝에 새 module과 그 위험을 적는다 |
-| `scripts/build-monitoring-bundle.mjs` | `/config`를 받는 함수를 더하고, `checkBlackboxConfig`가 받은 설정을 module 단위로 검사한다 |
-| `docs/DEVELOPMENT.md` | 모니터링 시스템 검사의 Blackbox 설정 검사 설명 |
+| `scripts/build-monitoring-bundle.mjs` | `/config`를 받는 함수, `/config`를 module 단위로 보는 `checkBlackboxConfig`, 거부해야 하는 사본으로 이 검사를 시험하는 함수, 검사 컨테이너의 label |
+| `docs/DEVELOPMENT.md` | 모니터링 시스템 검사의 Blackbox 설정 검사 설명, 남은 검사 컨테이너를 찾는 label |
+| `docs/TESTING.md` | 이미지·설정 검사의 책임에 Blackbox 설정 검사의 거부 시험 |
 | `docs/INTEGRATION.md` | `module` 값 목록, 확인 방식 표, 잡지 못하는 것, 배포 순서, 읽을 수 있는 series에 두 지표 |
 | `docs/OPERATIONS.md` | 감시 흐름이나 보안 설정에 인증서를 검증하지 않는 주소의 위험, 문제 해결 절에 실패 원인 보는 방법 |
 | `docs/ADMIN-SERVER.md` | `module` 값을 설명하는 곳이 있으면 새 값 |
@@ -69,7 +70,8 @@ Blackbox Exporter v0.28.0의 `/config`는 들여쓰기 4칸의 블록 형식이�
 
 - **C1(빌드 검사)**: `node scripts/build-monitoring-bundle.mjs --check`가 통과한다. 두 module이 인증서 설정만 다른지는 diff 리뷰로 본다.
 - **C2(검사를 잠시 망가뜨려 확인)**: 템플릿을 세 가지로 고친다. `http_2xx`에 `insecure_skip_verify: true`를 넣고, `http_2xx_insecure`에서 그 줄을 지우고, `http_2xx_insecure`의 `timeout`을 `3s`로 바꾼다. 하나씩 고칠 때마다 `--check`가 `checkBlackboxConfig`에서 실패하고 module 이름을 알려야 한다. 구현 전 코드에서는 첫 사본으로 지금 검사가 실패하는 것을 본다. 확인 뒤 템플릿을 되돌린다.
-  - `/config` 검사로 바꾼 뒤에는 저장소 밖 임시 도구로 확인한다. 펼친 설정의 사본마다 운영 이미지를 띄워 `/config`를 받고, 새 `checkBlackboxConfig`를 실행한다. 사본은 위 세 가지와 `false`로 바꾸기, `tcp_connect`에 넣기, `timeout` 빼기, 그리고 리뷰가 찾은 우회 경우다. 사본은 모두 실패하고 원본은 통과해야 한다. 같은 사본으로 고치기 전 검사도 실행해 무엇이 달라졌는지 본다.
+  - `--check`가 첫 값 벌에서 펼친 설정을 고친 사본 네 개(`http_2xx`에 넣기, `http_2xx_insecure`에서 빼기, `false`로 바꾸기, `timeout` 바꾸기)를 만들어, 검사가 모두 기대한 설명으로 거부하는지 시험한다(사람 확인: 2026-11-25). 검사의 세 조건을 잠시 망가뜨려 네 사본이 모두 실패로 보고되는지 본다.
+  - 리뷰가 찾은 우회 경우는 공개 저장소에 쓸 수 없어 저장소 밖 임시 도구로 확인한다. 펼친 설정의 사본마다 운영 이미지를 띄워 `/config`를 받고, 새 `checkBlackboxConfig`를 실행한다. 사본은 위 세 가지와 `false`로 바꾸기, `tcp_connect`에 넣기, `timeout` 빼기, 그리고 리뷰가 찾은 우회 경우다. 사본은 모두 실패하고 원본은 통과해야 한다. 같은 사본으로 고치기 전 검사도 실행해 무엇이 달라졌는지 본다.
 - **C3(개발 환경 수동 확인)**: `monitoring-dev.bat start`로 띄운다. 자체 서명 인증서로 HTTPS를 여는 임시 컨테이너(Prometheus 공식 이미지의 `--web.config.file` TLS)를 `monitoring` 네트워크에 띄운다. `curl "http://127.0.0.1:9115/probe?target=https://<임시>:9090/-/ready&module=http_2xx"`는 `probe_success 0`이어야 한다. `module=http_2xx_insecure`는 `1`, 없는 module 이름은 `400`이어야 한다.
 - **C4, C5, C7(문서 리뷰)**: 해당 절을 읽고 요구사항 문장과 맞춘다.
 - **C6(개발 환경 수동 확인과 문서 리뷰)**: C3의 환경에서 문제 해결 절의 명령(로그 `grep`, `debug=true` 요청, 첫 화면)을 그대로 실행해 결과가 문서와 같은지 본다. 리다이렉트 경고는 리다이렉트하는 주소(임시 Prometheus의 `/`)로 확인한다.
@@ -84,10 +86,11 @@ Blackbox Exporter v0.28.0의 `/config`는 들여쓰기 4칸의 블록 형식이�
 - [x] 구현에서 바뀐 점이 있으면 ADR 0016(계획과 함께 씀)에 반영하고 상태를 승인으로 바꾼다
 - [x] Blackbox Exporter v0.28.0을 띄워 `/config`의 모양을 확인하고, 리뷰가 찾은 우회 경우를 넣은 사본으로 고치기 전 검사가 무엇을 놓치는지 본다
 - [x] `checkBlackboxConfig`를 `/config` 검사로 바꾸고, C2와 우회 경우의 사본이 모두 실패하고 원본이 통과하는 것을 본다. DEVELOPMENT.md와 ADR 0016의 확인 방법을 고친다
-- [ ] 전체 검증, 자체 리뷰, 새 세션 리뷰
+- [x] 전체 검증, 자체 리뷰, 새 세션 리뷰
+- [ ] 사람이 정한 대로 거부해야 하는 사본의 시험을 `--check`에 더하고, 검사가 띄우는 컨테이너에 label을 붙인다(2026-11-25). 검사를 잠시 망가뜨려 시험이 실패하는 것을 본 뒤 전체 검증, 새 세션 리뷰를 받는다
   - 멈춘 지점(2026-11-25): `b68976d`에서 전체 검증은 통과했다. 세 번째 독립 리뷰에서, 검사가 주석으로 보는 줄과 YAML이 주석으로 보는 줄이 달라 생기는 사소한 우회가 하나 더 나왔다. 기존 module은 바꾸지 못하고 이름이 다른 module만 하나 더 생길 수 있다. 같은 검사를 세 번 고쳤으므로 AGENTS.md의 세션 규칙에 따라 더 고치지 않고 멈췄다.
   - 다음에 할 일: 사람이 새 세션에서 Blackbox가 실제로 읽은 설정을 꺼내(`/config`) 검사하는 방식으로 바꾸기로 정했다(2026-11-25). 줄 단위로 YAML을 흉내 내는 방식은 해석 차이로 우회가 거듭 나왔기 때문이다. 새 세션은 이 계획의 작업 순서에 그 작업을 더하고, 바꾼 검사를 이번 리뷰가 찾은 경우들로 다시 확인한 뒤 독립 리뷰를 받는다.
-  - 진행(2026-11-25): 위의 두 작업으로 검사를 바꿨고, 바꾼 코드로 전체 검증이 통과했다. 바꾼 검사의 독립 리뷰가 남았다.
+  - 진행(2026-11-25): 위의 두 작업으로 검사를 바꿨고, 바꾼 코드로 전체 검증이 통과했다. `a4b9091`의 독립 리뷰에서 반드시 고칠 결함은 없었다. 리뷰가 고치면 좋다고 한 두 가지(거부 경우의 시험이 저장소에 없음, 검사를 도중에 멈추면 컨테이너가 남음)를 사람이 이번 PR에서 고치기로 정했다.
 
 ## 진행 중 발견
 
@@ -96,6 +99,7 @@ Blackbox Exporter v0.28.0의 `/config`는 들여쓰기 4칸의 블록 형식이�
 - 줄 단위 검사는 독립 리뷰 세 번에서 매번 YAML 해석 차이로 비켜 가는 경우가 나왔다. 그래서 사람이 정한 대로 Blackbox Exporter가 읽어 들인 설정(`/config`)을 검사하게 접근 방법, 바뀌는 부분, 테스트 계획, 작업 순서를 고쳤다(2026-11-25). 리뷰가 찾은 경우를 넣은 사본은 모두 Blackbox Exporter가 받아들여 `http_2xx_insecure` 밖의 module에 인증서 검증 끄기를 읽었다. 고치기 전 검사는 그 가운데 한 종류를 통과시켰고, 바꾼 검사는 모두 module 이름과 함께 거부했다. 원본과 C2 사본의 결과는 접근 방법대로였다. 템플릿의 `http_2xx`에 설정을 넣고 돌린 `--check` 전체도 첫 값 벌에서 module 이름과 함께 실패했고, 띄운 컨테이너는 남지 않았다. 공개 저장소라 우회 방법은 적지 않는다.
 - 고치기 전 검사는 `http_2xx_insecure`의 `http.tls_config`가 아닌 곳(예: `tcp.tls_config`)에만 있는 `insecure_skip_verify: true`도 받았다. HTTP 확인에는 쓰이지 않는 설정이다. 바꾼 검사는 `http.tls_config`에 있는 것만 인정한다.
 - Blackbox Exporter v0.28.0의 `/config`는 들여쓰기 4칸이고 module을 이름순으로 쓴다. `false`, 0, 빈 값은 빠진다. 한 줄 문자열은 길어도 접지 않고, 여러 줄 문자열은 키보다 4칸 깊은 `|-` 블록으로 쓴다. 여러 줄이거나 아주 긴(140자로 확인) 키는 `? `로 시작하는 명시적 키로 쓴다. 따옴표가 필요한 이름은 따옴표째 나온다. 2026-11-25에 운영 이미지를 띄워 확인했다.
+- 검사의 세 조건(다른 module의 설정, `http_2xx_insecure`의 설정, `timeout`)을 잠시 망가뜨리자 거부 시험의 네 사본이 모두 "통과"로 보고되며 `--check`가 실패했다. 되돌린 코드로는 통과했고, 거부 시험으로 `--check`가 15초 안팎 늘었다(2026-11-25).
 - 운영 명령 시험 두 개(`설정을 펼치면 검사한 주소와 기본값으로…`, `바꾼 설정 값으로 보관 항목과…`)가 펼친 `blackbox.yml`의 `timeout` 줄을 3개로 세고 있어 4개로 고쳤다.
 - Blackbox Exporter v0.28.0에서 실패한 확인은 원인 줄과 `msg="Probe failed"` 줄을 `level=ERROR`로 남긴다. 원인 줄은 HTTP 요청 오류(인증서, 연결)가 `Error for HTTP request`, 2xx가 아닌 응답이 `Invalid HTTP response status code`, 이름 풀이 실패가 `Error resolving address`다. 그래서 운영 가이드는 `grep 'level=ERROR'`로 찾고 원인 줄을 설명한다. 리다이렉트는 `level=WARN` `msg="Received redirect"`다. 2026-11-25에 개발 환경에서 확인했다.
 - 응답을 받지 못한 확인(인증서 오류, 이름 풀이 실패)의 `probe_http_status_code`는 0이다. 2026-11-25에 개발 환경에서 확인했다.

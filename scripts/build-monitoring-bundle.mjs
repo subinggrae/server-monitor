@@ -447,8 +447,8 @@ const BLACKBOX_CONFIG_ATTEMPTS = 20;
 // 펼친 설정을 붙여 운영 이미지를 띄우고, Blackbox Exporter가 실제로 읽어 들인 설정(/config)을 받는다.
 // 운영 이미지에는 셸과 wget이 없으므로 도구 이미지의 BusyBox wget을 그 컨테이너의 네트워크에 붙여 묻는다. 호스트 포트는 열지 않는다.
 // 응답을 다 받은 뒤에만 내보내, 중간에 끊긴 응답이 섞이지 않게 한다.
-function loadedBlackboxConfig(image, tools, rendered) {
-  const container = run('docker', ['run', '-d', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, image], { capture: true });
+function loadedBlackboxConfig(image, tools, dir) {
+  const container = run('docker', ['run', '-d', '--rm', '-v', `${dir}:/etc/monitoring:ro`, image], { capture: true });
   const fetched = runResult('docker', ['run', '--rm', '--network', `container:${container}`, '--entrypoint', '/bin/sh', tools.prometheus, '-c',
     `attempt=0; while [ "$attempt" -lt ${BLACKBOX_CONFIG_ATTEMPTS} ]; do
        if config=$(wget -q -T 5 -O - http://127.0.0.1:9115/config 2>/dev/null); then printf '%s\\n' "$config"; exit 0; fi
@@ -466,10 +466,11 @@ function loadedBlackboxConfig(image, tools, rendered) {
 // /config는 Go YAML이 다시 쓴 블록 형식이다(v0.28.0에서 확인). 들여쓰기는 4칸이고, false와 빈 값은 빠지며, 여러 줄 문자열은 키보다 깊게 들여 쓴다.
 // 그래서 들여쓰기 4칸인 줄은 module 이름 줄뿐이고, 8칸의 timeout·http, 12칸의 tls_config, 16칸의 insecure_skip_verify는 문자열 안에서 생기지 않는다.
 // 이 모양과 다른 줄(단순하지 않은 module 이름 등)이 있으면 module을 나눌 수 없으므로 받지 않는다.
-function checkBlackboxConfig(loaded, ranges, set) {
+// 문제가 있으면 그 설명을, 없으면 null을 돌려준다. expected는 확인 제한 시간(예: 5s)이다.
+function checkBlackboxConfig(loaded, expected) {
   const lines = loaded.split('\n').filter((line) => line !== '');
   if (lines[0] !== 'modules:') {
-    fail(`${set.label}: Blackbox Exporter가 읽은 설정이 modules:로 시작하지 않습니다.`);
+    return `Blackbox Exporter가 읽은 설정이 modules:로 시작하지 않습니다.`;
   }
   const indentOf = (line) => /^ */.exec(line)[0].length;
   const modules = new Map();
@@ -479,29 +480,28 @@ function checkBlackboxConfig(loaded, ranges, set) {
     if (indent === 4) {
       const name = line.slice(4, -1);
       if (!line.endsWith(':') || name === '' || /^[?:]/.test(name)) {
-        fail(`${set.label}: Blackbox Exporter가 읽은 설정에서 module 이름을 읽지 못했습니다: ${JSON.stringify(line)}. module 이름은 영문자, 숫자, _로 적어 주세요.`);
+        return `Blackbox Exporter가 읽은 설정에서 module 이름을 읽지 못했습니다: ${JSON.stringify(line)}. module 이름은 영문자, 숫자, _로 적어 주세요.`;
       }
       if (modules.has(name)) {
-        fail(`${set.label}: Blackbox Exporter가 읽은 설정에 ${JSON.stringify(name)} module이 두 번 있습니다.`);
+        return `Blackbox Exporter가 읽은 설정에 ${JSON.stringify(name)} module이 두 번 있습니다.`;
       }
       current = [];
       modules.set(name, current);
     } else if (indent > 4 && current) {
       current.push(line);
     } else {
-      fail(`${set.label}: Blackbox Exporter가 읽은 설정에 module에 속하지 않는 줄이 있습니다: ${JSON.stringify(line)}`);
+      return `Blackbox Exporter가 읽은 설정에 module에 속하지 않는 줄이 있습니다: ${JSON.stringify(line)}`;
     }
   }
   if (!modules.has(INSECURE_MODULE)) {
-    fail(`${set.label}: Blackbox Exporter가 읽은 설정에 ${INSECURE_MODULE} module이 없습니다.`);
+    return `Blackbox Exporter가 읽은 설정에 ${INSECURE_MODULE} module이 없습니다.`;
   }
-  const expected = `${effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS')}s`;
   for (const [name, body] of modules) {
     // 보이지 않는 글자가 든 이름도 알아볼 수 있게 escape해 보인다.
     const shown = JSON.stringify(name).replace(/[^\x20-\x7e]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`);
     const timeouts = body.map((line) => /^ {8}timeout: (.*)$/.exec(line)?.[1]).filter((value) => value !== undefined);
     if (timeouts.length !== 1 || timeouts[0] !== expected) {
-      fail(`${set.label}: Blackbox Exporter가 읽은 설정의 ${shown} module의 timeout이 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ') || '없음'}`);
+      return `Blackbox Exporter가 읽은 설정의 ${shown} module의 timeout이 ${expected}가 아닙니다. 받은 값: ${timeouts.join(', ') || '없음'}`;
     }
     if (name === INSECURE_MODULE) {
       // http 아래 tls_config 아래의 insecure_skip_verify: true만 인정한다. 들여쓰기가 같거나 얕은 줄을 만나면 그 블록이 끝난다.
@@ -518,11 +518,81 @@ function checkBlackboxConfig(loaded, ranges, set) {
         return inTls && line === '                insecure_skip_verify: true';
       });
       if (!skipsVerify) {
-        fail(`${set.label}: Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다.`);
+        return `Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다.`;
       }
     } else if (body.some((line) => line.includes('insecure_skip_verify'))) {
-      fail(`${set.label}: Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다. 이 설정은 ${INSECURE_MODULE}에만 둡니다.`);
+      return `Blackbox Exporter가 읽은 설정의 ${shown} module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다. 이 설정은 ${INSECURE_MODULE}에만 둡니다.`;
     }
+  }
+  return null;
+}
+
+// 펼친 blackbox.yml에서 module 하나의 본문(이름 줄 다음부터 다음 module이나 주석 앞까지)만 고친다. 고칠 곳이 없으면 null을 돌려준다.
+function editBlackboxModule(text, name, edit) {
+  const header = `\n  ${name}:\n`;
+  const start = text.indexOf(header);
+  if (start < 0) {
+    return null;
+  }
+  const bodyStart = start + header.length;
+  const rest = text.slice(bodyStart);
+  const end = rest.search(/^ {0,2}\S/m);
+  const body = end < 0 ? rest : rest.slice(0, end);
+  const edited = edit(body);
+  return edited === body ? null : text.slice(0, bodyStart) + edited + rest.slice(body.length);
+}
+
+// Blackbox 설정 검사가 거부해야 하는 경우다. 펼친 설정의 module 하나를 고친 사본이 기대한 설명으로 거부돼야 한다.
+function blackboxRejectCases(seconds) {
+  const otherTimeout = `${seconds === 1 ? 2 : seconds - 1}s`;
+  return [
+    {
+      name: 'http_2xx에 인증서 검증을 끄는 설정을 넣으면 거부한다',
+      module: 'http_2xx',
+      edit: (body) => body.replace(/^( +)follow_redirects: true$/m, '$&\n$1tls_config:\n$1  insecure_skip_verify: true'),
+      expect: '"http_2xx" module에 인증서 검증을 끄는 insecure_skip_verify가 있습니다',
+    },
+    {
+      name: `${INSECURE_MODULE}에서 인증서 검증을 끄는 설정을 빼면 거부한다`,
+      module: INSECURE_MODULE,
+      edit: (body) => body.replace(/^ +tls_config:\n +insecure_skip_verify: true\n?/m, ''),
+      expect: `"${INSECURE_MODULE}" module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다`,
+    },
+    {
+      name: `${INSECURE_MODULE}의 인증서 검증을 끄는 설정을 false로 바꾸면 거부한다`,
+      module: INSECURE_MODULE,
+      edit: (body) => body.replace('insecure_skip_verify: true', 'insecure_skip_verify: false'),
+      expect: `"${INSECURE_MODULE}" module에 인증서 검증을 끄는 http.tls_config.insecure_skip_verify: true가 없습니다`,
+    },
+    {
+      name: `${INSECURE_MODULE}의 timeout이 확인 제한 시간과 다르면 거부한다`,
+      module: INSECURE_MODULE,
+      edit: (body) => body.replace(/^( +)timeout: .*$/m, `$1timeout: ${otherTimeout}`),
+      expect: `"${INSECURE_MODULE}" module의 timeout이 ${seconds}s가 아닙니다`,
+    },
+  ];
+}
+
+// 통과하는 원본만 검사하면 거부 조건이 망가져도 알 수 없으므로, 거부해야 하는 사본으로 검사를 시험한다.
+// 사본마다 Blackbox Exporter를 띄워야 해서 값 한 벌에서만 돌린다. 실패한 경우를 모두 모아 알린다.
+function checkBlackboxRejects(image, tools, rendered, seconds) {
+  const original = rendered.read('blackbox.yml').replace(/\r\n/g, '\n');
+  const dir = scratchDir('blackbox-reject');
+  const failures = [];
+  for (const testCase of blackboxRejectCases(seconds)) {
+    const copy = editBlackboxModule(original, testCase.module, testCase.edit);
+    if (copy === null) {
+      failures.push(`${testCase.name}: 펼친 설정에서 고칠 곳을 찾지 못했습니다.`);
+      continue;
+    }
+    fs.writeFileSync(path.join(dir, 'blackbox.yml'), copy);
+    const problem = checkBlackboxConfig(loadedBlackboxConfig(image, tools, dir), `${seconds}s`);
+    if (!problem?.includes(testCase.expect)) {
+      failures.push(`${testCase.name}: 받은 결과: ${problem ?? '통과'}`);
+    }
+  }
+  if (failures.length > 0) {
+    fail(`Blackbox 설정 검사가 거부해야 하는 사본을 거부하지 않았습니다.\n  ${failures.join('\n  ')}`);
   }
 }
 
@@ -682,7 +752,15 @@ function checkSystemImages(release, tools) {
     // Blackbox Exporter는 셸 없이 실행 파일만 부르므로 운영 이미지로 검사한다.
     run('docker', ['run', '--rm', '-v', `${rendered.dir}:/etc/monitoring:ro`, images['blackbox-exporter'],
       '--config.file=/etc/monitoring/blackbox.yml', '--config.check']);
-    checkBlackboxConfig(loadedBlackboxConfig(images['blackbox-exporter'], tools, rendered), ranges, set);
+    const probeTimeout = Number(effective(ranges, set.values, 'MONITORING_PROBE_TIMEOUT_SECONDS'));
+    const blackboxProblem = checkBlackboxConfig(loadedBlackboxConfig(images['blackbox-exporter'], tools, rendered.dir), `${probeTimeout}s`);
+    if (blackboxProblem) {
+      fail(`${set.label}: ${blackboxProblem}`);
+    }
+    if (index === 0) {
+      console.log('Blackbox 설정 검사가 인증서 검증 끄기와 timeout을 잘못 둔 사본을 거부하는지 확인합니다.');
+      checkBlackboxRejects(images['blackbox-exporter'], tools, rendered, probeTimeout);
+    }
     checkRenderedEnv(rendered, ranges, set);
     fs.rmSync(rendered.work, { recursive: true, force: true });
   }
