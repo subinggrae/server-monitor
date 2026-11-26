@@ -230,7 +230,8 @@ function exportImage(image) {
   const result = spawnSync('docker', ['export', '-o', exported, container], { stdio: 'inherit' });
   const bytes = result.status === 0 ? fs.readFileSync(exported) : null;
   fs.rmSync(exported, { force: true });
-  spawnSync('docker', ['rm', container], { stdio: 'ignore' });
+  // 이미지의 VOLUME으로 만든 이름 없는 볼륨이 남지 않게 함께 지운다(-v).
+  spawnSync('docker', ['rm', '-v', container], { stdio: 'ignore' });
   if (!bytes) {
     fail(`${image}의 파일 시스템을 내보내지 못했습니다.`);
   }
@@ -765,7 +766,8 @@ function extractRules(prometheus) {
   const dir = scratchDir('rules-check');
   const container = run('docker', ['create', '--label', CHECK_LABEL, prometheus], { capture: true });
   const result = spawnSync('docker', ['cp', `${container}:/etc/prometheus/rules`, dir], { stdio: 'inherit' });
-  spawnSync('docker', ['rm', container], { stdio: 'ignore' });
+  // 공식 Prometheus 이미지의 VOLUME으로 만든 이름 없는 볼륨이 남지 않게 함께 지운다(-v).
+  spawnSync('docker', ['rm', '-v', container], { stdio: 'ignore' });
   if (result.status !== 0) {
     fail(`${prometheus}에서 규칙을 꺼내지 못했습니다.`);
   }
