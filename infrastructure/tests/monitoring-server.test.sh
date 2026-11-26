@@ -1411,6 +1411,17 @@ check '저장소에서 펼치면 Compose에 넘길 두 경로 값과 기본 호�
 check '저장소에서 펼치면 .env 대신 compose.env를 주는 docker compose 명령을 안내한다' \
   'contains "docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build"'
 
+# 떠 있는 모니터링 시스템에 새 설정을 쓰는 안내도 .env를 다시 읽지 않는 명령이어야 한다.
+repo_setup; touch "$FAKE/running"
+run_repo
+check '저장소에서 떠 있는 모니터링 시스템이 있으면 새 설정을 쓰는 명령도 compose.env를 주어 안내한다' \
+  '[ $RC -eq 0 ] && contains "새 설정을 쓰려면 저장소 폴더에서 docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d" && ! contains "docker compose up -d"'
+
+setup; prepared; touch "$FAKE/running"
+run render
+check '묶음에서 떠 있는 모니터링 시스템이 있으면 compose.yml이 있는 폴더의 docker compose up -d로 새 설정을 쓰라고 안내한다' \
+  '[ $RC -eq 0 ] && contains "새 설정을 쓰려면 docker compose up -d"'
+
 repo_setup; printf 'MONITORING_PROMETHEUS_PORT=19090\nMONITORING_ALERTMANAGER_PORT=19093\nMONITORING_BLACKBOX_PORT=19115\n' >> "$REPO/.env"
 run_repo
 expect_compose_env '' '' 19090 19093 19115

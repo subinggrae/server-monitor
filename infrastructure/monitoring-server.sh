@@ -1035,7 +1035,11 @@ cmd_render() {
     say "compose.yml이 있는 폴더에서 docker compose up -d로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
   fi
   if monitoring_exists; then
-    say "떠 있는 모니터링 시스템에 새 설정을 쓰려면 docker compose up -d를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
+    if [ "$LAYOUT" = repository ]; then
+      say "떠 있는 모니터링 시스템에 새 설정을 쓰려면 저장소 폴더에서 docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
+    else
+      say "떠 있는 모니터링 시스템에 새 설정을 쓰려면 docker compose up -d를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
+    fi
   fi
 }
 
