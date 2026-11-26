@@ -76,7 +76,7 @@
 - **기록 보관 기간과 용량**: 기간이 지나거나 용량이 차면 오래된 기록부터 지운다. 용량에는 디스크 크기가 아니라 기록이 쓸 크기를 적는다(1GB는 1024MB). 기록이 잠시 이 값을 넘을 수 있으므로 디스크의 80~85% 이하로 정한다.
 - **주소 확인 제한 시간**: 이 시간 안에 응답이 없으면 확인 실패로 본다. ping, TCP, 웹 주소 확인에 모두 쓰고, 감시 항목마다 다르게 둘 수 없다. 최대 9초다.
 - **포트**: 모니터링 서버에서 브라우저나 `curl`로 모니터링 시스템을 열 때 쓰는 포트다. 세 값은 서로 달라야 한다. 바꿔도 모니터링 서버 안에서만 열리고, 관리자 서버 설정은 그대로 둔다([바꾸지 않는 값](#바꾸지-않는-값)). 바꿨으면 이 문서의 9090 같은 포트를 바꾼 값으로 읽는다.
-- **token 폴더**: 모니터링 시스템과 관리자 서버가 함께 읽는 token 파일의 폴더다. 보통은 바꾸지 않는다. 상대 경로를 적으면 묶음 폴더가 기준이다.
+- **token 폴더**: 모니터링 시스템과 관리자 서버가 함께 읽는 token 파일의 폴더다. 보통은 바꾸지 않는다. 상대 경로를 적으면 묶음 폴더가 기준이다. 모니터링 시스템이 떠 있을 때 바꾸고 `start`를 실행하면, `start`가 새 폴더의 token을 검사한 뒤 세 컨테이너를 다시 만들어 잠깐 감시가 멈춘다.
 - **CA 인증서 파일**: 모니터링 시스템이 HTTPS 주소의 인증서를 확인할 때 쓰는 모니터링 서버 OS의 파일이다. Ubuntu, Debian, Amazon Linux는 `/etc/ssl/certs/ca-certificates.crt`, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`를 적는다. 링크인 파일도 된다. 복사하지 않고 그 파일을 바로 쓰므로, OS의 CA 인증서를 갱신하면 [OS의 CA 인증서를 갱신했을 때](#os의-ca-인증서를-갱신했을-때)대로 `start`만 실행한다. 비워 두면 예전 방식대로 설치 폴더의 `certs/ca-certificates.crt`에 복사해 둔 파일을 쓴다.
 - **서버 사용량 수집**: `off`면 서버의 CPU, Memory, 디스크 사용량을 모으지 않고, 관리자 서버의 서버 감시 대상 목록 API도 부르지 않는다. 주소 감시와 장애 알림은 그대로다. 소문자 `on`, `off`만 받는다. 끄기 전에 모은 기록은 보관 기간까지 남는다.
 
@@ -159,7 +159,7 @@ MONITORING_PROMETHEUS_PORT=19090
 
 값은 다음처럼 적는다. 변수마다 설명은 `.env` 안의 주석에도 있다.
 
-- 한 줄에 `변수=값` 형식으로 적는다. token 폴더나 CA 인증서 파일 경로를 다른 형식으로 적으면 운영 명령이 `설정 값을 읽지 못했습니다`와 줄 번호를 보이고 멈춘다. 그 줄을 안내대로 고친 뒤 다시 실행한다. 형식이 맞아 보이면 줄에 보이지 않는 글자가 들어 있을 수 있으니, 그 줄을 지우고 다시 입력한다.
+- 한 줄에 `변수=값` 형식으로 적는다. token 폴더나 CA 인증서 파일 경로를 다른 형식으로 적으면 운영 명령이 `설정 값을 읽지 못했습니다`와 줄 번호를 보이고 멈춘다. 그 줄을 안내대로 고친 뒤 다시 실행한다. 형식이 맞아 보이면 줄에 보이지 않는 글자가 들어 있을 수 있으니, 그 줄을 지우고 다시 입력한다. 그 줄이 다른 변수의 줄이고 값이나 줄 끝 주석에 이 변수 이름이 들어 있으면, 값이나 주석에서 이름을 뺀다.
 - 숫자 값은 단위와 앞의 0 없이 숫자만 적는다. `30d`나 `030`은 틀린 값이다. 서버 사용량 수집은 소문자 `on`이나 `off`만 적는다.
 - 적지 않거나 비워 두면 기본값을 쓴다.
 - 셸에 같은 이름의 환경 변수가 있으면 `.env`보다 그 값을 먼저 쓴다.
@@ -554,16 +554,18 @@ openssl rand -hex 32 > infrastructure/secrets/alertmanager_webhook_token
 chmod 0644 infrastructure/secrets/alertmanager_webhook_token
 ```
 
-Windows에서는 `monitoring-dev.bat start`로 띄우고 `monitoring-dev.bat stop`으로 멈춘다. `start`가 설정 펼치기, CA 인증서 파일 준비(`infrastructure/certs/`), `monitoring` 네트워크 만들기(없을 때)까지 한다. Windows에서는 `.env`의 `MONITORING_CA_FILE`을 비워 둔다. 운영 명령이 Linux 컨테이너 안에서 돌아 Windows의 경로를 볼 수 없다.
+Windows에서는 `monitoring-dev.bat start`로 띄우고 `monitoring-dev.bat stop`으로 멈춘다. `start`가 설정 펼치기, CA 인증서 파일 준비(`infrastructure/certs/`), `monitoring` 네트워크 만들기(없을 때)까지 한다. Windows에서는 `.env`의 `MONITORING_CA_FILE`을 비워 둔다. 운영 명령이 Linux 컨테이너 안에서 돌아 Windows의 경로를 볼 수 없다. 같은 까닭에 `MONITORING_SECRETS_DIR`에는 `infrastructure/` 기준 상대 경로를 적는다.
 
 다른 OS에서는 `infrastructure/.env`의 `MONITORING_CA_FILE`에 그 PC의 CA 인증서 파일 경로(Ubuntu는 `/etc/ssl/certs/ca-certificates.crt`, RHEL 계열은 `/etc/pki/tls/certs/ca-bundle.crt`)를 적고, 같은 일을 하는 다음 명령을 쓴다. 첫 줄은 처음 한 번만 실행한다.
 
 ```sh
 docker network create monitoring
 sh infrastructure/monitoring-server.sh render
-docker compose -f infrastructure/compose.yml up -d --build
+docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build
 docker compose -f infrastructure/compose.yml ps
 ```
+
+저장소에서는 `render`가 검사한 token 폴더, CA 인증서 파일 경로, 호스트 포트를 `infrastructure/rendered/compose.env`에 남긴다. `monitoring-dev.bat start`와 위 명령은 Compose가 `.env`를 다시 읽지 않고 이 파일을 읽게 한다. 그래야 `render`가 검사한 파일을 붙이고 검사한 포트로 연다. 저장소에서는 `MONITORING_SECRETS_DIR`에 작은따옴표, 백슬래시, 줄바꿈이 있으면 이 파일에 그대로 넘길 수 없어 `render`가 멈춘다. 그 글자 없이 다시 적는다.
 
 ## 라이선스
 
