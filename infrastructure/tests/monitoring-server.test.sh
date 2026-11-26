@@ -1027,6 +1027,13 @@ run_with_env "MONITORING_CA_FILE=$OS/real/bundle.crt
 check 'CA 인증서 파일 경로가 여러 줄이면 거부하고 펼치지 않는다' \
   '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE" && [ ! -e "$RENDERED" ]'
 
+# Compose는 셸 환경 변수의 값 끝 줄바꿈까지 볼륨 원본으로 쓴다(요구사항 0028의 S15).
+setup; prepared; os_ca
+run_with_env "MONITORING_CA_FILE=$OS/real/bundle.crt
+" start
+check '셸 환경 변수의 CA 인증서 파일 경로 끝에 줄바꿈이 있으면 형식 검사에서 거부하고 Compose를 부르지 않는다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_CA_FILE" && contains "절대 경로" && ! called "^compose" && [ ! -e "$RENDERED" ]'
+
 setup; prepared
 run render
 first=$(config_hash)
@@ -1454,6 +1461,21 @@ run_repo env 'MONITORING_SECRETS_DIR=./new
 line'
 check '저장소에서 셸 환경 변수의 token 폴더 값에 줄바꿈이 있으면 펼친 설정을 바꾸지 않고 멈춘다' \
   '[ $RC -ne 0 ] && contains "MONITORING_SECRETS_DIR" && contains "셸 환경 변수" && [ "$(rendered_state)" = "$before" ]'
+
+# Compose는 셸 환경 변수의 값 끝 줄바꿈까지 token 폴더로 쓴다. 끝의 줄바꿈만 있어도 넘길 수 없다.
+repo_setup; run_repo; before=$(rendered_state); repo_token_dir shell
+run_repo env 'MONITORING_SECRETS_DIR=./shell
+'
+check '저장소에서 셸 환경 변수의 token 폴더 값 끝에 줄바꿈이 있으면 펼친 설정을 바꾸지 않고 멈춘다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_SECRETS_DIR" && contains "셸 환경 변수" && [ "$(rendered_state)" = "$before" ]'
+
+# 묶음의 start는 검사한 값을 export해 셸의 값을 덮으므로, 지금처럼 끝 줄바꿈을 뗀 폴더를 검사하고 같은 값을 Compose에 넘긴다.
+setup; prepared; mkdir -p "$T/other"; cp "$TOKEN" "$T/other/"
+run_with_env "MONITORING_SECRETS_DIR=$T/other
+" start
+check '묶음에서는 셸 환경 변수의 token 폴더 값 끝에 줄바꿈이 있어도 뗀 값을 검사하고 그 값을 Compose에 넘긴다' \
+  '[ $RC -eq 0 ] && [ "$(cat "$FAKE/compose_secrets_dir"; printf x)" = "$T/other
+x" ]'
 
 setup; prepared; mkdir -p "$T/it's"; cp "$TOKEN" "$T/it's/"; with_settings "MONITORING_SECRETS_DIR=$T/it's"
 run render

@@ -84,8 +84,13 @@ EOF
 # Compose와 같은 값을 보도록, 셸 환경 변수가 있으면 그 값을 쓰고 없으면 .env의 값을 쓴다.
 # .env를 셸로 실행하면 값에 든 명령이 실행되므로 실행하지 않고 읽는다. export, 따옴표, 줄 끝 주석은 Compose처럼 다루고,
 # 같은 키가 여럿이면 마지막 값을 쓴다. BusyBox, GNU, 로캘과 관계없이 같게 읽도록 바이트로 비교한다(LC_ALL=C).
+# 셸 환경 변수는 Compose처럼 값 끝의 줄바꿈까지 그대로 내보낸다. 명령 치환은 끝의 줄바꿈을 모두 떼므로 표지 글자(x)를 붙여 받고
+# printenv가 덧붙인 줄바꿈 하나만 뗀다. 끝의 줄바꿈까지 검사해야 하는 곳은 이 함수의 출력도 같은 방법으로 받는다.
 env_value() {
-  if value=$(printenv "$1"); then
+  if value=$(printenv "$1" && printf x); then
+    value=${value%x}
+    value=${value%"
+"}
     printf '%s' "$value"
     return 0
   fi
@@ -298,8 +303,11 @@ check_secrets_setting() {
   secrets_value=$(env_value MONITORING_SECRETS_DIR)
   # 저장소에서는 이 값을 compose.env에 작은따옴표로 감싸 Compose에 넘긴다. Compose는 작은따옴표 안에서도 \와 '를 풀고,
   # 줄바꿈은 다른 설정 값의 줄을 만들 수 있어 그런 값은 넘기지 않는다(요구사항 0028의 S14). 값은 안내에 쓰지 않는다.
+  # 저장소에서는 검사한 값을 compose.env로 넘겨도 셸 환경 변수가 그보다 먼저 쓰이므로, 값 끝의 줄바꿈도 보도록 표지 글자를 붙여 받는다.
+  # 묶음의 start는 export한 값이 셸의 값을 덮으므로 지금처럼 끝의 줄바꿈을 뗀 값을 검사하고 넘긴다.
   if [ "$LAYOUT" = repository ]; then
-    case "$secrets_value" in
+    secrets_exact=$(env_value MONITORING_SECRETS_DIR; printf x)
+    case "${secrets_exact%x}" in
       *"'"*|*\\*|*"
 "*)
         if printenv MONITORING_SECRETS_DIR > /dev/null; then
@@ -333,7 +341,9 @@ check_ca_setting() {
   else
     ca_fix=".env의 MONITORING_CA_FILE 값을 고친 뒤 다시 실행해 주세요."
   fi
-  ca_value=$(env_value MONITORING_CA_FILE)
+  # 셸 환경 변수의 값 끝 줄바꿈도 Compose는 경로로 쓰므로, 형식 검사가 보도록 표지 글자를 붙여 받는다.
+  ca_value=$(env_value MONITORING_CA_FILE; printf x)
+  ca_value=${ca_value%x}
   if [ -z "$ca_value" ]; then
     export MONITORING_CA_FILE=
     return 0
