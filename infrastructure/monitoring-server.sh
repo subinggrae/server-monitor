@@ -294,6 +294,23 @@ check_secrets_setting() {
     return 1
   fi
   secrets_value=$(env_value MONITORING_SECRETS_DIR)
+  # 저장소에서는 이 값을 compose.env에 작은따옴표로 감싸 Compose에 넘긴다. Compose는 작은따옴표 안에서도 \와 '를 풀고,
+  # 줄바꿈은 다른 설정 값의 줄을 만들 수 있어 그런 값은 넘기지 않는다(요구사항 0028의 S14). 값은 안내에 쓰지 않는다.
+  if [ "$LAYOUT" = repository ]; then
+    case "$secrets_value" in
+      *"'"*|*\\*|*"
+"*)
+        if printenv MONITORING_SECRETS_DIR > /dev/null; then
+          secrets_from="셸 환경 변수 MONITORING_SECRETS_DIR"
+        else
+          secrets_from="$ENV_FILE 의 MONITORING_SECRETS_DIR"
+        fi
+        printf '설정 값이 올바르지 않습니다: %s (token 폴더)\n' "$secrets_from" >&2
+        printf '  문제: 작은따옴표, 백슬래시, 줄바꿈이 있어 저장소에서 띄우는 Compose에 그대로 넘길 수 없습니다.\n' >&2
+        printf '  고치는 방법: 이 글자 없이 infrastructure/ 기준 상대 경로로 적은 뒤 다시 실행해 주세요.\n' >&2
+        return 1 ;;
+    esac
+  fi
   export MONITORING_SECRETS_DIR="$secrets_value"
 }
 
@@ -535,7 +552,11 @@ check_render_dir() {
   if [ -e "$RENDER_DIR" ] && [ ! -d "$RENDER_DIR" ]; then
     fail "펼친 설정 폴더 자리에 파일이 있습니다: $RENDER_DIR. 그 파일을 지운 뒤 다시 실행해 주세요."
   fi
-  for name in $CONFIG_FILES monitoring.env; do
+  names="$CONFIG_FILES monitoring.env"
+  if [ "$LAYOUT" = repository ]; then
+    names="$names compose.env"
+  fi
+  for name in $names; do
     target="$RENDER_DIR/$name"
     if [ -L "$target" ]; then
       fail "펼친 설정 파일이 심볼릭 링크입니다: $target. 링크를 지운 뒤 다시 실행해 주세요."
@@ -609,13 +630,26 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
     printf 'MONITORING_TOKEN_PATH_SHA256=%s\n' "$token_path_hash"
     printf 'MONITORING_CONFIG_SHA256=%s\n' "$config_hash"
   } > "$stage/monitoring.env"
-  for name in $CONFIG_FILES monitoring.env; do
+  rendered_files="$CONFIG_FILES monitoring.env"
+  # 저장소에서는 render가 끝나면 사라지는 컨테이너 안에서 돌 수 있어(monitoring-dev.bat start), export한 값이 Compose에 닿지 않는다.
+  # 그래서 Compose가 compose 파일에서 푸는 값을 검사한 값 그대로 남기고, Compose는 .env 대신 이 파일을 --env-file로 읽는다.
+  # Compose는 작은따옴표 값을 다시 풀지 않는다. 풀리는 글자가 든 token 폴더 값은 check_secrets_setting이 막았다(요구사항 0028의 S13~S15).
+  if [ "$LAYOUT" = repository ]; then
+    {
+      printf '# sh monitoring-server.sh render가 검사한 값입니다. 저장소에서 띄울 때 docker compose --env-file로 줍니다.\n'
+      for setting in MONITORING_SECRETS_DIR MONITORING_CA_FILE MONITORING_PROMETHEUS_PORT MONITORING_ALERTMANAGER_PORT MONITORING_BLACKBOX_PORT; do
+        printf "%s='%s'\n" "$setting" "$(printenv "$setting")"
+      done
+    } > "$stage/compose.env"
+    rendered_files="$rendered_files compose.env"
+  fi
+  for name in $rendered_files; do
     chmod 0644 "$stage/$name"
   done
   # 이전과 내용이 달라졌으면 render_changed=yes다. 파일 단위로 붙인 컨테이너는 이름을 바꿔 옮긴 새 파일을
   # 다시 시작할 때까지 보지 못하기 때문이다.
   # mv -T는 검사 뒤 그 자리가 폴더나 폴더를 가리키는 링크로 바뀌어도 그 안으로 옮기지 않는다(CWE-59).
-  for name in $CONFIG_FILES monitoring.env; do
+  for name in $rendered_files; do
     mv -f -T "$stage/$name" "$RENDER_DIR/$name"
   done
   rmdir "$stage"
@@ -982,7 +1016,12 @@ cmd_render() {
   link_env
   write_rendered
   say "설정을 펼쳤습니다: $RENDER_DIR (CA 인증서: $CA_FILE)"
-  say "compose.yml이 있는 폴더에서 docker compose up -d로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
+  if [ "$LAYOUT" = repository ]; then
+    # Compose가 .env를 다시 읽지 않고 이 명령이 검사한 값(compose.env)을 쓰게 한다(요구사항 0028의 S15).
+    say "저장소 폴더에서 docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
+  else
+    say "compose.yml이 있는 폴더에서 docker compose up -d로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
+  fi
   if monitoring_exists; then
     say "떠 있는 모니터링 시스템에 새 설정을 쓰려면 docker compose up -d를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
   fi

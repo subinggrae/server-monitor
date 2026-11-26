@@ -1322,6 +1322,107 @@ RC=$?
 check '저장소의 infrastructure/에서 펼치면 저장소의 템플릿, ./secrets의 token, ./certs의 CA 인증서 파일로 rendered/에 쓴다' \
   '[ $RC -eq 0 ] && grep -q "url: http://dev-api:8080/api/prometheus/sd/blackbox" "$REPO/rendered/prometheus.yml" && [ -f "$REPO/rendered/monitoring.env" ]'
 
+# --- 저장소에서 Compose에 넘길 값(요구사항 0028의 S13~S15) ---
+# 저장소에서는 render가 끝나면 사라지는 컨테이너 안에서 돌 수 있어(monitoring-dev.bat start), 검사한 값을 compose.env로 남기고
+# Compose가 .env 대신 그 파일을 읽게 한다.
+
+# 저장소의 infrastructure/를 본뜬 폴더를 만든다. token은 ./secrets, CA 인증서 파일은 ./certs에 있다.
+repo_setup() {
+  setup
+  REPO="$T/repo"
+  mkdir -p "$REPO/prometheus" "$REPO/alertmanager" "$REPO/blackbox" "$REPO/secrets" "$REPO/certs"
+  cp "$SCRIPT" "$SETTINGS" "$REPO/"
+  cp "$SOURCE_DIR/prometheus/prometheus.yml" "$REPO/prometheus/"
+  cp "$SOURCE_DIR/alertmanager/alertmanager.yml" "$REPO/alertmanager/"
+  cp "$SOURCE_DIR/blackbox/blackbox.yml" "$REPO/blackbox/"
+  printf 'repo-token-for-test\n' > "$REPO/secrets/alertmanager_webhook_token"
+  chmod 0644 "$REPO/secrets/alertmanager_webhook_token"
+  printf 'REPO CA\n' > "$REPO/certs/ca-certificates.crt"
+  chmod 0644 "$REPO/certs/ca-certificates.crt"
+  printf 'MONITORING_APP_ADDRESS=dev-api:8080\n' > "$REPO/.env"
+}
+# 저장소 폴더 안에 시험용 token이 든 폴더(첫 번째 인자, 저장소 기준 경로)를 만든다.
+repo_token_dir() {
+  mkdir -p "$REPO/$1"
+  printf 'repo-other-token-for-test\n' > "$REPO/$1/alertmanager_webhook_token"
+  chmod 0644 "$REPO/$1/alertmanager_webhook_token"
+}
+# 저장소 폴더에서 render를 실행한다. 인자를 주면 그 명령(예: env 이름=값)으로 실행한다.
+run_repo() {
+  OUT=$(cd "$REPO" && "$@" sh ./monitoring-server.sh render 2>&1 < /dev/null)
+  RC=$?
+}
+# compose.env에 있어야 할 줄(주석 밖). 인자는 token 폴더, CA 인증서 파일 경로, Prometheus, Alertmanager, Blackbox Exporter 포트다.
+expect_compose_env() {
+  printf "MONITORING_SECRETS_DIR='%s'\nMONITORING_CA_FILE='%s'\nMONITORING_PROMETHEUS_PORT='%s'\nMONITORING_ALERTMANAGER_PORT='%s'\nMONITORING_BLACKBOX_PORT='%s'\n" \
+    "$@" > "$T/expected"
+}
+compose_env_as_expected() { [ "$(grep -v '^#' "$REPO/rendered/compose.env")" = "$(cat "$T/expected")" ]; }
+rendered_state() { cksum "$REPO"/rendered/* 2>/dev/null; }
+
+repo_setup
+run_repo
+expect_compose_env '' '' 9090 9093 9115
+check '저장소에서 펼치면 Compose에 넘길 두 경로 값과 기본 호스트 포트를 작은따옴표로 감싸 compose.env에 남긴다' \
+  '[ $RC -eq 0 ] && compose_env_as_expected && [ "$(mode "$REPO/rendered/compose.env")" = "-rw-r--r--" ]'
+check '저장소에서 펼치면 .env 대신 compose.env를 주는 docker compose 명령을 안내한다' \
+  'contains "docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build"'
+
+repo_setup; printf 'MONITORING_PROMETHEUS_PORT=19090\nMONITORING_ALERTMANAGER_PORT=19093\nMONITORING_BLACKBOX_PORT=19115\n' >> "$REPO/.env"
+run_repo
+expect_compose_env '' '' 19090 19093 19115
+check '저장소에서 호스트 포트를 바꿔 펼치면 compose.env에 검사한 포트를 남긴다' '[ $RC -eq 0 ] && compose_env_as_expected'
+
+# 운영 명령은 글자 그대로 읽고 Compose는 다른 값으로 푸는 표기다.
+repo_setup; repo_token_dir 'a${UNSET_FOR_TEST:-b}'; printf '%s\n' 'MONITORING_SECRETS_DIR=./a${UNSET_FOR_TEST:-b}' >> "$REPO/.env"
+run_repo
+expect_compose_env './a${UNSET_FOR_TEST:-b}' '' 9090 9093 9115
+check '운영 명령과 Compose가 다르게 읽는 표기의 token 폴더면 compose.env에 운영 명령이 검사한 폴더를 남긴다' \
+  '[ $RC -eq 0 ] && compose_env_as_expected'
+
+# 다른 변수의 여러 줄 따옴표 값 안에 든 줄이다. 운영 명령은 그 줄을 읽고, Compose는 다른 변수의 값으로 읽는다.
+repo_setup; repo_token_dir inner; printf 'NOTE="first\nMONITORING_SECRETS_DIR=./inner\n"\n' >> "$REPO/.env"
+run_repo
+expect_compose_env './inner' '' 9090 9093 9115
+check '다른 변수의 여러 줄 값 안에 token 폴더 줄이 있으면 compose.env에 운영 명령이 검사한 폴더를 남긴다' \
+  '[ $RC -eq 0 ] && compose_env_as_expected'
+
+repo_setup; repo_token_dir shell
+run_repo env MONITORING_SECRETS_DIR=./shell
+expect_compose_env './shell' '' 9090 9093 9115
+check '저장소에서 셸 환경 변수로 token 폴더를 주면 compose.env에 그 폴더를 남긴다' '[ $RC -eq 0 ] && compose_env_as_expected'
+
+# 줄 끝 주석 앞의 탭은 운영 명령이 주석으로 보지만 Compose는 값으로 읽는다.
+repo_setup; printf 'MONITORING_CA_FILE=%s\t# 주석\n' "$REPO/certs/ca-certificates.crt" >> "$REPO/.env"
+run_repo
+expect_compose_env '' "$REPO/certs/ca-certificates.crt" 9090 9093 9115
+check '운영 명령과 Compose가 다르게 읽는 표기의 CA 인증서 파일 경로면 compose.env에 운영 명령이 검사한 경로를 남긴다' \
+  '[ $RC -eq 0 ] && compose_env_as_expected'
+
+setup; prepared
+run render
+check '묶음에서 펼치면 compose.env를 만들지 않는다' '[ $RC -eq 0 ] && [ ! -e "$RENDERED/compose.env" ]'
+
+# compose.env의 작은따옴표 값에서 Compose가 푸는 글자다. 그런 값은 저장소에서만 멈춘다(요구사항 0028의 S14).
+for bad in "it's" 'back\slash'; do
+  repo_setup; run_repo; before=$(rendered_state)
+  repo_token_dir "$bad"; printf 'MONITORING_SECRETS_DIR=./%s\n' "$bad" >> "$REPO/.env"
+  run_repo
+  check "저장소에서 token 폴더 값에 Compose에 그대로 넘길 수 없는 글자($bad)가 있으면 펼친 설정을 바꾸지 않고 멈춘다" \
+    '[ $RC -ne 0 ] && contains "MONITORING_SECRETS_DIR" && contains "상대 경로" && ! contains "$bad" && [ "$(rendered_state)" = "$before" ]'
+done
+
+repo_setup; run_repo; before=$(rendered_state); repo_token_dir 'new
+line'
+run_repo env 'MONITORING_SECRETS_DIR=./new
+line'
+check '저장소에서 셸 환경 변수의 token 폴더 값에 줄바꿈이 있으면 펼친 설정을 바꾸지 않고 멈춘다' \
+  '[ $RC -ne 0 ] && contains "MONITORING_SECRETS_DIR" && contains "셸 환경 변수" && [ "$(rendered_state)" = "$before" ]'
+
+setup; prepared; mkdir -p "$T/it's"; cp "$TOKEN" "$T/it's/"; with_settings "MONITORING_SECRETS_DIR=$T/it's"
+run render
+check '묶음에서는 token 폴더 값에 작은따옴표가 있어도 멈추지 않는다' '[ $RC -eq 0 ]'
+
 # --- 준비 확인(요구사항 0015의 S7, S15) ---
 
 setup; prepared

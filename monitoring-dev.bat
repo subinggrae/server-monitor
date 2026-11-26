@@ -80,7 +80,9 @@ if errorlevel 1 (
     goto end
   )
 )
-docker compose -f infrastructure\compose.yml up -d --build
+rem render는 끝나면 사라지는 컨테이너 안에서 돌아 검사한 값이 여기로 돌아오지 않는다. 그래서 Compose가 .env를 다시 읽지 않고
+rem render가 남긴 compose.env(두 경로 값과 호스트 포트)를 읽게 한다. 값을 cmd 변수로 받지 않으므로 cmd가 값의 글자를 해석하지 않는다(요구사항 0028).
+docker compose --env-file infrastructure\rendered\compose.env -f infrastructure\compose.yml up -d --build
 set RC=%ERRORLEVEL%
 goto end
 
