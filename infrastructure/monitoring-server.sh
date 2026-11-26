@@ -16,6 +16,8 @@
 # rendered/로 펼치고, compose 파일이 펼친 설정을 읽기 전용으로 붙인다. 정상 확인도 모니터링 서버에서 한다(요구사항 0015, ADR 0012).
 # Blackbox Exporter가 쓸 CA 인증서 파일은 운영자가 .env의 MONITORING_CA_FILE에 OS의 파일 경로를 적거나, 비워 두고 설치 폴더의
 # certs/에 복사해 둔다(요구사항 0027). 이 명령은 OS의 파일을 찾거나 옮기지 않고 확인만 한다.
+# 두 경로 값(token 폴더, CA 인증서 파일)은 검사한 값을 Compose에 넘기고, .env에 이 명령이 읽지 않는 형식으로 적은 줄이 있으면
+# Compose가 다른 파일을 붙일 수 있어 멈춘다(요구사항 0028).
 # 저장소의 infrastructure/에서도 render를 실행할 수 있다. 그때는 저장소의 템플릿, ./secrets, ./certs를 쓴다(monitoring-dev.bat start).
 # 모니터링 서버에는 Node와 bash가 없을 수 있어 POSIX sh로 쓰고, GNU coreutils와 BusyBox가 함께 지원하는 옵션만 쓴다.
 # 설치 방법은 docs/OPERATIONS.md에 있다.
@@ -27,7 +29,7 @@ RENDER_DIR="$BUNDLE_DIR/rendered"
 TOKEN_NAME=alertmanager_webhook_token
 CONTAINERS="prometheus alertmanager blackbox-exporter"
 TEMPLATES="prometheus.yml alertmanager.yml blackbox.yml"
-# monitoring.env의 MONITORING_CONFIG_SHA256이 이 파일들과 CA 인증서 파일의 내용을 나타낸다.
+# monitoring.env의 MONITORING_CONFIG_SHA256이 이 파일들과 CA 인증서 파일의 내용, token 파일의 실제 경로를 나타낸다.
 CONFIG_FILES="$TEMPLATES"
 # prometheus.yml 템플릿에서 서버 사용량 수집(manager-os) 부분의 앞뒤 줄이다. MONITORING_OS_EXPORTER가 off면 이 사이를 빼고 펼친다.
 OS_EXPORTER_BEGIN='  # BEGIN manager-os'
@@ -81,21 +83,53 @@ EOF
 
 # Compose와 같은 값을 보도록, 셸 환경 변수가 있으면 그 값을 쓰고 없으면 .env의 값을 쓴다.
 # .env를 셸로 실행하면 값에 든 명령이 실행되므로 실행하지 않고 읽는다. export, 따옴표, 줄 끝 주석은 Compose처럼 다루고,
-# 같은 키가 여럿이면 마지막 값을 쓴다.
+# 같은 키가 여럿이면 마지막 값을 쓴다. BusyBox, GNU, 로캘과 관계없이 같게 읽도록 바이트로 비교한다(LC_ALL=C).
+# 셸 환경 변수는 Compose처럼 값 끝의 줄바꿈까지 그대로 내보낸다. 명령 치환은 끝의 줄바꿈을 모두 떼므로 표지 글자(x)를 붙여 받고
+# printenv가 덧붙인 줄바꿈 하나만 뗀다. 끝의 줄바꿈까지 검사해야 하는 곳은 이 함수의 출력도 같은 방법으로 받는다.
 env_value() {
-  if value=$(printenv "$1"); then
+  if value=$(printenv "$1" && printf x); then
+    value=${value%x}
+    value=${value%"
+"}
     printf '%s' "$value"
     return 0
   fi
   if [ ! -f "$ENV_FILE" ]; then
     return 0
   fi
-  raw=$(sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=[[:space:]]*//p" "$ENV_FILE" | tail -n 1 | tr -d '\r')
+  raw=$(LC_ALL=C sed -n -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=[[:space:]]*//p" "$ENV_FILE" | LC_ALL=C tail -n 1 | LC_ALL=C tr -d '\r')
   case "$raw" in
-    \"*) printf '%s' "$raw" | sed 's/^"\([^"]*\)".*$/\1/' ;;
-    \'*) printf '%s' "$raw" | sed "s/^'\([^']*\)'.*\$/\1/" ;;
-    *) printf '%s' "$raw" | sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//' ;;
+    \"*) printf '%s' "$raw" | LC_ALL=C sed 's/^"\([^"]*\)".*$/\1/' ;;
+    \'*) printf '%s' "$raw" | LC_ALL=C sed "s/^'\([^']*\)'.*\$/\1/" ;;
+    *) printf '%s' "$raw" | LC_ALL=C sed 's/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//' ;;
   esac
+}
+
+# .env에서 변수(첫 번째 인자)를 Compose가 운영 명령과 다르게 읽을 수 있는 첫 줄의 번호. 없으면 빈 값이다.
+# 줄 앞 공백 뒤가 #인 주석 줄을 빼고, 변수 이름이 낱말로(앞뒤가 이름에 쓰는 글자가 아니게) 들어 있는 줄 가운데
+# env_value가 읽는 형식(줄 앞 공백, export, 이름, 공백, =)이 아니거나, 그 형식이어도 값에 이름이 다시 나오는 줄이다.
+# Compose가 받는 표기를 하나씩 따라가지 않고 넓게 고른다. 그래서 다른 변수의 값에 이름이 들어 있어도 멈추지만,
+# 드물고 멈추는 쪽이 안전하다(요구사항 0028). 주석으로 건너뛰는 줄은 Compose도 주석으로 읽는다.
+# 바이트로 비교하도록 LC_ALL=C로 실행하고, 잘못된 UTF-8이 있어도 GNU grep이 줄을 숨기지 않게 -a를 준다.
+# BusyBox grep -n은 NUL을 줄의 끝으로 세어 줄 번호가 밀리므로, NUL은 이름에 쓰지 않는 글자(?)로 바꾼 뒤 고른다.
+# 바꾼 글자는 이름의 경계가 되므로 NUL이 붙은 이름도 고른다. .env를 셸로 실행하지 않고, 줄 내용은 내보내지 않는다.
+env_unread_line() {
+  if [ ! -f "$ENV_FILE" ]; then
+    return 0
+  fi
+  LC_ALL=C tr -d '\r' < "$ENV_FILE" | LC_ALL=C tr '\000' '?' \
+    | LC_ALL=C sed -E "s/^[[:space:]]*(export[[:space:]]+)?$1[[:space:]]*=/=/" \
+    | LC_ALL=C grep -a -n -E "(^|[^A-Za-z0-9_])$1([^A-Za-z0-9_]|\$)" \
+    | LC_ALL=C grep -a -v -E '^[0-9]+:[[:space:]]*#' \
+    | head -n 1 | cut -d: -f1
+}
+
+# env_unread_line이 찾은 줄의 안내. 변수 이름, 줄 번호, 고칠 형식에 넣을 값의 이름(폴더, 경로)을 받는다.
+env_unread_message() {
+  printf '설정 값을 읽지 못했습니다: %s의 %s번째 줄(%s)\n' "$ENV_FILE" "$2" "$1" >&2
+  printf '  고치는 방법: 그 줄을 %s=%s 형식으로 고친 뒤 다시 실행해 주세요.\n' "$1" "$3" >&2
+  printf '  형식이 맞아 보이면 줄에 보이지 않는 글자가 들어 있을 수 있습니다. 그 줄을 지우고 다시 입력해 주세요.\n' >&2
+  printf '  그 줄이 %s를 적은 줄이 아니고 다른 값이나 줄 끝 주석에 이 이름이 들어 있으면, 값이나 주석에서 이름을 빼 주세요.\n' "$1" >&2
 }
 
 # Compose와 같이 상대 경로는 이 묶음 폴더 기준으로 푼다.
@@ -253,21 +287,63 @@ check_settings() {
     fi
   done
   check_ca_setting
+  check_secrets_setting || settings_ok=no
   [ "$settings_ok" = yes ] || fail "설정 값이 틀려 아무것도 바꾸지 않았습니다. 떠 있던 모니터링 시스템은 그대로 돕니다."
+}
+
+# token 폴더(MONITORING_SECRETS_DIR)를 읽어 export해, Compose가 .env를 다시 읽지 않고 token_file이 검사한 폴더를 쓰게 한다.
+# 값이 없다고 본 경우에도 빈 값을 export한다. env_value가 읽지 않는 형식의 줄이 있으면 Compose가 다른 폴더를 쓸 수 있으므로
+# 안내를 보이고 1을 돌려준다. 띄우기 밖의 docker compose 명령도 그 줄을 읽으므로 셸 환경 변수가 있어도 멈춘다(요구사항 0028).
+check_secrets_setting() {
+  unread_line=$(env_unread_line MONITORING_SECRETS_DIR)
+  if [ -n "$unread_line" ]; then
+    env_unread_message MONITORING_SECRETS_DIR "$unread_line" 폴더
+    return 1
+  fi
+  secrets_value=$(env_value MONITORING_SECRETS_DIR)
+  # 저장소에서는 이 값을 compose.env에 작은따옴표로 감싸 Compose에 넘긴다. Compose는 작은따옴표 안에서도 \와 '를 풀고,
+  # 줄바꿈은 다른 설정 값의 줄을 만들 수 있어 그런 값은 넘기지 않는다(요구사항 0028의 S14). 값은 안내에 쓰지 않는다.
+  # 저장소에서는 검사한 값을 compose.env로 넘겨도 셸 환경 변수가 그보다 먼저 쓰이므로, 값 끝의 줄바꿈도 보도록 표지 글자를 붙여 받는다.
+  # 묶음의 start는 export한 값이 셸의 값을 덮으므로 지금처럼 끝의 줄바꿈을 뗀 값을 검사하고 넘긴다.
+  if [ "$LAYOUT" = repository ]; then
+    secrets_exact=$(env_value MONITORING_SECRETS_DIR; printf x)
+    case "${secrets_exact%x}" in
+      *"'"*|*\\*|*"
+"*)
+        if printenv MONITORING_SECRETS_DIR > /dev/null; then
+          secrets_from="셸 환경 변수 MONITORING_SECRETS_DIR"
+        else
+          secrets_from="$ENV_FILE 의 MONITORING_SECRETS_DIR"
+        fi
+        printf '설정 값이 올바르지 않습니다: %s (token 폴더)\n' "$secrets_from" >&2
+        printf '  문제: 작은따옴표, 백슬래시, 줄바꿈이 있어 저장소에서 띄우는 Compose에 그대로 넘길 수 없습니다.\n' >&2
+        printf '  고치는 방법: 이 글자 없이 infrastructure/ 기준 상대 경로로 적은 뒤 다시 실행해 주세요.\n' >&2
+        return 1 ;;
+    esac
+  fi
+  export MONITORING_SECRETS_DIR="$secrets_value"
 }
 
 # CA 인증서 파일 경로(MONITORING_CA_FILE)를 검사한다. 값이 있으면 CA_FILE을 그 경로로 바꾸고, 비어 있으면 복사본 자리를 그대로 쓴다.
 # 검사한 값은 export해 Compose가 볼륨 원본으로 같은 값을 쓰게 한다. 값이 없다고 본 경우에도 빈 값을 export한다.
-# Compose는 이 명령이 읽지 않는 .env 형식(KEY: 값)도 읽으므로, 그대로 두면 검사하지 않은 경로를 붙일 수 있다.
+# env_value가 읽지 않는 형식의 줄이 있으면 운영자가 적은 파일 대신 복사본을 조용히 쓰게 되므로 멈춘다(요구사항 0028).
 # 틀리면 settings_ok를 no로 둔다.
 check_ca_setting() {
   CA_FROM_SETTING=no
+  unread_line=$(env_unread_line MONITORING_CA_FILE)
+  if [ -n "$unread_line" ]; then
+    env_unread_message MONITORING_CA_FILE "$unread_line" 경로
+    settings_ok=no
+    return 0
+  fi
   if printenv MONITORING_CA_FILE > /dev/null; then
     ca_fix="이 값은 셸 환경 변수 MONITORING_CA_FILE에서 왔고, 셸 환경 변수는 .env의 값보다 먼저 쓰입니다. 셸에서 unset MONITORING_CA_FILE 명령으로 지우거나 값을 고친 뒤 다시 실행해 주세요."
   else
     ca_fix=".env의 MONITORING_CA_FILE 값을 고친 뒤 다시 실행해 주세요."
   fi
-  ca_value=$(env_value MONITORING_CA_FILE)
+  # 셸 환경 변수의 값 끝 줄바꿈도 Compose는 경로로 쓰므로, 형식 검사가 보도록 표지 글자를 붙여 받는다.
+  ca_value=$(env_value MONITORING_CA_FILE; printf x)
+  ca_value=${ca_value%x}
   if [ -z "$ca_value" ]; then
     export MONITORING_CA_FILE=
     return 0
@@ -488,7 +564,11 @@ check_render_dir() {
   if [ -e "$RENDER_DIR" ] && [ ! -d "$RENDER_DIR" ]; then
     fail "펼친 설정 폴더 자리에 파일이 있습니다: $RENDER_DIR. 그 파일을 지운 뒤 다시 실행해 주세요."
   fi
-  for name in $CONFIG_FILES monitoring.env; do
+  names="$CONFIG_FILES monitoring.env"
+  if [ "$LAYOUT" = repository ]; then
+    names="$names compose.env"
+  fi
+  for name in $names; do
     target="$RENDER_DIR/$name"
     if [ -L "$target" ]; then
       fail "펼친 설정 파일이 심볼릭 링크입니다: $target. 링크를 지운 뒤 다시 실행해 주세요."
@@ -511,8 +591,11 @@ check_render() {
 
 # check_render를 통과한 값으로 템플릿을 펼쳐 rendered/에 쓴다. 같은 폴더 안의 임시 폴더(stage)에 모두 쓴 뒤 이름만 바꿔 옮긴다.
 # 펼치는 글자는 검사를 통과한 주소와 monitoring_setting_text의 결과뿐이라 sed와 YAML이 특별하게 읽는 글자가 없다. 값은 eval하지 않는다.
-# config_hash는 새로 펼친 설정과 CA 인증서 파일, previous_hash는 지금 rendered/에 있는 설정과 지난번에 펼칠 때의 CA 인증서 파일의 해시다.
-# CA 인증서 파일은 옮기지 않으므로, 지난번 내용은 monitoring.env의 MONITORING_CA_SHA256으로 안다.
+# config_hash는 새로 펼친 설정, CA 인증서 파일, token 파일의 실제 경로의 해시이고, previous_hash는 지금 rendered/에 있는 설정과
+# 지난번에 펼칠 때의 CA 인증서 파일과 token 파일 경로의 해시다. 두 파일은 옮기지 않으므로 지난번 값은 monitoring.env의
+# MONITORING_CA_SHA256, MONITORING_TOKEN_PATH_SHA256으로 안다. Compose는 token 파일의 경로만 바뀌면 Alertmanager를 다시 만들지
+# 않으므로 경로도 넣는다. Docker는 링크를 따라간 파일을 붙이므로 실제 경로를 쓴다(요구사항 0028의 S10, S11).
+# 경로 글자는 monitoring.env에 쓰지 않는다. Compose가 env_file의 값을 다시 풀어 쓰고, token 폴더 값은 글자를 제한하지 않기 때문이다.
 write_rendered() {
   # 확인을 기다리는 동안 링크로 바뀌었을 수 있어 쓰기 직전에 다시 본다.
   check_render_dir
@@ -540,9 +623,14 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
     fi
   done
   ca_hash=$(sha256sum < "$CA_FILE" | cut -d ' ' -f 1)
-  config_hash=$( { cd "$stage" && cat $CONFIG_FILES; printf '%s\n' "$ca_hash"; } | sha256sum | cut -d ' ' -f 1)
+  token_path=$(token_file)
+  token_real=$(readlink -f "$token_path" 2> /dev/null) && [ -n "$token_real" ] || token_real=$token_path
+  token_path_hash=$(printf '%s' "$token_real" | sha256sum | cut -d ' ' -f 1)
+  config_hash=$( { cd "$stage" && cat $CONFIG_FILES; printf '%s\n%s\n' "$ca_hash" "$token_path_hash"; } | sha256sum | cut -d ' ' -f 1)
   previous_ca_hash=$(sed -n 's/^MONITORING_CA_SHA256=//p' "$RENDER_DIR/monitoring.env" 2>/dev/null || true)
-  previous_hash=$( { cd "$RENDER_DIR" && cat $CONFIG_FILES 2>/dev/null; printf '%s\n' "$previous_ca_hash"; } | sha256sum | cut -d ' ' -f 1)
+  previous_token_path_hash=$(sed -n 's/^MONITORING_TOKEN_PATH_SHA256=//p' "$RENDER_DIR/monitoring.env" 2>/dev/null || true)
+  previous_hash=$( { cd "$RENDER_DIR" && cat $CONFIG_FILES 2>/dev/null; printf '%s\n%s\n' "$previous_ca_hash" "$previous_token_path_hash"; } \
+    | sha256sum | cut -d ' ' -f 1)
   # compose 파일이 env_file로 세 컨테이너에 넘긴다. 프로그램은 읽지 않고, status와 보관 값 줄임 확인이 떠 있는 값을 여기서 읽는다.
   # MONITORING_CONFIG_SHA256이 바뀌면 운영 명령 없이 docker compose up -d로 띄워도 Compose가 컨테이너를 다시 만든다.
   {
@@ -551,15 +639,29 @@ s|@$setting@|$(monitoring_setting_text "$setting" "$(printenv "$setting")")|g"
       printf '%s=%s\n' "$setting" "$(printenv "$setting")"
     done
     printf 'MONITORING_CA_SHA256=%s\n' "$ca_hash"
+    printf 'MONITORING_TOKEN_PATH_SHA256=%s\n' "$token_path_hash"
     printf 'MONITORING_CONFIG_SHA256=%s\n' "$config_hash"
   } > "$stage/monitoring.env"
-  for name in $CONFIG_FILES monitoring.env; do
+  rendered_files="$CONFIG_FILES monitoring.env"
+  # 저장소에서는 render가 끝나면 사라지는 컨테이너 안에서 돌 수 있어(monitoring-dev.bat start), export한 값이 Compose에 닿지 않는다.
+  # 그래서 Compose가 compose 파일에서 푸는 값을 검사한 값 그대로 남기고, Compose는 .env 대신 이 파일을 --env-file로 읽는다.
+  # Compose는 작은따옴표 값을 다시 풀지 않는다. 풀리는 글자가 든 token 폴더 값은 check_secrets_setting이 막았다(요구사항 0028의 S13~S15).
+  if [ "$LAYOUT" = repository ]; then
+    {
+      printf '# sh monitoring-server.sh render가 검사한 값입니다. 저장소에서 띄울 때 docker compose --env-file로 줍니다.\n'
+      for setting in MONITORING_SECRETS_DIR MONITORING_CA_FILE MONITORING_PROMETHEUS_PORT MONITORING_ALERTMANAGER_PORT MONITORING_BLACKBOX_PORT; do
+        printf "%s='%s'\n" "$setting" "$(printenv "$setting")"
+      done
+    } > "$stage/compose.env"
+    rendered_files="$rendered_files compose.env"
+  fi
+  for name in $rendered_files; do
     chmod 0644 "$stage/$name"
   done
   # 이전과 내용이 달라졌으면 render_changed=yes다. 파일 단위로 붙인 컨테이너는 이름을 바꿔 옮긴 새 파일을
   # 다시 시작할 때까지 보지 못하기 때문이다.
   # mv -T는 검사 뒤 그 자리가 폴더나 폴더를 가리키는 링크로 바뀌어도 그 안으로 옮기지 않는다(CWE-59).
-  for name in $CONFIG_FILES monitoring.env; do
+  for name in $rendered_files; do
     mv -f -T "$stage/$name" "$RENDER_DIR/$name"
   done
   rmdir "$stage"
@@ -874,6 +976,7 @@ cmd_install() {
   check_docker
   load_settings
   check_env_location
+  check_secrets_setting || fail "설정 값을 읽지 못해 아무것도 만들지 않았습니다."
   file=$(token_file)
 
   address=""
@@ -925,9 +1028,18 @@ cmd_render() {
   link_env
   write_rendered
   say "설정을 펼쳤습니다: $RENDER_DIR (CA 인증서: $CA_FILE)"
-  say "compose.yml이 있는 폴더에서 docker compose up -d로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
+  if [ "$LAYOUT" = repository ]; then
+    # Compose가 .env를 다시 읽지 않고 이 명령이 검사한 값(compose.env)을 쓰게 한다(요구사항 0028의 S15).
+    say "저장소 폴더에서 docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
+  else
+    say "compose.yml이 있는 폴더에서 docker compose up -d로 띄워 주세요. .env나 CA 인증서 파일을 바꾸면 render를 다시 실행해 주세요."
+  fi
   if monitoring_exists; then
-    say "떠 있는 모니터링 시스템에 새 설정을 쓰려면 docker compose up -d를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
+    if [ "$LAYOUT" = repository ]; then
+      say "떠 있는 모니터링 시스템에 새 설정을 쓰려면 저장소 폴더에서 docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
+    else
+      say "떠 있는 모니터링 시스템에 새 설정을 쓰려면 docker compose up -d를 실행해 주세요. 그 전에 서버를 재시작해도 새 설정이 쓰입니다."
+    fi
   fi
 }
 

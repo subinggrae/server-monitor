@@ -19,7 +19,7 @@
 | 전체 검증 | `monitoring-dev.bat check`, `node scripts/check-docs.mjs` | 완료 기준을 모두 확인한 뒤 끝내기 전, 푸시와 병합 직전 |
 | 규칙 테스트와 모니터링 시스템 설정 검사 | `monitoring-dev.bat check`(아래 [모니터링 시스템 검사와 묶음](#모니터링-시스템-검사와-묶음)) | `infrastructure/`의 규칙, Prometheus, Alertmanager, Blackbox 설정, Dockerfile, `compose.yml`, `monitoring-settings.sh`, `monitoring-server.sh`를 바꿨을 때 |
 | 감시 항목 Alert 규칙의 판정 식 만들기 | `node scripts/monitoring-check-rules.mjs`(확인만 하려면 `--check`) | `scripts/monitoring-check-rules.mjs`의 판정 기준이나 창 길이를 바꿨을 때(`monitoring-checks.yml`의 두 `expr`는 손으로 고치지 않음) |
-| 모니터링 시스템 실행과 멈춤 | `monitoring-dev.bat start`, `monitoring-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 `.env`에 CA 인증서 파일 경로를 적고 `monitoring` 네트워크를 만든 뒤 `sh infrastructure/monitoring-server.sh render`와 `docker compose -f infrastructure/compose.yml up -d --build`, `down`) | 모니터링 시스템 설정을 바꿔 직접 띄워 확인할 때 |
+| 모니터링 시스템 실행과 멈춤 | `monitoring-dev.bat start`, `monitoring-dev.bat stop`(Windows가 아니면 [운영 가이드의 저장소에서 실행](OPERATIONS.md#저장소에서-실행)대로 `.env`에 CA 인증서 파일 경로를 적고 `monitoring` 네트워크를 만든 뒤 `sh infrastructure/monitoring-server.sh render`와 `docker compose --env-file infrastructure/rendered/compose.env -f infrastructure/compose.yml up -d --build`, `down`) | 모니터링 시스템 설정을 바꿔 직접 띄워 확인할 때 |
 | 모니터링 시스템 묶음 | `monitoring-dev.bat build` | 내부망 서버에 옮길 모니터링 시스템과 node_exporter를 만들 때 |
 | 문서 검사 | `node scripts/check-docs.mjs` | 문서를 바꿨을 때(그림을 바꿨다면 `--render`를 붙여서) |
 
@@ -38,6 +38,7 @@
   - 운영 이미지로 Blackbox 설정 검사(`blackbox_exporter --config.check`). 이어서 펼친 설정을 붙여 운영 이미지를 띄우고, Blackbox Exporter가 읽어 들인 설정(`/config`)에서 module마다 `timeout`이 확인 제한 시간인지, 인증서 검증을 끄는 `insecure_skip_verify: true`가 `http_2xx_insecure`의 `http.tls_config`에 있고 다른 module에는 없는지 확인([ADR 0016](decisions/0016-http-insecure-module.md)). 펼친 파일의 글자가 아니라 Blackbox Exporter가 YAML을 읽은 결과를 보므로, 템플릿에 어떤 YAML 표기를 써도 결과가 같다. `/config`는 공식 Prometheus 이미지의 BusyBox `wget`을 그 컨테이너의 네트워크에 붙여 받고, 호스트 포트는 열지 않는다. `/config`에서 module 이름 줄을 읽지 못하면(여러 줄이거나 아주 긴 이름) 실패한다. 첫 벌에서는 펼친 설정을 고친 사본 네 개(`http_2xx`에 인증서 검증 끄기를 넣음, `http_2xx_insecure`에서 빼거나 `false`로 바꿈, `http_2xx_insecure`의 `timeout`을 바꿈)로 운영 이미지를 하나씩 띄워, 이 검사가 사본을 모두 거부하는지도 확인한다
   - 펼친 `monitoring.env`에 검사를 통과한 값이 들어 있는지 확인
 - `infrastructure/compose.yml`의 모든 포트가 값 세 벌에서 `127.0.0.1`에만 열리는지, 서비스마다 펼친 설정만 읽기 전용으로 붙고 CA 인증서 파일은 Blackbox Exporter에만 붙는지(`MONITORING_CA_FILE`을 비우면 `certs/`의 복사본, 적으면 그 경로), healthcheck가 없고 `rendered/monitoring.env`가 없으면 Compose가 멈추는지 확인. 묶음을 만들 때는 실행용 `compose.yml`도 같은 확인을 한다
+- 저장소에서 `render`가 남긴 `rendered/compose.env`를 Compose가 `--env-file`로 읽으면 운영 명령이 검사한 token 폴더와 CA 인증서 파일이 붙는지 확인. token 폴더 이름에는 Compose가 따옴표 없이 읽으면 다른 값으로 푸는 글자를 넣는다
 - 운영 이미지에서 꺼낸 규칙으로 `infrastructure/prometheus/tests/`의 규칙 테스트(`promtool test rules`)
 - 모니터링 서버 운영 명령(`infrastructure/monitoring-server.sh`)의 자동 시험(`infrastructure/tests/monitoring-server.test.sh`). 공식 Prometheus 이미지의 BusyBox `sh`에서 가짜 `docker`, `systemctl`, `curl`, `wget`으로 실행한다. 범위 밖이거나 형식이 틀린 값과 관리자 서버 주소를 `render`와 `start`가 거부하는지도 여기서 본다
 

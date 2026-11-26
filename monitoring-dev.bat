@@ -65,7 +65,7 @@ if not defined TOOLS (
   set RC=1
   goto end
 )
-docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e MONITORING_RETENTION_DAYS -e MONITORING_RETENTION_SIZE_GB -e MONITORING_PROBE_TIMEOUT_SECONDS -e MONITORING_PROMETHEUS_PORT -e MONITORING_ALERTMANAGER_PORT -e MONITORING_BLACKBOX_PORT -e MONITORING_OS_EXPORTER -e MONITORING_CA_FILE --user 0 --entrypoint /bin/sh %TOOLS% -c "[ -f certs/ca-certificates.crt ] || { mkdir -p certs && cp /etc/ssl/certs/ca-certificates.crt certs/ && chmod 0644 certs/ca-certificates.crt; }; sh monitoring-server.sh render"
+docker run --rm -v "%CD%\infrastructure:/work" -w /work -e MONITORING_APP_ADDRESS -e MONITORING_RETENTION_DAYS -e MONITORING_RETENTION_SIZE_GB -e MONITORING_PROBE_TIMEOUT_SECONDS -e MONITORING_PROMETHEUS_PORT -e MONITORING_ALERTMANAGER_PORT -e MONITORING_BLACKBOX_PORT -e MONITORING_OS_EXPORTER -e MONITORING_CA_FILE -e MONITORING_SECRETS_DIR --user 0 --entrypoint /bin/sh %TOOLS% -c "[ -f certs/ca-certificates.crt ] || { mkdir -p certs && cp /etc/ssl/certs/ca-certificates.crt certs/ && chmod 0644 certs/ca-certificates.crt; }; sh monitoring-server.sh render"
 if errorlevel 1 (
   set RC=1
   goto end
@@ -80,7 +80,9 @@ if errorlevel 1 (
     goto end
   )
 )
-docker compose -f infrastructure\compose.yml up -d --build
+rem render는 끝나면 사라지는 컨테이너 안에서 돌아 검사한 값이 여기로 돌아오지 않는다. 그래서 Compose가 .env를 다시 읽지 않고
+rem render가 남긴 compose.env(두 경로 값과 호스트 포트)를 읽게 한다. 값을 cmd 변수로 받지 않으므로 cmd가 값의 글자를 해석하지 않는다(요구사항 0028).
+docker compose --env-file infrastructure\rendered\compose.env -f infrastructure\compose.yml up -d --build
 set RC=%ERRORLEVEL%
 goto end
 

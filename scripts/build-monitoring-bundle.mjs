@@ -230,7 +230,8 @@ function exportImage(image) {
   const result = spawnSync('docker', ['export', '-o', exported, container], { stdio: 'inherit' });
   const bytes = result.status === 0 ? fs.readFileSync(exported) : null;
   fs.rmSync(exported, { force: true });
-  spawnSync('docker', ['rm', container], { stdio: 'ignore' });
+  // 이미지의 VOLUME으로 만든 이름 없는 볼륨이 남지 않게 함께 지운다(-v).
+  spawnSync('docker', ['rm', '-v', container], { stdio: 'ignore' });
   if (!bytes) {
     fail(`${image}의 파일 시스템을 내보내지 못했습니다.`);
   }
@@ -414,8 +415,8 @@ function durationSeconds(text) {
 }
 
 // 모니터링 서버와 같은 운영 명령(monitoring-server.sh render)으로 설정을 펼친다. 저장소 배치를 본뜬 임시 폴더에서 공식 이미지의 셸로 실행한다.
-// token과 CA 인증서 파일은 검사용 값이고 비밀값이 아니다.
-function renderConfigs(tools, values) {
+// token과 CA 인증서 파일은 검사용 값이고 비밀값이 아니다. tokenDir은 검사용 token을 둘 폴더(work 기준)다.
+function renderConfigs(tools, values, { tokenDir = 'secrets' } = {}) {
   const work = scratchDir('render-check');
   for (const name of ['monitoring-server.sh', 'monitoring-settings.sh', 'prometheus/prometheus.yml', 'alertmanager/alertmanager.yml',
     'blackbox/blackbox.yml']) {
@@ -423,8 +424,8 @@ function renderConfigs(tools, values) {
   }
   const env = Object.entries({ MONITORING_APP_ADDRESS: CHECK_APP_ADDRESS, ...values }).map(([key, value]) => `${key}=${value}`);
   writeText(path.join(work, '.env'), `${env.join('\n')}\n`);
-  writeText(path.join(work, 'secrets', 'alertmanager_webhook_token'), 'build-check-token\n');
-  fs.chmodSync(path.join(work, 'secrets', 'alertmanager_webhook_token'), 0o644);
+  writeText(path.join(work, tokenDir, 'alertmanager_webhook_token'), 'build-check-token\n');
+  fs.chmodSync(path.join(work, tokenDir, 'alertmanager_webhook_token'), 0o644);
   writeText(path.join(work, 'certs', 'ca-certificates.crt'), 'build-check-ca\n');
   fs.chmodSync(path.join(work, 'certs', 'ca-certificates.crt'), 0o644);
   run('docker', ['run', '--label', CHECK_LABEL, '--rm', '--user', hostUser(), '-v', `${work}:/work`, '-w', '/work',
@@ -734,12 +735,39 @@ function checkRenderedMounts(composeFile, caDir) {
   }
 }
 
+// 저장소에서 render가 남긴 compose.env를 Compose가 읽으면, 운영 명령이 검사한 token 폴더와 CA 인증서 파일이 붙는지 본다(요구사항 0028의 C13).
+// token 폴더 이름에는 Compose가 따옴표 없이 읽으면 다른 값으로 푸는 글자를 넣고, Windows 빌드 PC에서도 만들 수 있는 글자만 쓴다.
+// 빌드 PC의 셸에 같은 이름의 환경 변수가 있으면 Compose가 그 값을 먼저 쓰므로 MONITORING_로 시작하는 변수는 빼고 실행한다.
+const COMPOSE_ENV_CHECK_DIR = 'token ${UNSET_FOR_COMPOSE_ENV_CHECK}#dir';
+
+function checkRenderedComposeEnv(tools) {
+  const rendered = renderConfigs(tools, { MONITORING_SECRETS_DIR: `./${COMPOSE_ENV_CHECK_DIR}` }, { tokenDir: COMPOSE_ENV_CHECK_DIR });
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('MONITORING_')));
+  const result = spawnSync('docker', ['compose', '--project-directory', rendered.work, '--env-file', path.join(rendered.dir, 'compose.env'),
+    '-f', SYSTEM_COMPOSE, 'config', '--format', 'json'], { cwd: ROOT, env, encoding: 'utf8' });
+  if (result.error || result.status !== 0) {
+    fail(`저장소에서 펼친 compose.env로 Compose가 ${SYSTEM_COMPOSE}을 읽지 못했습니다: ${result.error?.message ?? result.stderr.trim()}`);
+  }
+  const config = JSON.parse(result.stdout);
+  // config의 출력은 글자 $를 다시 읽을 수 있게 $$로 적는다.
+  const tokenFile = (config.secrets?.alertmanager_webhook_token?.file ?? '').replaceAll('$$', '$');
+  const ca = (config.services['blackbox-exporter']?.volumes ?? []).find((volume) => volume.target === '/etc/ssl/certs/ca-certificates.crt');
+  const expectedToken = path.join(rendered.work, COMPOSE_ENV_CHECK_DIR, 'alertmanager_webhook_token');
+  const expectedCa = path.join(rendered.work, 'certs', 'ca-certificates.crt');
+  if (path.resolve(tokenFile) !== path.resolve(expectedToken) || !ca || path.resolve(ca.source) !== path.resolve(expectedCa)) {
+    fail(`저장소에서 펼친 compose.env를 Compose가 운영 명령과 다르게 읽었습니다. token 파일: ${tokenFile}(기대: ${expectedToken}), `
+      + `CA 인증서 파일: ${ca?.source}(기대: ${expectedCa})`);
+  }
+  fs.rmSync(rendered.work, { recursive: true, force: true });
+}
+
 // 운영 이미지에 든 규칙을 꺼낸다. 셸 없이 컨테이너를 만들고(실행하지 않음) docker cp로 꺼내, 이미지에 든 규칙을 그대로 검사한다.
 function extractRules(prometheus) {
   const dir = scratchDir('rules-check');
   const container = run('docker', ['create', '--label', CHECK_LABEL, prometheus], { capture: true });
   const result = spawnSync('docker', ['cp', `${container}:/etc/prometheus/rules`, dir], { stdio: 'inherit' });
-  spawnSync('docker', ['rm', container], { stdio: 'ignore' });
+  // 공식 Prometheus 이미지의 VOLUME으로 만든 이름 없는 볼륨이 남지 않게 함께 지운다(-v).
+  spawnSync('docker', ['rm', '-v', container], { stdio: 'ignore' });
   if (result.status !== 0) {
     fail(`${prometheus}에서 규칙을 꺼내지 못했습니다.`);
   }
@@ -781,6 +809,8 @@ function checkSystemImages(release, tools) {
   console.log('compose.yml의 포트가 127.0.0.1에만 열리고, 펼친 설정만 읽기 전용으로 붙는지 확인합니다.');
   checkPortBindings(SYSTEM_COMPOSE, ranges);
   checkRenderedMounts(SYSTEM_COMPOSE, CERTS_DIR);
+  console.log('저장소에서 펼친 compose.env를 Compose가 운영 명령이 검사한 값 그대로 읽는지 확인합니다.');
+  checkRenderedComposeEnv(tools);
   // 테스트 파일은 ../rules/를 읽으므로 꺼낸 규칙 바로 옆에 붙여, 이미지에 들어간 규칙을 그대로 시험한다.
   console.log('운영 이미지에서 꺼낸 규칙으로 규칙 테스트를 실행합니다.');
   const tests = path.join(INFRA_DIR, 'prometheus', 'tests');
