@@ -240,7 +240,7 @@ docker run --rm --user 0 -v "$PWD/infrastructure:/src:ro" --entrypoint /bin/sh "
 - [x] 고친 사본으로 결함을 잡는지 본다: 경로 해시를 뺀 사본, `.env` 값 글자로 해시하는 사본, `compose.env`에 `.env` 줄을 옮기는 사본, S14 멈춤을 지운 사본, 안내 줄을 지운 사본, `grep -a`를 지운 사본(실패하지 않을 것으로 봄, 이유 기록). GNU `grep`에서 `-a`의 차이를 수동으로 확인해 적는다.
 - [x] 코드 주석, OPERATIONS.md(token 폴더를 바꾼 `start`, 저장소에서 실행의 값 파일과 S14, 다른 OS 명령), DEVELOPMENT.md와 compose 파일 머리 주석의 다른 OS 명령, ARCHITECTURE.md(받아들인 한계, 개발용 띄우기의 값 넘기기)를 고치고 `node scripts/check-docs.mjs`를 돌린다.
 - [x] C11, C16(dind)과 C14(Windows) 수동 확인을 하고 결과를 진행 중 발견에 적는다. 띄운 컨테이너, 받은 이미지, 시험용 폴더는 확인 뒤 지운다.
-- [ ] 전체 검증(C9)을 돌리고 커밋 SHA와 결과를 적는다.
+- [x] 전체 검증(C9)을 돌리고 커밋 SHA와 결과를 적는다. `9348f6c`에서 `node scripts/build-monitoring-bundle.mjs --check`(운영 명령 시험 통과 510, 실패 0, 새 `compose.env` 확인 포함)와 `node scripts/check-docs.mjs`(오류 0, 경고 0)가 통과했다. 그 뒤의 커밋은 이 줄을 적은 문서 커밋뿐이다.
 - [ ] 구현하지 않은 세션이나 하위 에이전트에 리뷰를 맡긴다. 요구사항의 완료 기준, 이 계획, diff, 검증한 커밋 SHA와 명령·결과, 위 보안 위협의 CWE를 준다.
 - [ ] 리뷰를 반영한 뒤 계획 템플릿의 상태 값 설명대로 남길 것을 옮기고, 요구사항을 구현됨으로 바꾸고, 이 계획을 지운다(병합 전 마지막 커밋).
 
